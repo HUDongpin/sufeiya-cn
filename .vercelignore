@@ -2,10 +2,8 @@
 # screenshots, exported learner data, and repository metadata stay private.
 /*
 !/*.html
-!/assets/
-!/assets/**
-!/data/
-!/data/resources.json
+!assets
+!data
 !/resources.js
 !/script.js
 !/workspace.js
