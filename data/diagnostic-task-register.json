@@ -1,0 +1,282 @@
+{
+  "protocolVersion": "sufeiya_diagnostic_task_register_v1",
+  "taskSetId": "gate-a-original-evidence-pack",
+  "taskSetVersion": "gate_a_original_6_v1",
+  "taskSetDigest": "c1b2922ca96677665690bf790281be2438a016bbbe0d9f85478685af3c8dfc2c",
+  "releaseStatus": "gate_a_demo_only",
+  "purpose": "Clickable local-only evidence-flow demonstration; not a calibrated assessment or official DET simulation.",
+  "reviewStatus": "unreviewed",
+  "scopeConfirmationStatus": "owner_confirmed",
+  "teacherReviewed": false,
+  "measurementReviewed": false,
+  "rightsStatus": {
+    "link": "not_applicable",
+    "embed": "not_applicable",
+    "transcribe": "not_applicable",
+    "cache": "pending",
+    "rag": "denied",
+    "republish": "pending"
+  },
+  "examVersionStatus": "not_applicable",
+  "ragEligibility": "blocked",
+  "safetyFlags": [],
+  "origin": "project_authored_original_not_official",
+  "author": "Sufeiya project draft authored with Codex",
+  "reviewer": null,
+  "reviewedAt": null,
+  "tasks": [
+    {
+      "taskId": "diagnostic-reading-library-v1",
+      "taskVersion": "v1",
+      "order": 1,
+      "skill": "Reading",
+      "responseType": "single_choice",
+      "suggestedDurationSeconds": 120,
+      "constructTag": "purpose_from_supporting_details",
+      "contentOriginClass": "first_party_original_task",
+      "sourceClass": "owner_confirmed_scope",
+      "claimVerificationStatus": "unverified",
+      "reviewStatus": "unreviewed",
+      "rightsStatus": {
+        "link": "not_applicable",
+        "embed": "not_applicable",
+        "transcribe": "not_applicable",
+        "cache": "pending",
+        "rag": "denied",
+        "republish": "pending"
+      },
+      "examVersionStatus": "not_applicable",
+      "ragEligibility": "blocked",
+      "safetyFlags": [],
+      "derivedFrom": "reading-library-v1",
+      "contentHash": "f1c71d28d6e9b3ebe8b4c29fa5cec52c20b83d737b57f0bc98e15e15f97decd7",
+      "content": {
+        "eyebrow": "Reading 1 / 2",
+        "title": "Purpose and study spaces",
+        "instructionZh": "阅读英文材料，保存第一次选择。提交后不能重试，答案会在报告中按汇总方式呈现。",
+        "passage": "Maya noticed that the school library was busiest just before exams. Instead of adding more desks, the librarian created several quiet zones and one small area for group discussion. After two weeks, students reported that it was easier to choose a space that matched the way they needed to study.",
+        "question": "Why did the librarian reorganize the space?",
+        "choices": [
+          { "value": "a", "label": "To make the library look larger." },
+          { "value": "b", "label": "To support different ways of studying." },
+          { "value": "c", "label": "To reduce the number of students." }
+        ],
+        "correctValue": "b"
+      }
+    },
+    {
+      "taskId": "diagnostic-reading-newsletter-v1",
+      "taskVersion": "v1",
+      "order": 2,
+      "skill": "Reading",
+      "responseType": "single_choice",
+      "suggestedDurationSeconds": 120,
+      "constructTag": "cause_from_text_structure",
+      "contentOriginClass": "first_party_original_task",
+      "sourceClass": "owner_confirmed_scope",
+      "claimVerificationStatus": "unverified",
+      "reviewStatus": "unreviewed",
+      "rightsStatus": {
+        "link": "not_applicable",
+        "embed": "not_applicable",
+        "transcribe": "not_applicable",
+        "cache": "pending",
+        "rag": "denied",
+        "republish": "pending"
+      },
+      "examVersionStatus": "not_applicable",
+      "ragEligibility": "blocked",
+      "safetyFlags": [],
+      "derivedFrom": null,
+      "contentHash": "8b5feb0e382ea0ffe016ab64f17edb30b8467b40fccf5d8b96d3e2bb74ba44ca",
+      "content": {
+        "eyebrow": "Reading 2 / 2",
+        "title": "Finding event information",
+        "instructionZh": "阅读英文材料，判断哪一处变化最能解释结果。只保存第一次选择。",
+        "passage": "The student newspaper originally sent one long newsletter every month. Readers often missed club announcements because the notices appeared near the end. The editors began sending a shorter weekly bulletin with a separate events section. More students opened the event links, even though the total number of announcements stayed about the same.",
+        "question": "Why did more students open the event links?",
+        "choices": [
+          { "value": "a", "label": "The newspaper published more announcements." },
+          { "value": "b", "label": "The event information became easier to find." },
+          { "value": "c", "label": "The monthly newsletter became longer." }
+        ],
+        "correctValue": "b"
+      }
+    },
+    {
+      "taskId": "diagnostic-listening-science-club-v1",
+      "taskVersion": "v1",
+      "order": 3,
+      "skill": "Listening",
+      "responseType": "single_choice_audio",
+      "suggestedDurationSeconds": 90,
+      "constructTag": "schedule_change_detail",
+      "contentOriginClass": "first_party_original_task",
+      "sourceClass": "owner_confirmed_scope",
+      "claimVerificationStatus": "unverified",
+      "reviewStatus": "unreviewed",
+      "rightsStatus": {
+        "link": "not_applicable",
+        "embed": "not_applicable",
+        "transcribe": "pending",
+        "cache": "pending",
+        "rag": "denied",
+        "republish": "pending"
+      },
+      "examVersionStatus": "not_applicable",
+      "ragEligibility": "blocked",
+      "safetyFlags": [],
+      "derivedFrom": "listening-club-v1",
+      "contentHash": "882abc23a7376b27a0d53e2a4d7b6eb10480bd7b618002fe3e6704922ea67308",
+      "audioAsset": {
+        "path": "/assets/listening-science-club.mp3",
+        "sha256": "e79ff2075d1786074433c5e044763d0a407e8a0c02a635c52a054d758b37e850",
+        "bytes": 155942,
+        "durationSeconds": 9.659955,
+        "generationOrSpeaker": "existing_project_audio_generator_not_recorded",
+        "rightsReviewStatus": "pending"
+      },
+      "content": {
+        "eyebrow": "Listening 1 / 2",
+        "title": "A schedule change",
+        "instructionZh": "播放英文音频后保存第一次选择。查看英文原文仍可完成任务，但会标记为辅助完成。",
+        "audioMode": "static_asset",
+        "audioPath": "/assets/listening-science-club.mp3",
+        "transcript": "The science club moved its weekly meeting from Tuesday to Thursday because the laboratory is now used for another class on Tuesday afternoon. The meeting will still begin at four thirty.",
+        "question": "When will the science club meet?",
+        "choices": [
+          { "value": "a", "label": "Tuesday at 4:30." },
+          { "value": "b", "label": "Thursday at 4:30." },
+          { "value": "c", "label": "Thursday at 3:30." }
+        ],
+        "correctValue": "b"
+      }
+    },
+    {
+      "taskId": "diagnostic-listening-language-lab-v1",
+      "taskVersion": "v1",
+      "order": 4,
+      "skill": "Listening",
+      "responseType": "single_choice_audio",
+      "suggestedDurationSeconds": 90,
+      "constructTag": "time_and_location_integration",
+      "contentOriginClass": "first_party_original_task",
+      "sourceClass": "owner_confirmed_scope",
+      "claimVerificationStatus": "unverified",
+      "reviewStatus": "unreviewed",
+      "rightsStatus": {
+        "link": "not_applicable",
+        "embed": "not_applicable",
+        "transcribe": "pending",
+        "cache": "pending",
+        "rag": "denied",
+        "republish": "pending"
+      },
+      "examVersionStatus": "not_applicable",
+      "ragEligibility": "blocked",
+      "safetyFlags": ["browser_voice_variability"],
+      "derivedFrom": null,
+      "contentHash": "be827c7ed66ed510a9b94aafdd16b35f445c82e14034bce6c971a29b5a8200cd",
+      "speechSynthesisConfig": {
+        "lang": "en-US",
+        "rate": 0.92,
+        "pitch": 1,
+        "volume": 1,
+        "voiceSelection": "prefer_local_en_us_then_en_then_device_default"
+      },
+      "content": {
+        "eyebrow": "Listening 2 / 2",
+        "title": "Language lab instructions",
+        "instructionZh": "点击播放由当前设备英文语音合成器朗读的原创脚本，再保存第一次选择。不同设备的声音可能不同，因此证据只作流程演示。",
+        "audioMode": "browser_speech_synthesis",
+        "audioPath": null,
+        "transcript": "Please bring your student card to the language lab. The practice session starts at ten twenty, but the doors open at ten. We will meet in Lab Three, not the main lecture hall.",
+        "question": "Where and when does the practice session start?",
+        "choices": [
+          { "value": "a", "label": "Lab Three at 10:20." },
+          { "value": "b", "label": "The main lecture hall at 10:00." },
+          { "value": "c", "label": "Lab Three at 10:00." }
+        ],
+        "correctValue": "a"
+      }
+    },
+    {
+      "taskId": "diagnostic-speaking-learning-skill-v1",
+      "taskVersion": "v1",
+      "order": 5,
+      "skill": "Speaking",
+      "responseType": "timed_self_report",
+      "suggestedDurationSeconds": 110,
+      "constructTag": "task_coverage_and_connected_thoughts_self_report",
+      "contentOriginClass": "first_party_original_task",
+      "sourceClass": "owner_confirmed_scope",
+      "claimVerificationStatus": "unverified",
+      "reviewStatus": "unreviewed",
+      "rightsStatus": {
+        "link": "not_applicable",
+        "embed": "not_applicable",
+        "transcribe": "not_applicable",
+        "cache": "pending",
+        "rag": "denied",
+        "republish": "pending"
+      },
+      "examVersionStatus": "not_applicable",
+      "ragEligibility": "blocked",
+      "safetyFlags": ["audio_not_recorded"],
+      "derivedFrom": "speaking-skill-v1",
+      "contentHash": "8d40b58172fbd68371784db6caa74a57e37e480c288f64fca9fc1a772d9acdf9",
+      "content": {
+        "eyebrow": "Speaking · 90 seconds",
+        "title": "A skill you want to learn",
+        "instructionZh": "先准备 20 秒，再大声回答最多 90 秒。本站不请求麦克风、不录音；结果只能说明计时与自查是否完成。",
+        "prompt": "Describe a skill you would like to learn in the next year. Explain why it matters, how you would practice it, and one difficulty you expect.",
+        "prepSeconds": 20,
+        "responseSeconds": 90,
+        "selfReview": [
+          { "id": "coverage", "label": "I covered all parts of the prompt." },
+          { "id": "support", "label": "I gave a reason or example." },
+          { "id": "connected", "label": "I spoke in connected thoughts." }
+        ]
+      }
+    },
+    {
+      "taskId": "diagnostic-writing-learning-place-v1",
+      "taskVersion": "v1",
+      "order": 6,
+      "skill": "Writing",
+      "responseType": "timed_local_text",
+      "suggestedDurationSeconds": 180,
+      "constructTag": "task_response_structure_self_review",
+      "contentOriginClass": "first_party_original_task",
+      "sourceClass": "owner_confirmed_scope",
+      "claimVerificationStatus": "unverified",
+      "reviewStatus": "unreviewed",
+      "rightsStatus": {
+        "link": "not_applicable",
+        "embed": "not_applicable",
+        "transcribe": "not_applicable",
+        "cache": "pending",
+        "rag": "denied",
+        "republish": "pending"
+      },
+      "examVersionStatus": "not_applicable",
+      "ragEligibility": "blocked",
+      "safetyFlags": [],
+      "derivedFrom": "writing-community-v1",
+      "contentHash": "83cef1ddc39ff2a78e76fcb89de376c63fe7f6e859e1a3bf16e14b97652b3f85",
+      "content": {
+        "eyebrow": "Writing · 3 minutes",
+        "title": "A better place to learn",
+        "instructionZh": "写作时间上限为 3 分钟。英文原文只保存在当前浏览器；页面仅记录词数、计时和自查，不生成语言评分。",
+        "prompt": "Describe one change that could make your school or community a better place to learn. Explain why it would help and give one example of how it could be used.",
+        "responseSeconds": 180,
+        "minimumWordsForCompletion": 20,
+        "selfReview": [
+          { "id": "change", "label": "I described one clear change." },
+          { "id": "support", "label": "I gave a reason or example." },
+          { "id": "reviewed", "label": "I reviewed my response." }
+        ]
+      }
+    }
+  ]
+}

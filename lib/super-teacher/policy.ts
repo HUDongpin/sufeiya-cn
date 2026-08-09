@@ -4,7 +4,7 @@ const patterns = {
   promptInjection:
     /(忽略|无视|覆盖|删除).{0,16}(之前|上面|系统|开发者|规则|指令)|系统提示词|开发者消息|越狱|jailbreak|system\s*prompt|developer\s*message|ignore.{0,20}(previous|system|instruction)|reveal.{0,20}(prompt|instruction)/i,
   sensitiveData:
-    /(?:\+?86[- ]?)?1[3-9](?:[- ]?\d){9}|\b\d{17}[\dXx]\b|\b[A-Z]\d{7,8}\b|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}|(?:我叫|我的名字是|姓名\s*[:：]|my name is)\s*[\p{L}·.' -]{2,30}|(?:住址|地址|家庭住址|住在|居住于)\s*[:：]?\s*[^，。；\n]{3,60}|(?:微信|QQ|wx|wechat)\s*(?:号|ID)?\s*[:：]?\s*[A-Z0-9_-]{4,}|(?:学号|student\s*id)\s*[:：]?\s*[A-Z0-9-]{5,}|(?:银行卡|身份证|护照|密码|验证码)\s*[:：]?\s*[A-Z0-9-]{4,}|(?:api[_ -]?key|access[_ -]?token|token|secret|密钥)\s*[:=：]?\s*\S{6,}|\b(?:sk-[A-Z0-9_-]{8,}|gh[pousr]_[A-Z0-9]{10,})/iu,
+    /(?:\+?86[- ]?)?1[3-9](?:[- ]?\d){9}|\b\d{17}[\dXx]\b|\b[A-Z]\d{7,8}\b|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}|(?:我叫|我的名字是|姓名\s*[:：]|my name is)\s*[\p{L}·.' -]{2,30}|(?:住址|地址|家庭住址|住在|居住于)\s*[:：]?\s*[^，。；\n]{3,60}|(?:微信|QQ|wx|wechat)\s*(?:号|号码|ID)?\s*[:：]?\s*[A-Z0-9_-]{4,}|(?:学号|student\s*id)\s*[:：]?\s*[A-Z0-9-]{5,}|(?:银行卡|银行卡号|支付账号|身份证|身份证号|护照|护照号|密码|验证码)\s*(?:号|号码)?\s*[:：]?\s*[A-Z0-9 -]{4,}|(?:api[_ -]?key|access[_ -]?token|token|secret|密钥)\s*[:=：]?\s*\S{6,}|\b(?:sk-[A-Z0-9_-]{8,}|gh[pousr]_[A-Z0-9]{10,})/iu,
   activeExam:
     /我(?:正在|现在|此刻).{0,10}(考试|测试|答题)|正在.{0,8}(考试|测试|答题)|考试中|帮我.{0,8}(答|选|提交)|替我.{0,8}(答|写|考)|直接告诉我.{0,8}(答案|选项)|remote.{0,8}exam|live.{0,8}(test|exam)|answer.{0,8}for me/i,
   integrity:
@@ -22,6 +22,23 @@ const patterns = {
     /题型|考试结构|考试时长|评分标准|评分规则|分项|有效期|认证|考试费用|报名|设备要求|官方练习测试|官方规则|det\b|duolingo english test|subscore|test structure|scoring/i,
 };
 
+function normalizeSensitiveText(value: string) {
+  return value
+    .replace(/[０-９]/g, (digit) => String(digit.charCodeAt(0) - 0xfee0))
+    .replace(/[－—–]/g, "-")
+    .replace(/\u3000/g, " ");
+}
+
+export function containsSensitiveData(question: string) {
+  const text = normalizeSensitiveText(question);
+  if (patterns.sensitiveData.test(text)) return true;
+  const numberCandidates = text.match(/\d(?:[ -]?\d){11,24}/g) ?? [];
+  return numberCandidates.some((candidate) => {
+    const digits = candidate.replace(/\D/g, "");
+    return digits.length >= 13 && digits.length <= 25;
+  });
+}
+
 export type PolicyDecision = {
   intent: TeacherIntent;
   allowModel: boolean;
@@ -31,7 +48,7 @@ export type PolicyDecision = {
 export function classifyTeacherQuestion(question: string): PolicyDecision {
   const text = question.trim();
 
-  if (patterns.sensitiveData.test(text)) {
+  if (containsSensitiveData(text)) {
     return {
       intent: "sensitive_data",
       allowModel: false,

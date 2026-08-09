@@ -1,7 +1,7 @@
 import { Buffer } from "node:buffer";
 import { randomUUID } from "node:crypto";
 
-import { SUPER_TEACHER_PROTOCOL, superTeacherRequestSchema } from "@/lib/super-teacher/contracts";
+import { SUPER_TEACHER_PROTOCOL, superTeacherRequestSchema, superTeacherResponseSchema } from "@/lib/super-teacher/contracts";
 import { classifyTeacherQuestion } from "@/lib/super-teacher/policy";
 import { checkSuperTeacherRateLimit } from "@/lib/super-teacher/rate-limit";
 import { createTeacherResponse } from "@/lib/super-teacher/responder";
@@ -106,10 +106,14 @@ export async function POST(request: Request) {
     requestId,
     abortSignal: request.signal,
   });
+  const validatedAnswer = superTeacherResponseSchema.safeParse(answer);
+  if (!validatedAnswer.success) {
+    return json({ error: "invalid_response", requestId }, { status: 500 });
+  }
 
-  return Response.json(answer, {
+  return Response.json(validatedAnswer.data, {
     headers: {
-      ...responseHeaders(answer.mode),
+      ...responseHeaders(validatedAnswer.data.mode),
       "X-RateLimit-Remaining": String(rateLimit.remaining),
     },
   });

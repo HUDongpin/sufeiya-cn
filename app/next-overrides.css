@@ -212,6 +212,10 @@
 }
 
 @media (max-width: 1080px) {
+  .header-inner {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
   .desktop-nav,
   .header-actions {
     display: none;

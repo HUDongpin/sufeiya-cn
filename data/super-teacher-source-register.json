@@ -9,7 +9,7 @@
       "href": "/diagnostic",
       "sourceClass": "first_party_product_policy",
       "admissionStatus": "product_policy_allowed",
-      "content": "演示性初筛只读取当前浏览器内四项本站原创微练习的完成状态，并记录学习者主动确认的优先能力。它不自动评分，不形成正式能力诊断，也不提供 DET 分数或成绩预测。",
+      "content": "Gate A 诊断证据包在当前浏览器内依次记录两项 Reading、两项 Listening、90 秒 Speaking 与 3 分钟 Writing 的任务终态、质量标记和学习者确认的下一条优先任务。客观题只封存首答；Writing 与 Speaking 不自动评分且未经合格人工审核。它不形成正式能力诊断，也不提供 DET 分数或成绩预测。",
       "allowedIntents": ["why_priority", "explain_plan", "explain_limits", "validate_progress"]
     },
     {

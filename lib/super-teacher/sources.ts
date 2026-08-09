@@ -69,6 +69,14 @@ const taskSourceIds: Record<string, string> = {
   Speaking: "sufeiya-speaking-task-v1",
 };
 
+const priorityBasisLabels: Record<string, string> = {
+  objective_first_response_pattern: "四项客观任务的首答模式",
+  evidence_quality_gap: "音频、原文替代或任务缺项造成的证据质量缺口",
+  open_response_coverage_gap: "开放作答的计时或自查覆盖缺口",
+  learner_confirmation_after_multiple_gaps: "多项证据缺口并列后由学习者确认的先后顺序",
+  learner_confirmation_after_tie: "客观任务并列后由学习者确认的先后顺序",
+};
+
 function primarySkill(context?: LearnerContext) {
   return context?.plan?.currentTaskSkill ?? context?.prioritySkill ?? context?.plan?.focusSkill;
 }
@@ -79,15 +87,17 @@ function dynamicSources(context?: LearnerContext): GroundingSource[] {
 
   if (context.prioritySkill || context.evidenceSufficiency || context.completedEvidenceSkills) {
     const priority = context.prioritySkill ? skillLabels[context.prioritySkill] : "尚未确认";
-    const evidenceCount = context.completedEvidenceSkills?.length ?? 0;
+    const evidenceCount = context.completedEvidenceTaskCount ?? context.completedEvidenceSkills?.length ?? 0;
     const sufficiency =
       context.evidenceSufficiency === "evidence_limited" ? "证据有限" : "证据不足，需要补充";
+    const confidence = context.evidenceConfidence === "medium" ? "中等证据覆盖置信度" : "低证据覆盖置信度";
+    const basis = context.priorityBasis ? priorityBasisLabels[context.priorityBasis] : "学习者确认的下一条任务方向";
     sources.push({
       id: "learner-local-diagnostic",
-      title: "你的本机演示初筛记录",
+      title: "用户设备提交的未签名 Gate A 摘要",
       href: "/diagnostic",
       sourceClass: "learner_local_record",
-      content: `学习者在本机主动确认的当前优先能力是 ${priority}；已记录 ${evidenceCount} 项原创微练习完成状态；证据状态为${sufficiency}。这份摘要不包含姓名、答案、录音或自由文本复盘。`,
+      content: `用户设备提交的未签名本机摘要显示：六项原创诊断任务均已终结，其中 ${evidenceCount} 项形成完成证据；学习者确认下一条优先任务为 ${priority}。依据类型是${basis}，证据状态为${sufficiency}，置信说明为${confidence}。该摘要已经通过同轮 ID 与任务哈希一致性检查，但不是服务器签名的正式记录，也不包含姓名、客观题答案、Writing 原文、录音或自由文本复盘。`,
     });
   }
 
@@ -99,10 +109,10 @@ function dynamicSources(context?: LearnerContext): GroundingSource[] {
     const time = context.plan.dailyMinutes ? `每日可用时间为 ${context.plan.dailyMinutes} 分钟。` : "未提供每日可用时间。";
     sources.push({
       id: "learner-local-plan",
-      title: "你的本机 7 天计划摘要",
+      title: "用户设备提交的未签名 7 天计划摘要",
       href: "/plan",
       sourceClass: "learner_local_record",
-      content: `计划重点是 ${focus}。${time}${task}这份摘要不包含姓名或自由文本作答。`,
+      content: `同轮回链的${context.plan.stage === "updated" ? "更新后" : "基础"}计划重点是 ${focus}。${time}${task}这是用户设备提交的未签名摘要，不包含姓名或自由文本作答。`,
     });
   }
 
@@ -110,15 +120,13 @@ function dynamicSources(context?: LearnerContext): GroundingSource[] {
     const recommendation = context.recommendation;
     const status = recommendation.status === "accepted"
       ? "已接受"
-      : recommendation.status === "skipped"
-        ? "已明确跳过"
-        : "待选择";
+      : "已明确跳过";
     sources.push({
       id: "learner-local-recommendation",
-      title: "你的本机推荐记录摘要",
+      title: "用户设备提交的未签名推荐摘要",
       href: "/recommendations",
       sourceClass: "learner_local_record",
-      content: `推荐选择状态为${status}。任务正文、学习者自由文本和外部链接没有被纳入模型证据包；推荐依据由服务器端第一方规则来源解释。`,
+      content: `同轮推荐选择状态为${status}。这是用户设备提交的未签名摘要；任务正文、学习者自由文本和外部链接没有被纳入模型证据包，推荐依据由服务器端第一方规则来源解释。`,
     });
   }
 
@@ -126,10 +134,10 @@ function dynamicSources(context?: LearnerContext): GroundingSource[] {
     const progress = context.progress;
     sources.push({
       id: "learner-local-progress",
-      title: "你的本机学习闭环进度",
+      title: "用户设备提交的未签名闭环进度",
       href: "/workspace",
       sourceClass: "learner_local_record",
-      content: `打卡${progress.checkInRecorded ? "已记录" : "未记录"}；学生复盘${progress.learnerReviewConfirmed ? "已确认" : "未确认"}；微复测${progress.retestRecorded ? "已记录" : "未记录"}；更新计划${progress.updatedPlanConfirmed ? "已由学习者确认" : "尚未确认"}。`,
+      content: `经同轮前序 ID 检查后：打卡${progress.checkInRecorded ? "已记录" : "未记录"}；学生复盘${progress.learnerReviewConfirmed ? "已确认" : "未确认"}；微复测${progress.retestRecorded ? "已记录" : "未记录"}；更新计划${progress.updatedPlanConfirmed ? "已由学习者确认" : "尚未确认"}。这是用户设备提交的未签名摘要，不是服务器签名审计记录。`,
     });
   }
 

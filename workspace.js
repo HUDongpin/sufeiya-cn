@@ -1,7 +1,21 @@
-(() => {
+(async () => {
   const STORAGE_KEY = "sufeiya_workspace_v1";
   const SUPER_TEACHER_STORAGE_KEY = "sufeiya_super_teacher_v1";
   const SCHEMA_VERSION = 1;
+  const PROTOCOL_VERSION = "gate_a_local_v1";
+  const DIAGNOSTIC_PROTOCOL_VERSION = "gate_a_diagnostic_evidence_v1";
+  const DIAGNOSTIC_TASK_SET_VERSION = "gate_a_original_6_v1";
+  const DIAGNOSTIC_TASK_SET_DIGEST = "c1b2922ca96677665690bf790281be2438a016bbbe0d9f85478685af3c8dfc2c";
+  const DIAGNOSTIC_TASK_MANIFEST = Object.freeze({
+    "diagnostic-reading-library-v1": Object.freeze({ taskVersion: "v1", skill: "Reading", responseType: "single_choice", constructTag: "purpose_from_supporting_details", contentHash: "f1c71d28d6e9b3ebe8b4c29fa5cec52c20b83d737b57f0bc98e15e15f97decd7" }),
+    "diagnostic-reading-newsletter-v1": Object.freeze({ taskVersion: "v1", skill: "Reading", responseType: "single_choice", constructTag: "cause_from_text_structure", contentHash: "8b5feb0e382ea0ffe016ab64f17edb30b8467b40fccf5d8b96d3e2bb74ba44ca" }),
+    "diagnostic-listening-science-club-v1": Object.freeze({ taskVersion: "v1", skill: "Listening", responseType: "single_choice_audio", constructTag: "schedule_change_detail", contentHash: "882abc23a7376b27a0d53e2a4d7b6eb10480bd7b618002fe3e6704922ea67308" }),
+    "diagnostic-listening-language-lab-v1": Object.freeze({ taskVersion: "v1", skill: "Listening", responseType: "single_choice_audio", constructTag: "time_and_location_integration", contentHash: "be827c7ed66ed510a9b94aafdd16b35f445c82e14034bce6c971a29b5a8200cd" }),
+    "diagnostic-speaking-learning-skill-v1": Object.freeze({ taskVersion: "v1", skill: "Speaking", responseType: "timed_self_report", constructTag: "task_coverage_and_connected_thoughts_self_report", contentHash: "8d40b58172fbd68371784db6caa74a57e37e480c288f64fca9fc1a772d9acdf9" }),
+    "diagnostic-writing-learning-place-v1": Object.freeze({ taskVersion: "v1", skill: "Writing", responseType: "timed_local_text", constructTag: "task_response_structure_self_review", contentHash: "83cef1ddc39ff2a78e76fcb89de376c63fe7f6e859e1a3bf16e14b97652b3f85" }),
+  });
+  const DIAGNOSTIC_TERMINAL_STATES = new Set(["completed", "skipped", "evidence_insufficient", "unavailable"]);
+  const DIAGNOSTIC_SKILLS = new Set(["Reading", "Listening", "Writing", "Speaking"]);
   const todayKey = () => {
     const date = new Date();
     const year = date.getFullYear();
@@ -29,6 +43,30 @@
   let rawStoredValue = null;
   let storageWarningShown = false;
 
+  const acquireSharedWorkspaceWriterLease = () => {
+    if (window.__sufeiyaWorkspaceWriterLease?.ready) return window.__sufeiyaWorkspaceWriterLease.ready;
+    const lease = { available: false, ready: null };
+    lease.ready = new Promise((resolve) => {
+      if (!navigator.locks?.request) {
+        resolve(false);
+        return;
+      }
+      navigator.locks.request(`${STORAGE_KEY}:page-writer`, { mode: "exclusive", ifAvailable: true }, (lock) => {
+        lease.available = Boolean(lock);
+        resolve(lease.available);
+        if (!lock) return undefined;
+        return new Promise((release) => {
+          window.addEventListener("pagehide", () => {
+            delete window.__sufeiyaWorkspaceWriterLease;
+            release();
+          }, { once: true });
+        });
+      }).catch(() => resolve(false));
+    });
+    window.__sufeiyaWorkspaceWriterLease = lease;
+    return lease.ready;
+  };
+
   const isRecord = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value);
   const isSafeLocalRoute = (route) =>
     typeof route === "string" && route.startsWith("/") && !route.startsWith("//") && !/[\\\u0000-\u001f\u007f]/.test(route);
@@ -51,6 +89,80 @@
             isSafeLocalRoute(task.route),
         ),
     );
+  };
+  const completedDiagnosticCycle = () => {
+    const cycle = state.journey?.activeCycle;
+    const diagnostic = state.journey?.diagnostic;
+    const evidence = Array.isArray(diagnostic?.taskEvidence) ? diagnostic.taskEvidence : [];
+    const expectedIds = Object.keys(DIAGNOSTIC_TASK_MANIFEST);
+    const evidenceIds = evidence.map((item) => item?.taskId);
+    const evidenceValid =
+      evidence.length === expectedIds.length &&
+      new Set(evidenceIds).size === expectedIds.length &&
+      expectedIds.every((taskId) => evidenceIds.includes(taskId)) &&
+      evidence.every((item) => {
+        if (!isRecord(item) || !DIAGNOSTIC_TERMINAL_STATES.has(item.status) || !Array.isArray(item.qualityFlags)) return false;
+        const expected = DIAGNOSTIC_TASK_MANIFEST[item.taskId];
+        if (!expected || !Object.entries(expected).every(([key, value]) => item[key] === value)) return false;
+        if (!['evidence_limited', 'evidence_insufficient'].includes(item.evidenceStatus)) return false;
+        if (["single_choice", "single_choice_audio"].includes(expected.responseType) && item.status === "completed") {
+          return item.attempts === 1 && ["a", "b", "c"].includes(item.firstResponse) &&
+            ["first_response_matched", "first_response_not_matched"].includes(item.resultType);
+        }
+        return true;
+      });
+    if (
+      !isRecord(cycle) ||
+      cycle.protocolVersion !== PROTOCOL_VERSION ||
+      cycle.status !== "in_progress" ||
+      !isRecord(diagnostic) ||
+      diagnostic.protocolVersion !== PROTOCOL_VERSION ||
+      diagnostic.diagnosticProtocolVersion !== DIAGNOSTIC_PROTOCOL_VERSION ||
+      diagnostic.taskSetVersion !== DIAGNOSTIC_TASK_SET_VERSION ||
+      diagnostic.taskSetDigest !== DIAGNOSTIC_TASK_SET_DIGEST ||
+      diagnostic.status !== "completed" ||
+      diagnostic.adultConfirmed !== true ||
+      diagnostic.devicePrecheck?.storageStatus !== "available" ||
+      diagnostic.cycleId !== cycle.cycleId ||
+      diagnostic.diagnosticSessionId !== cycle.diagnosticSessionId ||
+      !DIAGNOSTIC_SKILLS.has(diagnostic.prioritySkill) ||
+      diagnostic.learnerConfirmedPriority !== true ||
+      diagnostic.automatedScoreProduced !== false ||
+      diagnostic.formalDiagnosisProduced !== false ||
+      !evidenceValid
+    ) return null;
+    return { cycle, diagnostic };
+  };
+  const completedPlanChain = () => {
+    const linked = completedDiagnosticCycle();
+    const plan = state.plan;
+    if (
+      !linked ||
+      !isRecord(plan) ||
+      plan.planId !== linked.cycle.basePlanId ||
+      plan.diagnosticSessionId !== linked.cycle.diagnosticSessionId ||
+      plan.provenance?.cycleId !== linked.cycle.cycleId ||
+      plan.provenance?.diagnosticSessionId !== linked.cycle.diagnosticSessionId ||
+      plan.provenance?.taskSetVersion !== DIAGNOSTIC_TASK_SET_VERSION ||
+      plan.provenance?.taskSetDigest !== DIAGNOSTIC_TASK_SET_DIGEST
+    ) return null;
+    return { ...linked, plan };
+  };
+  const completedRecommendationChain = () => {
+    const linked = completedPlanChain();
+    const recommendation = state.journey?.recommendation;
+    const taskIds = new Set(linked?.plan?.days?.flatMap((day) => day.tasks?.map((task) => task.taskId) || []) || []);
+    if (
+      !linked ||
+      !isRecord(recommendation) ||
+      recommendation.recommendationId !== linked.cycle.recommendationId ||
+      recommendation.cycleId !== linked.cycle.cycleId ||
+      recommendation.diagnosticSessionId !== linked.cycle.diagnosticSessionId ||
+      recommendation.planId !== linked.cycle.basePlanId ||
+      !["accepted", "skipped"].includes(recommendation.status) ||
+      !taskIds.has(recommendation.primary?.taskId)
+    ) return null;
+    return { ...linked, recommendation };
   };
 
   const showStorageWarning = (message = "当前浏览器无法持久保存。本次仍可继续，关闭页面后记录可能丢失。") => {
@@ -139,6 +251,12 @@
     }
   };
 
+  const disableWorkspaceControls = () => {
+    document.querySelectorAll("main button, main input, main select, main textarea").forEach((control) => {
+      if (!control.matches("[data-export-workspace]")) control.disabled = true;
+    });
+  };
+
   const pad = (value) => String(value).padStart(2, "0");
   const formatClock = (seconds) => `${pad(Math.floor(seconds / 60))}:${pad(Math.max(0, seconds % 60))}`;
   const formatDate = (value, withYear = false) => {
@@ -162,7 +280,17 @@
     return `${year}-${month}-${day}`;
   };
 
+  const workspaceWriterLeaseAvailable = await acquireSharedWorkspaceWriterLease();
+  if (!workspaceWriterLeaseAvailable) storageWritable = false;
   loadState();
+  if (!workspaceWriterLeaseAvailable) {
+    showStorageWarning(
+      navigator.locks?.request
+        ? "另一个苏肥鸭页面正在编辑本机学习数据。为避免跨标签页覆盖，本页已切换为只读；请关闭其他编辑页后刷新。"
+        : "当前浏览器不支持安全本机写入锁，本页已切换为只读；请升级到支持 Web Locks 的现代浏览器。",
+    );
+    disableWorkspaceControls();
+  }
 
   document.querySelectorAll("[data-today-date]").forEach((node) => {
     node.dateTime = todayKey();
@@ -210,6 +338,7 @@
   };
 
   const createPlan = ({ nickname, examDate, dailyMinutes, focusSkill }) => {
+    const linkedDiagnostic = completedDiagnosticCycle();
     const start = new Date();
     start.setHours(12, 0, 0, 0);
     const planId = `plan-${Date.now().toString(36)}`;
@@ -266,14 +395,16 @@
       examDate,
       dailyMinutes: minutes,
       focusSkill,
-      diagnosticSessionId:
-        state.journey?.activeCycle?.status === "in_progress" ? state.journey.activeCycle.diagnosticSessionId : null,
+      diagnosticSessionId: linkedDiagnostic ? linkedDiagnostic.cycle.diagnosticSessionId : null,
       provenance:
-        state.journey?.activeCycle?.status === "in_progress"
+        linkedDiagnostic
           ? {
-              source: "learner_configured_from_gate_a_diagnostic",
-              cycleId: state.journey.activeCycle.cycleId,
-              diagnosticSessionId: state.journey.activeCycle.diagnosticSessionId,
+              source: "learner_configured_after_gate_a_evidence_diagnostic",
+              cycleId: linkedDiagnostic.cycle.cycleId,
+              diagnosticSessionId: linkedDiagnostic.cycle.diagnosticSessionId,
+              taskSetVersion: linkedDiagnostic.diagnostic.taskSetVersion,
+              taskSetDigest: linkedDiagnostic.diagnostic.taskSetDigest,
+              priorityBasis: linkedDiagnostic.diagnostic.priorityBasis || null,
             }
           : { source: "learner_configured_standalone" },
     };
@@ -331,6 +462,10 @@
     examDate.value = state.profile.examDate || "";
     dailyMinutes.value = String(state.profile.dailyMinutes || 30);
     focusSkill.value = state.profile.focusSkill || "Balanced";
+    const focusNote = document.querySelector("[data-plan-focus-note]");
+    if (focusNote && completedDiagnosticCycle()) {
+      focusNote.textContent = "已根据六项任务证据与您的确认预填；仍可修改，最终计划以此处选择为准。";
+    }
     renderPlan();
 
     planForm.addEventListener("submit", (event) => {
@@ -366,11 +501,9 @@
         ];
       }
       state.plan = createPlan(state.profile);
-      const activeCycle = state.journey?.activeCycle;
-      if (
-        activeCycle?.status === "in_progress" &&
-        activeCycle.diagnosticSessionId === state.journey?.diagnostic?.diagnosticSessionId
-      ) {
+      const linkedDiagnostic = completedDiagnosticCycle();
+      const activeCycle = linkedDiagnostic?.cycle;
+      if (activeCycle && state.plan.diagnosticSessionId === activeCycle.diagnosticSessionId) {
         activeCycle.basePlanId = state.plan.planId;
         activeCycle.recommendationId = null;
         activeCycle.checkInId = null;
@@ -1000,11 +1133,8 @@
       const errors = [];
       const activeCycle = state.journey?.activeCycle;
       const baseTaskIds = new Set(state.plan?.days?.flatMap((day) => day.tasks.map((task) => task.taskId)) || []);
-      const pendingClosedLoop = Boolean(
-        activeCycle?.status === "in_progress" &&
-        activeCycle.basePlanId === state.plan?.planId &&
-        activeCycle.recommendationId === state.journey?.recommendation?.recommendationId,
-      );
+      const linkedRecommendation = completedRecommendationChain();
+      const pendingClosedLoop = Boolean(linkedRecommendation);
       if (values.didText.length < 10) errors.push(["didText", "“完成内容”至少需要 10 个字。"]);
       if (values.evidenceText.length < 10) errors.push(["evidenceText", "“学习证据”至少需要 10 个字。"]);
       if (pendingClosedLoop && (!values.linkedTaskId || !baseTaskIds.has(values.linkedTaskId))) {
@@ -1036,11 +1166,7 @@
       }
       const previous = state.checkIns[date] || {};
       const cycleEligible = Boolean(
-        activeCycle?.status === "in_progress" &&
-        activeCycle.basePlanId &&
-        activeCycle.basePlanId === state.plan?.planId &&
-        activeCycle.recommendationId &&
-        activeCycle.recommendationId === state.journey?.recommendation?.recommendationId &&
+        linkedRecommendation &&
         values.linkedTaskId &&
         baseTaskIds.has(values.linkedTaskId),
       );
@@ -1259,5 +1385,8 @@
 
   window.addEventListener("storage", (event) => {
     if (event.key === STORAGE_KEY || event.key === SUPER_TEACHER_STORAGE_KEY) window.location.reload();
+  });
+  window.addEventListener("pageshow", (event) => {
+    if (event.persisted) window.location.reload();
   });
 })();

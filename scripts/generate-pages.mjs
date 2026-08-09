@@ -1,7 +1,46 @@
-import { writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
+const diagnosticTaskRegister = JSON.parse(
+  await readFile(new URL("../data/diagnostic-task-register.json", import.meta.url), "utf8"),
+);
+const diagnosticTasks = [...diagnosticTaskRegister.tasks].sort((left, right) => left.order - right.order);
+if (
+  diagnosticTaskRegister.protocolVersion !== "sufeiya_diagnostic_task_register_v1" ||
+  diagnosticTaskRegister.taskSetVersion !== "gate_a_original_6_v1" ||
+  diagnosticTasks.length !== 6
+) {
+  throw new Error("Diagnostic task register is missing the exact Gate A six-task contract.");
+}
+for (const task of diagnosticTasks) {
+  const digest = createHash("sha256").update(JSON.stringify(task.content)).digest("hex");
+  if (task.contentHash !== digest) throw new Error(`Diagnostic content hash mismatch: ${task.taskId}`);
+}
+const diagnosticManifest = diagnosticTasks.map(({ taskId, taskVersion, skill, responseType, constructTag, contentHash }) => ({
+  taskId,
+  taskVersion,
+  skill,
+  responseType,
+  constructTag,
+  contentHash,
+}));
+const diagnosticTaskSetDigest = createHash("sha256").update(JSON.stringify(diagnosticManifest)).digest("hex");
+if (diagnosticTaskRegister.taskSetDigest !== diagnosticTaskSetDigest) {
+  throw new Error("Diagnostic task-set digest does not match the six-task manifest.");
+}
+const staticListeningTask = diagnosticTasks.find((task) => task.content.audioMode === "static_asset");
+if (!staticListeningTask?.audioAsset || staticListeningTask.audioAsset.path !== staticListeningTask.content.audioPath) {
+  throw new Error("Static diagnostic audio is missing its canonical asset receipt.");
+}
+const staticListeningBytes = await readFile(new URL(`..${staticListeningTask.audioAsset.path}`, import.meta.url));
+if (
+  staticListeningBytes.byteLength !== staticListeningTask.audioAsset.bytes ||
+  createHash("sha256").update(staticListeningBytes).digest("hex") !== staticListeningTask.audioAsset.sha256
+) {
+  throw new Error("Static diagnostic audio does not match its canonical asset receipt.");
+}
 const bilibili = "https://space.bilibili.com/448907095";
 const navItems = [
   { key: "learning-path", label: "学习路径", href: "/learning-path" },
@@ -19,6 +58,14 @@ const externalArrow = `
   <svg viewBox="0 0 20 20" aria-hidden="true">
     <path d="M5 15 15 5M7 5h8v8" />
   </svg>`;
+
+const escapeHtml = (value) =>
+  String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 
 const header = (page) => `
   <div class="reading-progress" aria-hidden="true"><span></span></div>
@@ -777,7 +824,7 @@ const workspaceContent = `
           <span>GATE A / 本机演示</span>
           <time data-today-date></time>
           <strong data-journey-summary>0 / 7 步已留证</strong>
-          <p data-journey-next-label>下一步：建立演示诊断会话</p>
+          <p data-journey-next-label>下一步：完成六任务诊断证据包</p>
         </aside>
       </div>
     </section>
@@ -788,7 +835,7 @@ const workspaceContent = `
           <div class="local-data-note"><div><strong>隐私优先</strong><span>不登录、不上传，可随时清除</span></div><button type="button" data-clear-workspace>清除我的数据</button></div>
         </div>
         <ol class="journey-grid" data-journey-list>
-          <li data-journey-step="diagnostic"><a href="/diagnostic"><span>01</span><small data-journey-step-status>待开始</small><h3>演示性初筛</h3><p>记录成人确认、现有练习证据与学习者确认的优先项。</p><b>进入初筛页 →</b></a></li>
+          <li data-journey-step="diagnostic"><a href="/diagnostic"><span>01</span><small data-journey-step-status>待开始</small><h3>诊断证据包</h3><p>完成 2 Reading、2 Listening、90 秒 Speaking 与 3 分钟 Writing，再确认优先项。</p><b>进入诊断页 →</b></a></li>
           <li data-journey-step="plan"><a href="/plan"><span>02</span><small data-journey-step-status>待开始</small><h3>7 天计划</h3><p>把优先项与可用时间变成可编辑的每日任务。</p><b>进入计划页 →</b></a></li>
           <li data-journey-step="recommendation"><a href="/recommendations"><span>03</span><small data-journey-step-status>待开始</small><h3>内容推荐</h3><p>查看一个主任务与至多两个补充，并明确接受或跳过。</p><b>进入推荐页 →</b></a></li>
           <li data-journey-step="checkin"><a href="/check-in"><span>04</span><small data-journey-step-status>待开始</small><h3>证据式打卡</h3><p>同时保存做了什么、一条学习证据和仍待解决的问题。</p><b>进入打卡页 →</b></a></li>
@@ -797,7 +844,7 @@ const workspaceContent = `
           <li data-journey-step="retest"><a href="/retest"><span>07</span><small data-journey-step-status>待开始</small><h3>平行微复测</h3><p>完成一条原创平行任务，再由学习者确认下一轮计划。</p><b>进入微复测 →</b></a></li>
         </ol>
         <div class="journey-next-card" aria-live="polite">
-          <div><span>NEXT EVIDENCE</span><h3 data-journey-next-title>建立演示诊断会话</h3><p data-journey-next-copy>先确认成人演示边界，并记录当前已有的练习证据。</p></div>
+          <div><span>NEXT EVIDENCE</span><h3 data-journey-next-title>完成六任务诊断证据包</h3><p data-journey-next-copy>先完成设备预检，再依次留下六项原创任务证据与学习者确认的优先项。</p></div>
           <a class="button button-accent" href="/diagnostic" data-journey-next-link>继续下一步${arrow}</a>
         </div>
         <p class="workspace-launch-boundary">这是 Gate A 本机演示：不接触服务器端学生数据，不提供官方 DET 分数、成绩预测、自动诊断、真题机经、考试中协助、真实社区或结果保证。</p>
@@ -820,25 +867,94 @@ const workspaceContent = `
     </section>
   </main>`;
 
+const renderDiagnosticChoices = (task) => `
+  <fieldset class="diagnostic-choice-list">
+    <legend>${escapeHtml(task.content.question)}</legend>
+    ${task.content.choices
+      .map(
+        (choice) => `<label><input type="radio" name="diagnostic-answer-${escapeHtml(task.taskId)}" value="${escapeHtml(choice.value)}" /><span>${escapeHtml(choice.label)}</span></label>`,
+      )
+      .join("")}
+  </fieldset>`;
+
+const renderDiagnosticTask = (task, index) => {
+  const headingId = `diagnostic-task-title-${index + 1}`;
+  const common = `data-diagnostic-task data-task-id="${escapeHtml(task.taskId)}" data-task-version="${escapeHtml(task.taskVersion)}" data-task-order="${task.order}" data-task-skill="${escapeHtml(task.skill)}" data-response-type="${escapeHtml(task.responseType)}" data-construct-tag="${escapeHtml(task.constructTag)}" data-content-hash="${escapeHtml(task.contentHash)}" aria-labelledby="${headingId}"`;
+  const header = `<header class="diagnostic-task-heading"><div><span>${String(index + 1).padStart(2, "0")}</span><div><p>${escapeHtml(task.content.eyebrow)}</p><h3 id="${headingId}" tabindex="-1" lang="en">${escapeHtml(task.content.title)}</h3></div></div><small data-task-state>待开始</small></header><p class="diagnostic-task-instruction">${escapeHtml(task.content.instructionZh)}</p>`;
+  const unavailable = `<button class="button button-ghost diagnostic-skip" type="button" data-diagnostic-skip-task>当前无法完成 / 跳过</button>`;
+
+  if (task.skill === "Reading") {
+    return `<article class="diagnostic-task-card" ${common} data-correct-value="${escapeHtml(task.content.correctValue)}" hidden>${header}<div class="english-material" lang="en"><p>${escapeHtml(task.content.passage)}</p>${renderDiagnosticChoices(task)}</div><div class="diagnostic-task-actions"><button class="button button-ink" type="button" data-diagnostic-submit-task disabled>封存第一次选择${arrow}</button>${unavailable}</div><p class="practice-feedback" data-task-message role="status" aria-live="polite"></p></article>`;
+  }
+
+  if (task.skill === "Listening") {
+    const audio = task.content.audioMode === "static_asset"
+      ? `<audio controls preload="metadata" data-diagnostic-audio aria-label="Listening 1 英文材料；需完整播放后再提交" src="${escapeHtml(task.content.audioPath)}"><p>当前浏览器无法播放音频，请使用英文原文替代；该任务会标记为证据不足。</p></audio>`
+      : `<button class="diagnostic-audio-button" type="button" data-diagnostic-speech-play><span aria-hidden="true">▶</span><span><strong>播放英文音频</strong><small>由当前设备的通用英文语音合成器朗读</small></span></button>`;
+    return `<article class="diagnostic-task-card" ${common} data-correct-value="${escapeHtml(task.content.correctValue)}" data-audio-mode="${escapeHtml(task.content.audioMode)}" hidden>${header}${audio}<p class="audio-status" data-diagnostic-audio-status role="status" aria-live="polite">请先播放英文材料；可以重复播放。</p><div class="english-material" lang="en">${renderDiagnosticChoices(task)}</div><details class="listening-transcript diagnostic-transcript" data-diagnostic-transcript><summary>音频不可用或需要无障碍替代时，查看英文原文</summary><p lang="en" data-diagnostic-transcript-text>${escapeHtml(task.content.transcript)}</p><small>打开后仍可完成任务，但不会被解释为纯听力证据。</small></details><div class="diagnostic-task-actions"><button class="button button-ink" type="button" data-diagnostic-submit-task disabled>封存第一次选择${arrow}</button>${unavailable}</div><p class="practice-feedback" data-task-message role="status" aria-live="polite"></p></article>`;
+  }
+
+  if (task.skill === "Speaking") {
+    return `<article class="diagnostic-task-card" ${common} data-prep-seconds="${task.content.prepSeconds}" data-response-seconds="${task.content.responseSeconds}" hidden>${header}<p class="english-prompt" lang="en">${escapeHtml(task.content.prompt)}</p><div class="speaking-clock diagnostic-clock"><strong data-diagnostic-timer>${String(task.content.prepSeconds).padStart(2, "0")}</strong><span data-diagnostic-timer-state>准备好后开始</span></div><p class="sr-only" data-diagnostic-timer-announcement aria-live="polite"></p><div class="tool-button-row" data-speaking-controls><button class="tool-action" type="button" data-speaking-start>开始 20 秒准备</button><button class="tool-action tool-action-secondary" type="button" data-speaking-finish hidden>提前结束回答</button></div><fieldset class="self-review diagnostic-self-review" data-speaking-review-wrap hidden lang="en"><legend>Self-review after speaking</legend>${task.content.selfReview.map((item) => `<label><input type="checkbox" data-speaking-review="${escapeHtml(item.id)}" /> ${escapeHtml(item.label)}</label>`).join("")}</fieldset><div class="diagnostic-task-actions" data-speaking-submit-wrap hidden><button class="button button-ink" type="button" data-speaking-submit>保存计时与自查${arrow}</button>${unavailable}</div><div class="diagnostic-task-actions" data-speaking-skip-wrap>${unavailable}</div><p class="practice-feedback" data-task-message role="status" aria-live="polite"></p></article>`;
+  }
+
+  return `<article class="diagnostic-task-card" ${common} data-response-seconds="${task.content.responseSeconds}" data-minimum-words="${task.content.minimumWordsForCompletion}" hidden>${header}<p class="english-prompt" lang="en">${escapeHtml(task.content.prompt)}</p><div class="diagnostic-writing-start" data-writing-start-wrap><button class="button button-ink" type="button" data-writing-start>开始 3 分钟写作${arrow}</button><p>开始前不会保存任何作文文本。</p></div><div data-writing-workspace hidden><div class="diagnostic-writing-clock"><span>TIME LEFT</span><strong data-diagnostic-timer>03:00</strong><small data-diagnostic-timer-state>尚未开始</small></div><label class="writing-field"><span lang="en">Your response</span><textarea rows="10" maxlength="1800" spellcheck="true" lang="en" data-diagnostic-writing-answer disabled placeholder="Write your response in English..."></textarea></label><div class="writing-meta"><span><b data-diagnostic-word-count>0</b> words</span><span data-diagnostic-writing-save>只在本机保存</span></div><button class="button button-ghost" type="button" data-writing-finish>结束写作并自查</button></div><fieldset class="self-review diagnostic-self-review" data-writing-review-wrap hidden lang="en"><legend>Self-review</legend>${task.content.selfReview.map((item) => `<label><input type="checkbox" data-writing-review="${escapeHtml(item.id)}" /> ${escapeHtml(item.label)}</label>`).join("")}</fieldset><div class="diagnostic-task-actions" data-writing-submit-wrap hidden><button class="button button-ink" type="button" data-writing-submit>保存作答条件与自查${arrow}</button>${unavailable}</div><div class="diagnostic-task-actions" data-writing-skip-wrap>${unavailable}</div><p class="practice-feedback" data-task-message role="status" aria-live="polite"></p></article>`;
+};
+
 const diagnosticContent = `
   <main id="main-content" class="study-tool-page">
-    ${studyPageHero({ current: "", number: "01", label: "演示性初筛", title: "先记录证据边界，<br />再决定学习优先项。", lead: "这是 Gate A 的本机演示会话：它汇总你已完成的本站原创微练习，并记录由你确认的当前重点。它不进行自动评分，也不形成官方或正式能力诊断。", note: "约 1 分钟 · 仅限 18+ 演示" })}
-    <section class="single-tool-section journey-tool-section" aria-labelledby="diagnostic-title">
-      <div class="single-tool-inner narrow-tool">
-        <header class="tool-panel-header"><div><span>01</span><div><p>诊断会话</p><h2 id="diagnostic-title">建立一条可追踪的演示记录</h2></div></div><small data-diagnostic-status>尚未建立</small></header>
-        <div class="gate-a-notice"><strong>当前边界</strong><p>页面只读取本机练习完成状态。没有题库校准、人工双评或测量验证，因此只显示“证据有限/需补充”和学习者确认的优先项，不显示能力等级或 DET 分数。</p></div>
-        <div class="diagnostic-layout">
-          <form id="diagnostic-form" class="journey-form" novalidate>
-            <label><span>当前希望优先收集哪一项证据？</span><select name="prioritySkill"><option value="Reading">Reading · 阅读</option><option value="Listening">Listening · 听力</option><option value="Writing">Writing · 写作</option><option value="Speaking">Speaking · 口语</option></select><small>这是你的确认，不是系统自动诊断。</small></label>
-            <label class="consent-check"><input type="checkbox" name="adultConfirmed" /><span><strong>我确认这是 18 岁以上用户使用的本机演示</strong><small>不上传姓名、成绩、作文或录音；正式诊断与真实数据试点尚未开放。</small></span></label>
-            <button class="button button-ink" type="submit">建立演示诊断会话${arrow}</button>
-            <p class="form-inline-message" data-diagnostic-message role="alert"></p>
+    ${studyPageHero({ current: "", number: "01", label: "Gate A 诊断证据包", title: "先做六项原创任务，<br />再确认下一步练什么。", lead: "2 项 Reading、2 项 Listening、90 秒 Speaking 与 3 分钟 Writing 共同形成一份本机证据报告。它只验证流程和可解释性，不生成能力等级、DET 估分或自动开放题诊断。", note: "约 10–12 分钟 · 仅限 18+ 演示" })}
+    <section class="single-tool-section journey-tool-section" aria-labelledby="diagnostic-title" data-diagnostic-app data-task-set-version="${escapeHtml(diagnosticTaskRegister.taskSetVersion)}" data-task-set-digest="${escapeHtml(diagnosticTaskRegister.taskSetDigest)}">
+      <div class="single-tool-inner diagnostic-tool-inner">
+        <header class="tool-panel-header"><div><span>01</span><div><p>诊断证据会话</p><h2 id="diagnostic-title">完成设备预检与六项版本化任务</h2></div></div><small data-diagnostic-status>尚未开始</small></header>
+        <div class="gate-a-notice"><strong>发布边界</strong><p>本任务集是未经教研与测量双签的 Gate A 原创演示任务，只保存在当前浏览器。客观题只记录首答；Writing 与 Speaking 未经合格人工审核，不会生成正式诊断。旧的平行微复测题继续独立保留。</p></div>
+
+        <section class="diagnostic-preflight" data-diagnostic-preflight aria-labelledby="preflight-title">
+          <div class="diagnostic-preflight-copy"><span>DEVICE & DATA CHECK</span><h3 id="preflight-title" tabindex="-1">开始前，用一分钟确认边界与设备</h3><p>固定演示目标：在约四周内完成一轮 DET 备考行动闭环。这里不收集认证成绩，不请求麦克风，也不上传自由文本。</p></div>
+          <div class="diagnostic-device-grid" aria-label="自动设备检查结果">
+            <div><span>本机存储</span><strong data-device-storage>正在检查</strong></div>
+            <div><span>MP3 播放</span><strong data-device-mp3>正在检查</strong></div>
+            <div><span>设备语音</span><strong data-device-speech>正在检查</strong></div>
+            <div><span>安全写入锁</span><strong data-device-lock>正在检查</strong></div>
+            <div><span>当前屏幕</span><strong data-device-viewport>正在检查</strong></div>
+            <div><span>麦克风</span><strong>不会请求</strong></div>
+            <div><span>网络状态</span><strong data-device-network>正在检查</strong></div>
+          </div>
+          <form id="diagnostic-start-form" class="diagnostic-start-form" novalidate>
+            <label class="consent-check"><input type="checkbox" name="adultConfirmed" /><span><strong>我确认当前使用者已满 18 岁</strong><small>未成年人模式尚未开放；若不符合，请停止并退出本页。</small></span></label>
+            <label class="consent-check"><input type="checkbox" name="localBoundaryConfirmed" /><span><strong>我理解这是本机 Gate A 演示</strong><small>作文只存当前浏览器；不上传姓名、成绩、作文或录音，不用于模型训练。</small></span></label>
+            <label class="consent-check"><input type="checkbox" name="noScoreConfirmed" /><span><strong>我理解报告不是分数或正式能力诊断</strong><small>它只显示本次任务证据、质量限制、候选优先项与下一条任务。</small></span></label>
+            <label class="diagnostic-keyboard-check"><span>键盘预检</span><input type="text" name="keyboardCheck" maxlength="12" autocomplete="off" placeholder="请在这里输入任意字符" /><small>输入内容只用于确认键盘可用，不会写入诊断记录。</small></label>
+            <label class="consent-check"><input type="checkbox" name="environmentConfirmed" /><span><strong>我现在可以阅读、听音并大声回答</strong><small>如环境不允许，可把任务标记为跳过或不可用，不会被记作零分。</small></span></label>
+            <fieldset class="diagnostic-audio-check"><legend>声音输出预检</legend><button class="button button-ghost" type="button" data-audio-test>播放 1 秒测试音</button><label><input type="radio" name="audioOutput" value="heard" /> 我听到了测试音</label><label><input type="radio" name="audioOutput" value="unavailable" /> 当前听不到，继续使用文本替代</label></fieldset>
+            <button class="button button-ink" type="submit">开始六项原创任务${arrow}</button>
+            <p class="form-inline-message" data-diagnostic-message role="alert" tabindex="-1"></p>
           </form>
-          <aside class="evidence-summary" aria-labelledby="evidence-summary-title">
-            <span>LOCAL EVIDENCE</span><h3 id="evidence-summary-title">当前本机练习证据</h3><strong data-diagnostic-evidence-count>0 / 4 项已完成</strong><ul data-diagnostic-evidence></ul><a class="text-link" href="/practice">补充英文微练习 →</a>
-          </aside>
-        </div>
-        <div class="chain-receipt" data-diagnostic-result hidden aria-live="polite"><span>DIAGNOSTIC RECEIPT</span><h3 data-diagnostic-result-title>演示会话已建立</h3><p data-diagnostic-result-copy></p><dl><div><dt>diagnostic_session_id</dt><dd data-diagnostic-id></dd></div><div><dt>证据状态</dt><dd data-diagnostic-sufficiency></dd></div></dl><a class="button button-accent" href="/plan">下一步：生成 7 天计划${arrow}</a></div>
+        </section>
+
+        <section class="diagnostic-runner" data-diagnostic-runner hidden aria-labelledby="runner-title">
+          <aside class="diagnostic-stepper" aria-label="诊断任务进度"><span>LOCAL EVIDENCE</span><h3 id="runner-title">六项任务</h3><ol>${diagnosticTasks.map((task, index) => `<li data-diagnostic-step="${escapeHtml(task.taskId)}"><span>${String(index + 1).padStart(2, "0")}</span><div><strong>${escapeHtml(task.skill)}</strong><small data-step-state>待开始</small></div></li>`).join("")}</ol><button class="text-link-button" type="button" data-diagnostic-restart>重新开始本轮</button></aside>
+          <div class="diagnostic-task-stage">
+            <div class="diagnostic-progress"><div><span data-diagnostic-progress-label>任务 1 / 6</span><strong data-diagnostic-progress-percent>0%</strong></div><progress max="6" value="0" data-diagnostic-progress aria-label="六项诊断任务完成进度">0 / 6</progress></div>
+            ${diagnosticTasks.map(renderDiagnosticTask).join("")}
+          </div>
+        </section>
+
+        <section class="diagnostic-report" data-diagnostic-report hidden aria-labelledby="report-title">
+          <header><div><span>NON-SCORE REPORT</span><h3 id="report-title" tabindex="-1">本次任务证据报告</h3></div><strong data-report-confidence>低置信度</strong></header>
+          <div class="diagnostic-report-lead"><p data-report-summary></p><div><span>证据状态</span><strong data-diagnostic-sufficiency></strong></div></div>
+          <div class="diagnostic-evidence-grid" data-report-evidence></div>
+          <div class="diagnostic-report-columns"><section><h4>观察到的任务模式</h4><ul data-report-patterns></ul></section><section><h4>证据质量与限制</h4><ul data-report-quality></ul></section></div>
+          <form id="diagnostic-priority-form" class="diagnostic-priority-form" novalidate>
+            <div><span>NEXT EVIDENCE PRIORITY</span><h4>确认本轮下一条优先任务</h4><p data-priority-explanation></p></div>
+            <fieldset><legend>选择一个方向</legend><div data-priority-options></div></fieldset>
+            <label class="consent-check"><input type="checkbox" name="learnerConfirmedPriority" /><span><strong>我确认把所选方向作为本轮计划重点</strong><small>这是对下一条任务的选择，不是能力等级；计划页仍可修改。</small></span></label>
+            <button class="button button-ink" type="submit">确认并生成诊断回执${arrow}</button>
+            <p class="form-inline-message" data-priority-message role="alert"></p>
+          </form>
+          <div class="chain-receipt" data-diagnostic-result hidden aria-live="polite"><span>DIAGNOSTIC RECEIPT</span><h3 data-diagnostic-result-title tabindex="-1">六项任务证据已留存</h3><p data-diagnostic-result-copy></p><dl><div><dt>diagnostic_session_id</dt><dd data-diagnostic-id></dd></div><div><dt>task_set_version</dt><dd>${escapeHtml(diagnosticTaskRegister.taskSetVersion)}</dd></div><div><dt>证据状态</dt><dd data-diagnostic-receipt-sufficiency></dd></div><div><dt>下一条优先项</dt><dd data-diagnostic-priority></dd></div></dl><div class="diagnostic-next-actions"><a class="button button-accent" href="/plan">下一步：生成 7 天计划${arrow}</a><a class="button button-ghost" href="/super-teacher">问超级老师为什么先练这个${arrow}</a></div></div>
+          <button class="text-link-button diagnostic-report-restart" type="button" data-diagnostic-restart>重新完成一轮任务</button>
+        </section>
       </div>
     </section>
   </main>`;
@@ -849,7 +965,7 @@ const recommendationsContent = `
     <section class="single-tool-section journey-tool-section" aria-labelledby="recommendation-title"><div class="single-tool-inner">
       <header class="tool-panel-header"><div><span>03</span><div><p>内容推荐</p><h2 id="recommendation-title">今天先做哪一项</h2></div></div><small data-recommendation-status>正在读取计划</small></header>
       <div class="gate-a-notice"><strong>来源边界</strong><p>主任务来自本站原创微练习；补充入口只连接已审阅的公开目录或非评分工具。页面不会声称 Bilibili 目录已经成为 RAG 语料。</p></div>
-      <div class="recommendation-empty" data-recommendation-empty><h3>还没有可用计划</h3><p>先建立演示诊断会话并生成 7 天计划，推荐页才会生成与当前重点相关的任务。</p><a class="button button-ink" href="/plan">先生成计划${arrow}</a></div>
+      <div class="recommendation-empty" data-recommendation-empty><h3>还没有可用计划</h3><p>先完成六任务诊断证据包并生成 7 天计划，推荐页才会生成与当前重点相关的任务。</p><a class="button button-ink" href="/diagnostic">先完成诊断证据包${arrow}</a></div>
       <div data-recommendation-ready hidden><div class="recommendation-list" data-recommendation-items></div><div class="recommendation-actions"><button class="button button-ink" type="button" data-accept-recommendation>接受主任务</button><button class="button button-ghost" type="button" data-skip-recommendation>今天明确跳过</button><a class="button button-accent" href="/today" data-recommendation-start hidden>开始今天的任务${arrow}</a></div><p class="save-message" data-recommendation-message role="status" aria-live="polite"></p><dl class="compact-receipt" data-recommendation-receipt hidden><div><dt>recommendation_id</dt><dd data-recommendation-id></dd></div><div><dt>plan_id</dt><dd data-recommendation-plan-id></dd></div></dl></div>
     </div></section>
   </main>`;
@@ -912,7 +1028,7 @@ const planContent = `
             <label><span>你的称呼 <small>选填</small></span><input name="nickname" type="text" maxlength="20" autocomplete="nickname" placeholder="例如：小林" /></label>
             <label><span>预计考试日期 <small>选填</small></span><input name="examDate" type="date" data-exam-date /></label>
             <label><span>每天可学习时间</span><select name="dailyMinutes"><option value="15">15 分钟</option><option value="30" selected>30 分钟</option><option value="45">45 分钟</option><option value="60">60 分钟</option></select></label>
-            <label><span>本周重点能力</span><select name="focusSkill"><option value="Balanced">综合训练</option><option value="Reading">Reading · 阅读</option><option value="Listening">Listening · 听力</option><option value="Writing">Writing · 写作</option><option value="Speaking">Speaking · 口语</option></select><small class="field-note">由你自行选择，不是诊断结论或能力评分。</small></label>
+            <label><span>本周重点能力</span><select name="focusSkill"><option value="Balanced">综合训练</option><option value="Reading">Reading · 阅读</option><option value="Listening">Listening · 听力</option><option value="Writing">Writing · 写作</option><option value="Speaking">Speaking · 口语</option></select><small class="field-note" data-plan-focus-note>由你自行选择，不是诊断结论或能力评分。</small></label>
             <button class="button button-ink" type="submit">生成 7 天计划${arrow}</button>
             <p>计划由当前浏览器即时生成；姓名与考试日期不会上传。</p>
           </form>

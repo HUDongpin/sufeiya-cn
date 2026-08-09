@@ -51,12 +51,12 @@ function claim(bundle: GroundingBundle, text: string, sourceIds: string[]): Teac
 
 function progressAction(context?: LearnerContext): TeacherAction {
   if (!context?.prioritySkill) {
-    return { label: "继续但不使用 AI：建立演示初筛", href: "/diagnostic", kind: "continue_without_ai" };
+    return { label: "继续但不使用 AI：完成六项诊断任务", href: "/diagnostic", kind: "continue_without_ai" };
   }
   if (!context.plan) {
     return { label: "继续但不使用 AI：生成 7 天计划", href: "/plan", kind: "continue_without_ai" };
   }
-  if (!context.recommendation || context.recommendation.status === "pending") {
+  if (!context.recommendation) {
     return { label: "继续但不使用 AI：核对推荐", href: "/recommendations", kind: "continue_without_ai" };
   }
   if (!context.progress?.checkInRecorded) {
@@ -156,9 +156,20 @@ function manualAnswer(
         handoffRecommended: false,
       };
     case "why_priority": {
+      const basisCopy = context?.priorityBasis === "objective_first_response_pattern"
+        ? "四项客观任务的首答模式显示这个方向更需要下一条练习证据"
+        : context?.priorityBasis === "evidence_quality_gap"
+          ? "这个方向存在音频、原文替代、跳过或不可用造成的证据质量缺口"
+          : context?.priorityBasis === "open_response_coverage_gap"
+            ? "开放作答的计时或自查覆盖仍不完整"
+            : context?.priorityBasis === "learner_confirmation_after_multiple_gaps"
+              ? "多项能力同时存在证据缺口，系统没有使用隐藏排序，你随后确认了先后顺序"
+            : context?.priorityBasis === "learner_confirmation_after_tie"
+              ? "Reading 与可解释 Listening 的首答模式并列，你随后确认了先后顺序"
+              : "你在本机报告中确认了这个下一条任务方向";
       const firstClaim = priority
-        ? `你先练 ${priority}，最直接的依据是：你在演示初筛中主动把它确认为当前优先项；这不是系统自动判定。`
-        : "我还没有读取到你主动确认的优先能力，因此不能替你决定先练哪一项；请先完成演示初筛。";
+        ? `你先练 ${priority}，最直接的依据是：${basisCopy}；这只决定下一条证据任务，不是能力等级。`
+        : "我还没有读取到你确认的下一条优先任务，因此不能替你决定先练哪一项；请先完成六项 Gate A 诊断任务。";
       const firstSources = priority
         ? ["learner-local-diagnostic", "sufeiya-diagnostic-boundary-v1"]
         : ["sufeiya-diagnostic-boundary-v1"];
@@ -178,7 +189,7 @@ function manualAnswer(
         mode: "manual_grounded",
         headline: priority ? `为什么先练 ${priority}` : "先补齐优先项证据",
         claims,
-        limitations: ["现有完成状态只是有限的本机证据，不代表正式能力水平，也不能用于预测 DET 分数。"],
+        limitations: ["当前六项任务仍是未经教研与测量双签的 Gate A 演示证据；Writing 与 Speaking 未经人工审核，不能用于正式能力判断或 DET 分数预测。"],
         handoffRecommended: !priority,
       };
     }
@@ -199,11 +210,11 @@ function manualAnswer(
       return {
         mode: "manual_grounded",
         headline: context?.recommendation
-          ? `当前推荐${context.recommendation.status === "accepted" ? "已接受" : context.recommendation.status === "skipped" ? "已跳过" : "等待你的选择"}`
+          ? `当前推荐${context.recommendation.status === "accepted" ? "已接受" : "已跳过"}`
           : "当前推荐还没有形成",
         claims: context?.recommendation
           ? [
-              claim(bundle, `你的本机推荐当前状态是“${context.recommendation.status === "accepted" ? "已接受" : context.recommendation.status === "skipped" ? "已明确跳过" : "待选择"}”；任务正文和自由文本没有发送给模型。`, ["learner-local-recommendation"]),
+              claim(bundle, `你的本机推荐当前状态是“${context.recommendation.status === "accepted" ? "已接受" : "已明确跳过"}”；任务正文和自由文本没有发送给模型。`, ["learner-local-recommendation"]),
               claim(bundle, `推荐页只提供一个主任务和至多两个补充入口；${task ? `当前可沿计划中的 ${task} 继续。` : ""} 你可以接受或明确跳过，打开链接本身不等于完成学习。`, ["learner-local-plan", "sufeiya-recommendation-method-v1"]),
             ]
           : [claim(bundle, "我没有读取到当前推荐记录；请先让演示初筛和 7 天计划形成同一轮证据链。", ["sufeiya-recommendation-method-v1"])],
@@ -340,7 +351,7 @@ export async function createTeacherResponse({
   const modelAttempted = decision.allowModel && canAttemptModel();
   const modelOutput = await tryModelAnswer(request, decision, bundle, abortSignal);
   const fallback = manualAnswer(decision, bundle, request.learnerContext);
-  const fixedLimitation = "本回答只用于 Gate A 学习规划，不是正式诊断、DET 官方评分或结果保证。";
+  const fixedLimitation = "本机学习摘要由用户设备提交且未签名；本回答只用于 Gate A 学习规划，不是正式诊断、DET 官方评分或结果保证。";
   const limitations = modelOutput
     ? [...new Set([...modelOutput.limitations, fixedLimitation])].slice(0, 4)
     : [...new Set([...fallback.limitations, fixedLimitation])].slice(0, 4);

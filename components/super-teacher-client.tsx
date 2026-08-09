@@ -4,11 +4,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 
-import type {
-  LearnerContext,
-  SuperTeacherResponse,
-  TeacherCitation,
+import {
+  superTeacherResponseSchema,
+  type LearnerContext,
+  type SuperTeacherResponse,
+  type TeacherCitation,
 } from "@/lib/super-teacher/contracts";
+import { deriveLearnerContext } from "@/lib/super-teacher/local-context";
+import { containsSensitiveData } from "@/lib/super-teacher/policy";
 
 import styles from "@/app/super-teacher/super-teacher.module.css";
 
@@ -38,6 +41,7 @@ type StoredTurn = UserTurn | AssistantTurn;
 
 type LocalSession = {
   protocolVersion: typeof PROTOCOL_VERSION;
+  revision: number;
   turns: StoredTurn[];
   handoffRequests: Array<{
     id: string;
@@ -45,6 +49,11 @@ type LocalSession = {
     status: "local_not_sent";
     questionPreview: string;
   }>;
+};
+type SessionReadIssue = "unsupported_version" | "corrupt" | "concurrent_change";
+type SessionReadResult = {
+  status: "missing" | "valid" | SessionReadIssue;
+  session: LocalSession;
 };
 
 const skillLabels: Record<string, string> = {
@@ -59,86 +68,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
-function skillValue(value: unknown) {
-  return typeof value === "string" && ["Reading", "Listening", "Writing", "Speaking", "Balanced"].includes(value)
-    ? (value as "Reading" | "Listening" | "Writing" | "Speaking" | "Balanced")
-    : undefined;
-}
-
 function readLearnerContext(): LearnerContext | undefined {
   try {
     const raw = window.localStorage.getItem(WORKSPACE_KEY);
     if (!raw) return undefined;
-    const state = JSON.parse(raw) as unknown;
-    if (!isRecord(state) || state.schemaVersion !== 1) return undefined;
-    const journey = isRecord(state.journey) && state.journey.protocolVersion === "gate_a_local_v1" ? state.journey : undefined;
-    if (!journey) return undefined;
-
-    const diagnostic = isRecord(journey.diagnostic) ? journey.diagnostic : undefined;
-    if (diagnostic?.adultConfirmed !== true) return undefined;
-    const plan = isRecord(state.plan) ? state.plan : undefined;
-    const profile = isRecord(state.profile) ? state.profile : undefined;
-    const recommendation = isRecord(journey.recommendation) ? journey.recommendation : undefined;
-    const activeCycle = isRecord(journey.activeCycle) ? journey.activeCycle : undefined;
-    const review = isRecord(journey.review) ? journey.review : undefined;
-    const retest = isRecord(journey.retest) ? journey.retest : undefined;
-    const planUpdate = isRecord(journey.planUpdate) ? journey.planUpdate : undefined;
-    const days = plan && Array.isArray(plan.days) ? plan.days.filter(isRecord) : [];
-    const today = new Date();
-    const dateKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-    const currentDay = days.find((day) => day.date === dateKey) ?? days[0];
-    const tasks = currentDay && Array.isArray(currentDay.tasks) ? currentDay.tasks.filter(isRecord) : [];
-    const currentTask = tasks.find((task) => task.skill === currentDay?.coreSkill) ?? tasks[0];
-    const prioritySkill = skillValue(diagnostic?.prioritySkill);
-    const evidenceSufficiency =
-      diagnostic?.evidenceSufficiency === "evidence_limited" || diagnostic?.evidenceSufficiency === "evidence_insufficient"
-        ? diagnostic.evidenceSufficiency
-        : undefined;
-    const completedEvidenceSkills = Array.isArray(diagnostic?.completedEvidenceSkills)
-      ? diagnostic.completedEvidenceSkills.map(skillValue).filter((skill): skill is Exclude<ReturnType<typeof skillValue>, undefined | "Balanced"> => Boolean(skill && skill !== "Balanced"))
-      : undefined;
-    const planFocus = skillValue(profile?.focusSkill ?? currentDay?.coreSkill);
-    const currentTaskSkill = skillValue(currentTask?.skill);
-    const dailyMinutes = Number(profile?.dailyMinutes);
-    const recommendationStatus =
-      recommendation?.status === "accepted" || recommendation?.status === "skipped" ? recommendation.status : "pending";
-
-    return {
-      protocolVersion: "gate_a_local_v1",
-      adultConfirmed: true,
-      ...(prioritySkill ? { prioritySkill } : {}),
-      ...(evidenceSufficiency ? { evidenceSufficiency } : {}),
-      ...(completedEvidenceSkills ? { completedEvidenceSkills } : {}),
-      ...(plan && planFocus
-        ? {
-            plan: {
-              focusSkill: planFocus,
-              ...(Number.isInteger(dailyMinutes) && dailyMinutes >= 10 && dailyMinutes <= 180 ? { dailyMinutes } : {}),
-              ...(currentTaskSkill && currentTaskSkill !== "Balanced" ? { currentTaskSkill } : {}),
-            },
-          }
-        : {}),
-      ...(recommendation
-        ? {
-            recommendation: {
-              status: recommendationStatus,
-            },
-          }
-        : {}),
-      progress: {
-        checkInRecorded: typeof activeCycle?.checkInId === "string",
-        learnerReviewConfirmed: review?.learnerConfirmed === true,
-        retestRecorded: retest?.status === "completed",
-        updatedPlanConfirmed: planUpdate?.learnerConfirmed === true,
-      },
-    };
+    return deriveLearnerContext(JSON.parse(raw) as unknown);
   } catch {
     return undefined;
   }
 }
 
 function emptySession(): LocalSession {
-  return { protocolVersion: PROTOCOL_VERSION, turns: [], handoffRequests: [] };
+  return { protocolVersion: PROTOCOL_VERSION, revision: 0, turns: [], handoffRequests: [] };
 }
 
 function isStoredTurn(value: unknown): value is StoredTurn {
@@ -148,29 +89,49 @@ function isStoredTurn(value: unknown): value is StoredTurn {
   return responseLooksValid(value.response);
 }
 
-function readSession(): LocalSession {
+function readSession(): SessionReadResult {
   try {
     const raw = window.localStorage.getItem(CHAT_KEY);
-    if (!raw) return emptySession();
+    if (!raw) return { status: "missing", session: emptySession() };
     const value = JSON.parse(raw) as unknown;
-    if (!isRecord(value) || value.protocolVersion !== PROTOCOL_VERSION || !Array.isArray(value.turns)) return emptySession();
-    const turns = value.turns.filter(isStoredTurn).slice(-MAX_STORED_TURNS);
-    const handoffRequests = Array.isArray(value.handoffRequests)
-      ? value.handoffRequests
-          .filter((item): item is LocalSession["handoffRequests"][number] =>
-            isRecord(item) &&
-            typeof item.id === "string" &&
-            typeof item.createdAt === "string" &&
-            item.status === "local_not_sent" &&
-            typeof item.questionPreview === "string" &&
-            item.questionPreview.length <= 300,
-          )
-          .slice(-3)
-      : [];
-    return { protocolVersion: PROTOCOL_VERSION, turns, handoffRequests };
+    if (!isRecord(value)) return { status: "corrupt", session: emptySession() };
+    if (value.protocolVersion !== PROTOCOL_VERSION) return { status: "unsupported_version", session: emptySession() };
+    const revision = value.revision === undefined ? 0 : value.revision;
+    if (!Number.isSafeInteger(revision) || Number(revision) < 0) return { status: "corrupt", session: emptySession() };
+    if (!Array.isArray(value.turns) || !value.turns.every(isStoredTurn)) return { status: "corrupt", session: emptySession() };
+    if (!Array.isArray(value.handoffRequests)) return { status: "corrupt", session: emptySession() };
+    const handoffRequests = value.handoffRequests.filter((item): item is LocalSession["handoffRequests"][number] =>
+      isRecord(item) &&
+      typeof item.id === "string" &&
+      typeof item.createdAt === "string" &&
+      item.status === "local_not_sent" &&
+      typeof item.questionPreview === "string" &&
+      item.questionPreview.length <= 300,
+    );
+    if (handoffRequests.length !== value.handoffRequests.length) return { status: "corrupt", session: emptySession() };
+    return {
+      status: "valid",
+      session: {
+        protocolVersion: PROTOCOL_VERSION,
+        revision: Number(revision),
+        turns: value.turns.slice(-MAX_STORED_TURNS),
+        handoffRequests: handoffRequests.slice(-3),
+      },
+    };
   } catch {
-    return emptySession();
+    return { status: "corrupt", session: emptySession() };
   }
+}
+
+function sessionsEqual(left: LocalSession, right: LocalSession) {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function storedSessionMatches(result: SessionReadResult, expected: LocalSession) {
+  if (result.status === "missing") {
+    return expected.revision === 0 && expected.turns.length === 0 && expected.handoffRequests.length === 0;
+  }
+  return result.status === "valid" && sessionsEqual(result.session, expected);
 }
 
 function saveSession(session: LocalSession) {
@@ -210,51 +171,12 @@ function modeLabel(response: SuperTeacherResponse) {
 }
 
 function responseLooksValid(value: unknown): value is SuperTeacherResponse {
-  if (!isRecord(value) || value.protocolVersion !== PROTOCOL_VERSION) return false;
-  const allowedModes = new Set(["ai_grounded", "manual_grounded", "policy_refusal", "insufficient_sources", "handoff"]);
-  const claimsValid = Array.isArray(value.claims) && value.claims.length > 0 && value.claims.every((item) =>
-    isRecord(item) &&
-    typeof item.text === "string" &&
-    Array.isArray(item.citations) &&
-    item.citations.length > 0 &&
-    item.citations.every((citation) =>
-      isRecord(citation) &&
-      typeof citation.id === "string" &&
-      typeof citation.title === "string" &&
-      typeof citation.href === "string" &&
-      typeof citation.sourceClass === "string",
-    ),
-  );
-  const actionsValid = Array.isArray(value.actions) && value.actions.every((action) =>
-    isRecord(action) &&
-    typeof action.label === "string" &&
-    typeof action.href === "string" &&
-    (action.href.startsWith("/") || action.href === "#human-support") &&
-    typeof action.kind === "string",
-  );
-  const resourcesValid = Array.isArray(value.resources) && value.resources.every((resource) =>
-    isRecord(resource) &&
-    typeof resource.id === "string" &&
-    typeof resource.title === "string" &&
-    typeof resource.href === "string" &&
-    /^https:\/\/www\.bilibili\.com\/video\//.test(resource.href) &&
-    typeof resource.duration === "string" &&
-    Array.isArray(resource.skills) &&
-    resource.skills.every((skill) => typeof skill === "string"),
-  );
-  return typeof value.requestId === "string" &&
-    typeof value.headline === "string" &&
-    typeof value.mode === "string" &&
-    allowedModes.has(value.mode) &&
-    claimsValid &&
-    Array.isArray(value.limitations) &&
-    value.limitations.every((limit) => typeof limit === "string") &&
-    actionsValid &&
-    resourcesValid;
+  return superTeacherResponseSchema.safeParse(value).success;
 }
 
 export function SuperTeacherClient() {
   const [ready, setReady] = useState(false);
+  const [safeWriteLockSupported, setSafeWriteLockSupported] = useState(false);
   const [session, setSession] = useState<LocalSession>(emptySession);
   const [learnerContext, setLearnerContext] = useState<LearnerContext>();
   const [consent, setConsent] = useState(false);
@@ -262,14 +184,30 @@ export function SuperTeacherClient() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [sessionReadIssue, setSessionReadIssue] = useState<SessionReadIssue>();
   const [handoffOpen, setHandoffOpen] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+  const sessionRef = useRef<LocalSession>(emptySession());
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const conversationEndRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
-      setSession(readSession());
+      const stored = readSession();
+      const supportsSafeWriteLock = Boolean(navigator.locks?.request);
+      setSafeWriteLockSupported(supportsSafeWriteLock);
+      sessionRef.current = stored.session;
+      setSession(stored.session);
+      if (stored.status === "unsupported_version" || stored.status === "corrupt") {
+        setSessionReadIssue(stored.status);
+        setNotice(
+          stored.status === "unsupported_version"
+            ? "发现较新版本的本机对话。为避免覆盖，当前对话保持只读；你可明确清除后重新开始。"
+            : "发现无法识别的本机对话。为避免覆盖，原始记录保持不变；你可明确清除后重新开始。",
+        );
+      } else if (!supportsSafeWriteLock) {
+        setNotice("当前浏览器不支持安全本机写入锁；智能问答和本机人工请求保持只读。请升级到支持 Web Locks 的现代浏览器。");
+      }
       setLearnerContext(readLearnerContext());
       setReady(true);
     });
@@ -277,19 +215,64 @@ export function SuperTeacherClient() {
   }, []);
 
   useEffect(() => {
-    if (!ready) return;
-    saveSession(session);
-  }, [ready, session]);
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === WORKSPACE_KEY) {
+        const nextContext = readLearnerContext();
+        setLearnerContext(nextContext);
+        if (!nextContext) {
+          setConsent(false);
+          setNotice("另一标签页中的学习闭环已经变化；当前摘要不再满足同轮校验，发送权限已撤销。");
+        }
+      }
+      if (event.key === CHAT_KEY) {
+        const stored = readSession();
+        if (!storedSessionMatches(stored, sessionRef.current)) {
+          setSessionReadIssue("concurrent_change");
+          setNotice("另一标签页中的本机对话已经变化；为避免覆盖，新写入已停止。请刷新核对，或明确清除后重新开始。");
+        }
+      }
+    };
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
+  }, []);
 
   useEffect(() => {
     conversationEndRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [session.turns, submitting]);
 
+  async function commitSession(update: (current: LocalSession) => LocalSession) {
+    if (!navigator.locks?.request) {
+      setError("当前浏览器无法取得安全写入锁；未修改本机对话。请使用最新版浏览器后重试。");
+      return false;
+    }
+    try {
+      return await navigator.locks.request(`${CHAT_KEY}:write`, { mode: "exclusive" }, () => {
+        const stored = readSession();
+        if (!storedSessionMatches(stored, sessionRef.current)) {
+          setSessionReadIssue("concurrent_change");
+          setNotice("本机对话已在另一个页面发生变化；当前页面已切换为只读，未覆盖原记录。");
+          return false;
+        }
+        const next = { ...update(sessionRef.current), revision: sessionRef.current.revision + 1 };
+        if (!saveSession(next)) {
+          setError("当前浏览器无法保存对话；界面与本机记录均未推进，学习工作台数据未受影响。");
+          return false;
+        }
+        sessionRef.current = next;
+        setSession(next);
+        return true;
+      });
+    } catch {
+      setError("当前浏览器无法安全写入对话；未修改本机记录。");
+      return false;
+    }
+  }
+
   const contextSummary = useMemo(() => {
     if (!learnerContext) return "尚未完成 18+ Gate A 本机确认";
     if (!learnerContext.prioritySkill) return "已确认 18+ · 尚未读取到本轮优先项";
-    const evidenceCount = learnerContext.completedEvidenceSkills?.length ?? 0;
-    return `${skillLabels[learnerContext.prioritySkill]} · ${evidenceCount} 项本机练习证据`;
+    const evidenceCount = learnerContext.completedEvidenceTaskCount ?? learnerContext.completedEvidenceSkills?.length ?? 0;
+    return `${skillLabels[learnerContext.prioritySkill]} · ${evidenceCount} / 6 项本机诊断任务证据`;
   }, [learnerContext]);
 
   const lastQuestion = [...session.turns].reverse().find((turn): turn is UserTurn => turn.role === "user")?.text ?? "请描述你需要人工帮助的问题。";
@@ -298,18 +281,33 @@ export function SuperTeacherClient() {
     const trimmed = question.trim();
     setError("");
     setNotice("");
+    if (sessionReadIssue) {
+      setError("现有本机对话无法安全写入。请先使用“清除本机对话”明确重建，原记录不会被页面自动覆盖。");
+      return;
+    }
+    if (!safeWriteLockSupported) {
+      setError("当前浏览器不支持安全本机写入锁；本次没有保存、发送或调用模型。");
+      return;
+    }
     if (!consent) {
       setError("请先勾选数据发送说明，再使用智能问答。你也可以直接选择“继续但不使用 AI”。");
       return;
     }
-    if (!learnerContext?.adultConfirmed) {
+    const currentContext = readLearnerContext();
+    setLearnerContext(currentContext);
+    if (!currentContext?.adultConfirmed) {
+      setConsent(false);
       setError("请先到演示性初筛页完成 18+ 本机确认；当前不会发送问题或调用模型。");
       return;
     }
     if (!trimmed || trimmed.length > 600 || submitting) return;
+    if (containsSensitiveData(trimmed)) {
+      setError("这条提问可能包含银行卡号、联系方式、证件号或凭证信息。请先删去敏感内容；本次没有保存、发送或调用模型。");
+      return;
+    }
 
     const userTurn: UserTurn = { id: uid("user"), role: "user", text: trimmed, createdAt: new Date().toISOString() };
-    setSession((current) => ({ ...current, turns: [...current.turns, userTurn].slice(-MAX_STORED_TURNS) }));
+    if (!(await commitSession((current) => ({ ...current, turns: [...current.turns, userTurn].slice(-MAX_STORED_TURNS) })))) return;
     setInput("");
     setSubmitting(true);
     const controller = new AbortController();
@@ -325,7 +323,7 @@ export function SuperTeacherClient() {
           protocolVersion: PROTOCOL_VERSION,
           consent: true,
           question: trimmed,
-          learnerContext,
+          learnerContext: currentContext,
         }),
       });
       const payload = (await response.json()) as unknown;
@@ -335,15 +333,16 @@ export function SuperTeacherClient() {
         }
         throw new Error("当前无法生成回答。你仍可继续非 AI 学习路径或请求人工帮助。");
       }
-      if (!responseLooksValid(payload)) throw new Error("返回内容未通过页面校验，请改走非 AI 路径。 ");
+      const validatedPayload = superTeacherResponseSchema.safeParse(payload);
+      if (!validatedPayload.success) throw new Error("返回内容未通过页面校验，请改走非 AI 路径。 ");
       const assistantTurn: AssistantTurn = {
         id: uid("assistant"),
         role: "assistant",
-        response: payload,
+        response: validatedPayload.data,
         createdAt: new Date().toISOString(),
       };
-      setSession((current) => ({ ...current, turns: [...current.turns, assistantTurn].slice(-MAX_STORED_TURNS) }));
-      if (payload.handoffRecommended || payload.mode === "handoff") setHandoffOpen(true);
+      await commitSession((current) => ({ ...current, turns: [...current.turns, assistantTurn].slice(-MAX_STORED_TURNS) }));
+      if (validatedPayload.data.handoffRecommended || validatedPayload.data.mode === "handoff") setHandoffOpen(true);
     } catch (caught) {
       if (caught instanceof DOMException && caught.name === "AbortError") {
         setNotice("已停止等待；提问没有形成新的回答。你可以继续非 AI 学习路径。");
@@ -361,25 +360,48 @@ export function SuperTeacherClient() {
     inputRef.current?.focus();
   }
 
-  function clearConversation() {
+  async function clearConversation() {
     if (!window.confirm("确定清除这个浏览器中的超级智能老师对话和未发送人工请求吗？学习闭环数据不会被删除；此操作无法撤销。")) return;
     abortRef.current?.abort();
-    const next = emptySession();
-    setSession(next);
-    setError("");
-    setNotice("已清除当前浏览器中的超级智能老师对话和本机人工请求记录。学习工作台数据未受影响。");
-    setHandoffOpen(false);
-    saveSession(next);
+    if (!navigator.locks?.request) {
+      setError("当前浏览器无法取得安全写入锁；原对话未被清除。请使用最新版浏览器后重试。");
+      return;
+    }
+    try {
+      await navigator.locks.request(`${CHAT_KEY}:write`, { mode: "exclusive" }, () => {
+        const stored = readSession();
+        const nextRevision = stored.status === "valid"
+          ? stored.session.revision + 1
+          : Math.max(sessionRef.current.revision + 1, Date.now());
+        const next = { ...emptySession(), revision: nextRevision };
+        if (!saveSession(next)) {
+          setError("当前浏览器无法保存清除后的对话状态；原记录保持不变。");
+          return;
+        }
+        sessionRef.current = next;
+        setSession(next);
+        setError("");
+        setNotice("已清除当前浏览器中的超级智能老师对话和本机人工请求记录。学习工作台数据未受影响。");
+        setHandoffOpen(false);
+        setSessionReadIssue(undefined);
+      });
+    } catch {
+      setError("当前浏览器无法安全清除对话；原记录保持不变。");
+    }
   }
 
-  function createHandoffRequest() {
+  async function createHandoffRequest() {
+    if (sessionReadIssue) {
+      setError("现有本机对话处于只读保护状态；请先明确清除后再生成人工支持请求。");
+      return;
+    }
     const handoff = {
       id: uid("handoff"),
       createdAt: new Date().toISOString(),
       status: "local_not_sent" as const,
       questionPreview: lastQuestion.slice(0, 300),
     };
-    setSession((current) => ({ ...current, handoffRequests: [...current.handoffRequests, handoff].slice(-3) }));
+    if (!(await commitSession((current) => ({ ...current, handoffRequests: [...current.handoffRequests, handoff].slice(-3) })))) return;
     setHandoffOpen(true);
     setNotice(`已在本机生成请求 ${handoff.id}；尚未发送给任何人。`);
   }
@@ -433,6 +455,7 @@ export function SuperTeacherClient() {
             <li><span>身份</span><p>AI 学习助手，不是真人教师或官方评分员</p></li>
             <li><span>发送</span><p>优先能力、证据数量、计划与推荐摘要</p></li>
             <li><span>不发送</span><p>姓名、写作答案、录音、打卡自由文本</p></li>
+            <li><span>安全写入</span><p>{safeWriteLockSupported ? "浏览器写入锁可用，防止跨标签页覆盖" : "浏览器写入锁不可用，智能问答保持只读"}</p></li>
             <li><span>不提供</span><p>正式诊断、分数预测、真题机经、考试中协助</p></li>
           </ul>
           <div className={styles.sourceGate}>
@@ -451,12 +474,12 @@ export function SuperTeacherClient() {
         <section className={styles.chatPanel} aria-labelledby="conversation-title">
           <header className={styles.chatHeader}>
             <div><p>GROUNDED EXPLANATION</p><h2 id="conversation-title">问一个与当前学习有关的问题</h2></div>
-            <button type="button" onClick={clearConversation} disabled={!session.turns.length && !session.handoffRequests.length}>清除本机对话</button>
+            <button type="button" onClick={clearConversation} disabled={!safeWriteLockSupported || (!sessionReadIssue && !session.turns.length && !session.handoffRequests.length)}>清除本机对话</button>
           </header>
 
           <div className={styles.suggestions} aria-label="建议问题">
             {["为什么先练这个？", "解释我的 7 天计划", "怎样验证我真的有进步？", "超级智能老师不能做什么？"].map((prompt) => (
-              <button key={prompt} type="button" onClick={() => choosePrompt(prompt)} disabled={!learnerContext}>{prompt}</button>
+              <button key={prompt} type="button" onClick={() => choosePrompt(prompt)} disabled={!safeWriteLockSupported || !learnerContext || Boolean(sessionReadIssue)}>{prompt}</button>
             ))}
           </div>
 
@@ -542,7 +565,7 @@ export function SuperTeacherClient() {
 
           <div className={styles.composer}>
             <label className={styles.consentRow}>
-              <input type="checkbox" checked={consent} onChange={(event) => setConsent(event.currentTarget.checked)} disabled={!learnerContext} />
+              <input type="checkbox" checked={consent} onChange={(event) => setConsent(event.currentTarget.checked)} disabled={!safeWriteLockSupported || !learnerContext || Boolean(sessionReadIssue)} />
               <span><strong>我同意本次发送</strong><small>我的提问和去标识化学习摘要会发送到本站服务端；只有允许的问题且生产开关已批准启用时，才会再发送给模型服务。不要粘贴敏感信息；历史对话不发送给模型。</small></span>
             </label>
             <form
@@ -559,14 +582,14 @@ export function SuperTeacherClient() {
                 onChange={(event) => setInput(event.currentTarget.value.slice(0, 600))}
                 rows={3}
                 placeholder="例如：为什么先练这个？"
-                disabled={submitting || !learnerContext}
+                disabled={submitting || !safeWriteLockSupported || !learnerContext || Boolean(sessionReadIssue)}
               />
               <div className={styles.composerFooter}>
                 <span>{input.length} / 600</span>
                 {submitting ? (
                   <button type="button" className={styles.stopButton} onClick={() => abortRef.current?.abort()}>停止等待</button>
                 ) : (
-                  <button type="submit" disabled={!input.trim() || !learnerContext}>核对来源并回答</button>
+                  <button type="submit" disabled={!input.trim() || !safeWriteLockSupported || !learnerContext || Boolean(sessionReadIssue)}>核对来源并回答</button>
                 )}
               </div>
             </form>
@@ -586,7 +609,7 @@ export function SuperTeacherClient() {
         <div className={styles.handoffCard}>
           <div><span>公开个人微信</span><strong>SofiaTang2020</strong><small>人物 Sofia 的公开个人微信，不是网站账号或智能体名称。</small></div>
           {!handoffOpen ? (
-            <button type="button" onClick={createHandoffRequest}>在本机生成人工支持请求</button>
+            <button type="button" onClick={createHandoffRequest} disabled={!safeWriteLockSupported || Boolean(sessionReadIssue)}>在本机生成人工支持请求</button>
           ) : session.handoffRequests.length ? (
             <>
               <p><strong>状态：</strong>本机已准备，尚未自动发送。页面不承诺响应时间。</p>
@@ -595,7 +618,7 @@ export function SuperTeacherClient() {
           ) : (
             <>
               <p><strong>状态：</strong>尚未生成本机请求，也没有发送给任何人。</p>
-              <button type="button" onClick={createHandoffRequest}>先生成本机请求</button>
+              <button type="button" onClick={createHandoffRequest} disabled={!safeWriteLockSupported || Boolean(sessionReadIssue)}>先生成本机请求</button>
             </>
           )}
           <Link href="/workspace">退出智能老师并继续学习 →</Link>

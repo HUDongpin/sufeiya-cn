@@ -99,11 +99,11 @@
     <div class="study-page-hero-inner">
       <div>
         <a class="study-back" href="/workspace">← 返回学习工作台</a>
-        <p class="page-label"><span>01</span>演示性初筛</p>
-        <h1 id="study-page-title">先记录证据边界，<br />再决定学习优先项。</h1>
-        <p>这是 Gate A 的本机演示会话：它汇总你已完成的本站原创微练习，并记录由你确认的当前重点。它不进行自动评分，也不形成官方或正式能力诊断。</p>
+        <p class="page-label"><span>01</span>Gate A 诊断证据包</p>
+        <h1 id="study-page-title">先做六项原创任务，<br />再确认下一步练什么。</h1>
+        <p>2 项 Reading、2 项 Listening、90 秒 Speaking 与 3 分钟 Writing 共同形成一份本机证据报告。它只验证流程和可解释性，不生成能力等级、DET 估分或自动开放题诊断。</p>
       </div>
-      <aside><strong>约 1 分钟 · 仅限 18+ 演示</strong><span>数据只保存在当前浏览器，不上传。</span></aside>
+      <aside><strong>约 10–12 分钟 · 仅限 18+ 演示</strong><span>数据只保存在当前浏览器，不上传。</span></aside>
     </div>
     <div class="study-nav-wrap">
   <nav class="study-tool-nav" aria-label="学生功能导航">
@@ -114,28 +114,106 @@
     <a href="/check-in"><span>05</span>学习复盘</a>
   </nav></div>
   </section>
-    <section class="single-tool-section journey-tool-section" aria-labelledby="diagnostic-title">
-      <div class="single-tool-inner narrow-tool">
-        <header class="tool-panel-header"><div><span>01</span><div><p>诊断会话</p><h2 id="diagnostic-title">建立一条可追踪的演示记录</h2></div></div><small data-diagnostic-status>尚未建立</small></header>
-        <div class="gate-a-notice"><strong>当前边界</strong><p>页面只读取本机练习完成状态。没有题库校准、人工双评或测量验证，因此只显示“证据有限/需补充”和学习者确认的优先项，不显示能力等级或 DET 分数。</p></div>
-        <div class="diagnostic-layout">
-          <form id="diagnostic-form" class="journey-form" novalidate>
-            <label><span>当前希望优先收集哪一项证据？</span><select name="prioritySkill"><option value="Reading">Reading · 阅读</option><option value="Listening">Listening · 听力</option><option value="Writing">Writing · 写作</option><option value="Speaking">Speaking · 口语</option></select><small>这是你的确认，不是系统自动诊断。</small></label>
-            <label class="consent-check"><input type="checkbox" name="adultConfirmed" /><span><strong>我确认这是 18 岁以上用户使用的本机演示</strong><small>不上传姓名、成绩、作文或录音；正式诊断与真实数据试点尚未开放。</small></span></label>
-            <button class="button button-ink" type="submit">建立演示诊断会话
+    <section class="single-tool-section journey-tool-section" aria-labelledby="diagnostic-title" data-diagnostic-app data-task-set-version="gate_a_original_6_v1" data-task-set-digest="c1b2922ca96677665690bf790281be2438a016bbbe0d9f85478685af3c8dfc2c">
+      <div class="single-tool-inner diagnostic-tool-inner">
+        <header class="tool-panel-header"><div><span>01</span><div><p>诊断证据会话</p><h2 id="diagnostic-title">完成设备预检与六项版本化任务</h2></div></div><small data-diagnostic-status>尚未开始</small></header>
+        <div class="gate-a-notice"><strong>发布边界</strong><p>本任务集是未经教研与测量双签的 Gate A 原创演示任务，只保存在当前浏览器。客观题只记录首答；Writing 与 Speaking 未经合格人工审核，不会生成正式诊断。旧的平行微复测题继续独立保留。</p></div>
+
+        <section class="diagnostic-preflight" data-diagnostic-preflight aria-labelledby="preflight-title">
+          <div class="diagnostic-preflight-copy"><span>DEVICE & DATA CHECK</span><h3 id="preflight-title" tabindex="-1">开始前，用一分钟确认边界与设备</h3><p>固定演示目标：在约四周内完成一轮 DET 备考行动闭环。这里不收集认证成绩，不请求麦克风，也不上传自由文本。</p></div>
+          <div class="diagnostic-device-grid" aria-label="自动设备检查结果">
+            <div><span>本机存储</span><strong data-device-storage>正在检查</strong></div>
+            <div><span>MP3 播放</span><strong data-device-mp3>正在检查</strong></div>
+            <div><span>设备语音</span><strong data-device-speech>正在检查</strong></div>
+            <div><span>安全写入锁</span><strong data-device-lock>正在检查</strong></div>
+            <div><span>当前屏幕</span><strong data-device-viewport>正在检查</strong></div>
+            <div><span>麦克风</span><strong>不会请求</strong></div>
+            <div><span>网络状态</span><strong data-device-network>正在检查</strong></div>
+          </div>
+          <form id="diagnostic-start-form" class="diagnostic-start-form" novalidate>
+            <label class="consent-check"><input type="checkbox" name="adultConfirmed" /><span><strong>我确认当前使用者已满 18 岁</strong><small>未成年人模式尚未开放；若不符合，请停止并退出本页。</small></span></label>
+            <label class="consent-check"><input type="checkbox" name="localBoundaryConfirmed" /><span><strong>我理解这是本机 Gate A 演示</strong><small>作文只存当前浏览器；不上传姓名、成绩、作文或录音，不用于模型训练。</small></span></label>
+            <label class="consent-check"><input type="checkbox" name="noScoreConfirmed" /><span><strong>我理解报告不是分数或正式能力诊断</strong><small>它只显示本次任务证据、质量限制、候选优先项与下一条任务。</small></span></label>
+            <label class="diagnostic-keyboard-check"><span>键盘预检</span><input type="text" name="keyboardCheck" maxlength="12" autocomplete="off" placeholder="请在这里输入任意字符" /><small>输入内容只用于确认键盘可用，不会写入诊断记录。</small></label>
+            <label class="consent-check"><input type="checkbox" name="environmentConfirmed" /><span><strong>我现在可以阅读、听音并大声回答</strong><small>如环境不允许，可把任务标记为跳过或不可用，不会被记作零分。</small></span></label>
+            <fieldset class="diagnostic-audio-check"><legend>声音输出预检</legend><button class="button button-ghost" type="button" data-audio-test>播放 1 秒测试音</button><label><input type="radio" name="audioOutput" value="heard" /> 我听到了测试音</label><label><input type="radio" name="audioOutput" value="unavailable" /> 当前听不到，继续使用文本替代</label></fieldset>
+            <button class="button button-ink" type="submit">开始六项原创任务
   <svg viewBox="0 0 24 24" aria-hidden="true">
     <path d="M5 12h13M14 7l5 5-5 5" />
   </svg></button>
-            <p class="form-inline-message" data-diagnostic-message role="alert"></p>
+            <p class="form-inline-message" data-diagnostic-message role="alert" tabindex="-1"></p>
           </form>
-          <aside class="evidence-summary" aria-labelledby="evidence-summary-title">
-            <span>LOCAL EVIDENCE</span><h3 id="evidence-summary-title">当前本机练习证据</h3><strong data-diagnostic-evidence-count>0 / 4 项已完成</strong><ul data-diagnostic-evidence></ul><a class="text-link" href="/practice">补充英文微练习 →</a>
-          </aside>
-        </div>
-        <div class="chain-receipt" data-diagnostic-result hidden aria-live="polite"><span>DIAGNOSTIC RECEIPT</span><h3 data-diagnostic-result-title>演示会话已建立</h3><p data-diagnostic-result-copy></p><dl><div><dt>diagnostic_session_id</dt><dd data-diagnostic-id></dd></div><div><dt>证据状态</dt><dd data-diagnostic-sufficiency></dd></div></dl><a class="button button-accent" href="/plan">下一步：生成 7 天计划
+        </section>
+
+        <section class="diagnostic-runner" data-diagnostic-runner hidden aria-labelledby="runner-title">
+          <aside class="diagnostic-stepper" aria-label="诊断任务进度"><span>LOCAL EVIDENCE</span><h3 id="runner-title">六项任务</h3><ol><li data-diagnostic-step="diagnostic-reading-library-v1"><span>01</span><div><strong>Reading</strong><small data-step-state>待开始</small></div></li><li data-diagnostic-step="diagnostic-reading-newsletter-v1"><span>02</span><div><strong>Reading</strong><small data-step-state>待开始</small></div></li><li data-diagnostic-step="diagnostic-listening-science-club-v1"><span>03</span><div><strong>Listening</strong><small data-step-state>待开始</small></div></li><li data-diagnostic-step="diagnostic-listening-language-lab-v1"><span>04</span><div><strong>Listening</strong><small data-step-state>待开始</small></div></li><li data-diagnostic-step="diagnostic-speaking-learning-skill-v1"><span>05</span><div><strong>Speaking</strong><small data-step-state>待开始</small></div></li><li data-diagnostic-step="diagnostic-writing-learning-place-v1"><span>06</span><div><strong>Writing</strong><small data-step-state>待开始</small></div></li></ol><button class="text-link-button" type="button" data-diagnostic-restart>重新开始本轮</button></aside>
+          <div class="diagnostic-task-stage">
+            <div class="diagnostic-progress"><div><span data-diagnostic-progress-label>任务 1 / 6</span><strong data-diagnostic-progress-percent>0%</strong></div><progress max="6" value="0" data-diagnostic-progress aria-label="六项诊断任务完成进度">0 / 6</progress></div>
+            <article class="diagnostic-task-card" data-diagnostic-task data-task-id="diagnostic-reading-library-v1" data-task-version="v1" data-task-order="1" data-task-skill="Reading" data-response-type="single_choice" data-construct-tag="purpose_from_supporting_details" data-content-hash="f1c71d28d6e9b3ebe8b4c29fa5cec52c20b83d737b57f0bc98e15e15f97decd7" aria-labelledby="diagnostic-task-title-1" data-correct-value="b" hidden><header class="diagnostic-task-heading"><div><span>01</span><div><p>Reading 1 / 2</p><h3 id="diagnostic-task-title-1" tabindex="-1" lang="en">Purpose and study spaces</h3></div></div><small data-task-state>待开始</small></header><p class="diagnostic-task-instruction">阅读英文材料，保存第一次选择。提交后不能重试，答案会在报告中按汇总方式呈现。</p><div class="english-material" lang="en"><p>Maya noticed that the school library was busiest just before exams. Instead of adding more desks, the librarian created several quiet zones and one small area for group discussion. After two weeks, students reported that it was easier to choose a space that matched the way they needed to study.</p>
+  <fieldset class="diagnostic-choice-list">
+    <legend>Why did the librarian reorganize the space?</legend>
+    <label><input type="radio" name="diagnostic-answer-diagnostic-reading-library-v1" value="a" /><span>To make the library look larger.</span></label><label><input type="radio" name="diagnostic-answer-diagnostic-reading-library-v1" value="b" /><span>To support different ways of studying.</span></label><label><input type="radio" name="diagnostic-answer-diagnostic-reading-library-v1" value="c" /><span>To reduce the number of students.</span></label>
+  </fieldset></div><div class="diagnostic-task-actions"><button class="button button-ink" type="button" data-diagnostic-submit-task disabled>封存第一次选择
   <svg viewBox="0 0 24 24" aria-hidden="true">
     <path d="M5 12h13M14 7l5 5-5 5" />
-  </svg></a></div>
+  </svg></button><button class="button button-ghost diagnostic-skip" type="button" data-diagnostic-skip-task>当前无法完成 / 跳过</button></div><p class="practice-feedback" data-task-message role="status" aria-live="polite"></p></article><article class="diagnostic-task-card" data-diagnostic-task data-task-id="diagnostic-reading-newsletter-v1" data-task-version="v1" data-task-order="2" data-task-skill="Reading" data-response-type="single_choice" data-construct-tag="cause_from_text_structure" data-content-hash="8b5feb0e382ea0ffe016ab64f17edb30b8467b40fccf5d8b96d3e2bb74ba44ca" aria-labelledby="diagnostic-task-title-2" data-correct-value="b" hidden><header class="diagnostic-task-heading"><div><span>02</span><div><p>Reading 2 / 2</p><h3 id="diagnostic-task-title-2" tabindex="-1" lang="en">Finding event information</h3></div></div><small data-task-state>待开始</small></header><p class="diagnostic-task-instruction">阅读英文材料，判断哪一处变化最能解释结果。只保存第一次选择。</p><div class="english-material" lang="en"><p>The student newspaper originally sent one long newsletter every month. Readers often missed club announcements because the notices appeared near the end. The editors began sending a shorter weekly bulletin with a separate events section. More students opened the event links, even though the total number of announcements stayed about the same.</p>
+  <fieldset class="diagnostic-choice-list">
+    <legend>Why did more students open the event links?</legend>
+    <label><input type="radio" name="diagnostic-answer-diagnostic-reading-newsletter-v1" value="a" /><span>The newspaper published more announcements.</span></label><label><input type="radio" name="diagnostic-answer-diagnostic-reading-newsletter-v1" value="b" /><span>The event information became easier to find.</span></label><label><input type="radio" name="diagnostic-answer-diagnostic-reading-newsletter-v1" value="c" /><span>The monthly newsletter became longer.</span></label>
+  </fieldset></div><div class="diagnostic-task-actions"><button class="button button-ink" type="button" data-diagnostic-submit-task disabled>封存第一次选择
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M5 12h13M14 7l5 5-5 5" />
+  </svg></button><button class="button button-ghost diagnostic-skip" type="button" data-diagnostic-skip-task>当前无法完成 / 跳过</button></div><p class="practice-feedback" data-task-message role="status" aria-live="polite"></p></article><article class="diagnostic-task-card" data-diagnostic-task data-task-id="diagnostic-listening-science-club-v1" data-task-version="v1" data-task-order="3" data-task-skill="Listening" data-response-type="single_choice_audio" data-construct-tag="schedule_change_detail" data-content-hash="882abc23a7376b27a0d53e2a4d7b6eb10480bd7b618002fe3e6704922ea67308" aria-labelledby="diagnostic-task-title-3" data-correct-value="b" data-audio-mode="static_asset" hidden><header class="diagnostic-task-heading"><div><span>03</span><div><p>Listening 1 / 2</p><h3 id="diagnostic-task-title-3" tabindex="-1" lang="en">A schedule change</h3></div></div><small data-task-state>待开始</small></header><p class="diagnostic-task-instruction">播放英文音频后保存第一次选择。查看英文原文仍可完成任务，但会标记为辅助完成。</p><audio controls preload="metadata" data-diagnostic-audio aria-label="Listening 1 英文材料；需完整播放后再提交" src="/assets/listening-science-club.mp3"><p>当前浏览器无法播放音频，请使用英文原文替代；该任务会标记为证据不足。</p></audio><p class="audio-status" data-diagnostic-audio-status role="status" aria-live="polite">请先播放英文材料；可以重复播放。</p><div class="english-material" lang="en">
+  <fieldset class="diagnostic-choice-list">
+    <legend>When will the science club meet?</legend>
+    <label><input type="radio" name="diagnostic-answer-diagnostic-listening-science-club-v1" value="a" /><span>Tuesday at 4:30.</span></label><label><input type="radio" name="diagnostic-answer-diagnostic-listening-science-club-v1" value="b" /><span>Thursday at 4:30.</span></label><label><input type="radio" name="diagnostic-answer-diagnostic-listening-science-club-v1" value="c" /><span>Thursday at 3:30.</span></label>
+  </fieldset></div><details class="listening-transcript diagnostic-transcript" data-diagnostic-transcript><summary>音频不可用或需要无障碍替代时，查看英文原文</summary><p lang="en" data-diagnostic-transcript-text>The science club moved its weekly meeting from Tuesday to Thursday because the laboratory is now used for another class on Tuesday afternoon. The meeting will still begin at four thirty.</p><small>打开后仍可完成任务，但不会被解释为纯听力证据。</small></details><div class="diagnostic-task-actions"><button class="button button-ink" type="button" data-diagnostic-submit-task disabled>封存第一次选择
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M5 12h13M14 7l5 5-5 5" />
+  </svg></button><button class="button button-ghost diagnostic-skip" type="button" data-diagnostic-skip-task>当前无法完成 / 跳过</button></div><p class="practice-feedback" data-task-message role="status" aria-live="polite"></p></article><article class="diagnostic-task-card" data-diagnostic-task data-task-id="diagnostic-listening-language-lab-v1" data-task-version="v1" data-task-order="4" data-task-skill="Listening" data-response-type="single_choice_audio" data-construct-tag="time_and_location_integration" data-content-hash="be827c7ed66ed510a9b94aafdd16b35f445c82e14034bce6c971a29b5a8200cd" aria-labelledby="diagnostic-task-title-4" data-correct-value="a" data-audio-mode="browser_speech_synthesis" hidden><header class="diagnostic-task-heading"><div><span>04</span><div><p>Listening 2 / 2</p><h3 id="diagnostic-task-title-4" tabindex="-1" lang="en">Language lab instructions</h3></div></div><small data-task-state>待开始</small></header><p class="diagnostic-task-instruction">点击播放由当前设备英文语音合成器朗读的原创脚本，再保存第一次选择。不同设备的声音可能不同，因此证据只作流程演示。</p><button class="diagnostic-audio-button" type="button" data-diagnostic-speech-play><span aria-hidden="true">▶</span><span><strong>播放英文音频</strong><small>由当前设备的通用英文语音合成器朗读</small></span></button><p class="audio-status" data-diagnostic-audio-status role="status" aria-live="polite">请先播放英文材料；可以重复播放。</p><div class="english-material" lang="en">
+  <fieldset class="diagnostic-choice-list">
+    <legend>Where and when does the practice session start?</legend>
+    <label><input type="radio" name="diagnostic-answer-diagnostic-listening-language-lab-v1" value="a" /><span>Lab Three at 10:20.</span></label><label><input type="radio" name="diagnostic-answer-diagnostic-listening-language-lab-v1" value="b" /><span>The main lecture hall at 10:00.</span></label><label><input type="radio" name="diagnostic-answer-diagnostic-listening-language-lab-v1" value="c" /><span>Lab Three at 10:00.</span></label>
+  </fieldset></div><details class="listening-transcript diagnostic-transcript" data-diagnostic-transcript><summary>音频不可用或需要无障碍替代时，查看英文原文</summary><p lang="en" data-diagnostic-transcript-text>Please bring your student card to the language lab. The practice session starts at ten twenty, but the doors open at ten. We will meet in Lab Three, not the main lecture hall.</p><small>打开后仍可完成任务，但不会被解释为纯听力证据。</small></details><div class="diagnostic-task-actions"><button class="button button-ink" type="button" data-diagnostic-submit-task disabled>封存第一次选择
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M5 12h13M14 7l5 5-5 5" />
+  </svg></button><button class="button button-ghost diagnostic-skip" type="button" data-diagnostic-skip-task>当前无法完成 / 跳过</button></div><p class="practice-feedback" data-task-message role="status" aria-live="polite"></p></article><article class="diagnostic-task-card" data-diagnostic-task data-task-id="diagnostic-speaking-learning-skill-v1" data-task-version="v1" data-task-order="5" data-task-skill="Speaking" data-response-type="timed_self_report" data-construct-tag="task_coverage_and_connected_thoughts_self_report" data-content-hash="8d40b58172fbd68371784db6caa74a57e37e480c288f64fca9fc1a772d9acdf9" aria-labelledby="diagnostic-task-title-5" data-prep-seconds="20" data-response-seconds="90" hidden><header class="diagnostic-task-heading"><div><span>05</span><div><p>Speaking · 90 seconds</p><h3 id="diagnostic-task-title-5" tabindex="-1" lang="en">A skill you want to learn</h3></div></div><small data-task-state>待开始</small></header><p class="diagnostic-task-instruction">先准备 20 秒，再大声回答最多 90 秒。本站不请求麦克风、不录音；结果只能说明计时与自查是否完成。</p><p class="english-prompt" lang="en">Describe a skill you would like to learn in the next year. Explain why it matters, how you would practice it, and one difficulty you expect.</p><div class="speaking-clock diagnostic-clock"><strong data-diagnostic-timer>20</strong><span data-diagnostic-timer-state>准备好后开始</span></div><p class="sr-only" data-diagnostic-timer-announcement aria-live="polite"></p><div class="tool-button-row" data-speaking-controls><button class="tool-action" type="button" data-speaking-start>开始 20 秒准备</button><button class="tool-action tool-action-secondary" type="button" data-speaking-finish hidden>提前结束回答</button></div><fieldset class="self-review diagnostic-self-review" data-speaking-review-wrap hidden lang="en"><legend>Self-review after speaking</legend><label><input type="checkbox" data-speaking-review="coverage" /> I covered all parts of the prompt.</label><label><input type="checkbox" data-speaking-review="support" /> I gave a reason or example.</label><label><input type="checkbox" data-speaking-review="connected" /> I spoke in connected thoughts.</label></fieldset><div class="diagnostic-task-actions" data-speaking-submit-wrap hidden><button class="button button-ink" type="button" data-speaking-submit>保存计时与自查
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M5 12h13M14 7l5 5-5 5" />
+  </svg></button><button class="button button-ghost diagnostic-skip" type="button" data-diagnostic-skip-task>当前无法完成 / 跳过</button></div><div class="diagnostic-task-actions" data-speaking-skip-wrap><button class="button button-ghost diagnostic-skip" type="button" data-diagnostic-skip-task>当前无法完成 / 跳过</button></div><p class="practice-feedback" data-task-message role="status" aria-live="polite"></p></article><article class="diagnostic-task-card" data-diagnostic-task data-task-id="diagnostic-writing-learning-place-v1" data-task-version="v1" data-task-order="6" data-task-skill="Writing" data-response-type="timed_local_text" data-construct-tag="task_response_structure_self_review" data-content-hash="83cef1ddc39ff2a78e76fcb89de376c63fe7f6e859e1a3bf16e14b97652b3f85" aria-labelledby="diagnostic-task-title-6" data-response-seconds="180" data-minimum-words="20" hidden><header class="diagnostic-task-heading"><div><span>06</span><div><p>Writing · 3 minutes</p><h3 id="diagnostic-task-title-6" tabindex="-1" lang="en">A better place to learn</h3></div></div><small data-task-state>待开始</small></header><p class="diagnostic-task-instruction">写作时间上限为 3 分钟。英文原文只保存在当前浏览器；页面仅记录词数、计时和自查，不生成语言评分。</p><p class="english-prompt" lang="en">Describe one change that could make your school or community a better place to learn. Explain why it would help and give one example of how it could be used.</p><div class="diagnostic-writing-start" data-writing-start-wrap><button class="button button-ink" type="button" data-writing-start>开始 3 分钟写作
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M5 12h13M14 7l5 5-5 5" />
+  </svg></button><p>开始前不会保存任何作文文本。</p></div><div data-writing-workspace hidden><div class="diagnostic-writing-clock"><span>TIME LEFT</span><strong data-diagnostic-timer>03:00</strong><small data-diagnostic-timer-state>尚未开始</small></div><label class="writing-field"><span lang="en">Your response</span><textarea rows="10" maxlength="1800" spellcheck="true" lang="en" data-diagnostic-writing-answer disabled placeholder="Write your response in English..."></textarea></label><div class="writing-meta"><span><b data-diagnostic-word-count>0</b> words</span><span data-diagnostic-writing-save>只在本机保存</span></div><button class="button button-ghost" type="button" data-writing-finish>结束写作并自查</button></div><fieldset class="self-review diagnostic-self-review" data-writing-review-wrap hidden lang="en"><legend>Self-review</legend><label><input type="checkbox" data-writing-review="change" /> I described one clear change.</label><label><input type="checkbox" data-writing-review="support" /> I gave a reason or example.</label><label><input type="checkbox" data-writing-review="reviewed" /> I reviewed my response.</label></fieldset><div class="diagnostic-task-actions" data-writing-submit-wrap hidden><button class="button button-ink" type="button" data-writing-submit>保存作答条件与自查
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M5 12h13M14 7l5 5-5 5" />
+  </svg></button><button class="button button-ghost diagnostic-skip" type="button" data-diagnostic-skip-task>当前无法完成 / 跳过</button></div><div class="diagnostic-task-actions" data-writing-skip-wrap><button class="button button-ghost diagnostic-skip" type="button" data-diagnostic-skip-task>当前无法完成 / 跳过</button></div><p class="practice-feedback" data-task-message role="status" aria-live="polite"></p></article>
+          </div>
+        </section>
+
+        <section class="diagnostic-report" data-diagnostic-report hidden aria-labelledby="report-title">
+          <header><div><span>NON-SCORE REPORT</span><h3 id="report-title" tabindex="-1">本次任务证据报告</h3></div><strong data-report-confidence>低置信度</strong></header>
+          <div class="diagnostic-report-lead"><p data-report-summary></p><div><span>证据状态</span><strong data-diagnostic-sufficiency></strong></div></div>
+          <div class="diagnostic-evidence-grid" data-report-evidence></div>
+          <div class="diagnostic-report-columns"><section><h4>观察到的任务模式</h4><ul data-report-patterns></ul></section><section><h4>证据质量与限制</h4><ul data-report-quality></ul></section></div>
+          <form id="diagnostic-priority-form" class="diagnostic-priority-form" novalidate>
+            <div><span>NEXT EVIDENCE PRIORITY</span><h4>确认本轮下一条优先任务</h4><p data-priority-explanation></p></div>
+            <fieldset><legend>选择一个方向</legend><div data-priority-options></div></fieldset>
+            <label class="consent-check"><input type="checkbox" name="learnerConfirmedPriority" /><span><strong>我确认把所选方向作为本轮计划重点</strong><small>这是对下一条任务的选择，不是能力等级；计划页仍可修改。</small></span></label>
+            <button class="button button-ink" type="submit">确认并生成诊断回执
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M5 12h13M14 7l5 5-5 5" />
+  </svg></button>
+            <p class="form-inline-message" data-priority-message role="alert"></p>
+          </form>
+          <div class="chain-receipt" data-diagnostic-result hidden aria-live="polite"><span>DIAGNOSTIC RECEIPT</span><h3 data-diagnostic-result-title tabindex="-1">六项任务证据已留存</h3><p data-diagnostic-result-copy></p><dl><div><dt>diagnostic_session_id</dt><dd data-diagnostic-id></dd></div><div><dt>task_set_version</dt><dd>gate_a_original_6_v1</dd></div><div><dt>证据状态</dt><dd data-diagnostic-receipt-sufficiency></dd></div><div><dt>下一条优先项</dt><dd data-diagnostic-priority></dd></div></dl><div class="diagnostic-next-actions"><a class="button button-accent" href="/plan">下一步：生成 7 天计划
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M5 12h13M14 7l5 5-5 5" />
+  </svg></a><a class="button button-ghost" href="/super-teacher">问超级老师为什么先练这个
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M5 12h13M14 7l5 5-5 5" />
+  </svg></a></div></div>
+          <button class="text-link-button diagnostic-report-restart" type="button" data-diagnostic-restart>重新完成一轮任务</button>
+        </section>
       </div>
     </section>
   </main>
