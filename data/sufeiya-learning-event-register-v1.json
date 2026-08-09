@@ -1,0 +1,569 @@
+{
+  "protocolVersion": "sufeiya_learning_event_registry_v1",
+  "contractId": "sufeiya.learning-event.v1",
+  "contractVersion": "1.0.0",
+  "decisionStatus": "approved_xapi_ready_lrs_deferred",
+  "approvedAt": "2026-08-10",
+  "owner": "Sufeiya",
+  "canonicalEventCount": 15,
+  "xapiEligibleEventCount": 13,
+  "xapiTargetVersion": "2.0.0",
+  "xapiProfileStatus": "draft_mapping_only_not_published",
+  "xapiNamespace": "https://sufeiya.cn/xapi/v1/",
+  "sourceProtocolVersions": ["gate_a_local_v1"],
+  "diagnosticProtocolVersions": ["gate_a_diagnostic_evidence_v1"],
+  "applicationReleases": [
+    {
+      "appRelease": "a4c34445ebd8",
+      "gitCommit": "a4c34445ebd8333d4baece48fe4d897da3a5b26c"
+    }
+  ],
+  "noticeVersions": ["gate-a-v1"],
+  "noticeDataUse": {
+    "gate-a-v1": ["local_only_demo"]
+  },
+  "taskSets": [
+    {
+      "taskSetVersion": "gate_a_original_6_v1",
+      "taskSetDigest": "c1b2922ca96677665690bf790281be2438a016bbbe0d9f85478685af3c8dfc2c"
+    }
+  ],
+  "activityCatalog": [
+    { "activityId": "https://sufeiya.cn/activities/learning-cycle/gate-a/v1", "activityVersion": "v1", "activityKind": "learning_cycle" },
+    { "activityId": "https://sufeiya.cn/activities/diagnostic/reading-library/v1", "activityVersion": "v1", "activityKind": "diagnostic_task", "skill": "Reading" },
+    { "activityId": "https://sufeiya.cn/activities/diagnostic/reading-newsletter/v1", "activityVersion": "v1", "activityKind": "diagnostic_task", "skill": "Reading" },
+    { "activityId": "https://sufeiya.cn/activities/diagnostic/listening-science-club/v1", "activityVersion": "v1", "activityKind": "diagnostic_task", "skill": "Listening" },
+    { "activityId": "https://sufeiya.cn/activities/diagnostic/listening-language-lab/v1", "activityVersion": "v1", "activityKind": "diagnostic_task", "skill": "Listening" },
+    { "activityId": "https://sufeiya.cn/activities/diagnostic/speaking-learning-skill/v1", "activityVersion": "v1", "activityKind": "diagnostic_task", "skill": "Speaking" },
+    { "activityId": "https://sufeiya.cn/activities/diagnostic/writing-learning-place/v1", "activityVersion": "v1", "activityKind": "diagnostic_task", "skill": "Writing" },
+    { "activityId": "https://sufeiya.cn/activities/diagnostic-session/gate-a-original-6/v1", "activityVersion": "v1", "activityKind": "diagnostic_session" },
+    { "activityId": "https://sufeiya.cn/activities/learning-plan/seven-day/v1", "activityVersion": "v1", "activityKind": "learning_plan" },
+    { "activityId": "https://sufeiya.cn/activities/recommendations/gate-a/v1", "activityVersion": "v1", "activityKind": "recommendation" },
+    { "activityId": "https://sufeiya.cn/activities/planned-task/gate-a/v1", "activityVersion": "v1", "activityKind": "planned_task" },
+    { "activityId": "https://sufeiya.cn/activities/practice/reading-library/v1", "activityVersion": "v1", "activityKind": "practice", "skill": "Reading" },
+    { "activityId": "https://sufeiya.cn/activities/practice/listening-club/v1", "activityVersion": "v1", "activityKind": "practice", "skill": "Listening" },
+    { "activityId": "https://sufeiya.cn/activities/practice/writing-community/v1", "activityVersion": "v1", "activityKind": "practice", "skill": "Writing" },
+    { "activityId": "https://sufeiya.cn/activities/practice/speaking-skill/v1", "activityVersion": "v1", "activityKind": "practice", "skill": "Speaking" },
+    { "activityId": "https://sufeiya.cn/activities/focus-session/timer/v1", "activityVersion": "v1", "activityKind": "focus_session" },
+    { "activityId": "https://sufeiya.cn/activities/check-in/evidence/v1", "activityVersion": "v1", "activityKind": "check_in" },
+    { "activityId": "https://sufeiya.cn/activities/learner-review/gate-a/v1", "activityVersion": "v1", "activityKind": "learner_review" },
+    { "activityId": "https://sufeiya.cn/activities/peer-help/synthetic-card/v1", "activityVersion": "v1", "activityKind": "peer_help_preference" },
+    { "activityId": "https://sufeiya.cn/activities/retest/reading-parallel/v1", "activityVersion": "v1", "activityKind": "retest", "skill": "Reading" },
+    { "activityId": "https://sufeiya.cn/activities/retest/listening-parallel/v1", "activityVersion": "v1", "activityKind": "retest", "skill": "Listening" },
+    { "activityId": "https://sufeiya.cn/activities/retest/writing-parallel/v1", "activityVersion": "v1", "activityKind": "retest", "skill": "Writing" },
+    { "activityId": "https://sufeiya.cn/activities/retest/speaking-parallel/v1", "activityVersion": "v1", "activityKind": "retest", "skill": "Speaking" },
+    { "activityId": "https://sufeiya.cn/activities/learning-support/grounded-response/v1", "activityVersion": "v1", "activityKind": "learning_support" }
+  ],
+  "semanticRules": {
+    "diagnosticSkills": ["Reading", "Listening", "Writing", "Speaking"],
+    "cycleCompletionSkills": ["Balanced", "Reading", "Listening", "Writing", "Speaking"],
+    "eventSkillAllowlist": {
+      "diagnostic_task.terminal": ["Reading", "Listening", "Writing", "Speaking"],
+      "diagnostic.completed": ["Reading", "Listening", "Writing", "Speaking"],
+      "plan.committed": ["Reading", "Listening", "Writing", "Speaking"],
+      "practice_attempt.finalized": ["Reading", "Listening", "Writing", "Speaking"],
+      "retest.completed": ["Reading", "Listening", "Writing", "Speaking"],
+      "learning_cycle.completed": ["Balanced", "Reading", "Listening", "Writing", "Speaking"]
+    },
+    "eventAttributeSkillAllowlist": {
+      "diagnostic_task.terminal": {
+        "attemptCount": ["Reading", "Listening"],
+        "wordCount": ["Writing"],
+        "selfCheckCount": ["Writing", "Speaking"]
+      },
+      "practice_attempt.finalized": {
+        "attemptCount": ["Reading", "Listening"],
+        "wordCount": ["Writing"],
+        "selfCheckCount": ["Writing", "Speaking"]
+      },
+      "retest.completed": {
+        "wordCount": ["Writing"]
+      }
+    },
+    "diagnosticConfidenceValues": ["low", "medium"],
+    "qualityFlagBitOrder": [
+      "audio_not_played",
+      "audio_not_completed",
+      "audio_seek_detected",
+      "audio_playback_failed",
+      "audio_output_unavailable",
+      "transcript_used",
+      "multiple_replays",
+      "browser_voice_variability",
+      "voice_fallback_used",
+      "voice_not_loaded",
+      "speech_synthesis_error",
+      "learner_skipped",
+      "task_unavailable",
+      "writing_paste_detected",
+      "writing_ended_early",
+      "writing_below_completion_condition",
+      "speaking_ended_early",
+      "self_review_incomplete",
+      "audio_not_recorded",
+      "open_response_not_human_reviewed",
+      "resumed_after_reload"
+    ],
+    "sourceResultTypes": [
+      "first_response_matched",
+      "first_response_not_matched",
+      "single_task_correct",
+      "single_task_needs_review",
+      "task_completed_no_score"
+    ],
+    "derivedEventEvidenceTypes": ["not_assessed"],
+    "diagnosticTerminalEvidenceMatrix": {
+      "completed": ["first_response_matched", "first_response_not_matched", "task_completed_no_score"],
+      "evidence_insufficient": ["task_completed_no_score"],
+      "skipped": ["not_assessed"],
+      "unavailable": ["not_assessed"]
+    },
+    "diagnosticTerminalSkillMatrix": {
+      "completed": ["Reading", "Listening", "Writing", "Speaking"],
+      "evidence_insufficient": ["Writing"],
+      "skipped": ["Reading", "Listening", "Writing", "Speaking"],
+      "unavailable": ["Listening"]
+    },
+    "diagnosticQualityFlagsBySkill": {
+      "Reading": ["learner_skipped"],
+      "Listening": [
+        "audio_not_played",
+        "audio_not_completed",
+        "audio_seek_detected",
+        "audio_playback_failed",
+        "audio_output_unavailable",
+        "transcript_used",
+        "multiple_replays",
+        "browser_voice_variability",
+        "voice_fallback_used",
+        "voice_not_loaded",
+        "speech_synthesis_error",
+        "learner_skipped",
+        "task_unavailable"
+      ],
+      "Writing": [
+        "learner_skipped",
+        "writing_paste_detected",
+        "writing_ended_early",
+        "writing_below_completion_condition",
+        "self_review_incomplete",
+        "open_response_not_human_reviewed",
+        "resumed_after_reload"
+      ],
+      "Speaking": [
+        "learner_skipped",
+        "speaking_ended_early",
+        "self_review_incomplete",
+        "audio_not_recorded",
+        "open_response_not_human_reviewed",
+        "resumed_after_reload"
+      ]
+    },
+    "diagnosticCompletedEvidenceBySkill": {
+      "Reading": ["first_response_matched", "first_response_not_matched"],
+      "Listening": ["first_response_matched", "first_response_not_matched"],
+      "Writing": ["task_completed_no_score"],
+      "Speaking": ["task_completed_no_score"]
+    },
+    "practiceOutcomeEvidenceMatrix": {
+      "matched": ["first_response_matched"],
+      "needs_retry": ["first_response_not_matched"],
+      "self_review_completed": ["task_completed_no_score"],
+      "completed_no_score": ["task_completed_no_score"]
+    },
+    "practiceOutcomeSkills": {
+      "matched": ["Reading", "Listening"],
+      "needs_retry": ["Reading", "Listening"],
+      "self_review_completed": ["Writing", "Speaking"],
+      "completed_no_score": ["Writing", "Speaking"]
+    },
+    "retestSkillEvidenceMatrix": {
+      "Reading": ["single_task_correct", "single_task_needs_review"],
+      "Listening": ["single_task_correct", "single_task_needs_review"],
+      "Writing": ["task_completed_no_score"],
+      "Speaking": ["task_completed_no_score"]
+    },
+    "plannedTaskReopenSources": ["learner_checkbox"],
+    "supportCitationCountRange": { "minimum": 1, "maximum": 12 },
+    "supportModeRules": {
+      "ai_grounded": { "supportOutcome": "answered", "modelAttempted": true },
+      "manual_grounded": { "supportOutcome": "fallback" },
+      "policy_refusal": { "supportOutcome": "refused", "modelAttempted": false },
+      "insufficient_sources": { "supportOutcome": "refused", "modelAttempted": false, "handoffRecommended": true },
+      "handoff": { "supportOutcome": "handoff", "modelAttempted": false, "handoffRecommended": true }
+    }
+  },
+  "defaultEmissionBoundary": "after_domain_commit",
+  "defaultIdempotencyPolicy": "event_id_exact_payload",
+  "eventFieldPolicy": "required_plus_optional_keys_only",
+  "identifierPolicy": {
+    "subjectIdFormat": "typed_prefix_plus_csprng_uuid_v4",
+    "contextIdFormat": "event_layer_csprng_uuid_v4_alias",
+    "idempotencyFormat": "evt_colon_event_id",
+    "sourceReleaseFormat": "registered_lowercase_hex_commit_alias_7_to_12",
+    "rawDomainIdsAllowed": false,
+    "identityDerivedIdsAllowed": false,
+    "futureAliasResolutionBoundary": "first_party_acceptance_service"
+  },
+  "xapiProjectionRules": {
+    "statementIdSource": "eventId",
+    "registrationSource": "context.registrationId",
+    "timestampSource": "occurredAt",
+    "futureTimestampPolicy": "mapper_hold_or_reject_never_send_future_timestamp",
+    "clockSkewPolicy": "production_profile_must_define_tolerance_never_substitute_stored",
+    "storedPolicy": "lrs_assigned_never_recordedAt",
+    "measuredDurationSources": ["attributes.durationMs", "attributes.activeDurationMs"],
+    "durationEncoding": "iso8601_2004_duration_max_centisecond_precision",
+    "plannedDurationPolicy": "approved_extension_or_omitted_never_result.duration"
+  },
+  "defaultExportEligibility": "local_only_not_exportable",
+  "defaultDispatchPolicy": "disabled",
+  "deliveryBoundary": {
+    "learningEventRuntimeEnabled": false,
+    "productionLrsEnabled": false,
+    "browserMayHoldLrsCredentials": false,
+    "browserMayWriteDirectlyToLrs": false,
+    "studentWorkflowMayDependSynchronouslyOnLrs": false,
+    "authoritativeStore": "future_first_party_learning_database",
+    "futureDeliveryPattern": "durable_outbox_then_asynchronous_server_side_mapping"
+  },
+  "privacyBoundary": {
+    "classification": "pseudonymous_learning_metadata",
+    "directIdentifiersAllowed": false,
+    "freeTextAllowed": false,
+    "rawResponsesAllowed": false,
+    "audioAllowed": false,
+    "conversationContentAllowed": false,
+    "forbiddenPayloadClasses": [
+      "name",
+      "email",
+      "phone",
+      "student_number",
+      "postal_address",
+      "precise_ip",
+      "device_fingerprint",
+      "authentication_secret",
+      "writing_text",
+      "check_in_text",
+      "clipboard_content",
+      "audio_or_transcript",
+      "sofia_question_or_answer"
+    ]
+  },
+  "excludedHighFrequencySignals": [
+    "keypress",
+    "scroll",
+    "pointer_move",
+    "timer_tick",
+    "audio_timeupdate",
+    "component_render",
+    "navigation_hover"
+  ],
+  "eventTypes": [
+    {
+      "eventType": "learning_cycle.started",
+      "priority": "P0",
+      "description": "A new versioned Gate A cycle and diagnostic session are durably established after all local confirmations.",
+      "activityKind": "learning_cycle",
+      "allowedActivityIds": ["https://sufeiya.cn/activities/learning-cycle/gate-a/v1"],
+      "requiredContextKeys": ["registrationId", "learningSessionId", "learningCycleId", "diagnosticSessionId"],
+      "optionalContextKeys": [],
+      "requiredAttributeKeys": ["outcome", "taskSetDigest"],
+      "optionalAttributeKeys": [],
+      "requiredAttributeValues": { "outcome": "started" },
+      "xapiEligible": true,
+      "xapiDraft": {
+        "mappingStatus": "provisional_not_for_production_delivery",
+        "verbId": "http://adlnet.gov/expapi/verbs/initialized",
+        "activityTypeId": "https://sufeiya.cn/xapi/v1/activity-types/learning-cycle"
+      }
+    },
+    {
+      "eventType": "learning_cycle.superseded",
+      "priority": "P0",
+      "description": "An unfinished cycle is archived because the learner explicitly starts a new diagnostic cycle.",
+      "emissionGuard": "Emit only after an unfinished predecessor and its successor cycle are committed together; reset-without-successor and completed-cycle archive paths emit no superseded event.",
+      "activityKind": "learning_cycle",
+      "allowedActivityIds": ["https://sufeiya.cn/activities/learning-cycle/gate-a/v1"],
+      "requiredContextKeys": ["registrationId", "learningSessionId", "learningCycleId", "diagnosticSessionId", "supersedingCycleId"],
+      "optionalContextKeys": [],
+      "requiredAttributeKeys": ["outcome"],
+      "optionalAttributeKeys": [],
+      "requiredAttributeValues": { "outcome": "superseded" },
+      "xapiEligible": true,
+      "xapiDraft": {
+        "mappingStatus": "provisional_not_for_production_delivery",
+        "verbId": "https://sufeiya.cn/xapi/v1/verbs/superseded",
+        "activityTypeId": "https://sufeiya.cn/xapi/v1/activity-types/learning-cycle"
+      }
+    },
+    {
+      "eventType": "diagnostic_task.terminal",
+      "priority": "P0",
+      "description": "One registered diagnostic task reaches completed, skipped, evidence_insufficient, or unavailable after successful persistence.",
+      "activityKind": "diagnostic_task",
+      "allowedActivityIds": [
+        "https://sufeiya.cn/activities/diagnostic/reading-library/v1",
+        "https://sufeiya.cn/activities/diagnostic/reading-newsletter/v1",
+        "https://sufeiya.cn/activities/diagnostic/listening-science-club/v1",
+        "https://sufeiya.cn/activities/diagnostic/listening-language-lab/v1",
+        "https://sufeiya.cn/activities/diagnostic/speaking-learning-skill/v1",
+        "https://sufeiya.cn/activities/diagnostic/writing-learning-place/v1"
+      ],
+      "requiredContextKeys": ["registrationId", "learningSessionId", "learningCycleId", "diagnosticSessionId"],
+      "optionalContextKeys": [],
+      "requiredAttributeKeys": ["terminalStatus", "skill", "evidenceType", "taskSetDigest", "automatedScoreProduced", "formalDiagnosisProduced", "officialEquivalenceClaimed"],
+      "optionalAttributeKeys": ["durationMs", "attemptCount", "wordCount", "selfCheckCount", "qualityFlagMask"],
+      "requiredAttributeValues": {
+        "automatedScoreProduced": false,
+        "formalDiagnosisProduced": false,
+        "officialEquivalenceClaimed": false
+      },
+      "xapiEligible": true,
+      "xapiDraft": {
+        "mappingStatus": "provisional_not_for_production_delivery",
+        "verbId": "https://sufeiya.cn/xapi/v1/verbs/reached-terminal-state",
+        "activityTypeId": "https://sufeiya.cn/xapi/v1/activity-types/diagnostic-task"
+      }
+    },
+    {
+      "eventType": "diagnostic.completed",
+      "priority": "P0",
+      "description": "All six tasks are terminal and the learner confirms one priority skill; these are one atomic semantic event.",
+      "activityKind": "diagnostic_session",
+      "allowedActivityIds": ["https://sufeiya.cn/activities/diagnostic-session/gate-a-original-6/v1"],
+      "requiredContextKeys": ["registrationId", "learningSessionId", "learningCycleId", "diagnosticSessionId"],
+      "optionalContextKeys": [],
+      "requiredAttributeKeys": ["outcome", "skill", "evidenceCount", "evidenceConfidence", "taskSetDigest", "automatedScoreProduced", "formalDiagnosisProduced", "officialEquivalenceClaimed"],
+      "optionalAttributeKeys": ["qualityFlagMask"],
+      "requiredAttributeValues": {
+        "outcome": "completed",
+        "automatedScoreProduced": false,
+        "formalDiagnosisProduced": false,
+        "officialEquivalenceClaimed": false
+      },
+      "xapiEligible": true,
+      "xapiDraft": {
+        "mappingStatus": "provisional_not_for_production_delivery",
+        "verbId": "http://adlnet.gov/expapi/verbs/completed",
+        "activityTypeId": "https://sufeiya.cn/xapi/v1/activity-types/diagnostic-session"
+      }
+    },
+    {
+      "eventType": "plan.committed",
+      "priority": "P0",
+      "description": "A base seven-day plan is durably committed and linked to the valid diagnostic chain.",
+      "activityKind": "learning_plan",
+      "allowedActivityIds": ["https://sufeiya.cn/activities/learning-plan/seven-day/v1"],
+      "requiredContextKeys": ["registrationId", "learningSessionId", "learningCycleId", "diagnosticSessionId", "planId"],
+      "optionalContextKeys": ["supersedesEventId"],
+      "requiredAttributeKeys": ["outcome", "skill", "dailyMinutes", "taskCount", "taskSetDigest"],
+      "optionalAttributeKeys": [],
+      "requiredAttributeValues": { "outcome": "committed" },
+      "xapiEligible": true,
+      "xapiDraft": {
+        "mappingStatus": "provisional_not_for_production_delivery",
+        "verbId": "https://sufeiya.cn/xapi/v1/verbs/committed-plan",
+        "activityTypeId": "https://sufeiya.cn/xapi/v1/activity-types/learning-plan"
+      }
+    },
+    {
+      "eventType": "recommendation.decided",
+      "priority": "P0",
+      "description": "The first valid accepted or skipped decision is sealed for one versioned recommendation.",
+      "activityKind": "recommendation",
+      "allowedActivityIds": ["https://sufeiya.cn/activities/recommendations/gate-a/v1"],
+      "requiredContextKeys": ["registrationId", "learningSessionId", "learningCycleId", "diagnosticSessionId", "planId", "recommendationId"],
+      "optionalContextKeys": ["causationEventId"],
+      "requiredAttributeKeys": ["decision"],
+      "optionalAttributeKeys": [],
+      "requiredAttributeValues": {},
+      "xapiEligible": true,
+      "xapiDraft": {
+        "mappingStatus": "provisional_not_for_production_delivery",
+        "verbId": "https://sufeiya.cn/xapi/v1/verbs/decided-recommendation",
+        "activityTypeId": "https://sufeiya.cn/xapi/v1/activity-types/recommendation"
+      }
+    },
+    {
+      "eventType": "planned_task.status_changed",
+      "priority": "P0",
+      "description": "A versioned plan task changes between completed and reopened with an explicit completion source.",
+      "activityKind": "planned_task",
+      "allowedActivityIds": ["https://sufeiya.cn/activities/planned-task/gate-a/v1"],
+      "requiredContextKeys": ["registrationId", "learningSessionId", "planId", "taskId"],
+      "optionalContextKeys": ["learningCycleId", "diagnosticSessionId", "causationEventId"],
+      "requiredAttributeKeys": ["taskStatus", "completionSource"],
+      "optionalAttributeKeys": [],
+      "requiredAttributeValues": {},
+      "xapiEligible": true,
+      "xapiDraft": {
+        "mappingStatus": "provisional_not_for_production_delivery",
+        "verbId": "https://sufeiya.cn/xapi/v1/verbs/changed-plan-task-status",
+        "activityTypeId": "https://sufeiya.cn/xapi/v1/activity-types/planned-task"
+      }
+    },
+    {
+      "eventType": "practice_attempt.finalized",
+      "priority": "P0",
+      "description": "A standalone or plan-linked practice attempt reaches its first valid result or self-review terminal state.",
+      "activityKind": "practice",
+      "allowedActivityIds": [
+        "https://sufeiya.cn/activities/practice/reading-library/v1",
+        "https://sufeiya.cn/activities/practice/listening-club/v1",
+        "https://sufeiya.cn/activities/practice/writing-community/v1",
+        "https://sufeiya.cn/activities/practice/speaking-skill/v1"
+      ],
+      "requiredContextKeys": ["registrationId", "learningSessionId", "attemptId"],
+      "optionalContextKeys": ["learningCycleId", "diagnosticSessionId", "planId", "taskId"],
+      "requiredAttributeKeys": ["practiceOutcome", "skill", "evidenceType", "automatedScoreProduced", "formalDiagnosisProduced", "officialEquivalenceClaimed"],
+      "optionalAttributeKeys": ["attemptCount", "wordCount", "selfCheckCount"],
+      "requiredAttributeValues": {
+        "automatedScoreProduced": false,
+        "formalDiagnosisProduced": false,
+        "officialEquivalenceClaimed": false
+      },
+      "xapiEligible": true,
+      "xapiDraft": {
+        "mappingStatus": "provisional_not_for_production_delivery",
+        "verbId": "https://sufeiya.cn/xapi/v1/verbs/finalized-attempt",
+        "activityTypeId": "https://sufeiya.cn/xapi/v1/activity-types/practice"
+      }
+    },
+    {
+      "eventType": "focus_session.ended",
+      "priority": "P0",
+      "description": "One bounded focus timer ends as completed or stopped; the planned duration is distinct from optional measured active duration, and ticks or pause/resume actions are not events.",
+      "activityKind": "focus_session",
+      "allowedActivityIds": ["https://sufeiya.cn/activities/focus-session/timer/v1"],
+      "requiredContextKeys": ["registrationId", "learningSessionId", "focusSessionId"],
+      "optionalContextKeys": ["planId", "taskId", "causationEventId"],
+      "requiredAttributeKeys": ["sessionOutcome", "plannedDurationMs"],
+      "optionalAttributeKeys": ["activeDurationMs"],
+      "requiredAttributeValues": {},
+      "xapiEligible": true,
+      "xapiDraft": {
+        "mappingStatus": "provisional_not_for_production_delivery",
+        "verbId": "https://sufeiya.cn/xapi/v1/verbs/ended-focus-session",
+        "activityTypeId": "https://sufeiya.cn/xapi/v1/activity-types/focus-session"
+      }
+    },
+    {
+      "eventType": "check_in.committed",
+      "priority": "P0",
+      "description": "A structured evidence check-in is committed without copying any of its free-text fields into the event.",
+      "activityKind": "check_in",
+      "allowedActivityIds": ["https://sufeiya.cn/activities/check-in/evidence/v1"],
+      "requiredContextKeys": ["registrationId", "learningSessionId", "learningCycleId", "diagnosticSessionId", "planId", "recommendationId", "checkInId", "taskId"],
+      "optionalContextKeys": ["causationEventId"],
+      "requiredAttributeKeys": ["outcome", "evidenceCount", "issuePresent"],
+      "optionalAttributeKeys": [],
+      "requiredAttributeValues": { "outcome": "committed" },
+      "xapiEligible": true,
+      "xapiDraft": {
+        "mappingStatus": "provisional_not_for_production_delivery",
+        "verbId": "https://sufeiya.cn/xapi/v1/verbs/committed-check-in",
+        "activityTypeId": "https://sufeiya.cn/xapi/v1/activity-types/check-in"
+      }
+    },
+    {
+      "eventType": "review.confirmed",
+      "priority": "P0",
+      "description": "The learner separately confirms a review linked to a valid check-in; this is not teacher assessment.",
+      "activityKind": "learner_review",
+      "allowedActivityIds": ["https://sufeiya.cn/activities/learner-review/gate-a/v1"],
+      "requiredContextKeys": ["registrationId", "learningSessionId", "learningCycleId", "checkInId", "reviewId"],
+      "optionalContextKeys": ["causationEventId"],
+      "requiredAttributeKeys": ["outcome"],
+      "optionalAttributeKeys": [],
+      "requiredAttributeValues": { "outcome": "confirmed" },
+      "xapiEligible": true,
+      "xapiDraft": {
+        "mappingStatus": "provisional_not_for_production_delivery",
+        "verbId": "https://sufeiya.cn/xapi/v1/verbs/confirmed-review",
+        "activityTypeId": "https://sufeiya.cn/xapi/v1/activity-types/learner-review"
+      }
+    },
+    {
+      "eventType": "peer_help.preference_recorded",
+      "priority": "P0",
+      "description": "A learner records used, declined, not-needed, or unavailable for the synthetic peer-help card.",
+      "activityKind": "peer_help_preference",
+      "allowedActivityIds": ["https://sufeiya.cn/activities/peer-help/synthetic-card/v1"],
+      "requiredContextKeys": ["registrationId", "learningSessionId", "learningCycleId", "planId", "reviewId", "peerHelpId"],
+      "optionalContextKeys": ["causationEventId"],
+      "requiredAttributeKeys": ["preference"],
+      "optionalAttributeKeys": [],
+      "requiredAttributeValues": {},
+      "xapiEligible": false,
+      "xapiExclusionReason": "The current community surface is synthetic and does not prove a real peer interaction."
+    },
+    {
+      "eventType": "retest.completed",
+      "priority": "P0",
+      "description": "The first valid parallel micro-retest evidence is sealed without a score or growth claim.",
+      "activityKind": "retest",
+      "allowedActivityIds": [
+        "https://sufeiya.cn/activities/retest/reading-parallel/v1",
+        "https://sufeiya.cn/activities/retest/listening-parallel/v1",
+        "https://sufeiya.cn/activities/retest/writing-parallel/v1",
+        "https://sufeiya.cn/activities/retest/speaking-parallel/v1"
+      ],
+      "requiredContextKeys": ["registrationId", "learningSessionId", "learningCycleId", "diagnosticSessionId", "planId", "retestId"],
+      "optionalContextKeys": [],
+      "requiredAttributeKeys": ["outcome", "skill", "evidenceType", "taskSetDigest", "automatedScoreProduced", "formalDiagnosisProduced", "growthClaimProduced", "officialEquivalenceClaimed"],
+      "optionalAttributeKeys": ["wordCount"],
+      "requiredAttributeValues": {
+        "outcome": "completed",
+        "automatedScoreProduced": false,
+        "formalDiagnosisProduced": false,
+        "growthClaimProduced": false,
+        "officialEquivalenceClaimed": false
+      },
+      "xapiEligible": true,
+      "xapiDraft": {
+        "mappingStatus": "provisional_not_for_production_delivery",
+        "verbId": "http://adlnet.gov/expapi/verbs/completed",
+        "activityTypeId": "https://sufeiya.cn/xapi/v1/activity-types/retest"
+      }
+    },
+    {
+      "eventType": "learning_cycle.completed",
+      "priority": "P0",
+      "description": "The updated plan is confirmed and the learning cycle closes in one atomic semantic event.",
+      "activityKind": "learning_cycle",
+      "allowedActivityIds": ["https://sufeiya.cn/activities/learning-cycle/gate-a/v1"],
+      "requiredContextKeys": ["registrationId", "learningSessionId", "learningCycleId", "diagnosticSessionId", "planId", "retestId", "updatedPlanId"],
+      "optionalContextKeys": ["causationEventId"],
+      "requiredAttributeKeys": ["outcome", "skill", "taskSetDigest", "automatedScoreProduced", "formalDiagnosisProduced", "growthClaimProduced", "officialEquivalenceClaimed"],
+      "optionalAttributeKeys": [],
+      "requiredAttributeValues": {
+        "outcome": "completed",
+        "automatedScoreProduced": false,
+        "formalDiagnosisProduced": false,
+        "growthClaimProduced": false,
+        "officialEquivalenceClaimed": false
+      },
+      "xapiEligible": true,
+      "xapiDraft": {
+        "mappingStatus": "provisional_not_for_production_delivery",
+        "verbId": "http://adlnet.gov/expapi/verbs/completed",
+        "activityTypeId": "https://sufeiya.cn/xapi/v1/activity-types/learning-cycle"
+      }
+    },
+    {
+      "eventType": "learning_support.interaction_finished",
+      "priority": "P1",
+      "description": "Aggregate Sofia support outcome and mode without recording the question, answer, prompt, or conversation.",
+      "activityKind": "learning_support",
+      "allowedActivityIds": ["https://sufeiya.cn/activities/learning-support/grounded-response/v1"],
+      "requiredContextKeys": ["registrationId", "learningSessionId", "learningCycleId", "diagnosticSessionId", "interactionId"],
+      "optionalContextKeys": ["requestId", "causationEventId"],
+      "requiredAttributeKeys": ["supportOutcome", "modelAttempted", "latencyMs"],
+      "optionalAttributeKeys": ["teacherMode", "citationCount", "handoffRecommended", "errorCode"],
+      "requiredAttributeValues": {},
+      "xapiEligible": false,
+      "xapiExclusionReason": "Support usage is internal product telemetry, not portable learning evidence."
+    }
+  ]
+}

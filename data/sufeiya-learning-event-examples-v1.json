@@ -1,0 +1,257 @@
+{
+  "protocolVersion": "sufeiya_learning_event_examples_v1",
+  "examplesAreSynthetic": true,
+  "events": [
+    {
+      "contractId": "sufeiya.learning-event.v1",
+      "schemaVersion": 1,
+      "eventId": "00000000-0000-4000-8000-000000000001",
+      "idempotencyKey": "evt:00000000-0000-4000-8000-000000000001",
+      "eventType": "diagnostic_task.terminal",
+      "occurredAt": "2026-08-10T08:00:00.000Z",
+      "recordedAt": "2026-08-10T08:00:01.000Z",
+      "subject": {
+        "subjectId": "anon_90000000-0000-4000-8000-000000000001",
+        "subjectType": "anonymous_installation",
+        "identityAssurance": "local_device",
+        "assignedBy": "local_runtime"
+      },
+      "source": {
+        "surface": "web",
+        "appRelease": "a4c34445ebd8",
+        "locale": "zh-CN",
+        "protocolVersion": "gate_a_local_v1"
+      },
+      "context": {
+        "registrationId": "10000000-0000-4000-8000-000000000001",
+        "learningSessionId": "11000000-0000-4000-8000-000000000001",
+        "learningCycleId": "12000000-0000-4000-8000-000000000001",
+        "diagnosticSessionId": "13000000-0000-4000-8000-000000000001"
+      },
+      "activity": {
+        "activityId": "https://sufeiya.cn/activities/diagnostic/reading-library/v1",
+        "activityVersion": "v1",
+        "activityKind": "diagnostic_task"
+      },
+      "attributes": {
+        "terminalStatus": "completed",
+        "skill": "Reading",
+        "attemptCount": 1,
+        "evidenceType": "first_response_matched",
+        "taskSetDigest": "c1b2922ca96677665690bf790281be2438a016bbbe0d9f85478685af3c8dfc2c",
+        "qualityFlagMask": 0,
+        "automatedScoreProduced": false,
+        "formalDiagnosisProduced": false,
+        "officialEquivalenceClaimed": false
+      },
+      "privacy": {
+        "classification": "pseudonymous_learning_metadata",
+        "containsDirectIdentifier": false,
+        "containsFreeText": false,
+        "containsRawResponse": false,
+        "containsAudio": false,
+        "containsConversationContent": false
+      },
+      "governance": {
+        "dataUse": "local_only_demo",
+        "noticeVersion": "gate-a-v1",
+        "retentionClass": "local_until_cleared",
+        "exportEligibility": "local_only_not_exportable",
+        "xapiDispatchPolicy": "disabled"
+      },
+      "integrity": {
+        "canonicalization": "rfc8785-jcs",
+        "hashScope": "event_without_integrity",
+        "payloadSha256": "975364988e9e467bc403cfab4b2e4bf685a3836cee7e6037ccfb44a9a7fa2cd6",
+        "registryVersion": "sufeiya_learning_event_registry_v1"
+      }
+    },
+    {
+      "contractId": "sufeiya.learning-event.v1",
+      "schemaVersion": 1,
+      "eventId": "00000000-0000-4000-8000-000000000002",
+      "idempotencyKey": "evt:00000000-0000-4000-8000-000000000002",
+      "eventType": "recommendation.decided",
+      "occurredAt": "2026-08-10T08:10:00.000Z",
+      "recordedAt": "2026-08-10T08:10:01.000Z",
+      "subject": {
+        "subjectId": "anon_90000000-0000-4000-8000-000000000001",
+        "subjectType": "anonymous_installation",
+        "identityAssurance": "local_device",
+        "assignedBy": "local_runtime"
+      },
+      "source": {
+        "surface": "web",
+        "appRelease": "a4c34445ebd8",
+        "locale": "zh-CN",
+        "protocolVersion": "gate_a_local_v1"
+      },
+      "context": {
+        "registrationId": "10000000-0000-4000-8000-000000000001",
+        "learningSessionId": "11000000-0000-4000-8000-000000000001",
+        "learningCycleId": "12000000-0000-4000-8000-000000000001",
+        "diagnosticSessionId": "13000000-0000-4000-8000-000000000001",
+        "planId": "14000000-0000-4000-8000-000000000001",
+        "recommendationId": "15000000-0000-4000-8000-000000000001"
+      },
+      "activity": {
+        "activityId": "https://sufeiya.cn/activities/recommendations/gate-a/v1",
+        "activityVersion": "v1",
+        "activityKind": "recommendation"
+      },
+      "attributes": {
+        "decision": "accepted"
+      },
+      "privacy": {
+        "classification": "pseudonymous_learning_metadata",
+        "containsDirectIdentifier": false,
+        "containsFreeText": false,
+        "containsRawResponse": false,
+        "containsAudio": false,
+        "containsConversationContent": false
+      },
+      "governance": {
+        "dataUse": "local_only_demo",
+        "noticeVersion": "gate-a-v1",
+        "retentionClass": "local_until_cleared",
+        "exportEligibility": "local_only_not_exportable",
+        "xapiDispatchPolicy": "disabled"
+      },
+      "integrity": {
+        "canonicalization": "rfc8785-jcs",
+        "hashScope": "event_without_integrity",
+        "payloadSha256": "52049823effb71a28797eab6fda31d9b8e1b5073a0803321957af1c6ba87d5eb",
+        "registryVersion": "sufeiya_learning_event_registry_v1"
+      }
+    },
+    {
+      "contractId": "sufeiya.learning-event.v1",
+      "schemaVersion": 1,
+      "eventId": "00000000-0000-4000-8000-000000000003",
+      "idempotencyKey": "evt:00000000-0000-4000-8000-000000000003",
+      "eventType": "learning_cycle.completed",
+      "occurredAt": "2026-08-10T08:20:00.000Z",
+      "recordedAt": "2026-08-10T08:20:01.000Z",
+      "subject": {
+        "subjectId": "anon_90000000-0000-4000-8000-000000000001",
+        "subjectType": "anonymous_installation",
+        "identityAssurance": "local_device",
+        "assignedBy": "local_runtime"
+      },
+      "source": {
+        "surface": "web",
+        "appRelease": "a4c34445ebd8",
+        "locale": "zh-CN",
+        "protocolVersion": "gate_a_local_v1"
+      },
+      "context": {
+        "registrationId": "10000000-0000-4000-8000-000000000001",
+        "learningSessionId": "11000000-0000-4000-8000-000000000001",
+        "learningCycleId": "12000000-0000-4000-8000-000000000001",
+        "diagnosticSessionId": "13000000-0000-4000-8000-000000000001",
+        "planId": "14000000-0000-4000-8000-000000000001",
+        "retestId": "16000000-0000-4000-8000-000000000001",
+        "updatedPlanId": "17000000-0000-4000-8000-000000000001"
+      },
+      "activity": {
+        "activityId": "https://sufeiya.cn/activities/learning-cycle/gate-a/v1",
+        "activityVersion": "v1",
+        "activityKind": "learning_cycle"
+      },
+      "attributes": {
+        "outcome": "completed",
+        "skill": "Listening",
+        "taskSetDigest": "c1b2922ca96677665690bf790281be2438a016bbbe0d9f85478685af3c8dfc2c",
+        "automatedScoreProduced": false,
+        "formalDiagnosisProduced": false,
+        "growthClaimProduced": false,
+        "officialEquivalenceClaimed": false
+      },
+      "privacy": {
+        "classification": "pseudonymous_learning_metadata",
+        "containsDirectIdentifier": false,
+        "containsFreeText": false,
+        "containsRawResponse": false,
+        "containsAudio": false,
+        "containsConversationContent": false
+      },
+      "governance": {
+        "dataUse": "local_only_demo",
+        "noticeVersion": "gate-a-v1",
+        "retentionClass": "local_until_cleared",
+        "exportEligibility": "local_only_not_exportable",
+        "xapiDispatchPolicy": "disabled"
+      },
+      "integrity": {
+        "canonicalization": "rfc8785-jcs",
+        "hashScope": "event_without_integrity",
+        "payloadSha256": "58de7981fcabdc07e30dd877719e2efe7d22284c5d94291715e4d40fe79c1215",
+        "registryVersion": "sufeiya_learning_event_registry_v1"
+      }
+    },
+    {
+      "contractId": "sufeiya.learning-event.v1",
+      "schemaVersion": 1,
+      "eventId": "00000000-0000-4000-8000-000000000004",
+      "idempotencyKey": "evt:00000000-0000-4000-8000-000000000004",
+      "eventType": "learning_support.interaction_finished",
+      "occurredAt": "2026-08-10T08:30:00.000Z",
+      "recordedAt": "2026-08-10T08:30:01.000Z",
+      "subject": {
+        "subjectId": "anon_90000000-0000-4000-8000-000000000001",
+        "subjectType": "anonymous_installation",
+        "identityAssurance": "local_device",
+        "assignedBy": "local_runtime"
+      },
+      "source": {
+        "surface": "web",
+        "appRelease": "a4c34445ebd8",
+        "locale": "zh-CN",
+        "protocolVersion": "gate_a_local_v1"
+      },
+      "context": {
+        "registrationId": "10000000-0000-4000-8000-000000000001",
+        "learningSessionId": "11000000-0000-4000-8000-000000000001",
+        "learningCycleId": "12000000-0000-4000-8000-000000000001",
+        "diagnosticSessionId": "13000000-0000-4000-8000-000000000001",
+        "interactionId": "18000000-0000-4000-8000-000000000001",
+        "requestId": "40000000-0000-4000-8000-000000000004"
+      },
+      "activity": {
+        "activityId": "https://sufeiya.cn/activities/learning-support/grounded-response/v1",
+        "activityVersion": "v1",
+        "activityKind": "learning_support"
+      },
+      "attributes": {
+        "supportOutcome": "fallback",
+        "teacherMode": "manual_grounded",
+        "modelAttempted": false,
+        "citationCount": 2,
+        "handoffRecommended": false,
+        "latencyMs": 42,
+        "errorCode": "none"
+      },
+      "privacy": {
+        "classification": "pseudonymous_learning_metadata",
+        "containsDirectIdentifier": false,
+        "containsFreeText": false,
+        "containsRawResponse": false,
+        "containsAudio": false,
+        "containsConversationContent": false
+      },
+      "governance": {
+        "dataUse": "local_only_demo",
+        "noticeVersion": "gate-a-v1",
+        "retentionClass": "local_until_cleared",
+        "exportEligibility": "local_only_not_exportable",
+        "xapiDispatchPolicy": "disabled"
+      },
+      "integrity": {
+        "canonicalization": "rfc8785-jcs",
+        "hashScope": "event_without_integrity",
+        "payloadSha256": "8f18f15af1e887f736e14a38a4c1997be0841ad3abd084947cc788162796facc",
+        "registryVersion": "sufeiya_learning_event_registry_v1"
+      }
+    }
+  ]
+}

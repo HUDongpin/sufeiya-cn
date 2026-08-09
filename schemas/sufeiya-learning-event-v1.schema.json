@@ -1,0 +1,332 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sufeiya.cn/schemas/sufeiya-learning-event-v1.schema.json",
+  "title": "Sufeiya Learning Event Contract v1",
+  "description": "A strict, privacy-minimized first-party event envelope that can be mapped to xAPI later without enabling an LRS today.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractId",
+    "schemaVersion",
+    "eventId",
+    "idempotencyKey",
+    "eventType",
+    "occurredAt",
+    "recordedAt",
+    "subject",
+    "source",
+    "context",
+    "activity",
+    "attributes",
+    "privacy",
+    "governance",
+    "integrity"
+  ],
+  "properties": {
+    "contractId": { "const": "sufeiya.learning-event.v1" },
+    "schemaVersion": { "const": 1 },
+    "eventId": { "$ref": "#/$defs/uuidV4" },
+    "idempotencyKey": {
+      "type": "string",
+      "pattern": "^evt:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "eventType": {
+      "type": "string",
+      "enum": [
+        "learning_cycle.started",
+        "learning_cycle.superseded",
+        "diagnostic_task.terminal",
+        "diagnostic.completed",
+        "plan.committed",
+        "recommendation.decided",
+        "planned_task.status_changed",
+        "practice_attempt.finalized",
+        "focus_session.ended",
+        "check_in.committed",
+        "review.confirmed",
+        "peer_help.preference_recorded",
+        "retest.completed",
+        "learning_cycle.completed",
+        "learning_support.interaction_finished"
+      ]
+    },
+    "occurredAt": { "$ref": "#/$defs/utcTimestamp" },
+    "recordedAt": { "$ref": "#/$defs/utcTimestamp" },
+    "subject": { "$ref": "#/$defs/subject" },
+    "source": { "$ref": "#/$defs/source" },
+    "context": { "$ref": "#/$defs/context" },
+    "activity": { "$ref": "#/$defs/activity" },
+    "attributes": { "$ref": "#/$defs/attributes" },
+    "privacy": { "$ref": "#/$defs/privacy" },
+    "governance": { "$ref": "#/$defs/governance" },
+    "integrity": { "$ref": "#/$defs/integrity" }
+  },
+  "$defs": {
+    "uuidV4": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "utcTimestamp": {
+      "type": "string",
+      "format": "date-time",
+      "minLength": 24,
+      "maxLength": 24,
+      "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]\\.[0-9]{3}Z$"
+    },
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["subjectId", "subjectType", "identityAssurance", "assignedBy"],
+      "properties": {
+        "subjectId": {
+          "type": "string",
+          "pattern": "^(anon|sub)_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "subjectType": {
+          "type": "string",
+          "enum": ["anonymous_installation", "registered_account"]
+        },
+        "identityAssurance": {
+          "type": "string",
+          "enum": ["local_device", "authenticated_account"]
+        },
+        "assignedBy": {
+          "type": "string",
+          "enum": ["local_runtime", "sufeiya_identity_service"]
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["surface", "appRelease", "locale", "protocolVersion"],
+      "properties": {
+        "surface": { "const": "web" },
+        "appRelease": {
+          "type": "string",
+          "minLength": 7,
+          "maxLength": 12,
+          "pattern": "^[0-9a-f]+$"
+        },
+        "locale": {
+          "type": "string",
+          "enum": ["zh-CN", "en"]
+        },
+        "protocolVersion": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "pattern": "^[A-Za-z0-9._-]+$"
+        }
+      }
+    },
+    "context": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "registrationId": { "$ref": "#/$defs/uuidV4" },
+        "learningSessionId": { "$ref": "#/$defs/uuidV4" },
+        "learningCycleId": { "$ref": "#/$defs/uuidV4" },
+        "diagnosticSessionId": { "$ref": "#/$defs/uuidV4" },
+        "planId": { "$ref": "#/$defs/uuidV4" },
+        "recommendationId": { "$ref": "#/$defs/uuidV4" },
+        "checkInId": { "$ref": "#/$defs/uuidV4" },
+        "reviewId": { "$ref": "#/$defs/uuidV4" },
+        "peerHelpId": { "$ref": "#/$defs/uuidV4" },
+        "retestId": { "$ref": "#/$defs/uuidV4" },
+        "updatedPlanId": { "$ref": "#/$defs/uuidV4" },
+        "supersedingCycleId": { "$ref": "#/$defs/uuidV4" },
+        "taskId": { "$ref": "#/$defs/uuidV4" },
+        "attemptId": { "$ref": "#/$defs/uuidV4" },
+        "focusSessionId": { "$ref": "#/$defs/uuidV4" },
+        "interactionId": { "$ref": "#/$defs/uuidV4" },
+        "requestId": { "$ref": "#/$defs/uuidV4" },
+        "causationEventId": { "$ref": "#/$defs/uuidV4" },
+        "supersedesEventId": { "$ref": "#/$defs/uuidV4" }
+      }
+    },
+    "activity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["activityId", "activityVersion", "activityKind"],
+      "properties": {
+        "activityId": {
+          "type": "string",
+          "format": "uri",
+          "maxLength": 240,
+          "pattern": "^https://sufeiya\\.cn/activities/[A-Za-z0-9][A-Za-z0-9._-]{0,79}(?:/[A-Za-z0-9][A-Za-z0-9._-]{0,79})+$"
+        },
+        "activityVersion": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[A-Za-z0-9._-]+$"
+        },
+        "activityKind": {
+          "type": "string",
+          "enum": [
+            "learning_cycle",
+            "diagnostic_task",
+            "diagnostic_session",
+            "learning_plan",
+            "recommendation",
+            "planned_task",
+            "practice",
+            "focus_session",
+            "check_in",
+            "learner_review",
+            "peer_help_preference",
+            "retest",
+            "learning_support"
+          ]
+        }
+      }
+    },
+    "attributes": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "outcome": {
+          "type": "string",
+          "enum": ["started", "superseded", "completed", "committed", "confirmed"]
+        },
+        "terminalStatus": {
+          "type": "string",
+          "enum": ["completed", "skipped", "evidence_insufficient", "unavailable"]
+        },
+        "decision": {
+          "type": "string",
+          "enum": ["accepted", "skipped"]
+        },
+        "taskStatus": {
+          "type": "string",
+          "enum": ["completed", "reopened"]
+        },
+        "completionSource": {
+          "type": "string",
+          "enum": ["learner_checkbox", "practice", "check_in"]
+        },
+        "practiceOutcome": {
+          "type": "string",
+          "enum": ["matched", "needs_retry", "self_review_completed", "completed_no_score"]
+        },
+        "sessionOutcome": {
+          "type": "string",
+          "enum": ["completed", "stopped"]
+        },
+        "preference": {
+          "type": "string",
+          "enum": ["used", "declined", "not_needed", "unavailable"]
+        },
+        "supportOutcome": {
+          "type": "string",
+          "enum": ["answered", "refused", "fallback", "handoff", "error"]
+        },
+        "skill": {
+          "type": "string",
+          "enum": ["Balanced", "Reading", "Listening", "Writing", "Speaking"]
+        },
+        "durationMs": { "type": "integer", "minimum": 0, "maximum": 86400000 },
+        "plannedDurationMs": { "type": "integer", "minimum": 0, "maximum": 86400000 },
+        "activeDurationMs": { "type": "integer", "minimum": 0, "maximum": 86400000 },
+        "latencyMs": { "type": "integer", "minimum": 0, "maximum": 120000 },
+        "dailyMinutes": { "type": "integer", "minimum": 5, "maximum": 240 },
+        "attemptCount": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "taskCount": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "evidenceCount": { "type": "integer", "minimum": 0, "maximum": 1000 },
+        "wordCount": { "type": "integer", "minimum": 0, "maximum": 20000 },
+        "selfCheckCount": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "citationCount": { "type": "integer", "minimum": 1, "maximum": 12 },
+        "issuePresent": { "type": "boolean" },
+        "modelAttempted": { "type": "boolean" },
+        "handoffRecommended": { "type": "boolean" },
+        "automatedScoreProduced": { "const": false },
+        "formalDiagnosisProduced": { "const": false },
+        "growthClaimProduced": { "const": false },
+        "officialEquivalenceClaimed": { "const": false },
+        "evidenceType": {
+          "type": "string",
+          "enum": [
+            "first_response_matched",
+            "first_response_not_matched",
+            "task_completed_no_score",
+            "single_task_correct",
+            "single_task_needs_review",
+            "not_assessed"
+          ]
+        },
+        "evidenceConfidence": {
+          "type": "string",
+          "enum": ["low", "medium"]
+        },
+        "taskSetDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "qualityFlagMask": { "type": "integer", "minimum": 0, "maximum": 2097151 },
+        "teacherMode": {
+          "type": "string",
+          "enum": ["ai_grounded", "manual_grounded", "policy_refusal", "insufficient_sources", "handoff"]
+        },
+        "errorCode": {
+          "type": "string",
+          "enum": ["none", "invalid_request", "rate_limited", "model_unavailable", "invalid_response", "timeout"]
+        }
+      }
+    },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["classification", "containsDirectIdentifier", "containsFreeText", "containsRawResponse", "containsAudio", "containsConversationContent"],
+      "properties": {
+        "classification": { "const": "pseudonymous_learning_metadata" },
+        "containsDirectIdentifier": { "const": false },
+        "containsFreeText": { "const": false },
+        "containsRawResponse": { "const": false },
+        "containsAudio": { "const": false },
+        "containsConversationContent": { "const": false }
+      }
+    },
+    "governance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dataUse", "noticeVersion", "retentionClass", "exportEligibility", "xapiDispatchPolicy"],
+      "properties": {
+        "dataUse": {
+          "type": "string",
+          "enum": ["local_only_demo", "first_party_learning_record", "consented_xapi_pilot"]
+        },
+        "noticeVersion": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[A-Za-z0-9._-]+$"
+        },
+        "retentionClass": {
+          "type": "string",
+          "enum": ["local_until_cleared", "account_lifecycle", "pilot_bounded"]
+        },
+        "exportEligibility": {
+          "type": "string",
+          "enum": ["local_only_not_exportable", "server_event_not_lrs_exportable", "lrs_export_approved"]
+        },
+        "xapiDispatchPolicy": { "const": "disabled" },
+        "consentReceiptId": { "$ref": "#/$defs/uuidV4" }
+      }
+    },
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["canonicalization", "hashScope", "payloadSha256", "registryVersion"],
+      "properties": {
+        "canonicalization": { "const": "rfc8785-jcs" },
+        "hashScope": { "const": "event_without_integrity" },
+        "payloadSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "registryVersion": { "const": "sufeiya_learning_event_registry_v1" }
+      }
+    }
+  }
+}

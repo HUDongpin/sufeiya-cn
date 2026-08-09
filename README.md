@@ -77,6 +77,12 @@ Sofia智能老师只对已经在六任务诊断证据包中完成 18+ 本机确�
 
 这条纵向路径是 Gate A 本机流程验证，不是正式诊断、正式能力等级、官方 DET 分数或真实学生试点。六任务证据包只报告本轮任务证据、质量限制、低/中等证据覆盖置信度和学习者确认的下一条优先任务；Writing 与 Speaking 在合格人工审核前不形成最终诊断。Sofia智能老师 Gate A 已开放，但知识范围仍被严格限制：只允许 10 条第一方产品政策/原创任务来源支持主张，5 条公开视频仅作 link-only 目录；DET 官方索引与 631 个归档预览块的准入数仍均为 0。正式诊断、完整课程知识、带教打卡营和真人社区互助继续分阶段开放。当前工具不提供 DET 分数预测、AI 评分、泛化 RAG、真题机经、考试中协助、真实同伴联系、真实奖励或结果保证，也不使用未经独立核验的学员数量与效果数字。
 
+## Learning event strategy
+
+项目已经批准版本化的 `sufeiya.learning-event.v1` 内部学习事件设计，使当前学习闭环以后可以在不重写业务语义的前提下投影为 xAPI。事件注册表、严格 JSON Schema、合成示例与离线验证器分别位于 `data/sufeiya-learning-event-register-v1.json`、`schemas/sufeiya-learning-event-v1.schema.json`、`data/sufeiya-learning-event-examples-v1.json` 和 `scripts/verify-learning-event-contract.mjs`；`npm run check:event-contract` 会验证逐事件字段白名单、跨字段语义矩阵、UUID 别名、活动目录、示例哈希与无已声明 LRS 运行时依赖。当前只批准设计，事件运行时采集本身仍为关闭状态。
+
+生产 LRS 的供应商采购、端点、凭据、SDK、服务器事件库、xAPI 投影器、outbox 与网络发送全部暂缓。当前默认 `xapiDispatchPolicy` 固定为 `disabled`，现有本机学习历史标记为不可导出，也不能把 18+ 本机确认解释为云端上传同意。Writing/Speaking 原文或录音、诊断首答、打卡自由文本、Sofia 对话、姓名、邮箱、手机号和认证信息不得进入通用学习事件。完整决策边界见 `docs/decisions/0001-xapi-ready-lrs-deferred.md`，事件语义与未来投影约束见 `docs/learning-events/sufeiya-learning-event-contract-v1.md`。
+
 ## Deployment
 
 项目使用 Next.js 与 `vercel.json` 配置路由和基础安全响应头。`.vercel/` 是本机项目链接信息，不进入版本控制；任何真实数据、供应商或 Gate B 试点仍需另行完成文档中的 P0 书面决定。
