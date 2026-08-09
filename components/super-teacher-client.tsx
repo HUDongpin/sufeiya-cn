@@ -361,7 +361,7 @@ export function SuperTeacherClient() {
   }
 
   async function clearConversation() {
-    if (!window.confirm("确定清除这个浏览器中的超级智能老师对话和未发送人工请求吗？学习闭环数据不会被删除；此操作无法撤销。")) return;
+    if (!window.confirm("确定清除这个浏览器中的 Sofia智能老师对话和未发送人工请求吗？学习闭环数据不会被删除；此操作无法撤销。")) return;
     abortRef.current?.abort();
     if (!navigator.locks?.request) {
       setError("当前浏览器无法取得安全写入锁；原对话未被清除。请使用最新版浏览器后重试。");
@@ -381,7 +381,7 @@ export function SuperTeacherClient() {
         sessionRef.current = next;
         setSession(next);
         setError("");
-        setNotice("已清除当前浏览器中的超级智能老师对话和本机人工请求记录。学习工作台数据未受影响。");
+        setNotice("已清除当前浏览器中的 Sofia智能老师对话和本机人工请求记录。学习工作台数据未受影响。");
         setHandoffOpen(false);
         setSessionReadIssue(undefined);
       });
@@ -413,7 +413,7 @@ export function SuperTeacherClient() {
       return;
     }
     const text = [
-      "[苏肥鸭超级智能老师 Gate A 人工支持请求]",
+      "[Sofia智能老师 Gate A 人工支持请求]",
       `请求编号：${latest.id}`,
       `当前学习摘要：${contextSummary}`,
       `问题：${latest.questionPreview}`,
@@ -433,8 +433,8 @@ export function SuperTeacherClient() {
         <div className={styles.heroInner}>
           <div>
             <Link className={styles.backLink} href="/workspace">← 返回学习工作台</Link>
-            <p className={styles.eyebrow}>SUFEIYA SUPER AGENT · GATE A</p>
-            <h1 id="super-teacher-title">苏肥鸭超级智能老师</h1>
+            <p className={styles.eyebrow}>SOFIA AI TEACHER · GATE A</p>
+            <h1 id="super-teacher-title">Sofia智能老师</h1>
             <p className={styles.heroLead}>支持受控大模型调用的 AI 学习助手，解释“为什么先练这个”并逐句显示来源；每条回答都会标明是否实际调用模型。它不是苏肥鸭老师本人，也不是 Duolingo 或 DET 官方评分员。</p>
           </div>
           <dl className={styles.heroFacts}>
@@ -445,7 +445,7 @@ export function SuperTeacherClient() {
         </div>
       </section>
 
-      <section className={styles.workspace} aria-label="超级智能老师工作区">
+      <section className={styles.workspace} aria-label="Sofia智能老师工作区">
         <aside className={styles.contextPanel}>
           <p className={styles.panelKicker}>CURRENT CONTEXT</p>
           <h2>它只读取最小化学习摘要</h2>
@@ -466,7 +466,7 @@ export function SuperTeacherClient() {
           <div className={styles.nonAiCard}>
             <span>WITHOUT AI</span>
             <h3>不使用 AI 也能完成闭环</h3>
-            <p>智能老师是可选解释层，不会阻断演示初筛、计划、任务、复盘或微复测。</p>
+            <p>Sofia智能老师是可选解释层，不会阻断演示初筛、计划、任务、复盘或微复测。</p>
             <a href={learnerContext?.prioritySkill ? "/recommendations" : "/diagnostic"}>{learnerContext ? "继续但不使用 AI" : "先完成 18+ 演示确认"} →</a>
           </div>
         </aside>
@@ -478,7 +478,7 @@ export function SuperTeacherClient() {
           </header>
 
           <div className={styles.suggestions} aria-label="建议问题">
-            {["为什么先练这个？", "解释我的 7 天计划", "怎样验证我真的有进步？", "超级智能老师不能做什么？"].map((prompt) => (
+            {["为什么先练这个？", "解释我的 7 天计划", "怎样验证我真的有进步？", "Sofia智能老师不能做什么？"].map((prompt) => (
               <button key={prompt} type="button" onClick={() => choosePrompt(prompt)} disabled={!safeWriteLockSupported || !learnerContext || Boolean(sessionReadIssue)}>{prompt}</button>
             ))}
           </div>
@@ -621,7 +621,7 @@ export function SuperTeacherClient() {
               <button type="button" onClick={createHandoffRequest} disabled={!safeWriteLockSupported || Boolean(sessionReadIssue)}>先生成本机请求</button>
             </>
           )}
-          <Link href="/workspace">退出智能老师并继续学习 →</Link>
+          <Link href="/workspace">退出 Sofia智能老师并继续学习 →</Link>
         </div>
       </section>
     </main>

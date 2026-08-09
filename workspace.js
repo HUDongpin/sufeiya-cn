@@ -1281,7 +1281,7 @@
       ["学生确认复盘", `${confirmedReviews} 条`],
       ["完整演示闭环", `${completedCycles} 轮`],
       ["专注记录", `${state.focus.sessions.length} 次`],
-      ["超级老师对话消息", teacherTurns + " 条"],
+      ["Sofia智能老师对话消息", teacherTurns + " 条"],
       ["未发送人工请求", handoffRequests + " 条"],
     ];
     rows.forEach(([label, value]) => {
@@ -1332,13 +1332,13 @@
       link.remove();
       URL.revokeObjectURL(url);
       const message = document.querySelector("[data-data-message]");
-      if (message) message.textContent = "包含学习闭环与超级老师命名空间的 JSON 备份已导出到下载目录。";
+      if (message) message.textContent = "包含学习闭环与 Sofia智能老师命名空间的 JSON 备份已导出到下载目录。";
     });
   });
 
   document.querySelectorAll("[data-clear-workspace]").forEach((button) => {
     button.addEventListener("click", () => {
-      if (!window.confirm("确定仅清除这个浏览器中的 Sufeiya 学习闭环数据吗？超级老师对话不会被删除；此操作无法撤销。")) return;
+      if (!window.confirm("确定仅清除这个浏览器中的 Sufeiya 学习闭环数据吗？Sofia智能老师对话不会被删除；此操作无法撤销。")) return;
       try {
         window.localStorage.removeItem(STORAGE_KEY);
       } catch {
@@ -1353,12 +1353,12 @@
 
   document.querySelectorAll("[data-clear-super-teacher]").forEach((button) => {
     button.addEventListener("click", () => {
-      if (!window.confirm("确定仅清除这个浏览器中的超级老师对话和未发送人工请求吗？学习闭环数据不会被删除；此操作无法撤销。")) return;
+      if (!window.confirm("确定仅清除这个浏览器中的 Sofia智能老师对话和未发送人工请求吗？学习闭环数据不会被删除；此操作无法撤销。")) return;
       try {
         window.localStorage.removeItem(SUPER_TEACHER_STORAGE_KEY);
       } catch {
         const message = document.querySelector("[data-data-message]");
-        if (message) message.textContent = "浏览器未允许清除超级老师数据。";
+        if (message) message.textContent = "浏览器未允许清除 Sofia智能老师数据。";
         return;
       }
       window.location.reload();
@@ -1367,7 +1367,7 @@
 
   document.querySelectorAll("[data-clear-all-sufeiya]").forEach((button) => {
     button.addEventListener("click", () => {
-      if (!window.confirm("确定清除这个浏览器中的全部 Sufeiya 学习闭环、超级老师对话和未发送人工请求吗？此操作无法撤销。")) return;
+      if (!window.confirm("确定清除这个浏览器中的全部 Sufeiya 学习闭环、Sofia智能老师对话和未发送人工请求吗？此操作无法撤销。")) return;
       try {
         window.localStorage.removeItem(STORAGE_KEY);
         window.localStorage.removeItem(SUPER_TEACHER_STORAGE_KEY);

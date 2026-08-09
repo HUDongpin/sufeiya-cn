@@ -77,11 +77,11 @@
     },
     {
       "id": "sufeiya-ai-boundary-v1",
-      "title": "超级智能老师 Gate A 使用边界",
+      "title": "Sofia智能老师 Gate A 使用边界",
       "href": "/about#faq",
       "sourceClass": "first_party_product_policy",
       "admissionStatus": "product_policy_allowed",
-      "content": "超级智能老师 Gate A 是由大模型支持的 AI 学习助手，不是苏肥鸭老师本人，也不是 Duolingo 或 DET 官方评分员。它只能解释本站本机学习证据、计划、推荐和原创任务。来源不足时必须说明不知道或需要人工确认；它不能改分、预测成绩、保证提分、提供真题机经或协助正在进行的考试。学习者可以不使用 AI 继续学习。",
+      "content": "Sofia智能老师 Gate A 是由大模型支持的 AI 学习助手，不是苏肥鸭老师本人，也不是 Duolingo 或 DET 官方评分员。它只能解释本站本机学习证据、计划、推荐和原创任务。来源不足时必须说明不知道或需要人工确认；它不能改分、预测成绩、保证提分、提供真题机经或协助正在进行的考试。学习者可以不使用 AI 继续学习。",
       "allowedIntents": ["why_priority", "explain_plan", "explain_recommendation", "validate_progress", "explain_limits", "integrity_boundary", "source_review_required"]
     },
     {

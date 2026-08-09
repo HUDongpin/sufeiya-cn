@@ -62,6 +62,7 @@ const superTeacherResponder = await read("lib/super-teacher/responder.ts");
 const superTeacherContracts = await read("lib/super-teacher/contracts.ts");
 const superTeacherLocalContext = await read("lib/super-teacher/local-context.ts");
 const superTeacherPolicy = await read("lib/super-teacher/policy.ts");
+const legacyContent = await read("lib/legacy-content.generated.ts");
 const diagnosticPage = await read("diagnostic.html");
 const diagnosticTaskRegister = JSON.parse(await read("data/diagnostic-task-register.json"));
 
@@ -754,7 +755,11 @@ check(/账户功能后续开放/.test(accountPage), "account route explains the 
 check(/不需要登录或注册/.test(signInPage) && /免注册、本机保存模式/.test(signUpPage), "sign-in and sign-up routes route learners into the local-only flow");
 check(/X-Sufeiya-Account-Mode[\s\S]*local-only/.test(proxyScript), "application responses identify the local-only account mode");
 check(/connect-src 'self'/.test(proxyScript) && !/clerk|stripe/i.test(proxyScript), "Gate A CSP has no Clerk or Stripe runtime origins");
-check(/苏肥鸭超级智能老师/.test(superTeacherPage), "Super Teacher has a dedicated Next.js application page");
+check(/Sofia智能老师/.test(superTeacherPage), "Sofia AI Teacher has a dedicated Next.js application page");
+check(/Sofia智能老师/.test(legacyContent), "generated Next.js legacy content uses the Sofia AI Teacher name");
+check(!/苏肥鸭超级智能老师|超级智能老师|超级老师/.test(legacyContent), "generated Next.js legacy content has no retired teacher name");
+check(/无需注册/.test(legacyContent) && /没有账号系统/.test(legacyContent), "generated Next.js legacy content preserves the local-only account boundary");
+check(!/注册与登录已经开放|账户用于注册、登录/.test(legacyContent), "generated Next.js legacy content does not claim deferred account features are live");
 check(/历史对话不发送给模型/.test(superTeacherClient) && !/history,/.test(superTeacherClient), "Super Teacher discloses and enforces no model history forwarding");
 check(/isSameOrigin[\s\S]*MAX_BODY_BYTES[\s\S]*checkSuperTeacherRateLimit/.test(superTeacherRoute), "Super Teacher API applies origin, body-size, and rate-limit gates");
 check(/Output\.object[\s\S]*modelTeacherOutputSchema[\s\S]*outputIsSafe/.test(superTeacherResponder), "Super Teacher model output is structured and source-ID checked");

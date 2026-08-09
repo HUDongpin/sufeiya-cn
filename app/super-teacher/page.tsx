@@ -4,7 +4,7 @@ import { SuperTeacherClient } from "@/components/super-teacher-client";
 import { SiteShell } from "@/components/site-shell";
 import { SITE_NAME, SITE_URL } from "@/lib/site";
 
-const title = "苏肥鸭超级智能老师｜有来源的 Gate A 学习解释";
+const title = "Sofia智能老师｜有来源的 Gate A 学习解释";
 const description = "解释本机学习证据、7 天计划与推荐依据，逐句显示来源；来源不足时明确停止，并保留非 AI 与人工支持路径。";
 
 export const metadata: Metadata = {
@@ -27,8 +27,8 @@ export default function SuperTeacherPage() {
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
-    name: "苏肥鸭超级智能老师",
-    alternateName: "Sufeiya Super Agent",
+    name: "Sofia智能老师",
+    alternateName: "Sofia AI Teacher",
     applicationCategory: "EducationalApplication",
     operatingSystem: "Web",
     url: `${SITE_URL}/super-teacher`,

@@ -37,25 +37,6 @@ const requiredMatch = (html, pattern, label, file) => {
   return match[1].trim();
 };
 
-const copyReplacements = new Map([
-  [
-    "无需注册。计划、打卡与复盘只保存在当前浏览器中，学生可以随时清除，不会上传到网站服务器。",
-    "注册与登录已经开放，但这些学习工具无需登录也可使用。计划、打卡与复盘仍只保存在当前浏览器中，学生可以随时清除，不会自动上传到网站服务器。",
-  ],
-  ["无需注册 · 本机保存 · 随时清除", "无需登录也可使用 · 本机保存 · 随时清除"],
-  ["不登录、不上传，可随时清除", "本机保存、不自动上传，可随时清除"],
-  [
-    "学习计划、任务进度、练习草稿、专注记录与复盘只保存在当前浏览器。本站没有账号系统，也不会自动同步到其他设备。",
-    "账户用于注册、登录与个人资料管理；学习计划、任务进度、练习草稿、专注记录与复盘仍只保存在当前浏览器，不会自动同步到其他设备。",
-  ],
-]);
-
-const updateAccountCopy = (mainHtml) => {
-  let result = mainHtml;
-  for (const [from, to] of copyReplacements) result = result.replaceAll(from, to);
-  return result;
-};
-
 const pages = {};
 
 for (const definition of definitions) {
@@ -69,7 +50,7 @@ for (const definition of definitions) {
     journey: Boolean(definition.journey),
     title: requiredMatch(html, /<title>([\s\S]*?)<\/title>/i, "title", definition.file),
     description: descriptionMatch || "页面没有找到，请返回苏肥鸭多邻国在线学习平台首页。",
-    mainHtml: updateAccountCopy(requiredMatch(html, /(<main\b[\s\S]*?<\/main>)/i, "main", definition.file)),
+    mainHtml: requiredMatch(html, /(<main\b[\s\S]*?<\/main>)/i, "main", definition.file),
     jsonLd: html.match(/<script\s+type="application\/ld\+json">\s*([\s\S]*?)\s*<\/script>/i)?.[1]?.trim() || null,
   };
 }

@@ -14,7 +14,7 @@
     "lint": "eslint .",
     "test:super-teacher": "tsx --test tests/super-teacher.test.ts",
     "check:legacy": "node scripts/verify-site.mjs",
-    "check": "npm run check:legacy && npm run test:super-teacher && npm run typecheck && npm run lint && npm run build"
+    "check": "npm run generate:next-content && npm run check:legacy && npm run test:super-teacher && tsc --noEmit && npm run lint && next build"
   },
   "engines": {
     "node": ">=22.0.0"

@@ -54,7 +54,7 @@ function SiteHeader({ pageKey }: { pageKey: NavigationKey }) {
               href="/super-teacher"
               aria-current={pageKey === "super-teacher" ? "page" : undefined}
             >
-              超级智能老师
+              Sofia智能老师
             </a>
             <span className="local-mode-badge">免登录 · 本机保存</span>
           </div>
@@ -72,7 +72,7 @@ function SiteHeader({ pageKey }: { pageKey: NavigationKey }) {
             进入学习工作台
             <ArrowIcon />
           </a>
-          <a href="/super-teacher" aria-current={pageKey === "super-teacher" ? "page" : undefined}>超级智能老师<span>Gate A</span></a>
+          <a href="/super-teacher" aria-current={pageKey === "super-teacher" ? "page" : undefined}>Sofia智能老师<span>Gate A</span></a>
           <a href="/my-data">我的本机数据<span>本机</span></a>
           <a href="/account">账户功能说明<span>后续</span></a>
         </nav>
@@ -93,7 +93,7 @@ function SiteFooter() {
           <div>
             <strong>页面</strong>
             <a href="/workspace">开始学习</a>
-            <a href="/super-teacher">超级智能老师</a>
+            <a href="/super-teacher">Sofia智能老师</a>
             <a href="/my-data">我的本机数据</a>
             <a href="/learning-path">学习路径</a>
             <a href="/platform">平台功能</a>
