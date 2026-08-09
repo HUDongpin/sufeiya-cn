@@ -127,6 +127,7 @@ check(/:focus-visible/.test(styles), "visible keyboard focus style is present");
 check(/\.hero\s*\{[\s\S]*linear-gradient\(135deg,\s*#fffdf7/i.test(styles), "home hero uses a light background");
 check(!/hero-orbit|page-hero-orbit/.test(styles), "navigation-adjacent hero styles contain no decorative orbit lines");
 check(!/\.learning-plate::before/.test(styles), "home learning card contains no decorative arc line");
+check(!/\.about::after/.test(styles), "yellow about section contains no decorative fan-shaped arc line");
 check(/\.system\s*\{[\s\S]*background:\s*var\(--color-sage\)/i.test(styles), "platform section uses a light sage background");
 check(/中文讲解[\s\S]*英文材料/.test(await read("resources.html")), "resources page states the Chinese UI and English materials rule");
 check(/胡冬品博士（Dr\. Peter Hu）/.test(await read("about.html")), "confirmed Dr. Peter Hu public name is present");
