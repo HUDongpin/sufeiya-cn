@@ -1,6 +1,5 @@
 /* Full-document links are intentional until the legacy per-page runtimes are migrated to React. */
 /* eslint-disable @next/next/no-html-link-for-pages */
-import { Show, UserButton } from "@clerk/nextjs";
 import Script from "next/script";
 import type { ReactNode } from "react";
 
@@ -50,14 +49,8 @@ function SiteHeader({ pageKey }: { pageKey: NavigationKey }) {
               <span>开始学习</span>
               <ArrowIcon />
             </a>
-            <Show when="signed-out">
-              <a className="auth-link" href="/sign-in">登录</a>
-              <a className="auth-link auth-link-primary" href="/sign-up">注册</a>
-            </Show>
-            <Show when="signed-in">
-              <a className="auth-link" href="/account">我的账户</a>
-              <UserButton userProfileMode="navigation" userProfileUrl="/account" />
-            </Show>
+            <a className="auth-link" href="/my-data">我的本机数据</a>
+            <span className="local-mode-badge">免登录 · 本机保存</span>
           </div>
           <button className="nav-toggle" type="button" aria-expanded="false" aria-controls="mobile-nav" aria-label="打开导航菜单">
             <span /><span />
@@ -73,13 +66,8 @@ function SiteHeader({ pageKey }: { pageKey: NavigationKey }) {
             进入学习工作台
             <ArrowIcon />
           </a>
-          <Show when="signed-out">
-            <a href="/sign-in">登录<span>账户</span></a>
-            <a href="/sign-up">注册<span>免费</span></a>
-          </Show>
-          <Show when="signed-in">
-            <a href="/account">我的账户<span>资料</span></a>
-          </Show>
+          <a href="/my-data">我的本机数据<span>本机</span></a>
+          <a href="/account">账户功能说明<span>后续</span></a>
         </nav>
       </header>
     </>
@@ -104,10 +92,10 @@ function SiteFooter() {
             <a href="/resources">学习资源</a>
           </div>
           <div>
-            <strong>账户</strong>
-            <a href="/sign-in">登录</a>
-            <a href="/sign-up">注册</a>
-            <a href="/account">我的账户</a>
+            <strong>数据与账户</strong>
+            <a href="/my-data">我的本机数据</a>
+            <a href="/workspace">免登录学习</a>
+            <a href="/account">账户功能说明</a>
           </div>
           <div>
             <strong>了解更多</strong>

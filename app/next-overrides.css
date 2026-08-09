@@ -1,4 +1,4 @@
-/* Next.js shell and Clerk account surfaces. Loaded after the legacy stylesheet. */
+/* Next.js shell and local-only account boundary surfaces. Loaded after the legacy stylesheet. */
 .header-inner {
   grid-template-columns: auto minmax(340px, 1fr) auto;
 }
@@ -42,6 +42,20 @@
 .auth-link-primary:hover {
   background: #ffc942;
   color: var(--color-ink-deep);
+}
+
+.local-mode-badge {
+  min-height: 40px;
+  padding: 8px 13px;
+  border: 1px solid rgba(22, 53, 45, 0.16);
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-ink-soft);
+  background: rgba(255, 255, 255, 0.7);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
 }
 
 .footer-nav {
@@ -133,6 +147,64 @@
 
 .account-profile-wrap {
   overflow: hidden;
+}
+
+.account-deferred-card {
+  width: min(100%, 520px);
+  padding: clamp(28px, 4vw, 44px);
+  border: 1px solid rgba(22, 53, 45, 0.13);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 24px 70px rgba(22, 53, 45, 0.1);
+}
+
+.account-mode-kicker {
+  margin: 0 0 14px;
+  color: var(--color-accent-deep);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.account-deferred-card h2 {
+  margin: 0;
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: clamp(30px, 4vw, 42px);
+  font-weight: 600;
+  letter-spacing: -0.04em;
+}
+
+.account-deferred-card > p:not(.account-mode-kicker) {
+  margin: 20px 0 0;
+  color: var(--color-muted);
+  font-size: 15px;
+  line-height: 1.85;
+}
+
+.account-deferred-actions {
+  margin-top: 28px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 18px;
+}
+
+.account-deferred-actions .tool-action {
+  width: 100%;
+  min-height: 48px;
+  text-decoration: none;
+}
+
+.account-deferred-card small {
+  margin-top: 26px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(22, 53, 45, 0.1);
+  display: block;
+  color: var(--color-muted);
+  font-size: 11px;
+  line-height: 1.7;
 }
 
 .plan-result-heading {

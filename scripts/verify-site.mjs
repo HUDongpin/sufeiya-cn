@@ -43,6 +43,13 @@ const journeyScript = await read("journey.js");
 const resourcesScript = await read("resources.js");
 const notFound = await read("404.html");
 const sitemap = await read("sitemap.xml");
+const rootLayout = await read("app/layout.tsx");
+const siteShell = await read("components/site-shell.tsx");
+const authPage = await read("components/auth-page.tsx");
+const accountPage = await read("app/account/[[...account]]/page.tsx");
+const signInPage = await read("app/sign-in/[[...sign-in]]/page.tsx");
+const signUpPage = await read("app/sign-up/[[...sign-up]]/page.tsx");
+const proxyScript = await read("proxy.ts");
 
 const resolveLocalPath = (urlPath) => {
   const clean = urlPath.split("#")[0].split("?")[0];
@@ -206,6 +213,12 @@ check(/officialEquivalenceClaimed:\s*false[\s\S]*growthClaimProduced:\s*false/.t
 check(/learnerConfirmed:\s*true[\s\S]*supersedesPlanId:\s*cycle\.basePlanId/.test(journeyScript), "updated plan requires learner confirmation and supersedes the exact base plan");
 check(!/getUserMedia|MediaRecorder/.test(journeyScript), "journey does not request or record microphone data");
 check(!/(?:10\s*[–-]\s*160|官方估分|预测分数|真正\s*CAT)/.test(journeyScript), "journey does not generate official score or CAT claims");
+check(!/@clerk\//.test(`${rootLayout}\n${siteShell}\n${authPage}\n${accountPage}\n${signInPage}\n${signUpPage}\n${proxyScript}`), "Gate A application runtime has no Clerk imports");
+check(/免登录 · 本机保存/.test(siteShell), "Next.js shell exposes the local-only learner mode");
+check(/账户功能后续开放/.test(accountPage), "account route explains the deferred account boundary");
+check(/不需要登录或注册/.test(signInPage) && /免注册、本机保存模式/.test(signUpPage), "sign-in and sign-up routes route learners into the local-only flow");
+check(/X-Sufeiya-Account-Mode[\s\S]*local-only/.test(proxyScript), "application responses identify the local-only account mode");
+check(/connect-src 'self'/.test(proxyScript) && !/clerk|stripe/i.test(proxyScript), "Gate A CSP has no Clerk or Stripe runtime origins");
 check(/position:\s*absolute;[\s\S]*top:\s*100%;[\s\S]*100dvh/.test(styles), "mobile navigation escapes the sticky backdrop fixed-position trap");
 check(/\.footer-nav a\s*\{[\s\S]*min-height:\s*44px/.test(styles), "mobile footer links meet the 44px touch target");
 

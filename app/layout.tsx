@@ -1,5 +1,3 @@
-import { ClerkProvider } from "@clerk/nextjs";
-import { zhCN } from "@clerk/localizations";
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 
@@ -27,11 +25,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <html lang="zh-CN">
-      <body>
-        <ClerkProvider localization={zhCN}>
-          {children}
-        </ClerkProvider>
-      </body>
+      <body>{children}</body>
     </html>
   );
 }
