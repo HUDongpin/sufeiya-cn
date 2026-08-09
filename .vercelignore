@@ -1,13 +1,20 @@
-# Deploy only the generated public site. Local source, test artifacts,
-# screenshots, exported learner data, and repository metadata stay private.
-/*
-!/*.html
-!assets
-!data
-!/resources.js
-!/script.js
-!/workspace.js
-!/styles.css
-!/robots.txt
-!/sitemap.xml
-!/vercel.json
+# Keep local-only material out of deployment while allowing the complete
+# Next.js application, lockfile, public assets, and build configuration.
+.git
+.vercel
+.playwright-cli
+node_modules
+output
+artifacts
+.agents
+AGENTS.md
+CLAUDE.md
+tsconfig.tsbuildinfo
+skills-lock.json
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+sufeiya-learning-data-*.json

@@ -1,8 +1,15 @@
 .DS_Store
 .vercel/
 node_modules/
+.next/
+tsconfig.tsbuildinfo
 output/
+artifacts/
 .playwright-cli/
+.agents/
+skills-lock.json
+AGENTS.md
+CLAUDE.md
 npm-debug.log*
 .env
 .env.*
@@ -13,3 +20,7 @@ npm-debug.log*
 *.p12
 *.pfx
 sufeiya-learning-data-*.json
+lib/legacy-content.generated.ts
+public/script.js
+public/workspace.js
+public/resources.js
