@@ -72,6 +72,7 @@ const footer = () => `
         <div>
           <strong>页面</strong>
           <a href="/workspace">开始学习</a>
+          <a href="/super-teacher">超级智能老师</a>
           <a href="/my-data">我的本机数据</a>
           <a href="/learning-path">学习路径</a>
           <a href="/platform">平台功能</a>
@@ -296,8 +297,8 @@ const platformContent = `
       number: "02",
       label: "平台功能",
       title: "四项平台能力，<br />服务同一条学习路径。",
-      lead: "基础学习工具已经可以直接使用；正式诊断、智能辅助、带教打卡与社区能力继续分阶段验证。每项能力都服务同一条学习路径。",
-      aside: "<strong>现在就能学习</strong><p>进入学习工作台，生成计划、完成清单、练习英文听说读写并保存复盘。</p>",
+      lead: "基础学习工具和超级智能老师 Gate A 已经可以直接使用；正式诊断、完整课程知识、带教打卡与社区能力继续分阶段验证。每项能力都服务同一条学习路径。",
+      aside: "<strong>现在就能学习</strong><p>进入学习工作台完成七步闭环，或让超级智能老师解释本机证据、计划与推荐依据。</p>",
     })}
     <section class="workspace-entry section" aria-labelledby="workspace-entry-title">
       <div class="section-inner">
@@ -337,7 +338,7 @@ const platformContent = `
           </article>
           <article>
             <div class="system-index"><span>02</span><small>解释</small></div>
-            <div class="system-content"><p class="system-label">苏肥鸭超级智能老师</p><h3>解释为什么，<br />也知道何时说“不确定”。</h3><p>计划基于经审核的苏肥鸭课程与 DET 官方资料提供解释、引用与练习反馈；证据不足时清楚说明，并保留人工支持路径。</p></div>
+            <div class="system-content"><p class="system-label">苏肥鸭超级智能老师</p><h3>解释为什么，<br />也知道何时停下。</h3><p>Gate A 已开放：逐句引用本站本机证据、计划、推荐与原创任务；DET 官方资料和课程正文完成审核前不会进入回答，并保留非 AI 与人工支持路径。</p><a class="text-link" href="/super-teacher">打开超级智能老师 →</a></div>
           </article>
           <article>
             <div class="system-index"><span>03</span><small>练习</small></div>
@@ -348,7 +349,7 @@ const platformContent = `
             <div class="system-content"><p class="system-label">上岸学员社区互助</p><h3>让真实经验，<br />以有边界的方式流动。</h3><p>计划邀请经核验、培训的上岸学员分享结构化经验；每位学习者是否参加完全自愿，不参加也不会阻断个人学习路径。</p></div>
           </article>
         </div>
-        <p class="system-boundary"><strong>当前状态：</strong>基础学习工作台与公开课程入口已经开放；正式诊断、智能老师、带教打卡与社区能力将分阶段开放，当前不提供正式评分服务。</p>
+        <p class="system-boundary"><strong>当前状态：</strong>基础学习工作台、公开课程入口与超级智能老师 Gate A 已开放；后者只回答已准入范围，当前 DET 官方语料与归档知识块准入均为 0。正式诊断、完整知识服务、带教打卡与社区能力仍分阶段开放。</p>
       </div>
     </section>
     <section class="current-status current-status-light" aria-labelledby="platform-status-title">
@@ -356,7 +357,8 @@ const platformContent = `
         <div><p>能力状态</p><h2 id="platform-status-title">开放状态必须清楚，<br />不把规划写成现成服务。</h2></div>
         <dl>
           <div><dt>学习工作台</dt><dd>已开放，可直接生成计划、练习、计时并在本机保存复盘</dd></div>
-          <div><dt>进阶能力</dt><dd>完成内容、测评、隐私和运营准备后分阶段开放</dd></div>
+          <div><dt>超级智能老师</dt><dd>Gate A 已开放：有来源解释、明确拒答、非 AI 退出和本机人工请求</dd></div>
+          <div><dt>其余进阶能力</dt><dd>完成内容、测评、隐私和运营准备后分阶段开放</dd></div>
           <div><dt>非官方边界</dt><dd>不冒充官方评分，不保证提分、录取或上岸结果</dd></div>
         </dl>
       </div>
@@ -495,7 +497,7 @@ const aboutContent = `
         <div class="faq-list">
           <details><summary><span>这个网站是 Duolingo 或 DET 官方网站吗？</span><span class="faq-toggle" aria-hidden="true"></span></summary><p>不是。sufeiya.cn 是独立在线学习平台，与 Duolingo, Inc. 没有官方隶属、授权或合作关系。“Duolingo English Test / DET”用于说明所讨论的考试与学习领域。</p></details>
           <details><summary><span>这里能给出正式 DET 分数或“保分”承诺吗？</span><span class="faq-toggle" aria-hidden="true"></span></summary><p>不能。平台中的学习诊断只用于识别当前证据、错误模式和学习优先级，不冒充官方考试评分，也不承诺提分、录取或上岸结果。</p></details>
-          <details><summary><span>“苏肥鸭超级智能老师”现在可以使用吗？</span><span class="faq-toggle" aria-hidden="true"></span></summary><p>该模块正在分阶段设计和验证。正式开放前，需要完成内容授权、教研审核、引用准确性、数据安全与人工转介等测试；当前公开页面不提供 AI 对话服务。</p></details>
+          <details><summary><span>“苏肥鸭超级智能老师”现在可以使用吗？</span><span class="faq-toggle" aria-hidden="true"></span></summary><p>可以使用 Gate A 限定版。它只解释本站本机学习证据、计划、推荐与原创任务，逐句显示来源；DET 官方规则和归档课程正文尚无准入条目，因此相关问题会明确停下。使用前需同意本次发送，也可随时改走非 AI 或人工支持路径。</p></details>
           <details><summary><span>网站为什么主要使用中文？</span><span class="faq-toggle" aria-hidden="true"></span></summary><p>平台主要服务中国大陆学生，因此导航、说明、反馈和帮助使用简体中文。真正用于 DET 备考的题目、阅读听力材料、作文与口语任务保留英文。</p></details>
           <details><summary><span>社区互助会是必选环节吗？</span><span class="faq-toggle" aria-hidden="true"></span></summary><p>不会。社区互助是平台计划提供的一种支持能力，但每位学习者是否参与都应当自愿；不参加不会影响个人计划、复盘、再诊断或退出。</p></details>
         </div>
@@ -808,6 +810,7 @@ const workspaceContent = `
           <p class="workspace-tools-copy">练习、专注与数据管理都有独立页面；它们不会自动生成能力结论，也不会替代七步闭环中的学生确认。</p>
         </div>
         <div class="workspace-launch-grid workspace-support-grid">
+          <a href="/super-teacher"><span>苏</span><small>SUPER TEACHER</small><h3>超级智能老师</h3><p>解释本机证据、计划与推荐依据；来源不足时明确停下。</p><b>有来源地问为什么 →</b></a>
           <a href="/today"><span>今</span><small>TODAY</small><h3>今日任务</h3><p>读取 7 天计划，逐项完成今天的练习与行动。</p><b>查看今日清单 →</b></a>
           <a href="/practice"><span>练</span><small>PRACTICE</small><h3>四项英文微练习</h3><p>Reading、Listening、Writing 与 Speaking 各有独立页面。</p><b>选择练习页 →</b></a>
           <a href="/focus"><span>专</span><small>FOCUS</small><h3>专注计时</h3><p>选择 15、25 或 45 分钟，开始一段不被打断的学习。</p><b>进入计时页 →</b></a>
@@ -1040,12 +1043,12 @@ const reviewContent = `
 
 const myDataContent = `
   <main id="main-content" class="study-tool-page">
-    ${studyPageHero({ current: "", number: "数", label: "我的本机数据", title: "知道数据在哪里，<br />也能自己带走或清除。", lead: "学习计划、任务进度、练习草稿、专注记录与复盘只保存在当前浏览器。本站没有账号系统，也不会自动同步到其他设备。", note: "你掌握数据控制权" })}
+    ${studyPageHero({ current: "", number: "数", label: "我的本机数据", title: "知道数据在哪里，<br />也能自己带走或清除。", lead: "学习闭环数据，以及超级智能老师的对话副本和未发送人工请求，分别保存在当前浏览器的两个版本化命名空间中。本站没有账号系统，也不会自动同步到其他设备。", note: "你掌握数据控制权" })}
     <section class="single-tool-section data-page" aria-labelledby="data-title"><div class="single-tool-inner narrow-tool"><header class="tool-panel-header"><div><span>数</span><div><p>数据控制</p><h2 id="data-title">当前浏览器中的 Sufeiya 数据</h2></div></div><small data-data-status>正在读取</small></header>
-      <div class="data-facts"><article><strong>只在当前浏览器</strong><p>不会自动跨设备同步；清除浏览器网站数据后也会丢失。</p></article><article><strong>本地但未加密</strong><p>同一设备上的其他使用者可能看到这些记录，请勿填写敏感成绩截图或身份材料。</p></article><article><strong>不保存录音</strong><p>口语练习不申请麦克风权限，也不会储存或上传声音。</p></article></div>
+      <div class="data-facts"><article><strong>两个本机命名空间</strong><p>学习闭环与超级老师对话分开保存；下方导出和清除会明确列出范围。</p></article><article><strong>本地但未加密</strong><p>同一设备上的其他使用者可能看到这些记录，请勿填写敏感成绩截图或身份材料。</p></article><article><strong>不保存录音</strong><p>口语练习不申请麦克风权限，也不会储存或上传声音。</p></article></div>
       <div class="data-summary" data-data-summary><p>正在统计本机记录…</p></div>
-      <div class="data-actions"><button class="button button-ink" type="button" data-export-workspace>导出我的 JSON 数据</button><button class="button button-ghost" type="button" data-clear-workspace>仅清除 Sufeiya 学习数据</button></div>
-      <p class="save-message" data-data-message role="status" aria-live="polite">导出文件可用于个人备份；本站目前不提供导入或云同步。</p>
+      <div class="data-actions"><button class="button button-ink" type="button" data-export-workspace>导出全部本机 JSON 数据</button><button class="button button-ghost" type="button" data-clear-workspace>仅清除学习闭环数据</button><button class="button button-ghost" type="button" data-clear-super-teacher>仅清除超级老师对话</button><button class="button button-ghost" type="button" data-clear-all-sufeiya>清除全部本机 Sufeiya 数据</button></div>
+      <p class="save-message" data-data-message role="status" aria-live="polite">导出文件包含两个命名空间，可用于个人备份；本站目前不提供导入或云同步。</p>
     </div></section>
   </main>`;
 

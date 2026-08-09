@@ -1,5 +1,6 @@
 (() => {
   const STORAGE_KEY = "sufeiya_workspace_v1";
+  const SUPER_TEACHER_STORAGE_KEY = "sufeiya_super_teacher_v1";
   const SCHEMA_VERSION = 1;
   const todayKey = () => {
     const date = new Date();
@@ -1133,6 +1134,18 @@
       (item) => item?.status === "saved" && item?.learnerConfirmedReview === true && item?.reviewId,
     ).length;
     const completedCycles = state.journey.history.filter((item) => item?.status === "completed" || item?.updatedPlanId).length;
+    let teacherTurns = 0;
+    let handoffRequests = 0;
+    try {
+      const teacherRaw = window.localStorage.getItem(SUPER_TEACHER_STORAGE_KEY);
+      const teacherData = teacherRaw ? JSON.parse(teacherRaw) : null;
+      if (isRecord(teacherData) && teacherData.protocolVersion === "sufeiya_super_teacher_v1") {
+        teacherTurns = Array.isArray(teacherData.turns) ? teacherData.turns.length : 0;
+        handoffRequests = Array.isArray(teacherData.handoffRequests) ? teacherData.handoffRequests.length : 0;
+      }
+    } catch {
+      // Corrupt or unavailable Super Teacher storage is preserved for export or explicit clearing.
+    }
     clearChildren(summary);
     const rows = [
       ["7 天计划", state.plan ? `当前 1 份 · 历史 ${state.planHistory.length} 份` : "尚未生成"],
@@ -1142,6 +1155,8 @@
       ["学生确认复盘", `${confirmedReviews} 条`],
       ["完整演示闭环", `${completedCycles} 轮`],
       ["专注记录", `${state.focus.sessions.length} 次`],
+      ["超级老师对话消息", teacherTurns + " 条"],
+      ["未发送人工请求", handoffRequests + " 条"],
     ];
     rows.forEach(([label, value]) => {
       const row = document.createElement("p");
@@ -1158,24 +1173,46 @@
 
   document.querySelectorAll("[data-export-workspace]").forEach((button) => {
     button.addEventListener("click", () => {
-      const content = rawStoredValue && !storageWritable ? rawStoredValue : JSON.stringify(state, null, 2);
+      let teacherRaw = null;
+      let teacherData = null;
+      try {
+        teacherRaw = window.localStorage.getItem(SUPER_TEACHER_STORAGE_KEY);
+        teacherData = teacherRaw ? JSON.parse(teacherRaw) : null;
+      } catch {
+        // Preserve an unreadable raw value below rather than silently omitting it.
+      }
+      const workspaceData = rawStoredValue && !storageWritable ? null : state;
+      const content = JSON.stringify({
+        exportProtocol: "sufeiya_local_export_v1",
+        exportedAt: new Date().toISOString(),
+        namespaces: {
+          [STORAGE_KEY]: {
+            parsed: workspaceData,
+            raw: workspaceData ? null : rawStoredValue,
+          },
+          [SUPER_TEACHER_STORAGE_KEY]: {
+            parsed: teacherData,
+            raw: teacherData || !teacherRaw ? null : teacherRaw,
+          },
+        },
+      }, null, 2);
       const blob = new Blob([content], { type: "application/json;charset=utf-8" });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `sufeiya-learning-data-${todayKey()}.json`;
+      link.download = `sufeiya-local-data-${todayKey()}.json`;
       document.body.append(link);
       link.click();
       link.remove();
       URL.revokeObjectURL(url);
       const message = document.querySelector("[data-data-message]");
-      if (message) message.textContent = "JSON 备份已导出到下载目录。";
+      if (message) message.textContent = "包含学习闭环与超级老师命名空间的 JSON 备份已导出到下载目录。";
     });
   });
 
   document.querySelectorAll("[data-clear-workspace]").forEach((button) => {
     button.addEventListener("click", () => {
-      if (!window.confirm("确定仅清除这个浏览器中的 Sufeiya 学习计划、进度、练习草稿、计时与复盘吗？此操作无法撤销。")) return;
+      if (!window.confirm("确定仅清除这个浏览器中的 Sufeiya 学习闭环数据吗？超级老师对话不会被删除；此操作无法撤销。")) return;
       try {
         window.localStorage.removeItem(STORAGE_KEY);
       } catch {
@@ -1188,7 +1225,39 @@
     });
   });
 
+  document.querySelectorAll("[data-clear-super-teacher]").forEach((button) => {
+    button.addEventListener("click", () => {
+      if (!window.confirm("确定仅清除这个浏览器中的超级老师对话和未发送人工请求吗？学习闭环数据不会被删除；此操作无法撤销。")) return;
+      try {
+        window.localStorage.removeItem(SUPER_TEACHER_STORAGE_KEY);
+      } catch {
+        const message = document.querySelector("[data-data-message]");
+        if (message) message.textContent = "浏览器未允许清除超级老师数据。";
+        return;
+      }
+      window.location.reload();
+    });
+  });
+
+  document.querySelectorAll("[data-clear-all-sufeiya]").forEach((button) => {
+    button.addEventListener("click", () => {
+      if (!window.confirm("确定清除这个浏览器中的全部 Sufeiya 学习闭环、超级老师对话和未发送人工请求吗？此操作无法撤销。")) return;
+      try {
+        window.localStorage.removeItem(STORAGE_KEY);
+        window.localStorage.removeItem(SUPER_TEACHER_STORAGE_KEY);
+      } catch {
+        const message = document.querySelector("[data-data-message]");
+        if (message) message.textContent = "浏览器未允许清除全部本机数据。";
+        return;
+      }
+      state = freshState();
+      rawStoredValue = null;
+      storageWritable = true;
+      window.location.reload();
+    });
+  });
+
   window.addEventListener("storage", (event) => {
-    if (event.key === STORAGE_KEY) window.location.reload();
+    if (event.key === STORAGE_KEY || event.key === SUPER_TEACHER_STORAGE_KEY) window.location.reload();
   });
 })();

@@ -1,0 +1,156 @@
+{
+  "protocolVersion": "sufeiya_super_teacher_sources_v1",
+  "admittedAt": "2026-08-09",
+  "admissionBoundary": "Only first-party Gate A product policy and original task descriptions may support generated claims. Public video entries are link-only catalog metadata. The archived DET rule index and knowledge-base previews remain blocked until teacher, version, and rights approval are complete.",
+  "claimSources": [
+    {
+      "id": "sufeiya-diagnostic-boundary-v1",
+      "title": "演示性初筛的证据边界",
+      "href": "/diagnostic",
+      "sourceClass": "first_party_product_policy",
+      "admissionStatus": "product_policy_allowed",
+      "content": "演示性初筛只读取当前浏览器内四项本站原创微练习的完成状态，并记录学习者主动确认的优先能力。它不自动评分，不形成正式能力诊断，也不提供 DET 分数或成绩预测。",
+      "allowedIntents": ["why_priority", "explain_plan", "explain_limits", "validate_progress"]
+    },
+    {
+      "id": "sufeiya-plan-method-v1",
+      "title": "7 天计划的生成与确认方式",
+      "href": "/plan",
+      "sourceClass": "first_party_product_policy",
+      "admissionStatus": "product_policy_allowed",
+      "content": "7 天计划把学习者确认的优先能力和每日可用时间转成可编辑任务。计划必须回链当前演示诊断会话；学习者可以修改选择，系统不能把计划解释成自动能力判断。",
+      "allowedIntents": ["why_priority", "explain_plan", "explain_limits"]
+    },
+    {
+      "id": "sufeiya-recommendation-method-v1",
+      "title": "推荐任务的选择与来源边界",
+      "href": "/recommendations",
+      "sourceClass": "first_party_product_policy",
+      "admissionStatus": "product_policy_allowed",
+      "content": "推荐页只提供一个主任务和至多两个补充入口，并显示原因、预计时长、来源与验证方式。学习者可以接受或明确跳过；打开资源链接本身不算完成学习。",
+      "allowedIntents": ["why_priority", "explain_recommendation", "explain_limits", "resource_navigation"]
+    },
+    {
+      "id": "sufeiya-evidence-loop-v1",
+      "title": "打卡、复盘与微复测的证据闭环",
+      "href": "/check-in",
+      "sourceClass": "first_party_product_policy",
+      "admissionStatus": "product_policy_allowed",
+      "content": "学习闭环把任务记录、具体学习证据、待解决问题、学生确认和原创平行微复测连接起来。完成一次任务或一次计时不能单独证明能力变化，下一轮计划仍需学习者确认。",
+      "allowedIntents": ["validate_progress", "explain_plan", "explain_limits"]
+    },
+    {
+      "id": "sufeiya-reading-task-v1",
+      "title": "Sufeiya 原创 Reading 微练习",
+      "href": "/practice-reading",
+      "sourceClass": "first_party_original_task",
+      "admissionStatus": "product_policy_allowed",
+      "content": "Reading 微练习要求学习者阅读一段原创英文材料并判断作者重新组织学习空间的目的。它用于自学与任务完成记录，不是 DET 真题或官方评分。",
+      "allowedIntents": ["why_priority", "explain_recommendation", "resource_navigation"]
+    },
+    {
+      "id": "sufeiya-listening-task-v1",
+      "title": "Sufeiya 原创 Listening 微练习",
+      "href": "/practice-listening",
+      "sourceClass": "first_party_original_task",
+      "admissionStatus": "product_policy_allowed",
+      "content": "Listening 微练习使用本站原创英文音频，要求学习者捕捉日期与时间变化。材料可以重复播放并查看英文原文；它不是 DET 真题或官方评分。",
+      "allowedIntents": ["why_priority", "explain_recommendation", "resource_navigation"]
+    },
+    {
+      "id": "sufeiya-writing-task-v1",
+      "title": "Sufeiya 原创 Writing 微练习",
+      "href": "/practice-writing",
+      "sourceClass": "first_party_original_task",
+      "admissionStatus": "product_policy_allowed",
+      "content": "Writing 微练习要求学习者用英文说明一个改善学习环境的改变，并完成观点、理由或例子、语法与拼写三项自查。20 词只是任务完成条件，不代表写作水平或 DET 分数。",
+      "allowedIntents": ["why_priority", "explain_recommendation", "resource_navigation"]
+    },
+    {
+      "id": "sufeiya-speaking-task-v1",
+      "title": "Sufeiya 原创 Speaking 微练习",
+      "href": "/practice-speaking",
+      "sourceClass": "first_party_original_task",
+      "admissionStatus": "product_policy_allowed",
+      "content": "Speaking 微练习提供 20 秒准备和 60 秒口头回答计时，并由学习者完成结构自查。本站不请求麦克风、不录音、不上传声音，也不提供官方评分。",
+      "allowedIntents": ["why_priority", "explain_recommendation", "resource_navigation"]
+    },
+    {
+      "id": "sufeiya-ai-boundary-v1",
+      "title": "超级智能老师 Gate A 使用边界",
+      "href": "/about#faq",
+      "sourceClass": "first_party_product_policy",
+      "admissionStatus": "product_policy_allowed",
+      "content": "超级智能老师 Gate A 是由大模型支持的 AI 学习助手，不是苏肥鸭老师本人，也不是 Duolingo 或 DET 官方评分员。它只能解释本站本机学习证据、计划、推荐和原创任务。来源不足时必须说明不知道或需要人工确认；它不能改分、预测成绩、保证提分、提供真题机经或协助正在进行的考试。学习者可以不使用 AI 继续学习。",
+      "allowedIntents": ["why_priority", "explain_plan", "explain_recommendation", "validate_progress", "explain_limits", "integrity_boundary", "source_review_required"]
+    },
+    {
+      "id": "sufeiya-human-handoff-v1",
+      "title": "Gate A 人工支持路径",
+      "href": "/super-teacher#human-support",
+      "sourceClass": "first_party_product_policy",
+      "admissionStatus": "product_policy_allowed",
+      "content": "Gate A 页面允许学习者在本机生成并复制人工支持请求，再自行添加公开个人微信 SofiaTang2020 联系苏肥鸭老师。页面不会自动发送请求，也不承诺响应时间；学习者可以直接退出并继续非 AI 学习路径。",
+      "allowedIntents": ["handoff", "explain_limits"]
+    }
+  ],
+  "linkOnlyResources": [
+    {
+      "id": "BV1PVsbzeECa",
+      "title": "【干货】什么是多邻国英语考试？多邻国英语考试适合我吗？这篇文章给你答案！",
+      "href": "https://www.bilibili.com/video/BV1PVsbzeECa",
+      "duration": "3 分 46 秒",
+      "skills": ["考试概览"],
+      "admissionStatus": "catalog_link_only",
+      "restriction": "Only the public title, duration, skill label, and original link may be shown. The model must not infer or quote lesson content."
+    },
+    {
+      "id": "BV1914y167e3",
+      "title": "一个视频教会你 need 的用法（多邻国完形填空错题笔记讲解）",
+      "href": "https://www.bilibili.com/video/BV1914y167e3",
+      "duration": "5 分 46 秒",
+      "skills": ["Reading"],
+      "admissionStatus": "catalog_link_only",
+      "restriction": "Only the public title, duration, skill label, and original link may be shown. The model must not infer or quote lesson content."
+    },
+    {
+      "id": "BV1o3cteAEH8",
+      "title": "【100期多邻国答疑系列4】听写句子讲解 everyday 和 every day 的区别",
+      "href": "https://www.bilibili.com/video/BV1o3cteAEH8",
+      "duration": "3 分 37 秒",
+      "skills": ["Listening", "Writing"],
+      "admissionStatus": "catalog_link_only",
+      "restriction": "Only the public title, duration, skill label, and original link may be shown. The model must not infer or quote lesson content."
+    },
+    {
+      "id": "BV1kNpgzuEmq",
+      "title": "别慌！多邻国口语临阵磨枪思路，小白也能快速上手！",
+      "href": "https://www.bilibili.com/video/BV1kNpgzuEmq",
+      "duration": "8 分 24 秒",
+      "skills": ["Speaking"],
+      "admissionStatus": "catalog_link_only",
+      "restriction": "Only the public title, duration, skill label, and original link may be shown. The model must not infer or quote lesson content."
+    },
+    {
+      "id": "BV1iB4y1A7BS",
+      "title": "多邻国写作可用的 as、though 引导的倒装句讲解",
+      "href": "https://www.bilibili.com/video/BV1iB4y1A7BS",
+      "duration": "4 分 42 秒",
+      "skills": ["Writing"],
+      "admissionStatus": "catalog_link_only",
+      "restriction": "Only the public title, duration, skill label, and original link may be shown. The model must not infer or quote lesson content."
+    }
+  ],
+  "blockedFamilies": [
+    {
+      "id": "archive-det-official-rules",
+      "recordCount": 24,
+      "reason": "All records remain unreviewed, rights_status.rag=pending, and rag_eligibility=blocked; 23 are pending exam-version review and one is a declared conflict."
+    },
+    {
+      "id": "archive-knowledge-base-preview",
+      "recordCount": 631,
+      "reason": "All chunks remain unreviewed and blocked; the catalog contains titles and metadata, not an approved teaching corpus."
+    }
+  ]
+}

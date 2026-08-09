@@ -3,6 +3,7 @@ import type { NextConfig } from "next";
 const cleanRoutes = [
   "learning-path",
   "platform",
+  "super-teacher",
   "resources",
   "about",
   "workspace",

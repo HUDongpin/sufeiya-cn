@@ -43,10 +43,20 @@ const frequencies: Record<string, MetadataRoute.Sitemap[number]["changeFrequency
 };
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  return publicPageKeys.map((key) => ({
+  const legacyEntries: MetadataRoute.Sitemap = publicPageKeys.map((key) => ({
     url: `${SITE_URL}${legacyPages[key].path === "/" ? "/" : legacyPages[key].path}`,
     lastModified: new Date("2026-08-09T00:00:00+08:00"),
     changeFrequency: frequencies[key] ?? "monthly",
     priority: priorities[key] ?? 0.8,
   }));
+
+  return [
+    ...legacyEntries,
+    {
+      url: `${SITE_URL}/super-teacher`,
+      lastModified: new Date("2026-08-09T00:00:00+08:00"),
+      changeFrequency: "weekly",
+      priority: 0.9,
+    },
+  ];
 }

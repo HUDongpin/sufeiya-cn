@@ -12,18 +12,21 @@
     "start": "next start",
     "typecheck": "npm run generate:next-content && tsc --noEmit",
     "lint": "eslint .",
+    "test:super-teacher": "tsx --test tests/super-teacher.test.ts",
     "check:legacy": "node scripts/verify-site.mjs",
-    "check": "npm run check:legacy && npm run typecheck && npm run lint && npm run build"
+    "check": "npm run check:legacy && npm run test:super-teacher && npm run typecheck && npm run lint && npm run build"
   },
   "engines": {
-    "node": ">=20.9.0"
+    "node": ">=22.0.0"
   },
   "dependencies": {
     "@clerk/localizations": "4.14.2",
     "@clerk/nextjs": "7.7.1",
+    "ai": "^7.0.58",
     "next": "16.3.0",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
@@ -31,6 +34,7 @@
     "@types/react-dom": "^19.0.0",
     "eslint": "^9.0.0",
     "eslint-config-next": "16.3.0",
+    "tsx": "^4.23.11",
     "typescript": "^5.9.0"
   }
 }

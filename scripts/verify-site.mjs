@@ -29,6 +29,7 @@ const pageFiles = [
   ["about.html", "about", "/about"],
 ];
 const expectedNavTargets = ["/learning-path", "/platform", "/resources", "/about"];
+const nextOnlyTargets = new Map([["/super-teacher", "app/super-teacher/page.tsx"]]);
 
 const check = (condition, message) => {
   if (condition) passes.push(message);
@@ -50,6 +51,10 @@ const accountPage = await read("app/account/[[...account]]/page.tsx");
 const signInPage = await read("app/sign-in/[[...sign-in]]/page.tsx");
 const signUpPage = await read("app/sign-up/[[...sign-up]]/page.tsx");
 const proxyScript = await read("proxy.ts");
+const superTeacherPage = await read("app/super-teacher/page.tsx");
+const superTeacherClient = await read("components/super-teacher-client.tsx");
+const superTeacherRoute = await read("app/api/super-teacher/route.ts");
+const superTeacherResponder = await read("lib/super-teacher/responder.ts");
 
 const resolveLocalPath = (urlPath) => {
   const clean = urlPath.split("#")[0].split("?")[0];
@@ -116,7 +121,8 @@ for (const [filename, pageKey, canonicalPath] of pageFiles) {
 
   const localUrls = [...html.matchAll(/(?:href|src)="(\/[^"]+)"/g)].map((match) => match[1]);
   for (const url of localUrls) {
-    const path = resolveLocalPath(url);
+    const cleanUrl = url.split("#")[0].split("?")[0];
+    const path = nextOnlyTargets.get(cleanUrl) ?? resolveLocalPath(url);
     try {
       await access(join(root, path));
       passes.push(`${prefix} local target ${url} exists`);
@@ -157,8 +163,8 @@ check(
 const workspaceToolTargets = [...workspace.matchAll(/class="workspace-launch-grid workspace-support-grid"[\s\S]*?<\/div>/g)]
   .flatMap((match) => [...match[0].matchAll(/href="([^"]+)"/g)].map((link) => link[1]));
 check(
-  JSON.stringify(workspaceToolTargets) === JSON.stringify(["/today", "/practice", "/focus", "/my-data"]),
-  "workspace keeps four supporting tools separate from the journey",
+  JSON.stringify(workspaceToolTargets) === JSON.stringify(["/super-teacher", "/today", "/practice", "/focus", "/my-data"]),
+  "workspace keeps Super Teacher and four supporting tools separate from the journey",
 );
 
 const practice = await read("practice.html");
@@ -185,10 +191,13 @@ check(/id="review-form"[\s\S]*name="learnerConfirmed"[\s\S]*data-review-id/.test
 check(/value="used"[\s\S]*value="declined"[\s\S]*value="not_needed"[\s\S]*value="unavailable"/.test(await read("community.html")), "community page exposes all four valid voluntary states");
 check(/data-retest-panel="Reading"[\s\S]*data-retest-panel="Listening"[\s\S]*data-retest-panel="Writing"[\s\S]*data-retest-panel="Speaking"/.test(await read("retest.html")), "retest page contains four original parallel task modes");
 check(/data-retest-id[\s\S]*data-updated-plan-id[\s\S]*data-superseded-plan-id/.test(await read("retest.html")), "retest page exposes retest and updated-plan chain receipts");
-check(/data-export-workspace[\s\S]*data-clear-workspace/.test(await read("my-data.html")), "data page supports export and scoped clearing");
+check(/data-export-workspace[\s\S]*data-clear-workspace[\s\S]*data-clear-super-teacher[\s\S]*data-clear-all-sufeiya/.test(await read("my-data.html")), "data page supports all-data export and separately scoped clearing");
 check(/sufeiya_workspace_v1/.test(workspaceScript), "workspace uses one versioned local-storage namespace");
 check(/sufeiya_workspace_v1/.test(journeyScript), "journey shares the versioned workspace namespace");
 check(/localStorage\.removeItem\(STORAGE_KEY\)/.test(workspaceScript), "clear action only removes the Sufeiya workspace namespace");
+check(/SUPER_TEACHER_STORAGE_KEY = "sufeiya_super_teacher_v1"/.test(workspaceScript), "data controls include the versioned Super Teacher namespace");
+check(/exportProtocol:\s*"sufeiya_local_export_v1"[\s\S]*SUPER_TEACHER_STORAGE_KEY/.test(workspaceScript), "JSON export contains both local Sufeiya namespaces");
+check(/data-clear-super-teacher[\s\S]*removeItem\(SUPER_TEACHER_STORAGE_KEY\)[\s\S]*data-clear-all-sufeiya/.test(workspaceScript), "Super Teacher and all-data clearing are independently implemented");
 check(/endsAt[\s\S]*Date\.now\(\)/.test(workspaceScript), "focus timer uses an absolute end time for background and reload recovery");
 check(/Number\.isFinite\(storedRemaining\)/.test(workspaceScript), "focus timer preserves a completed zero-second value");
 check(/hasValidPlanShape\(value\.plan\)/.test(workspaceScript), "stored plans are shape-checked before rendering");
@@ -219,6 +228,13 @@ check(/账户功能后续开放/.test(accountPage), "account route explains the 
 check(/不需要登录或注册/.test(signInPage) && /免注册、本机保存模式/.test(signUpPage), "sign-in and sign-up routes route learners into the local-only flow");
 check(/X-Sufeiya-Account-Mode[\s\S]*local-only/.test(proxyScript), "application responses identify the local-only account mode");
 check(/connect-src 'self'/.test(proxyScript) && !/clerk|stripe/i.test(proxyScript), "Gate A CSP has no Clerk or Stripe runtime origins");
+check(/苏肥鸭超级智能老师/.test(superTeacherPage), "Super Teacher has a dedicated Next.js application page");
+check(/历史对话不发送给模型/.test(superTeacherClient) && !/history,/.test(superTeacherClient), "Super Teacher discloses and enforces no model history forwarding");
+check(/isSameOrigin[\s\S]*MAX_BODY_BYTES[\s\S]*checkSuperTeacherRateLimit/.test(superTeacherRoute), "Super Teacher API applies origin, body-size, and rate-limit gates");
+check(/Output\.object[\s\S]*modelTeacherOutputSchema[\s\S]*outputIsSafe/.test(superTeacherResponder), "Super Teacher model output is structured and source-ID checked");
+check(/manualAnswer[\s\S]*tryModelAnswer[\s\S]*fallback/.test(superTeacherResponder), "Super Teacher has a deterministic grounded fallback");
+check(/SUFEIYA_AI_ENABLED !== "true"/.test(superTeacherResponder), "model generation is fail-closed and requires an explicit release switch");
+check(/不是苏肥鸭老师本人/.test(superTeacherClient) && /不是.*官方评分员/.test(superTeacherClient), "Super Teacher visibly discloses that it is neither the human teacher nor an official scorer");
 check(/position:\s*absolute;[\s\S]*top:\s*100%;[\s\S]*100dvh/.test(styles), "mobile navigation escapes the sticky backdrop fixed-position trap");
 check(/\.footer-nav a\s*\{[\s\S]*min-height:\s*44px/.test(styles), "mobile footer links meet the 44px touch target");
 
@@ -227,6 +243,12 @@ check(resourcesData.length === 16, "public resource catalog contains 16 reviewed
 check(new Set(resourcesData.map((item) => item.id)).size === resourcesData.length, "resource catalog IDs are unique");
 check(resourcesData.every((item) => /^https:\/\/(www\.)?bilibili\.com\/video\//.test(item.url)), "resource catalog links only to Bilibili video pages");
 check(resourcesData.every((item) => Array.isArray(item.skills) && item.skills.length > 0), "every resource entry has at least one skill tag");
+
+const superTeacherSources = JSON.parse(await read("data/super-teacher-source-register.json"));
+check(superTeacherSources.claimSources.length === 10, "Super Teacher admits exactly 10 first-party Gate A claim sources");
+check(superTeacherSources.linkOnlyResources.length === 5, "Super Teacher exposes exactly five link-only resource entries");
+check(superTeacherSources.blockedFamilies.some((family) => family.id === "archive-det-official-rules" && family.recordCount === 24), "DET official index remains explicitly blocked");
+check(superTeacherSources.blockedFamilies.some((family) => family.id === "archive-knowledge-base-preview" && family.recordCount === 631), "631 archive preview chunks remain explicitly blocked");
 
 const logo = await readFile(join(root, "assets/sufeiya-logo.png"));
 check(logo.toString("ascii", 1, 4) === "PNG", "HD logo is PNG");
