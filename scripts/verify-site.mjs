@@ -8,8 +8,10 @@ const passes = [];
 const pageFiles = [
   ["index.html", "home", "/"],
   ["workspace.html", "workspace", "/workspace"],
+  ["diagnostic.html", "diagnostic", "/diagnostic"],
   ["plan.html", "plan", "/plan"],
   ["today.html", "today", "/today"],
+  ["recommendations.html", "recommendations", "/recommendations"],
   ["practice.html", "practice", "/practice"],
   ["practice-reading.html", "practice-reading", "/practice-reading"],
   ["practice-listening.html", "practice-listening", "/practice-listening"],
@@ -17,6 +19,9 @@ const pageFiles = [
   ["practice-speaking.html", "practice-speaking", "/practice-speaking"],
   ["focus.html", "focus", "/focus"],
   ["check-in.html", "check-in", "/check-in"],
+  ["review.html", "review", "/review"],
+  ["community.html", "community", "/community"],
+  ["retest.html", "retest", "/retest"],
   ["my-data.html", "my-data", "/my-data"],
   ["learning-path.html", "learning-path", "/learning-path"],
   ["platform.html", "platform", "/platform"],
@@ -34,6 +39,7 @@ const read = (path) => readFile(join(root, path), "utf8");
 const styles = await read("styles.css");
 const script = await read("script.js");
 const workspaceScript = await read("workspace.js");
+const journeyScript = await read("journey.js");
 const resourcesScript = await read("resources.js");
 const notFound = await read("404.html");
 const sitemap = await read("sitemap.xml");
@@ -115,6 +121,7 @@ for (const [filename, pageKey, canonicalPath] of pageFiles) {
 
 check(!/\b(innerHTML|eval\s*\()/.test(script), "client script avoids unsafe DOM injection and eval");
 check(!/\b(innerHTML|eval\s*\()/.test(workspaceScript), "workspace script avoids unsafe DOM injection and eval");
+check(!/\b(innerHTML|eval\s*\()/.test(journeyScript), "journey script avoids unsafe DOM injection and eval");
 check(!/\b(innerHTML|eval\s*\()/.test(resourcesScript), "resource script avoids unsafe DOM injection and eval");
 check(/event\.key === "Tab"/.test(script), "mobile navigation includes keyboard focus containment");
 check(/event\.key === "Escape"/.test(script), "mobile navigation supports Escape");
@@ -133,11 +140,18 @@ check(!/id="plan-form"/.test(workspace), "workspace is an entry page and does no
 check(!/name="reading-answer"/.test(workspace), "workspace does not embed an English exercise");
 check(!/data-focus-time/.test(workspace), "workspace does not embed the focus timer");
 check(!/id="checkin-form"/.test(workspace), "workspace does not embed the check-in form");
-const workspaceToolTargets = [...workspace.matchAll(/class="workspace-launch-grid"[\s\S]*?<\/div>/g)]
+const journeyTargets = [...workspace.matchAll(/class="journey-grid"[\s\S]*?<\/ol>/g)]
   .flatMap((match) => [...match[0].matchAll(/href="([^"]+)"/g)].map((link) => link[1]));
 check(
-  JSON.stringify(workspaceToolTargets) === JSON.stringify(["/plan", "/today", "/practice", "/focus", "/check-in"]),
-  "workspace has five buttons targeting five distinct function pages",
+  JSON.stringify(journeyTargets) ===
+    JSON.stringify(["/diagnostic", "/plan", "/recommendations", "/check-in", "/review", "/community", "/retest"]),
+  "workspace has seven ordered journey buttons targeting seven functions",
+);
+const workspaceToolTargets = [...workspace.matchAll(/class="workspace-launch-grid workspace-support-grid"[\s\S]*?<\/div>/g)]
+  .flatMap((match) => [...match[0].matchAll(/href="([^"]+)"/g)].map((link) => link[1]));
+check(
+  JSON.stringify(workspaceToolTargets) === JSON.stringify(["/today", "/practice", "/focus", "/my-data"]),
+  "workspace keeps four supporting tools separate from the journey",
 );
 
 const practice = await read("practice.html");
@@ -150,6 +164,8 @@ check(
 );
 
 check(/id="plan-form"/.test(await read("plan.html")), "plan page contains a directly usable plan form");
+check(/id="diagnostic-form"[\s\S]*adultConfirmed/.test(await read("diagnostic.html")), "diagnostic page requires an explicit adult demo declaration");
+check(/data-recommendation-items[\s\S]*data-accept-recommendation[\s\S]*data-skip-recommendation/.test(await read("recommendations.html")), "recommendation page supports accept and explicit skip states");
 check(/data-today-tasks/.test(await read("today.html")), "today page contains a directly usable task list");
 check(/lang="en"[\s\S]*name="reading-answer"/.test(await read("practice-reading.html")), "reading material is marked as English");
 check(/<audio controls preload="metadata"[\s\S]*name="listening-answer"/.test(await read("practice-listening.html")), "listening page includes packaged audio and a question");
@@ -157,13 +173,41 @@ check(/textarea[^>]*lang="en"[\s\S]*data-complete-writing/.test(await read("prac
 check(/data-speaking-time[\s\S]*data-speaking-review/.test(await read("practice-speaking.html")), "speaking page includes prepare/speak timing and self-review");
 check(/data-focus-time[\s\S]*data-focus-stop/.test(await read("focus.html")), "focus page includes start, pause, stop, and reset-capable controls");
 check(/name="didText"[\s\S]*name="evidenceText"[\s\S]*name="questionStatus"/.test(await read("check-in.html")), "check-in page collects action, evidence, and question state");
+check(/data-checkin-receipt[\s\S]*data-checkin-id[\s\S]*data-checkin-plan-id/.test(await read("check-in.html")), "check-in page exposes check_in_id and plan_id receipts");
+check(/id="review-form"[\s\S]*name="learnerConfirmed"[\s\S]*data-review-id/.test(await read("review.html")), "review page requires a distinct learner confirmation and review_id");
+check(/value="used"[\s\S]*value="declined"[\s\S]*value="not_needed"[\s\S]*value="unavailable"/.test(await read("community.html")), "community page exposes all four valid voluntary states");
+check(/data-retest-panel="Reading"[\s\S]*data-retest-panel="Listening"[\s\S]*data-retest-panel="Writing"[\s\S]*data-retest-panel="Speaking"/.test(await read("retest.html")), "retest page contains four original parallel task modes");
+check(/data-retest-id[\s\S]*data-updated-plan-id[\s\S]*data-superseded-plan-id/.test(await read("retest.html")), "retest page exposes retest and updated-plan chain receipts");
 check(/data-export-workspace[\s\S]*data-clear-workspace/.test(await read("my-data.html")), "data page supports export and scoped clearing");
 check(/sufeiya_workspace_v1/.test(workspaceScript), "workspace uses one versioned local-storage namespace");
+check(/sufeiya_workspace_v1/.test(journeyScript), "journey shares the versioned workspace namespace");
 check(/localStorage\.removeItem\(STORAGE_KEY\)/.test(workspaceScript), "clear action only removes the Sufeiya workspace namespace");
 check(/endsAt[\s\S]*Date\.now\(\)/.test(workspaceScript), "focus timer uses an absolute end time for background and reload recovery");
 check(/Number\.isFinite\(storedRemaining\)/.test(workspaceScript), "focus timer preserves a completed zero-second value");
 check(/hasValidPlanShape\(value\.plan\)/.test(workspaceScript), "stored plans are shape-checked before rendering");
 check(!/(?:0\s*[–-]\s*100|10\s*[–-]\s*160|官方估分|预测分数)/.test(workspaceScript), "workspace does not generate score ranges or official predictions");
+check(/activeCycle[\s\S]*cycleId[\s\S]*basePlanId/.test(journeyScript), "journey binds all stages to one active cycle and base plan");
+check(/effective|previousComplete/.test(journeyScript), "journey completion is sequential rather than seven independent booleans");
+check(/recommendationId[\s\S]*checkInId[\s\S]*reviewId[\s\S]*peerHelpId[\s\S]*retestId[\s\S]*updatedPlanId/.test(journeyScript), "journey implements the complete event-ID chain");
+check(/const PROTOCOL_VERSION = "gate_a_local_v1"/.test(journeyScript), "journey names one exact Gate A protocol version");
+check(/value\.journey\.protocolVersion !== PROTOCOL_VERSION[\s\S]*activeCycle\.protocolVersion !== PROTOCOL_VERSION/.test(journeyScript), "journey rejects missing, empty, or unknown stored protocol versions");
+check(/#diagnostic-form, #review-form, #community-form/.test(journeyScript), "journey read-only mode also disables learner review confirmation");
+check((journeyScript.match(/validateCycleEvidence\(\)/g) || []).length >= 4, "retest, plan update, and dashboard share one cycle-chain validator");
+check(/chain\.retestEvidenceComplete[\s\S]*state\.plan\?\.planId === cycle\.basePlanId/.test(journeyScript), "plan update requires the full retest chain and exact active base plan");
+check(/stateBeforeUpdate[\s\S]*state = stateBeforeUpdate/.test(journeyScript), "failed updated-plan persistence restores the pre-submit in-memory state");
+check(/isSafeLocalRoute\(task\.route\)/.test(journeyScript) && /isSafeLocalRoute\(task\.route\)/.test(workspaceScript), "stored plan links are restricted to safe same-site routes");
+check(/previousConfirmed && sameScope && !contentChanged[\s\S]*原确认、复盘与后续证据保持有效/.test(workspaceScript), "unchanged confirmed check-ins preserve their review and downstream evidence");
+check(/previousConfirmed && !contentChanged[\s\S]*内容与已确认版本一致[\s\S]*return/.test(workspaceScript), "autosave also preserves a confirmed check-in when the final content is unchanged");
+check(/replacesConfirmedVersion[\s\S]*learner_revision_after_confirmation[\s\S]*sameScope && !replacesConfirmedVersion/.test(workspaceScript), "edited confirmed check-ins are archived and receive a new evidence ID even before autosave");
+check(/chain\.checkInComplete[\s\S]*latestChain\.checkInComplete/.test(journeyScript), "review rendering and submission share the central check-in evidence gate");
+check(/chain\.reviewComplete[\s\S]*latestChain\.reviewComplete/.test(journeyScript), "community rendering and submission share the central review evidence gate");
+check(/VALID_PEER_HELP_STATES[\s\S]*used[\s\S]*declined[\s\S]*not_needed[\s\S]*unavailable/.test(journeyScript), "journey accepts every approved peer-help terminal state");
+check(/officialEquivalenceClaimed:\s*false[\s\S]*growthClaimProduced:\s*false/.test(journeyScript), "parallel retest stores no-equivalence and no-growth guards");
+check(/learnerConfirmed:\s*true[\s\S]*supersedesPlanId:\s*cycle\.basePlanId/.test(journeyScript), "updated plan requires learner confirmation and supersedes the exact base plan");
+check(!/getUserMedia|MediaRecorder/.test(journeyScript), "journey does not request or record microphone data");
+check(!/(?:10\s*[–-]\s*160|官方估分|预测分数|真正\s*CAT)/.test(journeyScript), "journey does not generate official score or CAT claims");
+check(/position:\s*absolute;[\s\S]*top:\s*100%;[\s\S]*100dvh/.test(styles), "mobile navigation escapes the sticky backdrop fixed-position trap");
+check(/\.footer-nav a\s*\{[\s\S]*min-height:\s*44px/.test(styles), "mobile footer links meet the 44px touch target");
 
 const resourcesData = JSON.parse(await read("data/resources.json"));
 check(resourcesData.length === 16, "public resource catalog contains 16 reviewed metadata entries");
@@ -182,6 +226,10 @@ check(mark[25] === 6, "favicon mark has a true alpha channel");
 
 const listeningAudio = await stat(join(root, "assets/listening-science-club.mp3"));
 check(listeningAudio.size > 50_000, "packaged listening audio has a plausible production size");
+const retestListeningAudio = await stat(join(root, "assets/listening-writing-center.mp3"));
+check(retestListeningAudio.size > 50_000, "parallel retest listening audio has a plausible production size");
+const publicJourney = await stat(join(root, "public/journey.js"));
+check(publicJourney.size > 20_000, "Next.js public build includes the journey runtime");
 
 for (const path of ["package.json", "vercel.json"]) {
   try {

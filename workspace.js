@@ -14,10 +14,13 @@
     updatedAt: new Date().toISOString(),
     profile: { nickname: "", examDate: "", dailyMinutes: 30, focusSkill: "Balanced" },
     plan: null,
+    planHistory: [],
     taskProgress: {},
     practice: {},
     checkIns: {},
+    checkInHistory: [],
     focus: { active: null, sessions: [] },
+    journey: { protocolVersion: "gate_a_local_v1", activeCycle: null, history: [] },
   });
 
   let state = freshState();
@@ -26,6 +29,8 @@
   let storageWarningShown = false;
 
   const isRecord = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value);
+  const isSafeLocalRoute = (route) =>
+    typeof route === "string" && route.startsWith("/") && !route.startsWith("//") && !/[\\\u0000-\u001f\u007f]/.test(route);
   const hasValidPlanShape = (plan) => {
     if (plan === null || plan === undefined) return true;
     if (!isRecord(plan) || !Array.isArray(plan.days)) return false;
@@ -42,7 +47,7 @@
             typeof task.titleZh === "string" &&
             typeof task.instructionZh === "string" &&
             Number.isFinite(Number(task.durationMinutes)) &&
-            typeof task.route === "string",
+            isSafeLocalRoute(task.route),
         ),
     );
   };
@@ -62,9 +67,22 @@
     if (!isRecord(value) || value.schemaVersion !== SCHEMA_VERSION) return null;
     if (!hasValidPlanShape(value.plan)) return null;
     if (value.profile !== undefined && !isRecord(value.profile)) return null;
+    if (value.journey !== undefined) {
+      if (!isRecord(value.journey) || value.journey.protocolVersion !== "gate_a_local_v1") return null;
+      if (
+        value.journey.activeCycle !== undefined &&
+        value.journey.activeCycle !== null &&
+        (!isRecord(value.journey.activeCycle) || value.journey.activeCycle.protocolVersion !== "gate_a_local_v1")
+      ) {
+        return null;
+      }
+    }
     for (const key of ["taskProgress", "practice", "checkIns"]) {
       if (value[key] !== undefined && !isRecord(value[key])) return null;
     }
+    if (value.planHistory !== undefined && !Array.isArray(value.planHistory)) return null;
+    if (Array.isArray(value.planHistory) && !value.planHistory.every(hasValidPlanShape)) return null;
+    if (value.checkInHistory !== undefined && !Array.isArray(value.checkInHistory)) return null;
     if (value.focus !== undefined && !isRecord(value.focus)) return null;
     if (value.focus?.sessions !== undefined && !Array.isArray(value.focus.sessions)) return null;
     if (value.focus?.active !== undefined && value.focus.active !== null && !isRecord(value.focus.active)) return null;
@@ -72,12 +90,19 @@
       ...base,
       ...value,
       profile: { ...base.profile, ...(value.profile || {}) },
+      planHistory: Array.isArray(value.planHistory) ? value.planHistory : [],
       taskProgress: value.taskProgress && typeof value.taskProgress === "object" ? value.taskProgress : {},
       practice: value.practice && typeof value.practice === "object" ? value.practice : {},
       checkIns: value.checkIns && typeof value.checkIns === "object" ? value.checkIns : {},
+      checkInHistory: Array.isArray(value.checkInHistory) ? value.checkInHistory : [],
       focus: {
         active: value.focus?.active || null,
         sessions: Array.isArray(value.focus?.sessions) ? value.focus.sessions : [],
+      },
+      journey: {
+        ...base.journey,
+        ...(value.journey || {}),
+        history: Array.isArray(value.journey?.history) ? value.journey.history : [],
       },
     };
   };
@@ -240,6 +265,16 @@
       examDate,
       dailyMinutes: minutes,
       focusSkill,
+      diagnosticSessionId:
+        state.journey?.activeCycle?.status === "in_progress" ? state.journey.activeCycle.diagnosticSessionId : null,
+      provenance:
+        state.journey?.activeCycle?.status === "in_progress"
+          ? {
+              source: "learner_configured_from_gate_a_diagnostic",
+              cycleId: state.journey.activeCycle.cycleId,
+              diagnosticSessionId: state.journey.activeCycle.diagnosticSessionId,
+            }
+          : { source: "learner_configured_standalone" },
     };
   };
 
@@ -316,14 +351,40 @@
       }
       const hasCompletedHistory = Object.values(state.taskProgress).some((progress) => progress?.status === "completed");
       if (state.plan && hasCompletedHistory && !window.confirm("重新生成会替换当前及未来计划；已经完成的历史记录会保留。确定继续吗？")) return;
+      const previousPlan = state.plan;
       state.profile = {
         nickname: nickname.value.trim(),
         examDate: selectedDate,
         dailyMinutes: Number(dailyMinutes.value),
         focusSkill: focusSkill.value,
       };
+      if (previousPlan) {
+        state.planHistory = [
+          ...state.planHistory,
+          { ...previousPlan, status: "superseded", supersededAt: new Date().toISOString(), supersededReason: "learner_manual_regeneration" },
+        ];
+      }
       state.plan = createPlan(state.profile);
-      persist();
+      const activeCycle = state.journey?.activeCycle;
+      if (
+        activeCycle?.status === "in_progress" &&
+        activeCycle.diagnosticSessionId === state.journey?.diagnostic?.diagnosticSessionId
+      ) {
+        activeCycle.basePlanId = state.plan.planId;
+        activeCycle.recommendationId = null;
+        activeCycle.checkInId = null;
+        activeCycle.reviewId = null;
+        activeCycle.peerHelpId = null;
+        activeCycle.retestId = null;
+        activeCycle.updatedPlanId = null;
+        activeCycle.updatedAt = new Date().toISOString();
+        state.journey.recommendation = null;
+        state.journey.review = null;
+        state.journey.peerHelp = null;
+        state.journey.retest = null;
+        state.journey.planUpdate = null;
+      }
+      if (!persist()) return;
       renderPlan();
       document.querySelector("[data-plan-result]")?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
@@ -659,6 +720,9 @@
         box.checked = false;
         box.disabled = true;
       });
+      delete state.practice["speaking-skill-v1"];
+      persist();
+      updateHeroProgress();
       announce("口语练习计时已重置。");
     });
     const savedSpeaking = state.practice["speaking-skill-v1"];
@@ -808,6 +872,8 @@
     const noteStatus = document.querySelector("[data-note-status]");
     const errorBox = document.querySelector("[data-checkin-errors]");
     const taskSelect = document.querySelector("[data-linked-task]");
+    const receipt = document.querySelector("[data-checkin-receipt]");
+    const reviewLink = document.querySelector("[data-checkin-review-link]");
     let draftTimer;
 
     getTodayTasks().forEach((task) => {
@@ -832,17 +898,84 @@
       questionStatus: checkinForm.querySelector('input[name="questionStatus"]:checked')?.value || "",
       questionText: questionText?.value.trim() || "",
     });
+    const sameCheckinContent = (record, values) =>
+      ["linkedTaskId", "didText", "evidenceText", "questionStatus", "questionText"].every(
+        (key) => (record?.[key] || "") === (values?.[key] || ""),
+      );
+    const archiveCheckIn = (record, reason) => {
+      if (!record?.checkInId) return;
+      state.checkInHistory = [
+        ...state.checkInHistory,
+        { ...record, archivedAt: new Date().toISOString(), archivedReason: reason },
+      ];
+    };
     const toggleQuestion = () => {
       const hasQuestion = checkinForm.querySelector('input[name="questionStatus"]:checked')?.value === "has_question";
       if (questionWrap) questionWrap.hidden = !hasQuestion;
     };
+    const renderCheckinReceipt = (record) => {
+      const hasReceipt = record?.status === "saved" && Boolean(record.checkInId);
+      if (receipt) receipt.hidden = !hasReceipt;
+      if (reviewLink) {
+        reviewLink.hidden = !(
+          hasReceipt &&
+          record.cycleId &&
+          record.cycleId === state.journey?.activeCycle?.cycleId &&
+          state.journey.activeCycle.checkInId === record.checkInId
+        );
+      }
+      if (!hasReceipt) return;
+      const idNode = document.querySelector("[data-checkin-id]");
+      const planNode = document.querySelector("[data-checkin-plan-id]");
+      if (idNode) idNode.textContent = record.checkInId;
+      if (planNode) planNode.textContent = record.planId || "独立打卡，未关联闭环计划";
+    };
     const saveDraft = () => {
       const values = readCheckin();
       const previous = state.checkIns[date] || {};
-      state.checkIns[date] = { ...previous, ...values, status: "draft", updatedAt: new Date().toISOString() };
+      const previousConfirmed = Boolean(
+        previous.checkInId &&
+          previous.status === "saved" &&
+          (previous.learnerConfirmedReview === true || previous.reviewId),
+      );
+      const contentChanged = !sameCheckinContent(previous, values);
+      if (previousConfirmed && !contentChanged) {
+        if (draftStatus) draftStatus.textContent = "内容与已确认版本一致";
+        if (noteStatus) noteStatus.textContent = "原确认、复盘与后续证据保持有效。";
+        return;
+      }
+      const replacesConfirmedVersion = previousConfirmed && contentChanged;
+      if (replacesConfirmedVersion) archiveCheckIn(previous, "learner_revision_after_confirmation");
+      state.checkIns[date] = {
+        ...previous,
+        ...values,
+        checkInId: replacesConfirmedVersion ? null : previous.checkInId || null,
+        status: "draft",
+        learnerConfirmedReview: false,
+        reviewId: null,
+        reviewedAt: null,
+        updatedAt: new Date().toISOString(),
+      };
+      if (
+        state.journey?.activeCycle?.status === "in_progress" &&
+        state.journey.activeCycle.reviewId === previous.reviewId
+      ) {
+        if (replacesConfirmedVersion && state.journey.activeCycle.checkInId === previous.checkInId) {
+          state.journey.activeCycle.checkInId = null;
+        }
+        state.journey.activeCycle.reviewId = null;
+        state.journey.activeCycle.peerHelpId = null;
+        state.journey.activeCycle.retestId = null;
+        state.journey.activeCycle.updatedPlanId = null;
+        state.journey.review = null;
+        state.journey.peerHelp = null;
+        state.journey.retest = null;
+        state.journey.planUpdate = null;
+      }
       persist();
+      renderCheckinReceipt(state.checkIns[date]);
       if (draftStatus) draftStatus.textContent = storageWritable ? "草稿已自动保存" : "草稿仅在本页暂存";
-      if (noteStatus) noteStatus.textContent = "尚未形成正式复盘记录。";
+      if (noteStatus) noteStatus.textContent = "尚未形成正式证据式打卡。";
     };
     checkinForm.addEventListener("input", () => {
       toggleQuestion();
@@ -853,18 +986,29 @@
     checkinForm.addEventListener("change", toggleQuestion);
     toggleQuestion();
     if (saved.status === "saved" && noteStatus) {
-      noteStatus.textContent = `已保存于 ${new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit" }).format(new Date(saved.savedAt))}`;
+      noteStatus.textContent = `打卡已保存于 ${new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit" }).format(new Date(saved.savedAt))}`;
     } else if (saved.didText || saved.evidenceText) {
       if (draftStatus) draftStatus.textContent = "已恢复本机草稿";
     }
+    renderCheckinReceipt(saved);
 
     checkinForm.addEventListener("submit", (event) => {
       event.preventDefault();
       window.clearTimeout(draftTimer);
       const values = readCheckin();
       const errors = [];
+      const activeCycle = state.journey?.activeCycle;
+      const baseTaskIds = new Set(state.plan?.days?.flatMap((day) => day.tasks.map((task) => task.taskId)) || []);
+      const pendingClosedLoop = Boolean(
+        activeCycle?.status === "in_progress" &&
+        activeCycle.basePlanId === state.plan?.planId &&
+        activeCycle.recommendationId === state.journey?.recommendation?.recommendationId,
+      );
       if (values.didText.length < 10) errors.push(["didText", "“完成内容”至少需要 10 个字。"]);
       if (values.evidenceText.length < 10) errors.push(["evidenceText", "“学习证据”至少需要 10 个字。"]);
+      if (pendingClosedLoop && (!values.linkedTaskId || !baseTaskIds.has(values.linkedTaskId))) {
+        errors.push(["linkedTaskId", "当前闭环的证据式打卡必须关联本轮计划中的一项任务。"]);
+      }
       if (!values.questionStatus) errors.push(["questionStatus", "请选择今天是否还有问题。"]);
       if (values.questionStatus === "has_question" && !values.questionText) errors.push(["questionText", "请写下需要继续解决的问题。"]);
       checkinForm.querySelectorAll("[data-error-for]").forEach((node) => {
@@ -889,7 +1033,71 @@
         else checkinForm.elements[firstName]?.focus();
         return;
       }
-      state.checkIns[date] = { ...values, status: "saved", savedAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+      const previous = state.checkIns[date] || {};
+      const cycleEligible = Boolean(
+        activeCycle?.status === "in_progress" &&
+        activeCycle.basePlanId &&
+        activeCycle.basePlanId === state.plan?.planId &&
+        activeCycle.recommendationId &&
+        activeCycle.recommendationId === state.journey?.recommendation?.recommendationId &&
+        values.linkedTaskId &&
+        baseTaskIds.has(values.linkedTaskId),
+      );
+      const cycleId = cycleEligible ? activeCycle.cycleId : null;
+      const planId = cycleEligible ? activeCycle.basePlanId : state.plan?.planId || null;
+      const recommendationId = cycleEligible ? activeCycle.recommendationId : null;
+      const sameScope = Boolean(
+        previous.checkInId &&
+          previous.cycleId === cycleId &&
+          previous.planId === planId &&
+          (previous.recommendationId || null) === recommendationId,
+      );
+      const previousConfirmed = Boolean(
+        previous.checkInId &&
+          previous.status === "saved" &&
+          (previous.learnerConfirmedReview === true || previous.reviewId),
+      );
+      const contentChanged = !sameCheckinContent(previous, values);
+      if (previousConfirmed && sameScope && !contentChanged) {
+        renderCheckinReceipt(previous);
+        if (draftStatus) draftStatus.textContent = "证据式打卡与已确认版本一致";
+        if (noteStatus) noteStatus.textContent = "内容没有变化；原确认、复盘与后续证据保持有效。";
+        return;
+      }
+      const replacesConfirmedVersion = previousConfirmed && contentChanged;
+      if (previous.checkInId && (replacesConfirmedVersion || !sameScope)) {
+        archiveCheckIn(previous, replacesConfirmedVersion ? "learner_revision_after_confirmation" : "scope_changed");
+      }
+      const savedAt = new Date().toISOString();
+      state.checkIns[date] = {
+        ...values,
+        checkInId:
+          sameScope && !replacesConfirmedVersion ? previous.checkInId : `check-in-${Date.now().toString(36)}`,
+        cycleId,
+        planId,
+        diagnosticSessionId: cycleEligible ? activeCycle.diagnosticSessionId : null,
+        recommendationId,
+        visibility: "local_only",
+        anomalyReviewStatus: "not_flagged",
+        status: "saved",
+        learnerConfirmedReview: false,
+        reviewId: null,
+        reviewedAt: null,
+        savedAt,
+        updatedAt: savedAt,
+      };
+      if (cycleEligible) {
+        activeCycle.checkInId = state.checkIns[date].checkInId;
+        activeCycle.reviewId = null;
+        activeCycle.peerHelpId = null;
+        activeCycle.retestId = null;
+        activeCycle.updatedPlanId = null;
+        activeCycle.updatedAt = savedAt;
+        state.journey.review = null;
+        state.journey.peerHelp = null;
+        state.journey.retest = null;
+        state.journey.planUpdate = null;
+      }
       if (values.linkedTaskId) {
         state.taskProgress[values.linkedTaskId] = {
           ...(state.taskProgress[values.linkedTaskId] || {}),
@@ -900,9 +1108,17 @@
         };
       }
       markMatchingTaskComplete("Reflection");
-      persist();
-      if (draftStatus) draftStatus.textContent = "正式记录已保存";
-      if (noteStatus) noteStatus.textContent = `已保存于 ${new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit" }).format(new Date())}`;
+      if (!persist()) {
+        if (noteStatus) noteStatus.textContent = "当前无法保存；本次打卡尚未形成正式记录。";
+        return;
+      }
+      renderCheckinReceipt(state.checkIns[date]);
+      if (draftStatus) draftStatus.textContent = "证据式打卡已保存";
+      if (noteStatus) {
+        noteStatus.textContent = cycleEligible
+          ? `已保存于 ${new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit" }).format(new Date())}；请进入下一页确认复盘。`
+          : "已保存为独立本机打卡；未满足当前闭环前置条件，因此不会计入七步路径。";
+      }
     });
   }
 
@@ -913,12 +1129,18 @@
     const completedTasks = Object.values(state.taskProgress).filter((item) => item?.status === "completed").length;
     const completedPractice = Object.values(state.practice).filter((item) => item?.status === "completed").length;
     const savedCheckins = Object.values(state.checkIns).filter((item) => item?.status === "saved").length;
+    const confirmedReviews = Object.values(state.checkIns).filter(
+      (item) => item?.status === "saved" && item?.learnerConfirmedReview === true && item?.reviewId,
+    ).length;
+    const completedCycles = state.journey.history.filter((item) => item?.status === "completed" || item?.updatedPlanId).length;
     clearChildren(summary);
     const rows = [
-      ["7 天计划", state.plan ? "1 份" : "尚未生成"],
+      ["7 天计划", state.plan ? `当前 1 份 · 历史 ${state.planHistory.length} 份` : "尚未生成"],
       ["已完成任务", `${completedTasks} 项`],
       ["已完成微练习", `${completedPractice} 项`],
-      ["正式学习复盘", `${savedCheckins} 天`],
+      ["证据式打卡", `${savedCheckins} 条`],
+      ["学生确认复盘", `${confirmedReviews} 条`],
+      ["完整演示闭环", `${completedCycles} 轮`],
       ["专注记录", `${state.focus.sessions.length} 次`],
     ];
     rows.forEach(([label, value]) => {

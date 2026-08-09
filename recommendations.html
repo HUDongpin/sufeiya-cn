@@ -3,11 +3,11 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="按每日时间与重点英文能力，在浏览器中生成一份可执行的 7 天 DET 学习计划。" />
+    <meta name="description" content="根据本机 7 天计划生成一个主任务与至多两个可选补充，明确显示推荐原因、来源、时长和验证方式。" />
     <meta name="theme-color" content="#f8f5ed" />
     <meta name="color-scheme" content="light" />
     <meta name="robots" content="index,follow,max-image-preview:large" />
-    <link rel="canonical" href="https://sufeiya.cn/plan" />
+    <link rel="canonical" href="https://sufeiya.cn/recommendations" />
     <link rel="icon" href="/assets/sufeiya-mark.png" type="image/png" />
     <link rel="apple-touch-icon" href="/assets/sufeiya-mark.png" />
     <link rel="preload" href="/assets/sufeiya-logo.png" as="image" />
@@ -15,25 +15,26 @@
     <meta property="og:type" content="website" />
     <meta property="og:locale" content="zh_CN" />
     <meta property="og:site_name" content="苏肥鸭多邻国" />
-    <meta property="og:title" content="7 天学习计划｜苏肥鸭学习工作台" />
-    <meta property="og:description" content="按每日时间与重点英文能力，在浏览器中生成一份可执行的 7 天 DET 学习计划。" />
-    <meta property="og:url" content="https://sufeiya.cn/plan" />
+    <meta property="og:title" content="可解释推荐｜苏肥鸭学习工作台" />
+    <meta property="og:description" content="根据本机 7 天计划生成一个主任务与至多两个可选补充，明确显示推荐原因、来源、时长和验证方式。" />
+    <meta property="og:url" content="https://sufeiya.cn/recommendations" />
     <meta property="og:image" content="https://sufeiya.cn/assets/sufeiya-logo.png" />
     <meta property="og:image:width" content="2792" />
     <meta property="og:image:height" content="560" />
     <meta property="og:image:alt" content="苏肥鸭多邻国品牌标志" />
     <meta name="twitter:card" content="summary" />
-    <meta name="twitter:title" content="7 天学习计划｜苏肥鸭学习工作台" />
-    <meta name="twitter:description" content="按每日时间与重点英文能力，在浏览器中生成一份可执行的 7 天 DET 学习计划。" />
+    <meta name="twitter:title" content="可解释推荐｜苏肥鸭学习工作台" />
+    <meta name="twitter:description" content="根据本机 7 天计划生成一个主任务与至多两个可选补充，明确显示推荐原因、来源、时长和验证方式。" />
     <meta name="twitter:image" content="https://sufeiya.cn/assets/sufeiya-mark.png" />
-    <title>7 天学习计划｜苏肥鸭学习工作台</title>
+    <title>可解释推荐｜苏肥鸭学习工作台</title>
     <script type="application/ld+json">
-      {"@context":"https://schema.org","@type":"WebPage","name":"7 天学习计划｜苏肥鸭学习工作台","url":"https://sufeiya.cn/plan","inLanguage":"zh-CN","description":"按每日时间与重点英文能力，在浏览器中生成一份可执行的 7 天 DET 学习计划。","isPartOf":{"@type":"WebSite","name":"苏肥鸭多邻国","url":"https://sufeiya.cn/"}}
+      {"@context":"https://schema.org","@type":"WebPage","name":"可解释推荐｜苏肥鸭学习工作台","url":"https://sufeiya.cn/recommendations","inLanguage":"zh-CN","description":"根据本机 7 天计划生成一个主任务与至多两个可选补充，明确显示推荐原因、来源、时长和验证方式。","isPartOf":{"@type":"WebSite","name":"苏肥鸭多邻国","url":"https://sufeiya.cn/"}}
     </script>
     <script src="/script.js" defer></script>
     <script src="/workspace.js" defer></script>
+    <script src="/journey.js" defer></script>
   </head>
-  <body data-page="plan">
+  <body data-page="recommendations">
 
   <div class="reading-progress" aria-hidden="true"><span></span></div>
   <a class="skip-link" href="#main-content">跳到主要内容</a>
@@ -98,46 +99,33 @@
     <div class="study-page-hero-inner">
       <div>
         <a class="study-back" href="/workspace">← 返回学习工作台</a>
-        <p class="page-label"><span>02</span>7 天学习计划</p>
-        <h1 id="study-page-title">把目标变成，<br />每天能完成的一小步。</h1>
-        <p>选择每天可投入的时间与本周重点，规则生成器会即时制作一份 7 天安排。它用于行动规划，不进行官方评分或成绩预测。</p>
+        <p class="page-label"><span>03</span>可解释推荐</p>
+        <h1 id="study-page-title">一个主任务，<br />至多两个可选补充。</h1>
+        <p>推荐只基于本机计划与已冻结的原创练习入口；每项显示原因、时长和验证方式。当前不使用 RAG、不自由上网，也不把打开链接当成完成学习。</p>
       </div>
-      <aside><strong>约 1 分钟完成设置</strong><span>数据只保存在当前浏览器，不上传。</span></aside>
+      <aside><strong>接受或明确跳过都可留证</strong><span>数据只保存在当前浏览器，不上传。</span></aside>
     </div>
     <div class="study-nav-wrap">
   <nav class="study-tool-nav" aria-label="学生功能导航">
-    <a href="/plan" aria-current="page"><span>01</span>7 天计划</a>
+    <a href="/plan"><span>01</span>7 天计划</a>
     <a href="/today"><span>02</span>今日任务</a>
     <a href="/practice"><span>03</span>英文练习</a>
     <a href="/focus"><span>04</span>专注计时</a>
     <a href="/check-in"><span>05</span>学习复盘</a>
   </nav></div>
   </section>
-    <section class="single-tool-section" aria-labelledby="plan-title">
-      <div class="single-tool-inner">
-        <header class="tool-panel-header"><div><span>01</span><div><p>计划生成器</p><h2 id="plan-title">设置你的学习节奏</h2></div></div><small data-plan-status>尚未生成</small></header>
-        <div class="plan-layout">
-          <form id="plan-form" class="plan-form" novalidate>
-            <label><span>你的称呼 <small>选填</small></span><input name="nickname" type="text" maxlength="20" autocomplete="nickname" placeholder="例如：小林" /></label>
-            <label><span>预计考试日期 <small>选填</small></span><input name="examDate" type="date" data-exam-date /></label>
-            <label><span>每天可学习时间</span><select name="dailyMinutes"><option value="15">15 分钟</option><option value="30" selected>30 分钟</option><option value="45">45 分钟</option><option value="60">60 分钟</option></select></label>
-            <label><span>本周重点能力</span><select name="focusSkill"><option value="Balanced">综合训练</option><option value="Reading">Reading · 阅读</option><option value="Listening">Listening · 听力</option><option value="Writing">Writing · 写作</option><option value="Speaking">Speaking · 口语</option></select><small class="field-note">由你自行选择，不是诊断结论或能力评分。</small></label>
-            <button class="button button-ink" type="submit">生成 7 天计划
-  <svg viewBox="0 0 24 24" aria-hidden="true">
-    <path d="M5 12h13M14 7l5 5-5 5" />
-  </svg></button>
-            <p>计划由当前浏览器即时生成；姓名与考试日期不会上传。</p>
-          </form>
-          <div class="plan-output" aria-live="polite">
-            <div class="plan-empty" data-plan-empty><span aria-hidden="true">7</span><h3>完成设置后，<br />这里会出现每天的任务。</h3><p>生成后可前往“今日任务”逐项完成。</p></div>
-            <div data-plan-result hidden><div class="plan-result-heading"><div><span data-plan-owner>你的</span><h3>7 天学习计划</h3></div><p data-plan-summary></p></div><ol class="plan-days" data-plan-days></ol><a class="button button-accent plan-next-button" href="/today">查看今日任务
+    <section class="single-tool-section journey-tool-section" aria-labelledby="recommendation-title"><div class="single-tool-inner">
+      <header class="tool-panel-header"><div><span>03</span><div><p>内容推荐</p><h2 id="recommendation-title">今天先做哪一项</h2></div></div><small data-recommendation-status>正在读取计划</small></header>
+      <div class="gate-a-notice"><strong>来源边界</strong><p>主任务来自本站原创微练习；补充入口只连接已审阅的公开目录或非评分工具。页面不会声称 Bilibili 目录已经成为 RAG 语料。</p></div>
+      <div class="recommendation-empty" data-recommendation-empty><h3>还没有可用计划</h3><p>先建立演示诊断会话并生成 7 天计划，推荐页才会生成与当前重点相关的任务。</p><a class="button button-ink" href="/plan">先生成计划
   <svg viewBox="0 0 24 24" aria-hidden="true">
     <path d="M5 12h13M14 7l5 5-5 5" />
   </svg></a></div>
-          </div>
-        </div>
-      </div>
-    </section>
+      <div data-recommendation-ready hidden><div class="recommendation-list" data-recommendation-items></div><div class="recommendation-actions"><button class="button button-ink" type="button" data-accept-recommendation>接受主任务</button><button class="button button-ghost" type="button" data-skip-recommendation>今天明确跳过</button><a class="button button-accent" href="/today" data-recommendation-start hidden>开始今天的任务
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M5 12h13M14 7l5 5-5 5" />
+  </svg></a></div><p class="save-message" data-recommendation-message role="status" aria-live="polite"></p><dl class="compact-receipt" data-recommendation-receipt hidden><div><dt>recommendation_id</dt><dd data-recommendation-id></dd></div><div><dt>plan_id</dt><dd data-recommendation-plan-id></dd></div></dl></div>
+    </div></section>
   </main>
 
   <footer class="site-footer">

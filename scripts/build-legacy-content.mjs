@@ -4,16 +4,18 @@ import { fileURLToPath } from "node:url";
 const root = fileURLToPath(new URL("../", import.meta.url));
 const output = fileURLToPath(new URL("../lib/legacy-content.generated.ts", import.meta.url));
 
-// Keep this launch manifest deliberately narrow. Draft/experimental pages in the
-// working tree do not enter a production build until they are explicitly added.
+// Keep this release manifest explicit. The approved Gate A journey pages below
+// are local-only demonstrations and do not imply a real-data pilot or RAG release.
 const definitions = [
   { key: "home", file: "index.html", path: "/", runtime: "site", nav: "home" },
   { key: "learning-path", file: "learning-path.html", path: "/learning-path", runtime: "site", nav: "learning-path" },
   { key: "platform", file: "platform.html", path: "/platform", runtime: "site", nav: "platform" },
   { key: "resources", file: "resources.html", path: "/resources", runtime: "resources", nav: "resources" },
   { key: "about", file: "about.html", path: "/about", runtime: "site", nav: "about" },
-  { key: "workspace", file: "workspace.html", path: "/workspace", runtime: "workspace", nav: "workspace" },
+  { key: "workspace", file: "workspace.html", path: "/workspace", runtime: "workspace", nav: "workspace", journey: true },
+  { key: "diagnostic", file: "diagnostic.html", path: "/diagnostic", runtime: "workspace", nav: "workspace", journey: true },
   { key: "plan", file: "plan.html", path: "/plan", runtime: "workspace", nav: "workspace" },
+  { key: "recommendations", file: "recommendations.html", path: "/recommendations", runtime: "workspace", nav: "workspace", journey: true },
   { key: "today", file: "today.html", path: "/today", runtime: "workspace", nav: "workspace" },
   { key: "practice", file: "practice.html", path: "/practice", runtime: "workspace", nav: "workspace" },
   { key: "practice-reading", file: "practice-reading.html", path: "/practice-reading", runtime: "workspace", nav: "workspace" },
@@ -22,6 +24,9 @@ const definitions = [
   { key: "practice-speaking", file: "practice-speaking.html", path: "/practice-speaking", runtime: "workspace", nav: "workspace" },
   { key: "focus", file: "focus.html", path: "/focus", runtime: "workspace", nav: "workspace" },
   { key: "check-in", file: "check-in.html", path: "/check-in", runtime: "workspace", nav: "workspace" },
+  { key: "review", file: "review.html", path: "/review", runtime: "site", nav: "workspace", journey: true },
+  { key: "community", file: "community.html", path: "/community", runtime: "workspace", nav: "workspace", journey: true },
+  { key: "retest", file: "retest.html", path: "/retest", runtime: "workspace", nav: "workspace", journey: true },
   { key: "my-data", file: "my-data.html", path: "/my-data", runtime: "workspace", nav: "workspace" },
   { key: "not-found", file: "404.html", path: "/404", runtime: "site", nav: "home" },
 ];
@@ -61,6 +66,7 @@ for (const definition of definitions) {
   }
   pages[definition.key] = {
     ...definition,
+    journey: Boolean(definition.journey),
     title: requiredMatch(html, /<title>([\s\S]*?)<\/title>/i, "title", definition.file),
     description: descriptionMatch || "页面没有找到，请返回苏肥鸭多邻国在线学习平台首页。",
     mainHtml: updateAccountCopy(requiredMatch(html, /(<main\b[\s\S]*?<\/main>)/i, "main", definition.file)),
@@ -79,10 +85,15 @@ await writeFile(output, source, "utf8");
 await mkdir(new URL("../public/assets/", import.meta.url), { recursive: true });
 for (const [from, to] of [
   ["../workspace.js", "../public/workspace.js"],
+  ["../journey.js", "../public/journey.js"],
   ["../script.js", "../public/script.js"],
   ["../resources.js", "../public/resources.js"],
 ]) {
   await copyFile(new URL(from, import.meta.url), new URL(to, import.meta.url));
 }
+await copyFile(
+  new URL("../assets/listening-writing-center.mp3", import.meta.url),
+  new URL("../public/assets/listening-writing-center.mp3", import.meta.url),
+);
 
 console.log(`Generated ${Object.keys(pages).length} release page records and synchronized public runtimes from ${root}`);

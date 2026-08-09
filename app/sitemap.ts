@@ -6,7 +6,9 @@ import { SITE_URL } from "@/lib/site";
 const priorities: Record<string, number> = {
   home: 1,
   workspace: 1,
+  diagnostic: 0.9,
   plan: 0.9,
+  recommendations: 0.9,
   today: 0.9,
   practice: 0.9,
   "practice-reading": 0.8,
@@ -15,6 +17,9 @@ const priorities: Record<string, number> = {
   "practice-speaking": 0.8,
   focus: 0.8,
   "check-in": 0.8,
+  review: 0.8,
+  community: 0.8,
+  retest: 0.9,
   "my-data": 0.5,
   "learning-path": 0.9,
   platform: 0.9,
@@ -25,10 +30,15 @@ const priorities: Record<string, number> = {
 const frequencies: Record<string, MetadataRoute.Sitemap[number]["changeFrequency"]> = {
   home: "weekly",
   workspace: "weekly",
+  diagnostic: "weekly",
   plan: "weekly",
+  recommendations: "weekly",
   today: "daily",
   practice: "weekly",
   "check-in": "weekly",
+  review: "weekly",
+  community: "weekly",
+  retest: "weekly",
   resources: "weekly",
 };
 

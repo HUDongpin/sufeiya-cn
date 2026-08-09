@@ -21,6 +21,9 @@ export function LegacyPage({ pageKey }: { pageKey: LegacyPageKey }) {
       {page.runtime === "resources" ? (
         <Script id="sufeiya-resources-runtime" src="/resources.js" strategy="afterInteractive" />
       ) : null}
+      {page.journey ? (
+        <Script id="sufeiya-journey-runtime" src="/journey.js" strategy="afterInteractive" />
+      ) : null}
     </SiteShell>
   );
 }
