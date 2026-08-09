@@ -37,6 +37,7 @@ const workspaceScript = await read("workspace.js");
 const resourcesScript = await read("resources.js");
 const notFound = await read("404.html");
 const sitemap = await read("sitemap.xml");
+const proxy = await read("proxy.ts");
 
 const resolveLocalPath = (urlPath) => {
   const clean = urlPath.split("#")[0].split("?")[0];
@@ -199,6 +200,14 @@ for (const [, , path] of pageFiles) {
 
 check((notFound.match(/<h1\b/gi) || []).length === 1, "404 page has one h1");
 check(!/favicon\.svg/.test(notFound), "404 page does not use the retired favicon");
+check(
+  proxy.includes('"/((?!_next/static|_next/image|_next/webpack-hmr).*)"'),
+  "Clerk middleware covers public assets and missing dotted paths",
+);
+check(
+  !/jpe\?g\|webp\|png\|gif\|svg|webmanifest\|mp3/.test(proxy),
+  "Clerk middleware does not exclude public-file extensions that can fall through to the shared 404 shell",
+);
 
 const logoStats = await stat(join(root, "assets/sufeiya-logo.png"));
 check(logoStats.size > 100_000 && logoStats.size < 2_000_000, "HD logo has a plausible production size");
