@@ -1,0 +1,15 @@
+{
+  "name": "sufeiya-website",
+  "version": "1.0.0",
+  "private": true,
+  "description": "The public entry for the Sufeiya DET digital learning platform.",
+  "type": "module",
+  "scripts": {
+    "generate": "node scripts/generate-pages.mjs",
+    "dev": "node scripts/serve.mjs",
+    "check": "node scripts/verify-site.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

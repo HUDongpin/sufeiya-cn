@@ -1,0 +1,15 @@
+# Deploy only the generated public site. Local source, test artifacts,
+# screenshots, exported learner data, and repository metadata stay private.
+/*
+!/*.html
+!/assets/
+!/assets/**
+!/data/
+!/data/resources.json
+!/resources.js
+!/script.js
+!/workspace.js
+!/styles.css
+!/robots.txt
+!/sitemap.xml
+!/vercel.json

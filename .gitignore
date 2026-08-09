@@ -1,0 +1,15 @@
+.DS_Store
+.vercel/
+node_modules/
+output/
+.playwright-cli/
+npm-debug.log*
+.env
+.env.*
+!.env.example
+.npmrc
+*.pem
+*.key
+*.p12
+*.pfx
+sufeiya-learning-data-*.json
