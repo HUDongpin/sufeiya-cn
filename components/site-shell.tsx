@@ -14,7 +14,7 @@ function ArrowIcon() {
   );
 }
 
-function SiteHeader({ pageKey }: { pageKey: NavigationKey }) {
+function SiteHeader({ pageKey, authAware }: { pageKey: NavigationKey; authAware: boolean }) {
   return (
     <>
       <div className="reading-progress" aria-hidden="true"><span /></div>
@@ -50,14 +50,23 @@ function SiteHeader({ pageKey }: { pageKey: NavigationKey }) {
               <span>开始学习</span>
               <ArrowIcon />
             </a>
-            <Show when="signed-out">
-              <a className="auth-link" href="/sign-in">登录</a>
-              <a className="auth-link auth-link-primary" href="/sign-up">注册</a>
-            </Show>
-            <Show when="signed-in">
-              <a className="auth-link" href="/account">我的账户</a>
-              <UserButton userProfileMode="navigation" userProfileUrl="/account" />
-            </Show>
+            {authAware ? (
+              <>
+                <Show when="signed-out">
+                  <a className="auth-link" href="/sign-in">登录</a>
+                  <a className="auth-link auth-link-primary" href="/sign-up">注册</a>
+                </Show>
+                <Show when="signed-in">
+                  <a className="auth-link" href="/account">我的账户</a>
+                  <UserButton userProfileMode="navigation" userProfileUrl="/account" />
+                </Show>
+              </>
+            ) : (
+              <>
+                <a className="auth-link" href="/sign-in">登录</a>
+                <a className="auth-link auth-link-primary" href="/sign-up">注册</a>
+              </>
+            )}
           </div>
           <button className="nav-toggle" type="button" aria-expanded="false" aria-controls="mobile-nav" aria-label="打开导航菜单">
             <span /><span />
@@ -73,13 +82,22 @@ function SiteHeader({ pageKey }: { pageKey: NavigationKey }) {
             进入学习工作台
             <ArrowIcon />
           </a>
-          <Show when="signed-out">
-            <a href="/sign-in">登录<span>账户</span></a>
-            <a href="/sign-up">注册<span>免费</span></a>
-          </Show>
-          <Show when="signed-in">
-            <a href="/account">我的账户<span>资料</span></a>
-          </Show>
+          {authAware ? (
+            <>
+              <Show when="signed-out">
+                <a href="/sign-in">登录<span>账户</span></a>
+                <a href="/sign-up">注册<span>免费</span></a>
+              </Show>
+              <Show when="signed-in">
+                <a href="/account">我的账户<span>资料</span></a>
+              </Show>
+            </>
+          ) : (
+            <>
+              <a href="/sign-in">登录<span>账户</span></a>
+              <a href="/sign-up">注册<span>免费</span></a>
+            </>
+          )}
         </nav>
       </header>
     </>
@@ -128,10 +146,18 @@ function SiteFooter() {
   );
 }
 
-export function SiteShell({ pageKey, children }: { pageKey: NavigationKey; children: ReactNode }) {
+export function SiteShell({
+  pageKey,
+  children,
+  authAware = true,
+}: {
+  pageKey: NavigationKey;
+  children: ReactNode;
+  authAware?: boolean;
+}) {
   return (
     <>
-      <SiteHeader pageKey={pageKey} />
+      <SiteHeader pageKey={pageKey} authAware={authAware} />
       {children}
       <SiteFooter />
       <Script id="sufeiya-site-runtime" src="/script.js" strategy="afterInteractive" />

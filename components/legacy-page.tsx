@@ -4,10 +4,16 @@ import { legacyPages, type LegacyPageKey } from "@/lib/legacy-content.generated"
 import type { NavigationKey } from "@/lib/site";
 import { SiteShell } from "@/components/site-shell";
 
-export function LegacyPage({ pageKey }: { pageKey: LegacyPageKey }) {
+export function LegacyPage({
+  pageKey,
+  authAware = true,
+}: {
+  pageKey: LegacyPageKey;
+  authAware?: boolean;
+}) {
   const page = legacyPages[pageKey];
   return (
-    <SiteShell pageKey={page.nav as NavigationKey}>
+    <SiteShell pageKey={page.nav as NavigationKey} authAware={authAware}>
       {page.jsonLd ? (
         <script
           type="application/ld+json"

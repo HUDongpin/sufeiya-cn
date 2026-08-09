@@ -16,12 +16,7 @@ export default clerkMiddleware({
 
 export const config = {
   matcher: [
-    // Run Clerk for every application and public-file request. Existing public
-    // assets are still served normally, while a missing dotted path (for
-    // example /favicon.ico) can render the shared 404 shell without calling
-    // Clerk outside middleware coverage. Only Next's own immutable internals
-    // are skipped.
-    "/((?!_next/static|_next/image|_next/webpack-hmr).*)",
+    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest|mp3)).*)",
     "/(api|trpc)(.*)",
     "/__clerk/(.*)",
   ],

@@ -8,5 +8,7 @@ export const metadata: Metadata = {
 };
 
 export default function NotFoundPage() {
-  return <LegacyPage pageKey="not-found" />;
+  // Static files bypass Clerk middleware. Keep the shared 404 shell useful,
+  // but render anonymous account links so a missing asset never requests auth.
+  return <LegacyPage pageKey="not-found" authAware={false} />;
 }

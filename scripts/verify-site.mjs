@@ -38,6 +38,9 @@ const resourcesScript = await read("resources.js");
 const notFound = await read("404.html");
 const sitemap = await read("sitemap.xml");
 const proxy = await read("proxy.ts");
+const notFoundRoute = await read("app/not-found.tsx");
+const legacyPageComponent = await read("components/legacy-page.tsx");
+const siteShellComponent = await read("components/site-shell.tsx");
 
 const resolveLocalPath = (urlPath) => {
   const clean = urlPath.split("#")[0].split("?")[0];
@@ -201,13 +204,19 @@ for (const [, , path] of pageFiles) {
 check((notFound.match(/<h1\b/gi) || []).length === 1, "404 page has one h1");
 check(!/favicon\.svg/.test(notFound), "404 page does not use the retired favicon");
 check(
-  proxy.includes('"/((?!_next/static|_next/image|_next/webpack-hmr).*)"'),
-  "Clerk middleware covers public assets and missing dotted paths",
+  /jpe\?g\|webp\|png\|gif\|svg/.test(proxy) && /webmanifest\|mp3/.test(proxy),
+  "public images and audio bypass Clerk middleware",
 );
 check(
-  !/jpe\?g\|webp\|png\|gif\|svg|webmanifest\|mp3/.test(proxy),
-  "Clerk middleware does not exclude public-file extensions that can fall through to the shared 404 shell",
+  notFoundRoute.includes('authAware={false}') &&
+    legacyPageComponent.includes("authAware?: boolean") &&
+    siteShellComponent.includes("authAware = true") &&
+    siteShellComponent.includes("{authAware ? ("),
+  "shared 404 shell renders anonymous account links without requesting Clerk auth",
 );
+
+const faviconStats = await stat(join(root, "app/favicon.ico"));
+check(faviconStats.size > 10_000 && faviconStats.size < 100_000, "multi-size favicon has a plausible production size");
 
 const logoStats = await stat(join(root, "assets/sufeiya-logo.png"));
 check(logoStats.size > 100_000 && logoStats.size < 2_000_000, "HD logo has a plausible production size");
