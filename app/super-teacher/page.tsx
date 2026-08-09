@@ -38,7 +38,7 @@ export default function SuperTeacherPage() {
   };
 
   return (
-    <SiteShell pageKey="super-teacher">
+    <SiteShell pageKey="super-teacher" sofiaSurface="page">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <SuperTeacherClient />
     </SiteShell>

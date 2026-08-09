@@ -129,26 +129,19 @@ export type TeacherIntent = z.infer<typeof teacherIntentSchema>;
 export type LearnerContext = z.infer<typeof learnerContextSchema>;
 export type SuperTeacherRequest = z.infer<typeof superTeacherRequestSchema>;
 
-export const modelTeacherOutputSchema = z
+const approvedOutputId = (prefix: string, maximum: number) => z
+  .string()
+  .regex(new RegExp(`^${prefix}-[1-${maximum}]$`));
+
+export const modelTeacherSelectionSchema = z
   .object({
-    headline: compactText(80).describe("A concise Chinese heading for the answer."),
-    claims: z
-      .array(
-        z
-          .object({
-            text: compactText(260).describe("One complete Chinese claim supported by every listed source ID."),
-            sourceIds: z.array(compactText(100)).min(1).max(3),
-          })
-          .strict(),
-      )
-      .min(1)
-      .max(4),
-    limitations: z.array(compactText(220)).min(1).max(3),
-    handoffRecommended: z.boolean(),
+    headlineId: approvedOutputId("headline", 1),
+    claimIds: z.array(approvedOutputId("claim", 4)).min(1).max(4),
+    limitationIds: z.array(approvedOutputId("limitation", 3)).min(1).max(3),
   })
   .strict();
 
-export type ModelTeacherOutput = z.infer<typeof modelTeacherOutputSchema>;
+export type ModelTeacherSelection = z.infer<typeof modelTeacherSelectionSchema>;
 
 export type GroundingSource = {
   id: string;

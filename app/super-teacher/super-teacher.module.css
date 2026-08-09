@@ -342,6 +342,7 @@
 }
 
 .avatar {
+  position: relative;
   width: 42px;
   height: 42px;
   flex: 0 0 42px;
@@ -359,6 +360,25 @@
   height: 100%;
   object-fit: cover;
   object-position: center;
+}
+
+.avatarAiBadge {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  min-width: 17px;
+  height: 14px;
+  padding: 0 3px;
+  border: 1px solid white;
+  border-radius: 999px 0 0;
+  display: grid;
+  place-items: center;
+  background: var(--color-ink);
+  color: white;
+  font-family: var(--font-mono);
+  font-size: 6px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
 }
 
 .assistantMessage > div:last-child {
@@ -949,5 +969,145 @@
   .loadingText::after {
     animation: none;
     content: "…";
+  }
+}
+
+.dialogChatPanel {
+  min-height: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  border: 0;
+  border-radius: 0;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: none;
+}
+
+.dialogSuggestions {
+  padding: 10px 14px;
+  flex: 0 0 auto;
+  gap: 7px;
+}
+
+.dialogSuggestions button {
+  min-height: 38px;
+  padding: 7px 11px;
+  font-size: 10px;
+}
+
+.dialogConversation {
+  min-height: 0;
+  max-height: none;
+  padding: 16px 14px;
+  flex: 1 1 auto;
+  overscroll-behavior: contain;
+}
+
+.dialogChatPanel .message {
+  margin-bottom: 18px;
+  gap: 9px;
+}
+
+.dialogChatPanel .avatar {
+  width: 34px;
+  height: 34px;
+  flex-basis: 34px;
+}
+
+.dialogChatPanel .assistantMessage > div:last-child {
+  padding: 14px 15px;
+  border-radius: 6px 17px 17px;
+}
+
+.dialogChatPanel .userMessage > div {
+  max-width: 92%;
+  padding: 12px 14px;
+}
+
+.dialogChatPanel .message h3 {
+  font-size: 19px;
+}
+
+.dialogChatPanel .message p {
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.dialogChatPanel .claimList {
+  margin-top: 12px;
+}
+
+.dialogChatPanel .claimList > li {
+  padding: 10px 0 12px;
+}
+
+.dialogChatPanel .citations {
+  align-items: stretch;
+  flex-direction: column;
+}
+
+.dialogChatPanel .citations a {
+  min-height: 38px;
+  border-radius: 11px;
+}
+
+.dialogChatPanel .answerActions {
+  align-items: stretch;
+  flex-direction: column;
+}
+
+.dialogChatPanel .answerActions a,
+.dialogChatPanel .answerActions button {
+  width: 100%;
+  min-height: 44px;
+}
+
+.dialogComposer {
+  padding: 13px 14px 14px;
+  flex: 0 0 auto;
+}
+
+.dialogComposer .consentRow {
+  margin-bottom: 9px;
+}
+
+.dialogComposer .consentRow small {
+  display: block;
+}
+
+.dialogComposer textarea {
+  min-height: 62px;
+  max-height: 120px;
+  resize: vertical;
+}
+
+.dialogComposer .composerFooter {
+  padding-top: 5px;
+  padding-bottom: 6px;
+}
+
+.dialogComposer .composerFooter button {
+  min-width: 134px;
+}
+
+@media (max-width: 660px) {
+  .dialogConversation {
+    min-height: 0;
+    max-height: none;
+    padding: 14px 12px;
+  }
+
+  .dialogComposer {
+    padding: 11px 12px max(12px, env(safe-area-inset-bottom));
+  }
+
+  .dialogComposer .composerFooter {
+    align-items: center;
+    flex-direction: row;
+  }
+
+  .dialogComposer .composerFooter button {
+    width: auto;
+    min-height: 44px;
   }
 }

@@ -356,7 +356,7 @@ const platformContent = `
             <h2 id="workspace-entry-title">打开网页，<br />今天就能完成一轮学习。</h2>
           </div>
           <div>
-            <p>无需注册。计划、打卡与复盘只保存在当前浏览器中，学生可以随时清除，不会上传到网站服务器。</p>
+            <p>工作台与学习页面使用 Clerk 登录保护。计划、打卡与复盘仍只保存在当前浏览器中；登录不会自动上传、绑定或跨设备同步这些记录，学生可以随时清除。</p>
             <a class="button button-ink" href="/workspace">进入学习工作台${arrow}</a>
           </div>
         </div>
@@ -588,7 +588,7 @@ const workspacePrototype = `
             <h2 id="workspace-tools-title">四个工具，一次学习闭环。</h2>
           </div>
           <div class="local-data-note">
-            <div><strong>本机保存</strong><span>不登录、不上传，可随时清除</span></div>
+            <div><strong>本机保存</strong><span>登录只控制访问；学习数据不上传，可随时清除</span></div>
             <button type="button" data-clear-workspace>清除我的数据</button>
           </div>
         </header>
@@ -832,7 +832,7 @@ const workspaceContent = `
       <div class="section-inner">
         <div class="journey-heading">
           <div><p class="workspace-overline">SUFEIYA CLOSED LOOP V1</p><h2 id="journey-title">七步各自独立，<br />证据彼此连接。</h2></div>
-          <div class="local-data-note"><div><strong>隐私优先</strong><span>不登录、不上传，可随时清除</span></div><button type="button" data-clear-workspace>清除我的数据</button></div>
+          <div class="local-data-note"><div><strong>隐私优先</strong><span>登录只控制访问；学习数据不上传，可随时清除</span></div><button type="button" data-clear-workspace>清除我的数据</button></div>
         </div>
         <ol class="journey-grid" data-journey-list>
           <li data-journey-step="diagnostic"><a href="/diagnostic"><span>01</span><small data-journey-step-status>待开始</small><h3>诊断证据包</h3><p>完成 2 Reading、2 Listening、90 秒 Speaking 与 3 分钟 Writing，再确认优先项。</p><b>进入诊断页 →</b></a></li>
@@ -857,7 +857,7 @@ const workspaceContent = `
           <p class="workspace-tools-copy">练习、专注与数据管理都有独立页面；它们不会自动生成能力结论，也不会替代七步闭环中的学生确认。</p>
         </div>
         <div class="workspace-launch-grid workspace-support-grid">
-          <a href="/super-teacher"><span>苏</span><small>SOFIA AI TEACHER</small><h3>Sofia智能老师</h3><p>解释本机证据、计划与推荐依据；来源不足时明确停下。</p><b>有来源地问为什么 →</b></a>
+          <a href="/super-teacher"><img class="workspace-sofia-avatar" src="/assets/sufeiya-super-teacher-avatar.webp" width="72" height="72" alt="" /><small>SOFIA AI TEACHER · AI</small><h3>Sofia智能老师</h3><p>解释本机证据、计划与推荐依据；来源不足时明确停下。</p><b>有来源地问为什么 →</b></a>
           <a href="/today"><span>今</span><small>TODAY</small><h3>今日任务</h3><p>读取 7 天计划，逐项完成今天的练习与行动。</p><b>查看今日清单 →</b></a>
           <a href="/practice"><span>练</span><small>PRACTICE</small><h3>四项英文微练习</h3><p>Reading、Listening、Writing 与 Speaking 各有独立页面。</p><b>选择练习页 →</b></a>
           <a href="/focus"><span>专</span><small>FOCUS</small><h3>专注计时</h3><p>选择 15、25 或 45 分钟，开始一段不被打断的学习。</p><b>进入计时页 →</b></a>
@@ -1159,7 +1159,7 @@ const reviewContent = `
 
 const myDataContent = `
   <main id="main-content" class="study-tool-page">
-    ${studyPageHero({ current: "", number: "数", label: "我的本机数据", title: "知道数据在哪里，<br />也能自己带走或清除。", lead: "学习闭环数据，以及 Sofia智能老师的对话副本和未发送人工请求，分别保存在当前浏览器的两个版本化命名空间中。本站没有账号系统，也不会自动同步到其他设备。", note: "你掌握数据控制权" })}
+    ${studyPageHero({ current: "", number: "数", label: "我的本机数据", title: "知道数据在哪里，<br />也能自己带走或清除。", lead: "账户登录用于保护学习页面；学习闭环数据，以及 Sofia智能老师的对话副本和未发送人工请求，仍分别保存在当前浏览器的两个版本化命名空间中，不会自动绑定账户、上传或同步到其他设备。", note: "你掌握数据控制权" })}
     <section class="single-tool-section data-page" aria-labelledby="data-title"><div class="single-tool-inner narrow-tool"><header class="tool-panel-header"><div><span>数</span><div><p>数据控制</p><h2 id="data-title">当前浏览器中的 Sufeiya 数据</h2></div></div><small data-data-status>正在读取</small></header>
       <div class="data-facts"><article><strong>两个本机命名空间</strong><p>学习闭环与 Sofia智能老师对话分开保存；下方导出和清除会明确列出范围。</p></article><article><strong>本地但未加密</strong><p>同一设备上的其他使用者可能看到这些记录，请勿填写敏感成绩截图或身份材料。</p></article><article><strong>不保存录音</strong><p>口语练习不申请麦克风权限，也不会储存或上传声音。</p></article></div>
       <div class="data-summary" data-data-summary><p>正在统计本机记录…</p></div>

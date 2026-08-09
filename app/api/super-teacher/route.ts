@@ -1,9 +1,13 @@
 import { Buffer } from "node:buffer";
 import { randomUUID } from "node:crypto";
 
+import { auth } from "@clerk/nextjs/server";
+
+import { getClerkRuntimeState } from "@/lib/auth/clerk-config";
 import { SUPER_TEACHER_PROTOCOL, superTeacherRequestSchema, superTeacherResponseSchema } from "@/lib/super-teacher/contracts";
 import { classifyTeacherQuestion } from "@/lib/super-teacher/policy";
 import { checkSuperTeacherRateLimit } from "@/lib/super-teacher/rate-limit";
+import { teacherModelReleaseStatus } from "@/lib/super-teacher/model-runtime";
 import { createTeacherResponse } from "@/lib/super-teacher/responder";
 import { admittedSourceCounts, buildGroundingBundle } from "@/lib/super-teacher/sources";
 
@@ -16,7 +20,7 @@ function responseHeaders(mode?: string) {
     "Cache-Control": "private, no-store, max-age=0",
     "X-Content-Type-Options": "nosniff",
     "X-Robots-Tag": "noindex, nofollow",
-    "X-Sufeiya-Account-Mode": "local-only",
+    "X-Sufeiya-Account-Mode": "clerk-access-local-learning-data",
     ...(mode ? { "X-Sufeiya-Teacher-Mode": mode } : {}),
   };
 }
@@ -40,19 +44,21 @@ function isSameOrigin(request: Request) {
   }
 }
 
-function gatewayConfigured() {
-  return process.env.SUFEIYA_AI_ENABLED === "true" &&
-    Boolean(process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN);
-}
-
 export async function GET() {
   const counts = admittedSourceCounts();
+  const modelStatus = teacherModelReleaseStatus();
   return json({
     protocolVersion: SUPER_TEACHER_PROTOCOL,
     status: "gate_a_limited",
-    answerMode: gatewayConfigured() ? "grounded_ai_with_manual_fallback" : "manual_grounded_fallback",
-    modelGenerationEnabled: gatewayConfigured(),
-    accountMode: "local-only",
+    answerMode: modelStatus.enabled ? "grounded_ai_with_manual_fallback" : "manual_grounded_fallback",
+    modelGenerationEnabled: modelStatus.enabled,
+    modelProvider: modelStatus.provider,
+    model: modelStatus.model,
+    modelRegion: modelStatus.region,
+    teacherSurfaceAccess: "public",
+    modelSubmitAccess: "clerk_authenticated",
+    learningPageAccess: "clerk_protected",
+    learningDataStorage: "browser_local_not_account_bound",
     sourceBoundary: {
       claimSourcesAdmitted: counts.claimSources,
       linkOnlyResources: counts.linkOnlyResources,
@@ -68,12 +74,21 @@ export async function POST(request: Request) {
     return json({ error: "origin_not_allowed", requestId }, { status: 403 });
   }
 
+  const clerkState = getClerkRuntimeState();
+  if (!clerkState.configured) {
+    return json({ error: "account_service_unavailable", requestId }, { status: 503 });
+  }
+  const { userId } = await auth();
+  if (!userId) {
+    return json({ error: "authentication_required", requestId }, { status: 401 });
+  }
+
   const declaredLength = Number(request.headers.get("content-length") ?? "0");
   if (Number.isFinite(declaredLength) && declaredLength > MAX_BODY_BYTES) {
     return json({ error: "request_too_large", requestId }, { status: 413 });
   }
 
-  const rateLimit = checkSuperTeacherRateLimit(request);
+  const rateLimit = checkSuperTeacherRateLimit(userId);
   if (!rateLimit.allowed) {
     return json(
       { error: "rate_limited", requestId, retryAfterSeconds: rateLimit.retryAfterSeconds },

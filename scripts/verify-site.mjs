@@ -30,7 +30,30 @@ const pageFiles = [
   ["about.html", "about", "/about"],
 ];
 const expectedNavTargets = ["/learning-path", "/platform", "/resources", "/about"];
-const nextOnlyTargets = new Map([["/super-teacher", "app/super-teacher/page.tsx"]]);
+const protectedLearnerPaths = [
+  "/workspace",
+  "/diagnostic",
+  "/plan",
+  "/recommendations",
+  "/today",
+  "/practice",
+  "/practice-reading",
+  "/practice-listening",
+  "/practice-writing",
+  "/practice-speaking",
+  "/focus",
+  "/check-in",
+  "/review",
+  "/community",
+  "/retest",
+  "/my-data",
+  "/account",
+];
+const sitemapPublicPaths = ["/", "/super-teacher", "/learning-path", "/platform", "/resources", "/about"];
+const nextOnlyTargets = new Map([
+  ["/super-teacher", "app/super-teacher/page.tsx"],
+  ["/assets/sufeiya-super-teacher-avatar.webp", "public/assets/sufeiya-super-teacher-avatar.webp"],
+]);
 
 const check = (condition, message) => {
   if (condition) passes.push(message);
@@ -48,17 +71,29 @@ const publicJourneyScript = await read("public/journey.js");
 const resourcesScript = await read("resources.js");
 const notFound = await read("404.html");
 const sitemap = await read("sitemap.xml");
+const nextSitemap = await read("app/sitemap.ts");
 const rootLayout = await read("app/layout.tsx");
+const dynamicLegacyPage = await read("app/[slug]/page.tsx");
 const siteShell = await read("components/site-shell.tsx");
 const authPage = await read("components/auth-page.tsx");
+const clerkAccountControls = await read("components/clerk-account-controls.tsx");
+const clerkConfig = await read("lib/auth/clerk-config.ts");
 const accountPage = await read("app/account/[[...account]]/page.tsx");
 const signInPage = await read("app/sign-in/[[...sign-in]]/page.tsx");
 const signUpPage = await read("app/sign-up/[[...sign-up]]/page.tsx");
 const proxyScript = await read("proxy.ts");
 const superTeacherPage = await read("app/super-teacher/page.tsx");
 const superTeacherClient = await read("components/super-teacher-client.tsx");
+const superTeacherConversation = await read("components/super-teacher/super-teacher-conversation.tsx");
+const superTeacherSessionProvider = await read("components/super-teacher/super-teacher-session-provider.tsx");
+const superTeacherFloatingAssistant = await read("components/sofia-floating-assistant.tsx");
+const superTeacherFloatingStyles = await read("components/sofia-floating-assistant.module.css");
+const superTeacherClientSession = await read("lib/super-teacher/client-session.ts");
 const superTeacherRoute = await read("app/api/super-teacher/route.ts");
 const superTeacherResponder = await read("lib/super-teacher/responder.ts");
+const superTeacherModelRuntime = await read("lib/super-teacher/model-runtime.ts");
+const superTeacherVoiceRelease = await read("lib/super-teacher/voice-release.ts");
+const superTeacherVoiceStatusRoute = await read("app/api/super-teacher/voice/status/route.ts");
 const superTeacherContracts = await read("lib/super-teacher/contracts.ts");
 const superTeacherLocalContext = await read("lib/super-teacher/local-context.ts");
 const superTeacherPolicy = await read("lib/super-teacher/policy.ts");
@@ -673,7 +708,7 @@ check(
     /learnerContextSchema[\s\S]*?\.strict\(\)[\s\S]*?\.superRefine/.test(superTeacherContracts) &&
     !/taskEvidence|firstResponse|responseText/.test(superTeacherContextConstructionSource) &&
     /body:\s*JSON\.stringify\(\{[\s\S]*?protocolVersion:[\s\S]*?consent:\s*true,[\s\S]*?question:\s*trimmed,[\s\S]*?learnerContext:\s*currentContext,[\s\S]*?\}\)/.test(
-      superTeacherClient,
+      superTeacherSessionProvider,
     ),
   "Super Teacher derives and sends a strict minimal summary without raw diagnostic answers or writing",
 );
@@ -683,11 +718,21 @@ check(
   ) &&
     /const validatedAnswer = superTeacherResponseSchema\.safeParse\(answer\)/.test(superTeacherRoute) &&
     /Response\.json\(validatedAnswer\.data/.test(superTeacherRoute) &&
-    /const validatedPayload = superTeacherResponseSchema\.safeParse\(payload\)/.test(superTeacherClient) &&
-    /response:\s*validatedPayload\.data/.test(superTeacherClient),
+    /const validatedPayload = superTeacherResponseSchema\.safeParse\(payload\)/.test(superTeacherSessionProvider) &&
+    /response:\s*validatedPayload\.data/.test(superTeacherSessionProvider),
   "Super Teacher validates the complete strict response schema on both server and client",
 );
-const superTeacherSubmitSource = sourceSection(superTeacherClient, "async function submitQuestion", "function choosePrompt");
+const superTeacherSubmitSource = sourceSection(
+  superTeacherSessionProvider,
+  "async function submitQuestion",
+  "function abortCurrentRequest",
+);
+check(
+  /Consent is scoped to one validated submission attempt[\s\S]*setConsent\(false\);[\s\S]*const userTurn/.test(
+    superTeacherSubmitSource,
+  ),
+  "Sofia consumes consent for each validated submission attempt",
+);
 check(
   /银行卡\|银行卡号\|支付账号/.test(superTeacherPolicy) &&
     /digits\.length >= 13 && digits\.length <= 25/.test(superTeacherPolicy) &&
@@ -705,11 +750,15 @@ check(
     /updatedPlan\.provenance\.taskSetDigest === TASK_SET_DIGEST/.test(superTeacherLocalContext),
   "Super Teacher local context includes only plan and progress records proven to share the diagnostic cycle",
 );
-const superTeacherSessionReadSource = sourceSection(superTeacherClient, "function readSession", "function saveSession");
+const superTeacherSessionReadSource = sourceSection(
+  superTeacherClientSession,
+  "export function parseSession",
+  "export function readSession",
+);
 const superTeacherHydrationSource = sourceSection(
-  superTeacherClient,
+  superTeacherSessionProvider,
   "const frame = window.requestAnimationFrame",
-  "const handleStorageChange",
+  "useEffect(() => {\n    const handleStorageChange",
 );
 check(
   /return \{ status: "corrupt", session: emptySession\(\) \}/.test(superTeacherSessionReadSource) &&
@@ -717,31 +766,37 @@ check(
     /setSessionReadIssue\(stored\.status\)/.test(superTeacherHydrationSource) &&
     !/saveSession\(/.test(superTeacherHydrationSource) &&
     /if \(sessionReadIssue\)/.test(superTeacherSubmitSource) &&
-    /原记录不会被页面自动覆盖/.test(superTeacherClient),
+    /原记录不会被页面自动覆盖/.test(superTeacherSessionProvider),
   "corrupt or unsupported Super Teacher sessions stay read-only until explicit learner clearing",
 );
-const superTeacherCommitSource = sourceSection(superTeacherClient, "async function commitSession", "const contextSummary");
+const superTeacherCommitSource = sourceSection(
+  superTeacherSessionProvider,
+  "async function commitSession",
+  "const contextSummary",
+);
 const superTeacherStorageSyncSource = sourceSection(
-  superTeacherClient,
+  superTeacherSessionProvider,
   "const handleStorageChange",
-  "conversationEndRef.current",
+  "async function commitSession",
 );
 check(
-  /revision:\s*0/.test(superTeacherClient) &&
+  /revision:\s*0/.test(superTeacherClientSession) &&
     /Number\.isSafeInteger\(revision\)/.test(superTeacherSessionReadSource) &&
-    /event\.key === CHAT_KEY/.test(superTeacherStorageSyncSource) &&
+    /event\.key === SUPER_TEACHER_CHAT_KEY/.test(superTeacherStorageSyncSource) &&
     /setSessionReadIssue\("concurrent_change"\)/.test(superTeacherStorageSyncSource) &&
-    /navigator\.locks\.request\(`\$\{CHAT_KEY\}:write`, \{ mode: "exclusive" \}/.test(superTeacherCommitSource) &&
-    /const stored = readSession\(\)[\s\S]*!storedSessionMatches\(stored, sessionRef\.current\)/.test(superTeacherCommitSource) &&
+    /navigator\.locks\.request\(`\$\{SUPER_TEACHER_CHAT_KEY\}:write`, \{ mode: "exclusive" \}/.test(superTeacherCommitSource) &&
+    /const stored = readSession\(window\.localStorage\)[\s\S]*!storedSessionMatches\(stored, sessionRef\.current\)/.test(superTeacherCommitSource) &&
     /revision:\s*sessionRef\.current\.revision \+ 1/.test(superTeacherCommitSource) &&
-    superTeacherCommitSource.indexOf("saveSession(next)") < superTeacherCommitSource.indexOf("sessionRef.current = next"),
+    superTeacherCommitSource.indexOf("saveSession(window.localStorage, next)") >= 0 &&
+    superTeacherCommitSource.indexOf("saveSession(window.localStorage, next)") <
+      superTeacherCommitSource.indexOf("sessionRef.current = next"),
   "Super Teacher detects CHAT_KEY races and compare-locks revisioned writes before advancing UI state",
 );
 const superTeacherLockDisclosureIndex = superTeacherClient.indexOf("<li><span>安全写入</span>");
-const superTeacherQuestionFormIndex = superTeacherClient.indexOf("<form", superTeacherLockDisclosureIndex);
+const superTeacherQuestionFormIndex = superTeacherClient.indexOf("<SuperTeacherConversation", superTeacherLockDisclosureIndex);
 check(
-  /const \[safeWriteLockSupported, setSafeWriteLockSupported\] = useState\(false\)/.test(superTeacherClient) &&
-    /const supportsSafeWriteLock = Boolean\(navigator\.locks\?\.request\)/.test(superTeacherClient) &&
+  /const \[safeWriteLockSupported, setSafeWriteLockSupported\] = useState\(false\)/.test(superTeacherSessionProvider) &&
+    /const supportsSafeWriteLock = Boolean\(navigator\.locks\?\.request\)/.test(superTeacherSessionProvider) &&
     /浏览器写入锁可用，防止跨标签页覆盖[\s\S]*浏览器写入锁不可用，智能问答保持只读/.test(
       superTeacherClient,
     ) &&
@@ -749,23 +804,169 @@ check(
     superTeacherQuestionFormIndex > superTeacherLockDisclosureIndex,
   "Super Teacher discloses Web Locks capability before the learner reaches question controls",
 );
-check(!/@clerk\//.test(`${rootLayout}\n${siteShell}\n${authPage}\n${accountPage}\n${signInPage}\n${signUpPage}\n${proxyScript}`), "Gate A application runtime has no Clerk imports");
-check(/免登录 · 本机保存/.test(siteShell), "Next.js shell exposes the local-only learner mode");
-check(/账户功能后续开放/.test(accountPage), "account route explains the deferred account boundary");
-check(/不需要登录或注册/.test(signInPage) && /免注册、本机保存模式/.test(signUpPage), "sign-in and sign-up routes route learners into the local-only flow");
-check(/X-Sufeiya-Account-Mode[\s\S]*local-only/.test(proxyScript), "application responses identify the local-only account mode");
-check(/connect-src 'self'/.test(proxyScript) && !/clerk|stripe/i.test(proxyScript), "Gate A CSP has no Clerk or Stripe runtime origins");
+check(
+  /<body>[\s\S]*<ClerkProvider[\s\S]*dynamic[\s\S]*localization=\{zhCN\}[\s\S]*signInUrl="\/sign-in"[\s\S]*signUpUrl="\/sign-up"[\s\S]*\{children\}[\s\S]*<\/ClerkProvider>[\s\S]*<\/body>/.test(
+    rootLayout,
+  ) && /getClerkRuntimeState/.test(rootLayout),
+  "configured ClerkProvider is dynamic, localized, and rendered inside body",
+);
+check(
+  protectedLearnerPaths.every((path) => clerkConfig.includes(`"${path}"`)) &&
+    /pathname === protectedPath \|\| pathname\.startsWith\(`\$\{protectedPath\}\/`\)/.test(clerkConfig) &&
+    !clerkConfig.includes('"/super-teacher"') &&
+    !clerkConfig.includes('"/api/super-teacher"'),
+  "Clerk classifier covers learner/account roots and subroutes while the Sofia surface remains public",
+);
+check(
+  /isClerkProtectedPathname\(pathname\)/.test(dynamicLegacyPage) &&
+    /if \(!clerkState\.configured\)/.test(dynamicLegacyPage) &&
+    /const \{ userId, redirectToSignIn \} = await auth\(\)/.test(dynamicLegacyPage) &&
+    /if \(!userId\) return redirectToSignIn\(\{ returnBackUrl: pathname \}\)/.test(dynamicLegacyPage),
+  "canonical learner routes fail closed on missing Clerk configuration and enforce resource-level auth",
+);
+check(
+  /if \(!clerkState\.configured\)/.test(accountPage) &&
+    /const \{ userId, redirectToSignIn \} = await auth\(\)/.test(accountPage) &&
+    /redirectToSignIn\(\{ returnBackUrl: "\/account" \}\)/.test(accountPage) &&
+    /<UserProfile[\s\S]*routing="path"[\s\S]*path="\/account"/.test(accountPage),
+  "account route fails closed, verifies a Clerk session, and renders the account profile",
+);
+check(
+  /<SignIn[\s\S]*routing="path"[\s\S]*fallbackRedirectUrl="\/workspace"/.test(signInPage) &&
+    /<SignUp[\s\S]*routing="path"[\s\S]*fallbackRedirectUrl="\/workspace"/.test(signUpPage) &&
+    /ClerkUnavailablePanel/.test(`${signInPage}\n${signUpPage}`),
+  "sign-in and sign-up use Clerk with workspace fallback and a safe unconfigured state",
+);
+check(
+  /<Show when="signed-out">[\s\S]*href="\/sign-in"/.test(clerkAccountControls) &&
+    /<Show when="signed-in">[\s\S]*href="\/account"[\s\S]*<UserButton/.test(clerkAccountControls) &&
+    /学习数据仍在本机/.test(siteShell),
+  "site shell exposes session-aware account controls without claiming cloud learning-data storage",
+);
+check(
+  /登录不会自动迁移、上传或绑定当前浏览器/.test(authPage) &&
+    /不会自动上传、迁移或绑定学习数据/.test(authPage) &&
+    !/LocalOnlyAccountPanel/.test(authPage),
+  "account surfaces preserve the independent local-learning-data boundary",
+);
+check(
+  /clerkMiddleware/.test(proxyScript) &&
+    /signInUrl: "\/sign-in"/.test(proxyScript) &&
+    /signUpUrl: "\/sign-up"/.test(proxyScript) &&
+    /contentSecurityPolicy:[\s\S]*strict:\s*true/.test(proxyScript) &&
+    /"script-src-attr": \["none"\]/.test(proxyScript) &&
+    /"frame-ancestors": \["none"\]/.test(proxyScript) &&
+    /"\/__clerk\/\(\.\*\)"/.test(proxyScript) &&
+    !/frontendApiProxy/.test(proxyScript),
+  "proxy uses Clerk strict CSP and request context without an unverified Frontend API proxy",
+);
+check(
+  /X-Sufeiya-Account-Mode[\s\S]*clerk-access-local-learning-data/.test(proxyScript) &&
+    /X-Sufeiya-Account-Mode[\s\S]*clerk-unconfigured/.test(proxyScript),
+  "application responses distinguish configured Clerk sessions from the fail-closed configuration state",
+);
 check(/Sofia智能老师/.test(superTeacherPage), "Sofia AI Teacher has a dedicated Next.js application page");
 check(/Sofia智能老师/.test(legacyContent), "generated Next.js legacy content uses the Sofia AI Teacher name");
 check(!/苏肥鸭超级智能老师|超级智能老师|超级老师/.test(legacyContent), "generated Next.js legacy content has no retired teacher name");
-check(/无需注册/.test(legacyContent) && /没有账号系统/.test(legacyContent), "generated Next.js legacy content preserves the local-only account boundary");
-check(!/注册与登录已经开放|账户用于注册、登录/.test(legacyContent), "generated Next.js legacy content does not claim deferred account features are live");
-check(/历史对话不发送给模型/.test(superTeacherClient) && !/history,/.test(superTeacherClient), "Super Teacher discloses and enforces no model history forwarding");
-check(/isSameOrigin[\s\S]*MAX_BODY_BYTES[\s\S]*checkSuperTeacherRateLimit/.test(superTeacherRoute), "Super Teacher API applies origin, body-size, and rate-limit gates");
-check(/Output\.object[\s\S]*modelTeacherOutputSchema[\s\S]*outputIsSafe/.test(superTeacherResponder), "Super Teacher model output is structured and source-ID checked");
+check(
+  /工作台与学习页面使用 Clerk 登录保护/.test(legacyContent) &&
+    /账户登录用于保护学习页面/.test(legacyContent) &&
+    /不会自动绑定账户、上传或同步到其他设备/.test(legacyContent),
+  "generated legacy content describes Clerk access control separately from local learning-data storage",
+);
+check(
+  !/无需注册|没有账号系统|免登录 · 本机保存|不登录、不上传/.test(legacyContent) &&
+    !/不登录、不上传/.test(workspace) &&
+    /登录只控制访问；学习数据不上传，可随时清除/.test(workspace),
+  "generated legacy content has no stale account-deferral claims",
+);
+check(
+  /历史对话不发送给模型/.test(superTeacherConversation) &&
+    !/history\s*:/.test(superTeacherSubmitSource),
+  "Super Teacher discloses and enforces no model history forwarding",
+);
+const floatingCloseSource = sourceSection(
+  superTeacherFloatingAssistant,
+  "function closeAssistant",
+  "function handleDialogClose",
+);
+check(
+  /<dialog/.test(superTeacherFloatingAssistant) &&
+    /dialog\.showModal\(\)/.test(superTeacherFloatingAssistant) &&
+    /\.dialog::backdrop/.test(superTeacherFloatingStyles),
+  "floating Sofia assistant uses a native modal dialog",
+);
+check(
+  /abortCurrentRequest\(\)/.test(floatingCloseSource) &&
+    /revokeConsent\(\)/.test(floatingCloseSource) &&
+    /dialog\.close\(\)/.test(floatingCloseSource),
+  "closing the floating Sofia assistant aborts the request and revokes consent",
+);
+check(
+  /data-voice-enabled="false"/.test(superTeacherFloatingAssistant) &&
+    /语音功能正在完成授权资料、供应商数据流和删除流程复核，当前不会请求麦克风或发送音频。/.test(
+      superTeacherFloatingAssistant,
+    ) &&
+    !/getUserMedia|MediaRecorder|mediaDevices/.test(superTeacherFloatingAssistant),
+  "floating Sofia assistant keeps voice visibly disabled without microphone code",
+);
+check(
+  /AI 学习助手，不是 Sofia 真人实时通话/.test(superTeacherFloatingAssistant) &&
+    /launcherAiBadge/.test(superTeacherFloatingAssistant),
+  "floating Sofia assistant discloses AI identity beside its portrait",
+);
+check(
+  /isSameOrigin[\s\S]*getClerkRuntimeState[\s\S]*await auth\(\)[\s\S]*!userId[\s\S]*MAX_BODY_BYTES[\s\S]*checkSuperTeacherRateLimit\(userId\)/.test(
+    superTeacherRoute,
+  ),
+  "Super Teacher POST requires a Clerk user before authenticated-user rate limiting and model access",
+);
+check(
+  /teacherSurfaceAccess: "public"/.test(superTeacherRoute) &&
+    /modelSubmitAccess: "clerk_authenticated"/.test(superTeacherRoute) &&
+    /learningPageAccess: "clerk_protected"/.test(superTeacherRoute) &&
+    /learningDataStorage: "browser_local_not_account_bound"/.test(superTeacherRoute) &&
+    /clerk-access-local-learning-data/.test(superTeacherRoute),
+  "Super Teacher status separates the public surface, authenticated model submission, protected learning pages, and browser-local data",
+);
+check(
+  /invokeTeacherModel[\s\S]*materializeApprovedModelSelection/.test(superTeacherResponder) &&
+    /exactIdSet\(selection\.claimIds[\s\S]*exactIdSet\(selection\.limitationIds/.test(superTeacherResponder) &&
+    /response_format:\s*\{ type: "json_object" \}[\s\S]*modelTeacherSelectionSchema/.test(superTeacherModelRuntime) &&
+    /Output\.object[\s\S]*modelTeacherSelectionSchema/.test(superTeacherModelRuntime),
+  "Super Teacher lets providers only order exact server-approved claim IDs",
+);
 check(/manualAnswer[\s\S]*tryModelAnswer[\s\S]*fallback/.test(superTeacherResponder), "Super Teacher has a deterministic grounded fallback");
-check(/SUFEIYA_AI_ENABLED !== "true"/.test(superTeacherResponder), "model generation is fail-closed and requires an explicit release switch");
-check(/不是苏肥鸭老师本人/.test(superTeacherClient) && /不是.*官方评分员/.test(superTeacherClient), "Super Teacher visibly discloses that it is neither the human teacher nor an official scorer");
+check(
+  /SUFEIYA_AI_ENABLED !== "true"/.test(superTeacherModelRuntime) &&
+    /provider !== "dashscope"/.test(superTeacherModelRuntime) &&
+    /allowedDashScopeModels\.has\(model\)/.test(superTeacherModelRuntime),
+  "model generation is fail-closed and requires an explicit provider, release switch, and Qwen allowlist",
+);
+check(
+  /批准主张排序器，不是自由文本作者/.test(superTeacherResponder) &&
+    /不得输出、改写、补充或推断任何自然语言主张/.test(superTeacherResponder) &&
+    /fixedLimitation/.test(superTeacherResponder),
+  "model prompting forbids free-form claims while the server appends the fixed product boundary",
+);
+check(
+  /qwen3-tts-vc-realtime-2026-01-15/.test(superTeacherVoiceRelease) &&
+    /const TRANSPORT_IMPLEMENTED = false/.test(superTeacherVoiceRelease) &&
+    /ttsEnabled: TRANSPORT_IMPLEMENTED/.test(superTeacherVoiceRelease) &&
+    /microphoneEnabled: TRANSPORT_IMPLEMENTED/.test(superTeacherVoiceRelease),
+  "Sofia voice is pinned to the approved model name and fails closed without a reviewed transport",
+);
+check(
+  /private, no-store/.test(superTeacherVoiceStatusRoute) &&
+    /X-Sufeiya-Voice-Mode/.test(superTeacherVoiceStatusRoute) &&
+    /sofiaVoiceReleaseStatus\(\)/.test(superTeacherVoiceStatusRoute),
+  "Sofia voice status is a no-store server contract that cannot expose credentials",
+);
+check(
+  /AI 学习助手，不是 Sofia 真人实时通话/.test(superTeacherClient) &&
+    /不是.*官方评分员/.test(superTeacherClient),
+  "Super Teacher visibly discloses that it is neither the human teacher nor an official scorer",
+);
 check(/position:\s*absolute;[\s\S]*top:\s*100%;[\s\S]*100dvh/.test(styles), "mobile navigation escapes the sticky backdrop fixed-position trap");
 check(/\.footer-nav a\s*\{[\s\S]*min-height:\s*44px/.test(styles), "mobile footer links meet the 44px touch target");
 
@@ -852,10 +1053,21 @@ for (const path of ["package.json", "vercel.json"]) {
   }
 }
 
-for (const [, , path] of pageFiles) {
+for (const path of sitemapPublicPaths) {
   const url = `https://sufeiya.cn${path}`;
   check(sitemap.includes(`<loc>${url}</loc>`), `sitemap includes ${url}`);
 }
+
+for (const path of protectedLearnerPaths) {
+  const url = `https://sufeiya.cn${path}`;
+  check(!sitemap.includes(`<loc>${url}</loc>`), `sitemap excludes protected URL ${url}`);
+}
+
+check(
+  /sitemapPageKeys = \["home", "learning-path", "platform", "resources", "about"\]/.test(nextSitemap) &&
+    !/"workspace"|"diagnostic"|"my-data"/.test(nextSitemap),
+  "Next.js sitemap contains only public legacy pages plus its explicit public Sofia entry",
+);
 
 check((notFound.match(/<h1\b/gi) || []).length === 1, "404 page has one h1");
 check(!/favicon\.svg/.test(notFound), "404 page does not use the retired favicon");

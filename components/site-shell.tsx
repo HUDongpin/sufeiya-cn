@@ -3,6 +3,10 @@
 import Script from "next/script";
 import type { ReactNode } from "react";
 
+import { ClerkAccountControls } from "@/components/clerk-account-controls";
+import { SofiaFloatingAssistant } from "@/components/sofia-floating-assistant";
+import { SuperTeacherSessionProvider } from "@/components/super-teacher/super-teacher-session-provider";
+import { getClerkRuntimeState } from "@/lib/auth/clerk-config";
 import { navItems, type NavigationKey } from "@/lib/site";
 
 function ArrowIcon() {
@@ -14,6 +18,8 @@ function ArrowIcon() {
 }
 
 function SiteHeader({ pageKey }: { pageKey: NavigationKey }) {
+  const clerkState = getClerkRuntimeState();
+
   return (
     <>
       <div className="reading-progress" aria-hidden="true"><span /></div>
@@ -56,7 +62,14 @@ function SiteHeader({ pageKey }: { pageKey: NavigationKey }) {
             >
               Sofia智能老师
             </a>
-            <span className="local-mode-badge">免登录 · 本机保存</span>
+            {clerkState.configured ? (
+              <ClerkAccountControls />
+            ) : (
+              <a className="auth-link" href="/sign-in">账户未配置</a>
+            )}
+            <span className="local-mode-badge">
+              {clerkState.configured ? "学习数据仍在本机" : "Clerk 未配置 · 本机保存"}
+            </span>
           </div>
           <button className="nav-toggle" type="button" aria-expanded="false" aria-controls="mobile-nav" aria-label="打开导航菜单">
             <span /><span />
@@ -74,7 +87,8 @@ function SiteHeader({ pageKey }: { pageKey: NavigationKey }) {
           </a>
           <a href="/super-teacher" aria-current={pageKey === "super-teacher" ? "page" : undefined}>Sofia智能老师<span>Gate A</span></a>
           <a href="/my-data">我的本机数据<span>本机</span></a>
-          <a href="/account">账户功能说明<span>后续</span></a>
+          <a href="/sign-in">登录或注册<span>{clerkState.configured ? "Clerk" : "未配置"}</span></a>
+          <a href="/account">我的账户<span>{clerkState.configured ? "已启用" : "未配置"}</span></a>
         </nav>
       </header>
     </>
@@ -102,8 +116,9 @@ function SiteFooter() {
           <div>
             <strong>数据与账户</strong>
             <a href="/my-data">我的本机数据</a>
-            <a href="/workspace">免登录学习</a>
-            <a href="/account">账户功能说明</a>
+            <a href="/sign-in">安全登录</a>
+            <a href="/account">账户管理</a>
+            <small>登录不会自动上传或同步本机学习数据。</small>
           </div>
           <div>
             <strong>了解更多</strong>
@@ -124,11 +139,28 @@ function SiteFooter() {
   );
 }
 
-export function SiteShell({ pageKey, children }: { pageKey: NavigationKey; children: ReactNode }) {
+export type SofiaSurface = "floating" | "page" | "none";
+
+export function SiteShell({
+  pageKey,
+  sofiaSurface,
+  children,
+}: {
+  pageKey: NavigationKey;
+  sofiaSurface: SofiaSurface;
+  children: ReactNode;
+}) {
+  const content = sofiaSurface === "none" ? children : (
+    <SuperTeacherSessionProvider>
+      {children}
+      {sofiaSurface === "floating" ? <SofiaFloatingAssistant /> : null}
+    </SuperTeacherSessionProvider>
+  );
+
   return (
     <>
       <SiteHeader pageKey={pageKey} />
-      {children}
+      {content}
       <SiteFooter />
       <Script id="sufeiya-site-runtime" src="/script.js" strategy="afterInteractive" />
     </>

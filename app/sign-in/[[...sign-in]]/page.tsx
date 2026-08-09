@@ -1,17 +1,29 @@
+import { SignIn } from "@clerk/nextjs";
 import type { Metadata } from "next";
 
-import { AuthPage, LocalOnlyAccountPanel } from "@/components/auth-page";
+import { AuthPage, ClerkUnavailablePanel } from "@/components/auth-page";
+import { getClerkRuntimeState } from "@/lib/auth/clerk-config";
 
 export const metadata: Metadata = {
-  title: "免登录学习｜苏肥鸭多邻国",
-  description: "当前 Gate A 学习工具无需登录，学习数据只保存在当前浏览器。",
+  title: "登录｜苏肥鸭多邻国",
+  description: "登录苏肥鸭多邻国后进入学习工作台；本机学习数据不会因登录而自动上传或同步。",
   robots: { index: false, follow: false },
 };
 
 export default function SignInPage() {
+  const clerkState = getClerkRuntimeState();
+
   return (
-    <AuthPage eyebrow="阶段说明" title="先把学习闭环做好。" lead="Clerk 账户接入已延后；当前 Gate A 可以直接进入工作台，不需要登录或注册。">
-      <LocalOnlyAccountPanel />
+    <AuthPage eyebrow="安全登录" title="登录后继续学习。" lead="账户用于控制工作台与学习页面访问；浏览器里的学习记录仍保持本机存储，不会因登录自动绑定到身份。">
+      {clerkState.configured ? (
+        <SignIn
+          routing="path"
+          path="/sign-in"
+          signUpUrl="/sign-up"
+          fallbackRedirectUrl="/workspace"
+          appearance={{ elements: { rootBox: { width: "100%" } } }}
+        />
+      ) : <ClerkUnavailablePanel reason={clerkState.reason} />}
     </AuthPage>
   );
 }

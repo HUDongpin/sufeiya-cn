@@ -7,7 +7,7 @@ import { SiteShell } from "@/components/site-shell";
 export function LegacyPage({ pageKey }: { pageKey: LegacyPageKey }) {
   const page = legacyPages[pageKey];
   return (
-    <SiteShell pageKey={page.nav as NavigationKey}>
+    <SiteShell pageKey={page.nav as NavigationKey} sofiaSurface={pageKey === "not-found" ? "none" : "floating"}>
       {page.jsonLd ? (
         <script
           type="application/ld+json"

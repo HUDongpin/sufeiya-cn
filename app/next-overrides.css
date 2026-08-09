@@ -44,6 +44,12 @@
   color: var(--color-ink-deep);
 }
 
+.clerk-account-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .local-mode-badge {
   min-height: 40px;
   padding: 8px 13px;
@@ -61,6 +67,15 @@
 .footer-nav {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 34px;
+}
+
+.footer-nav small {
+  max-width: 240px;
+  margin-top: 8px;
+  display: block;
+  color: rgba(255, 255, 255, 0.56);
+  font-size: 10px;
+  line-height: 1.65;
 }
 
 .legacy-page-root {

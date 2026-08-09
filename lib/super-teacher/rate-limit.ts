@@ -17,18 +17,16 @@ function prune(now: number) {
   }
 }
 
-function clientFingerprint(request: Request) {
-  const forwarded = request.headers.get("x-vercel-forwarded-for") ?? request.headers.get("x-forwarded-for") ?? "unknown";
-  const ip = forwarded.split(",")[0]?.trim() || "unknown";
+function authenticatedSubjectFingerprint(subject: string) {
   const configuredSalt = process.env.SUFEIYA_RATE_LIMIT_SALT;
   const key = configuredSalt ? Buffer.from(configuredSalt) : ephemeralSalt;
-  return createHmac("sha256", key).update(ip).digest("hex");
+  return createHmac("sha256", key).update(`clerk-user:${subject}`).digest("hex");
 }
 
-export function checkSuperTeacherRateLimit(request: Request) {
+export function checkSuperTeacherRateLimit(authenticatedSubject: string) {
   const now = Date.now();
   prune(now);
-  const fingerprint = clientFingerprint(request);
+  const fingerprint = authenticatedSubjectFingerprint(authenticatedSubject);
   const current = buckets.get(fingerprint);
   if (!current && buckets.size >= MAX_BUCKETS) {
     return { allowed: false, remaining: 0, retryAfterSeconds: 60 };
