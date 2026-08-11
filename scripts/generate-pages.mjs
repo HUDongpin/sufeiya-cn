@@ -6,6 +6,49 @@ const root = fileURLToPath(new URL("../", import.meta.url));
 const diagnosticTaskRegister = JSON.parse(
   await readFile(new URL("../data/diagnostic-task-register.json", import.meta.url), "utf8"),
 );
+const practiceTaskRegister = JSON.parse(
+  await readFile(new URL("../data/practice-task-register.json", import.meta.url), "utf8"),
+);
+if (
+  practiceTaskRegister.protocolVersion !== "sufeiya_practice_task_register_v1" ||
+  practiceTaskRegister.releaseStatus !== "gate_a_demo_only" ||
+  practiceTaskRegister.ownerScope !== "browser_local_not_account_bound" ||
+  practiceTaskRegister.teacherReviewed !== false ||
+  practiceTaskRegister.measurementReviewed !== false ||
+  !Array.isArray(practiceTaskRegister.tasks) ||
+  practiceTaskRegister.tasks.length !== 4
+) {
+  throw new Error("Practice task register is missing the exact Gate A four-task contract.");
+}
+for (const task of practiceTaskRegister.tasks) {
+  const digest = createHash("sha256").update(JSON.stringify(task.content)).digest("hex");
+  if (task.contentHash !== digest) throw new Error(`Practice content hash mismatch: ${task.exerciseId}`);
+}
+const practiceTasksByExerciseId = new Map(practiceTaskRegister.tasks.map((task) => [task.exerciseId, task]));
+if (practiceTasksByExerciseId.size !== practiceTaskRegister.tasks.length) {
+  throw new Error("Practice task register contains duplicate exercise IDs.");
+}
+const requirePracticeTask = (exerciseId, expectedSkill, expectedResponseType) => {
+  const task = practiceTasksByExerciseId.get(exerciseId);
+  if (
+    !task ||
+    task.skill !== expectedSkill ||
+    task.responseType !== expectedResponseType ||
+    typeof task.contentId !== "string" ||
+    typeof task.contentVersion !== "string" ||
+    !/^[a-f0-9]{64}$/.test(task.contentHash) ||
+    typeof task.route !== "string" ||
+    !task.route.startsWith("/") ||
+    !task.content ||
+    task.content.contentVersion !== task.contentVersion ||
+    !task.presentation ||
+    typeof task.presentation.headerNoteZh !== "string" ||
+    typeof task.presentation.instructionZh !== "string"
+  ) {
+    throw new Error(`Practice task has an invalid canonical contract: ${exerciseId}`);
+  }
+  return task;
+};
 const diagnosticTasks = [...diagnosticTaskRegister.tasks].sort((left, right) => left.order - right.order);
 if (
   diagnosticTaskRegister.protocolVersion !== "sufeiya_diagnostic_task_register_v1" ||
@@ -66,6 +109,80 @@ const escapeHtml = (value) =>
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+
+const fillPracticeTemplate = (template, values) => {
+  if (typeof template !== "string") throw new Error("Practice presentation template must be a string.");
+  return template.replace(/\{([A-Za-z][A-Za-z0-9]*)\}/g, (match, key) => {
+    if (!(key in values)) throw new Error(`Practice presentation template has an unknown placeholder: ${match}`);
+    return String(values[key]);
+  });
+};
+
+const practiceArticleAttributes = (task, practiceKey) => {
+  const completionRule = task.content?.completionRule;
+  if (typeof completionRule !== "string") {
+    throw new Error(`Practice task is missing its completion rule: ${task.exerciseId}`);
+  }
+  return [
+    ["data-practice", practiceKey],
+    ["data-exercise-id", task.exerciseId],
+    ["data-activity-id", task.activityId],
+    ["data-content-id", task.contentId],
+    ["data-content-version", task.contentVersion],
+    ["data-content-hash", task.contentHash],
+    ["data-response-type", task.responseType],
+    ["data-evidence-class", task.evidenceClass],
+    ["data-completion-rule", completionRule],
+  ]
+    .map(([name, value]) => `${name}="${escapeHtml(value)}"`)
+    .join(" ");
+};
+
+const renderPracticeBindingStatus = () =>
+  '<div class="practice-binding-status" data-practice-binding-status role="status"><strong data-practice-binding-title>正在核对计划绑定</strong><p data-practice-binding-copy></p></div>';
+
+const renderPracticeChoices = (task, inputName) => {
+  const options = task.content?.options;
+  const values = Array.isArray(options) ? options.map((_, index) => String.fromCharCode(97 + index)) : [];
+  if (
+    values.length < 2 ||
+    !options.every((option) => typeof option === "string" && option.length > 0) ||
+    !values.includes(task.content.correctValue)
+  ) {
+    throw new Error(`Practice choice contract is invalid: ${task.exerciseId}`);
+  }
+  return options
+    .map(
+      (option, index) =>
+        `<label><input type="radio" name="${escapeHtml(inputName)}" value="${values[index]}" /> ${escapeHtml(option)}</label>`,
+    )
+    .join("");
+};
+
+const renderPracticeSelfReview = (task, dataAttribute, { disabled = false } = {}) => {
+  const reviewIds = task.content?.selfReview;
+  const labels = task.presentation?.selfReviewLabelsEn;
+  if (
+    !Array.isArray(reviewIds) ||
+    reviewIds.length === 0 ||
+    new Set(reviewIds).size !== reviewIds.length ||
+    !labels ||
+    reviewIds.some((reviewId) => typeof reviewId !== "string" || typeof labels[reviewId] !== "string")
+  ) {
+    throw new Error(`Practice self-review contract is invalid: ${task.exerciseId}`);
+  }
+  return reviewIds
+    .map(
+      (reviewId) =>
+        `<label><input type="checkbox" ${dataAttribute}="${escapeHtml(reviewId)}"${disabled ? " disabled" : ""} /> ${escapeHtml(labels[reviewId])}</label>`,
+    )
+    .join("");
+};
+
+const formatPracticeClock = (seconds) => {
+  if (!Number.isInteger(seconds) || seconds <= 0) throw new Error(`Invalid practice duration: ${seconds}`);
+  return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+};
 
 const header = (page) => `
   <div class="reading-progress" aria-hidden="true"><span></span></div>
@@ -948,7 +1065,7 @@ const diagnosticContent = `
           <form id="diagnostic-priority-form" class="diagnostic-priority-form" novalidate>
             <div><span>NEXT EVIDENCE PRIORITY</span><h4>确认本轮下一条优先任务</h4><p data-priority-explanation></p></div>
             <fieldset><legend>选择一个方向</legend><div data-priority-options></div></fieldset>
-            <label class="consent-check"><input type="checkbox" name="learnerConfirmedPriority" /><span><strong>我确认把所选方向作为本轮计划重点</strong><small>这是对下一条任务的选择，不是能力等级；计划页仍可修改。</small></span></label>
+            <label class="consent-check"><input type="checkbox" name="learnerConfirmedPriority" /><span><strong>我确认把所选方向作为本轮计划重点</strong><small>这是本轮重点的学习者确认，不是能力等级；若需改变方向，请重新开始诊断。</small></span></label>
             <button class="button button-ink" type="submit">确认并生成诊断回执${arrow}</button>
             <p class="form-inline-message" data-priority-message role="alert"></p>
           </form>
@@ -966,7 +1083,7 @@ const recommendationsContent = `
       <header class="tool-panel-header"><div><span>03</span><div><p>内容推荐</p><h2 id="recommendation-title">今天先做哪一项</h2></div></div><small data-recommendation-status>正在读取计划</small></header>
       <div class="gate-a-notice"><strong>来源边界</strong><p>主任务来自本站原创微练习；补充入口只连接已审阅的公开目录或非评分工具。页面不会声称 Bilibili 目录已经成为 RAG 语料。</p></div>
       <div class="recommendation-empty" data-recommendation-empty><h3>还没有可用计划</h3><p>先完成六任务诊断证据包并生成 7 天计划，推荐页才会生成与当前重点相关的任务。</p><a class="button button-ink" href="/diagnostic">先完成诊断证据包${arrow}</a></div>
-      <div data-recommendation-ready hidden><div class="recommendation-list" data-recommendation-items></div><div class="recommendation-actions"><button class="button button-ink" type="button" data-accept-recommendation>接受主任务</button><button class="button button-ghost" type="button" data-skip-recommendation>今天明确跳过</button><a class="button button-accent" href="/today" data-recommendation-start hidden>开始今天的任务${arrow}</a></div><p class="save-message" data-recommendation-message role="status" aria-live="polite"></p><dl class="compact-receipt" data-recommendation-receipt hidden><div><dt>recommendation_id</dt><dd data-recommendation-id></dd></div><div><dt>plan_id</dt><dd data-recommendation-plan-id></dd></div></dl></div>
+      <div data-recommendation-ready hidden><div class="recommendation-list" data-recommendation-items></div><div class="recommendation-actions"><button class="button button-ink" type="button" data-accept-recommendation>接受主任务</button><button class="button button-ghost" type="button" data-skip-recommendation>今天明确跳过</button><a class="button button-accent" href="/today" data-recommendation-start hidden>开始今天的任务${arrow}</a></div><p class="save-message" data-recommendation-message role="status" aria-live="polite"></p><dl class="compact-receipt" data-recommendation-receipt hidden><div><dt>recommendation_id</dt><dd data-recommendation-id></dd></div><div><dt>binding_id</dt><dd data-recommendation-binding-id></dd></div><div><dt>plan_id</dt><dd data-recommendation-plan-id></dd></div></dl></div>
     </div></section>
   </main>`;
 
@@ -992,19 +1109,19 @@ const communityContent = `
 
 const retestContent = `
   <main id="main-content" class="study-tool-page">
-    ${studyPageHero({ current: "", number: "07", label: "平行微复测与更新计划", title: "再收集一条证据，<br />不把单题写成能力增长。", lead: "选择一项原创平行任务并完成。结果只说明本次任务证据；随后由你确认下一轮重点，系统生成带 updated_plan_id 的新计划。", note: "原创任务 · 不评分 · 可解释更新" })}
+    ${studyPageHero({ current: "", number: "07", label: "平行微复测与更新计划", title: "再收集一条证据，<br />不把单题写成能力增长。", lead: "系统会锁定与本轮诊断优先项、计划任务和练习回执相同的技能，再提供一项原创平行任务。结果只说明本次任务证据；随后由你确认下一轮重点。", note: "同技能锁定 · 不评分 · 可解释更新" })}
     <section class="single-tool-section journey-tool-section" aria-labelledby="retest-title"><div class="single-tool-inner">
       <header class="tool-panel-header"><div><span>07</span><div><p>平行微复测</p><h2 id="retest-title">完成一条可回链的新证据</h2></div></div><small data-retest-status>尚未完成</small></header>
       <div class="gate-a-notice"><strong>解释边界</strong><p>答对一题或完成一次自查都不能证明真实能力增长、教学因果效果或 DET 分数变化。页面只保存任务版本、结果类型和学习者确认的下一步。</p></div>
       <form id="retest-form" class="journey-form retest-form" novalidate>
-        <label><span>选择平行任务</span><select name="retestSkill" data-retest-skill><option value="Reading">Reading · 阅读</option><option value="Listening">Listening · 听力</option><option value="Writing">Writing · 写作</option><option value="Speaking">Speaking · 口语</option></select></label>
+        <section class="locked-retest-target" aria-labelledby="locked-retest-title"><span>LOCKED SAME-SKILL TARGET</span><h3 id="locked-retest-title" data-retest-skill-label>等待同技能练习记录</h3><p data-retest-comparability>完成前置步骤后，系统才会锁定本轮平行任务。</p><input type="hidden" name="retestSkill" data-retest-skill value="" /></section>
         <section class="retest-panel" data-retest-panel="Reading"><h3 lang="en">Reading parallel task</h3><div class="english-material" lang="en"><p>After the community garden added labels to each planting area, fewer volunteers placed tools in the wrong shed. The labels did not change the gardening tasks, but they made it easier for new volunteers to understand where materials belonged.</p><fieldset><legend>What was the main effect of the labels?</legend><label><input type="radio" name="retestReading" value="a" /> They reduced the number of gardening tasks.</label><label><input type="radio" name="retestReading" value="b" /> They helped new volunteers organize materials correctly.</label><label><input type="radio" name="retestReading" value="c" /> They encouraged volunteers to plant more vegetables.</label></fieldset></div></section>
         <section class="retest-panel" data-retest-panel="Listening" hidden><h3 lang="en">Listening parallel task</h3><audio controls preload="metadata" data-retest-listening-audio src="/assets/listening-writing-center.mp3"><p>当前浏览器无法播放音频，请展开英文原文继续任务。</p></audio><div class="english-material" lang="en"><fieldset><legend>When and where will the workshop take place?</legend><label><input type="radio" name="retestListening" value="a" /> Wednesday at 2:15 in Room 204.</label><label><input type="radio" name="retestListening" value="b" /> Friday at 2:50 in Room 204.</label><label><input type="radio" name="retestListening" value="c" /> Friday at 2:15 in Room 204.</label></fieldset></div><details class="listening-transcript"><summary>音频不可用或需要核对时，查看英文原文</summary><p lang="en">The campus writing center has changed its workshop schedule. The session originally planned for Wednesday will take place on Friday at two fifteen in Room 204. Students who already registered do not need to sign up again.</p></details></section>
         <section class="retest-panel" data-retest-panel="Writing" hidden><h3 lang="en">Writing parallel task</h3><p class="english-prompt" lang="en">Describe one small habit that can help a student learn more consistently. Explain why it may help.</p><label class="writing-field"><span lang="en">Your response</span><textarea name="retestWriting" rows="8" maxlength="1200" lang="en" spellcheck="true"></textarea></label><fieldset class="self-review" lang="en"><legend>Self-review</legend><label><input type="checkbox" data-retest-writing-review /> I stated one clear habit.</label><label><input type="checkbox" data-retest-writing-review /> I explained why it may help.</label><label><input type="checkbox" data-retest-writing-review /> I checked my response.</label></fieldset></section>
         <section class="retest-panel" data-retest-panel="Speaking" hidden><h3 lang="en">Speaking parallel task</h3><p class="english-prompt" lang="en">Describe a place where you can study effectively. Explain what makes the place useful for you.</p><fieldset class="self-review" lang="en"><legend>After speaking aloud</legend><label><input type="checkbox" data-retest-speaking-review /> I spoke aloud for about 45–60 seconds.</label><label><input type="checkbox" data-retest-speaking-review /> I answered both parts of the prompt.</label><label><input type="checkbox" data-retest-speaking-review /> I gave one specific detail.</label></fieldset><p>本站不请求麦克风权限、不录音；完成状态由你确认。</p></section>
         <button class="button button-ink" type="submit">保存本次平行任务证据${arrow}</button><p class="form-inline-message" data-retest-message role="alert"></p>
       </form>
-      <div class="chain-receipt" data-retest-result hidden aria-live="polite"><span>PARALLEL RETEST RECEIPT</span><h3 data-retest-result-title>平行任务已留证</h3><p data-retest-result-copy></p><dl><div><dt>retest_id</dt><dd data-retest-id></dd></div><div><dt>parallel_retest</dt><dd>true</dd></div></dl></div>
+      <div class="chain-receipt" data-retest-result hidden aria-live="polite"><span>PARALLEL RETEST RECEIPT</span><h3 data-retest-result-title>平行任务已留证</h3><p data-retest-result-copy></p><dl><div><dt>retest_id</dt><dd data-retest-id></dd></div><div><dt>target_skill</dt><dd data-retest-target-skill></dd></div><div><dt>same_skill</dt><dd data-retest-same-skill></dd></div><div><dt>parallel_form_pair</dt><dd data-retest-parallel-pair></dd></div><div><dt>parallel_retest</dt><dd>true</dd></div></dl></div>
       <form id="plan-update-form" class="journey-form plan-update-form" hidden novalidate><h3>由你确认下一轮重点</h3><p>系统不会根据单题自动改分或决定能力。请选择下一轮计划重点；保存后会生成新的 plan_id，并保留上一轮计划的回链。</p><label><span>下一轮重点</span><select name="nextFocusSkill"><option value="Balanced">综合训练</option><option value="Reading">Reading · 阅读</option><option value="Listening">Listening · 听力</option><option value="Writing">Writing · 写作</option><option value="Speaking">Speaking · 口语</option></select></label><label class="consent-check"><input type="checkbox" name="learnerConfirmed" /><span><strong>我确认这是我的学习计划选择</strong><small>它不是系统自动诊断结论。</small></span></label><button class="button button-accent" type="submit">生成更新后的 7 天计划${arrow}</button><p class="form-inline-message" data-plan-update-message role="alert"></p></form>
       <dl class="compact-receipt" data-plan-update-receipt hidden><div><dt>updated_plan_id</dt><dd data-updated-plan-id></dd></div><div><dt>supersedes_plan_id</dt><dd data-superseded-plan-id></dd></div></dl>
     </div></section>
@@ -1054,6 +1171,7 @@ const todayContent = `
     <section class="single-tool-section" aria-labelledby="today-title">
       <div class="single-tool-inner">
         <header class="tool-panel-header"><div><span>02</span><div><p>今日清单</p><h2 id="today-title">今天先完成这三项</h2></div></div><small data-today-status>0 / 3 已完成</small></header>
+        <div class="gate-a-notice"><strong>完成来源会分开显示</strong><p>手动勾选只表示“学习者自报完成”，不会生成练习回执；从计划绑定入口完成练习后，才会显示“练习记录已留存”。两者都可帮助自我管理，只有合格练习回执可推进当前闭环。</p></div>
         <div class="today-layout">
           <div><div class="task-progress"><progress max="3" value="0" data-task-progress>0 / 3</progress><span data-task-progress-text>0%</span></div><ul class="today-tasks" data-today-tasks>
             <li><input id="today-task-0" type="checkbox" data-task-index="0" /><label for="today-task-0"><strong>Reading 微练习</strong><span>阅读本站英文短文并完成理解题。</span></label></li>
@@ -1089,28 +1207,91 @@ const practiceContent = `
     </section>
   </main>`;
 
+const readingPracticeTask = requirePracticeTask("reading-library-v1", "Reading", "single_choice");
+const listeningPracticeTask = requirePracticeTask("listening-club-v1", "Listening", "single_choice_audio");
+const writingPracticeTask = requirePracticeTask("writing-community-v1", "Writing", "local_text_self_review");
+const speakingPracticeTask = requirePracticeTask("speaking-skill-v1", "Speaking", "timed_self_report");
+
+const renderReadingPracticeCard = (task) => {
+  if (
+    typeof task.content.prompt !== "string" ||
+    typeof task.content.question !== "string" ||
+    typeof task.presentation.initialFeedbackZh !== "string"
+  ) {
+    throw new Error(`Reading practice content is incomplete: ${task.exerciseId}`);
+  }
+  return `<article class="practice-card practice-card-single" ${practiceArticleAttributes(task, "reading")} data-correct-value="${escapeHtml(task.content.correctValue)}"><header><span>${escapeHtml(task.skill)}</span><small>${escapeHtml(task.presentation.headerNoteZh)}</small></header>${renderPracticeBindingStatus()}<p class="practice-instruction">${escapeHtml(task.presentation.instructionZh)}</p><div class="english-material" lang="en"><p>${escapeHtml(task.content.prompt)}</p><fieldset><legend>${escapeHtml(task.content.question)}</legend>${renderPracticeChoices(task, "reading-answer")}</fieldset></div><button class="tool-action" type="button" data-check-reading disabled>检查答案</button><p class="practice-feedback" data-reading-feedback role="status" aria-live="polite">${escapeHtml(task.presentation.initialFeedbackZh)}</p><a class="text-link" href="/practice">← 返回四项练习</a></article>`;
+};
+
+const renderListeningPracticeCard = (task) => {
+  if (
+    typeof task.content.audioPath !== "string" ||
+    !task.content.audioPath.startsWith("/assets/") ||
+    typeof task.content.transcript !== "string" ||
+    typeof task.content.question !== "string" ||
+    typeof task.presentation.initialFeedbackZh !== "string"
+  ) {
+    throw new Error(`Listening practice content is incomplete: ${task.exerciseId}`);
+  }
+  return `<article class="practice-card practice-card-single" ${practiceArticleAttributes(task, "listening")} data-correct-value="${escapeHtml(task.content.correctValue)}"><header><span>${escapeHtml(task.skill)}</span><small>${escapeHtml(task.presentation.headerNoteZh)}</small></header>${renderPracticeBindingStatus()}<p class="practice-instruction">${escapeHtml(task.presentation.instructionZh)}</p><audio controls preload="metadata" data-listening-audio src="${escapeHtml(task.content.audioPath)}"><p>当前浏览器无法播放音频，请展开下方英文原文继续练习。</p></audio><p class="audio-status" data-audio-status role="status" aria-live="polite">可重复播放英文材料。</p><div class="english-material" lang="en"><fieldset><legend>${escapeHtml(task.content.question)}</legend>${renderPracticeChoices(task, "listening-answer")}</fieldset></div><details class="listening-transcript"><summary>音频不可用或需要核对时，查看英文原文</summary><p>使用文本稿仍可用于学习，但本次记录会标为证据不足，不能作为严格听力练习回执推进闭环。</p><p lang="en">${escapeHtml(task.content.transcript)}</p></details><div class="tool-button-row"><button class="tool-action" type="button" data-check-listening disabled>检查答案</button><button class="tool-action tool-action-secondary" type="button" data-restart-listening hidden>开始新的听力尝试</button></div><p class="practice-feedback" data-listening-feedback role="status" aria-live="polite">${escapeHtml(task.presentation.initialFeedbackZh)}</p><a class="text-link" href="/practice">← 返回四项练习</a></article>`;
+};
+
+const renderWritingPracticeCard = (task) => {
+  const minimumWords = task.content.minimumWords;
+  if (
+    typeof task.content.prompt !== "string" ||
+    !Number.isInteger(minimumWords) ||
+    minimumWords <= 0 ||
+    typeof task.presentation.answerLabelEn !== "string" ||
+    typeof task.presentation.answerPlaceholderEn !== "string" ||
+    typeof task.presentation.selfReviewLegendEn !== "string" ||
+    typeof task.presentation.completionFeedbackZh !== "string"
+  ) {
+    throw new Error(`Writing practice content is incomplete: ${task.exerciseId}`);
+  }
+  const feedback = fillPracticeTemplate(task.presentation.completionFeedbackZh, { minimumWords });
+  return `<article class="practice-card practice-card-single" ${practiceArticleAttributes(task, "writing")} data-minimum-words="${minimumWords}"><header><span>${escapeHtml(task.skill)}</span><small>${escapeHtml(task.presentation.headerNoteZh)}</small></header>${renderPracticeBindingStatus()}<p class="practice-instruction">${escapeHtml(task.presentation.instructionZh)}</p><p class="english-prompt" lang="en">${escapeHtml(task.content.prompt)}</p><label class="writing-field"><span lang="en">${escapeHtml(task.presentation.answerLabelEn)}</span><textarea rows="10" spellcheck="true" lang="en" data-writing-answer placeholder="${escapeHtml(task.presentation.answerPlaceholderEn)}"></textarea></label><div class="writing-meta"><span><b data-word-count>0</b> words</span><span data-writing-save-status>尚未输入</span></div><fieldset class="self-review" lang="en"><legend>${escapeHtml(task.presentation.selfReviewLegendEn)}</legend>${renderPracticeSelfReview(task, "data-review")}</fieldset><button class="tool-action" type="button" data-complete-writing disabled>达到 ${minimumWords} 词并完成自查后标记完成</button><p class="practice-feedback" data-writing-feedback role="status" aria-live="polite">${escapeHtml(feedback)}</p><a class="text-link" href="/practice">← 返回四项练习</a></article>`;
+};
+
+const renderSpeakingPracticeCard = (task) => {
+  const { prepSeconds, responseSeconds } = task.content;
+  if (
+    typeof task.content.prompt !== "string" ||
+    !Number.isInteger(prepSeconds) ||
+    prepSeconds <= 0 ||
+    !Number.isInteger(responseSeconds) ||
+    responseSeconds <= 0 ||
+    typeof task.presentation.selfReviewLegendEn !== "string" ||
+    typeof task.presentation.completionFeedbackZh !== "string"
+  ) {
+    throw new Error(`Speaking practice content is incomplete: ${task.exerciseId}`);
+  }
+  const instruction = fillPracticeTemplate(task.presentation.instructionZh, { prepSeconds, responseSeconds });
+  return `<article class="practice-card practice-card-single" ${practiceArticleAttributes(task, "speaking")} data-prep-seconds="${prepSeconds}" data-response-seconds="${responseSeconds}"><header><span>${escapeHtml(task.skill)}</span><small>${escapeHtml(task.presentation.headerNoteZh)}</small></header>${renderPracticeBindingStatus()}<p class="practice-instruction">${escapeHtml(instruction)}</p><p class="english-prompt" lang="en">${escapeHtml(task.content.prompt)}</p><div class="speaking-clock"><strong data-speaking-time>${formatPracticeClock(prepSeconds)}</strong><span data-speaking-state>准备好后开始</span></div><p class="sr-only" data-speaking-announcement aria-live="polite"></p><div class="tool-button-row"><button class="tool-action" type="button" data-speaking-start>开始准备</button><button class="tool-action tool-action-secondary" type="button" data-speaking-reset>重置</button></div><fieldset class="self-review speaking-review" lang="en"><legend>${escapeHtml(task.presentation.selfReviewLegendEn)}</legend>${renderPracticeSelfReview(task, "data-speaking-review", { disabled: true })}</fieldset><p class="practice-feedback" data-speaking-feedback>${escapeHtml(task.presentation.completionFeedbackZh)}</p><a class="text-link" href="/practice">← 返回四项练习</a></article>`;
+};
+
 const readingPracticeContent = `
   <main id="main-content" class="study-tool-page">
     ${studyPageHero({ current: "practice", number: "R", label: "Reading 练习", title: "先读懂变化，<br />再判断作者意图。", lead: "阅读一段原创英文材料，选择最合适的答案。提交后会看到解释，不给出官方 DET 分数。", note: "约 3 分钟" })}
-    <section class="single-practice-section"><article class="practice-card practice-card-single" data-practice="reading"><header><span>Reading</span><small>原创微练习 · 不是真题</small></header><p class="practice-instruction">阅读英文材料并选择最合适的答案。本题记录仅用于自学，不是官方 DET 评分或成绩预测。</p><div class="english-material" lang="en"><p>Maya noticed that the school library was busiest just before exams. Instead of adding more desks, the librarian created several quiet zones and one small area for group discussion. After two weeks, students reported that it was easier to choose a space that matched the way they needed to study.</p><fieldset><legend>Why did the librarian reorganize the space?</legend><label><input type="radio" name="reading-answer" value="a" /> To make the library look larger.</label><label><input type="radio" name="reading-answer" value="b" /> To support different ways of studying.</label><label><input type="radio" name="reading-answer" value="c" /> To reduce the number of students.</label></fieldset></div><button class="tool-action" type="button" data-check-reading disabled>检查答案</button><p class="practice-feedback" data-reading-feedback role="status" aria-live="polite">请选择一个答案。</p><a class="text-link" href="/practice">← 返回四项练习</a></article></section>
+    <section class="single-practice-section">${renderReadingPracticeCard(readingPracticeTask)}</section>
   </main>`;
 
 const listeningPracticeContent = `
   <main id="main-content" class="study-tool-page">
     ${studyPageHero({ current: "practice", number: "L", label: "Listening 练习", title: "听出关键变化，<br />抓住日期与时间。", lead: "点击播放英文材料，再回答信息理解题。可以重复播放，也可以在需要时查看英文原文。", note: "可重复播放" })}
-    <section class="single-practice-section"><article class="practice-card practice-card-single" data-practice="listening"><header><span>Listening</span><small>原创微练习 · 不是真题</small></header><p class="practice-instruction">播放英文材料，听完后回答问题。本题记录仅用于自学，不是官方 DET 评分或成绩预测。</p><audio controls preload="metadata" data-listening-audio src="/assets/listening-science-club.mp3"><p>当前浏览器无法播放音频，请展开下方英文原文继续练习。</p></audio><p class="audio-status" data-audio-status role="status" aria-live="polite">可重复播放英文材料。</p><div class="english-material" lang="en"><fieldset><legend>When will the science club meet?</legend><label><input type="radio" name="listening-answer" value="a" /> Tuesday at 4:30.</label><label><input type="radio" name="listening-answer" value="b" /> Thursday at 4:30.</label><label><input type="radio" name="listening-answer" value="c" /> Thursday at 3:30.</label></fieldset></div><details class="listening-transcript"><summary>音频不可用或需要核对时，查看英文原文</summary><p lang="en">The science club moved its weekly meeting from Tuesday to Thursday because the laboratory is now used for another class on Tuesday afternoon. The meeting will still begin at four thirty.</p></details><button class="tool-action" type="button" data-check-listening disabled>检查答案</button><p class="practice-feedback" data-listening-feedback role="status" aria-live="polite">请先听材料并选择答案。</p><a class="text-link" href="/practice">← 返回四项练习</a></article></section>
+    <section class="single-practice-section">${renderListeningPracticeCard(listeningPracticeTask)}</section>
   </main>`;
 
 const writingPracticeContent = `
   <main id="main-content" class="study-tool-page">
     ${studyPageHero({ current: "practice", number: "W", label: "Writing 练习", title: "写清一个观点，<br />再用理由支持它。", lead: "根据英文提示作答。页面会统计英文词数并保存草稿，三项自查帮助你完成一次可解释的自我复核。", note: "建议 5 分钟" })}
-    <section class="single-practice-section"><article class="practice-card practice-card-single" data-practice="writing"><header><span>Writing</span><small>原创微练习 · 不是真题</small></header><p class="practice-instruction">阅读提示后用英文作答；内容只保存在本机。本题记录仅用于自学，不是官方 DET 评分或成绩预测。</p><p class="english-prompt" lang="en">Describe one change that could make your school or community a better place to learn. Explain why it would help.</p><label class="writing-field"><span lang="en">Your response</span><textarea rows="10" spellcheck="true" lang="en" data-writing-answer placeholder="Write your response in English..."></textarea></label><div class="writing-meta"><span><b data-word-count>0</b> words</span><span data-writing-save-status>尚未输入</span></div><fieldset class="self-review" lang="en"><legend>Self-review</legend><label><input type="checkbox" data-review="idea" /> I stated one clear idea.</label><label><input type="checkbox" data-review="reason" /> I gave a reason or example.</label><label><input type="checkbox" data-review="edit" /> I checked grammar and spelling.</label></fieldset><button class="tool-action" type="button" data-complete-writing disabled>达到 20 词并完成自查后标记完成</button><p class="practice-feedback" data-writing-feedback role="status" aria-live="polite">20 词只是任务完成条件，不代表写作水平。</p><a class="text-link" href="/practice">← 返回四项练习</a></article></section>
+    <section class="single-practice-section">${renderWritingPracticeCard(writingPracticeTask)}</section>
   </main>`;
 
 const speakingPracticeContent = `
   <main id="main-content" class="study-tool-page">
-    ${studyPageHero({ current: "practice", number: "S", label: "Speaking 练习", title: "组织一个回答，<br />并在 60 秒内说出来。", lead: "阅读英文提示后开始计时并大声回答。本站不请求麦克风权限、不录音，也不上传你的声音。", note: "60 秒练习" })}
-    <section class="single-practice-section"><article class="practice-card practice-card-single" data-practice="speaking"><header><span>Speaking</span><small>原创微练习 · 不录音</small></header><p class="practice-instruction">先准备 20 秒，再用 60 秒大声回答。本题记录仅用于自学，不是官方 DET 评分或成绩预测。</p><p class="english-prompt" lang="en">Talk about a skill you would like to learn. What is the skill, why is it useful, and how would you practice it?</p><div class="speaking-clock"><strong data-speaking-time>00:20</strong><span data-speaking-state>准备好后开始</span></div><p class="sr-only" data-speaking-announcement aria-live="polite"></p><div class="tool-button-row"><button class="tool-action" type="button" data-speaking-start>开始准备</button><button class="tool-action tool-action-secondary" type="button" data-speaking-reset>重置</button></div><fieldset class="self-review speaking-review" lang="en"><legend>Self-review after speaking</legend><label><input type="checkbox" data-speaking-review="answer" disabled /> I answered all parts of the prompt.</label><label><input type="checkbox" data-speaking-review="example" disabled /> I gave a reason or example.</label><label><input type="checkbox" data-speaking-review="flow" disabled /> I kept speaking in complete thoughts.</label></fieldset><p class="practice-feedback" data-speaking-feedback>建议结构：回答主题 → 给出原因 → 提供具体例子。</p><a class="text-link" href="/practice">← 返回四项练习</a></article></section>
+    ${studyPageHero({ current: "practice", number: "S", label: "Speaking 练习", title: `组织一个回答，<br />并在 ${speakingPracticeTask.content.responseSeconds} 秒内说出来。`, lead: "阅读英文提示后开始计时并大声回答。本站不请求麦克风权限、不录音，也不上传你的声音。", note: `${speakingPracticeTask.content.responseSeconds} 秒练习` })}
+    <section class="single-practice-section">${renderSpeakingPracticeCard(speakingPracticeTask)}</section>
   </main>`;
 
 const focusContent = `
@@ -1121,21 +1302,22 @@ const focusContent = `
 
 const checkInContent = `
   <main id="main-content" class="study-tool-page">
-    ${studyPageHero({ current: "check-in", number: "04", label: "证据式打卡", title: "写下真实困难，<br />让明天更容易开始。", lead: "一次记录同时包含做了什么、具体学习证据与仍待解决的问题。草稿会自动保存在本机；点击保存后，只形成 check_in_id，仍需下一页由你确认复盘。", note: "证据式打卡 · 本机保存" })}
+    ${studyPageHero({ current: "check-in", number: "04", label: "证据式打卡", title: "写下真实困难，<br />让明天更容易开始。", lead: "一次记录同时包含做了什么、具体学习证据与仍待解决的问题。闭环打卡必须引用本轮核心任务的合格练习回执；没有回执时仍可保存为不推进闭环的独立复盘。", note: "练习回执绑定 · 本机保存" })}
     <section class="single-tool-section checkin-single" aria-labelledby="checkin-title">
       <div class="single-tool-inner narrow-tool">
         <header class="tool-panel-header"><div><span>04</span><div><p>今日打卡</p><h2 id="checkin-title">把今天的证据留下来</h2></div></div><small data-checkin-date></small></header>
         <div class="form-errors" data-checkin-errors role="alert" tabindex="-1" hidden><strong>请检查以下内容：</strong><ul></ul></div>
         <form id="checkin-form" class="checkin-form" novalidate>
           <label><span>复盘日期</span><input type="text" name="date" data-checkin-date-input readonly /></label>
-          <label><span>关联今日任务 <small>闭环记录必选；独立打卡可选</small></span><select name="linkedTaskId" data-linked-task><option value="">不关联任务</option></select><small class="field-error" data-error-for="linkedTaskId"></small></label>
+          <label><span>关联今日任务 <small>闭环记录必须选择带合格练习回执的本轮核心任务</small></span><select name="linkedTaskId" data-linked-task><option value="">不关联任务 · 保存为独立复盘</option></select><small class="field-error" data-error-for="linkedTaskId"></small></label>
+          <p class="checkin-evidence-status" data-checkin-evidence-status data-evidence-class="not_linked" role="status" aria-live="polite">未关联任务的记录可以作为独立复盘，但不会进入当前七步闭环。</p>
           <label><span>今天完成了什么？ <small>10–300 字</small></span><textarea name="didText" rows="5" minlength="10" maxlength="300" data-checkin-field="didText" placeholder="例如：完成了一篇英文短文阅读，并核对了主旨题。"></textarea><small class="field-error" data-error-for="didText"></small></label>
           <label><span>留下什么具体学习证据？ <small>10–500 字</small></span><textarea name="evidenceText" rows="7" minlength="10" maxlength="500" data-checkin-field="evidenceText" placeholder="可以写英文例句、摘要、错误修正或你真正弄懂的一点。"></textarea><small class="field-error" data-error-for="evidenceText"></small></label>
           <fieldset class="question-status"><legend>今天还有需要继续解决的问题吗？</legend><label><input type="radio" name="questionStatus" value="none" /> 暂时没有</label><label><input type="radio" name="questionStatus" value="has_question" /> 有一个问题</label><small class="field-error" data-error-for="questionStatus"></small></fieldset>
           <label data-question-wrap hidden><span>写下这个问题 <small>最多 300 字</small></span><textarea name="questionText" rows="4" maxlength="300" data-checkin-field="questionText" placeholder="明天要先解决的问题是……"></textarea><small class="field-error" data-error-for="questionText"></small></label>
           <div class="checkin-submit"><small data-checkin-draft-status>尚未输入</small><button class="button button-accent" type="submit">保存证据式打卡</button></div>
           <p class="save-message" data-note-status role="status" aria-live="polite">草稿只保存在当前浏览器；保存后还需由你确认复盘。</p>
-          <dl class="compact-receipt" data-checkin-receipt hidden><div><dt>check_in_id</dt><dd data-checkin-id></dd></div><div><dt>plan_id</dt><dd data-checkin-plan-id></dd></div></dl>
+          <dl class="compact-receipt" data-checkin-receipt hidden><div><dt>check_in_id</dt><dd data-checkin-id></dd></div><div><dt>plan_id</dt><dd data-checkin-plan-id></dd></div><div><dt>evidence_class</dt><dd data-checkin-evidence-class></dd></div><div><dt>completion_receipt_id</dt><dd data-checkin-practice-receipt-id></dd></div></dl>
           <a class="button button-ink journey-next-button" href="/review" data-checkin-review-link hidden>下一步：确认复盘${arrow}</a>
         </form>
       </div>
@@ -1149,7 +1331,7 @@ const reviewContent = `
       <header class="tool-panel-header"><div><span>05</span><div><p>复盘确认</p><h2 id="review-title">这是你愿意确认的记录吗？</h2></div></div><small data-review-status>等待证据式打卡</small></header>
       <div class="review-empty" data-review-empty><h3>当前闭环还没有待确认打卡</h3><p>先保存“做了什么 + 一条学习证据 + 一个问题”，再回到这里核对。</p><a class="button button-ink" href="/check-in">先完成证据式打卡${arrow}</a></div>
       <div class="review-ready" data-review-ready hidden>
-        <article class="review-record" aria-labelledby="review-record-title"><span>CHECK-IN DRAFT FOR REVIEW</span><h3 id="review-record-title" data-review-date></h3><dl><div><dt>做了什么</dt><dd data-review-did></dd></div><div><dt>学习证据</dt><dd data-review-evidence></dd></div><div><dt>问题状态</dt><dd data-review-question></dd></div></dl><a class="text-link" href="/check-in">返回修正打卡 →</a></article>
+        <article class="review-record" aria-labelledby="review-record-title"><span>CHECK-IN DRAFT FOR REVIEW</span><h3 id="review-record-title" data-review-date></h3><dl><div><dt>做了什么</dt><dd data-review-did></dd></div><div><dt>学习证据</dt><dd data-review-evidence></dd></div><div><dt>证据来源</dt><dd data-review-evidence-class></dd></div><div><dt>练习回执</dt><dd data-review-practice-receipt-id></dd></div><div><dt>问题状态</dt><dd data-review-question></dd></div></dl><a class="text-link" href="/check-in">返回修正打卡 →</a></article>
         <form id="review-form" class="journey-form" novalidate><label class="consent-check"><input type="checkbox" name="learnerConfirmed" /><span><strong>我已核对，并确认这份复盘反映了我的学习记录</strong><small>如果内容不准确，请先返回修正；系统不会替你自动确认。</small></span></label><button class="button button-accent" type="submit">确认这份复盘${arrow}</button><p class="form-inline-message" data-review-message role="alert"></p></form>
         <dl class="compact-receipt" data-review-receipt hidden><div><dt>review_id</dt><dd data-review-id></dd></div><div><dt>check_in_id</dt><dd data-review-checkin-id></dd></div><div><dt>learner_confirmed_review</dt><dd>true</dd></div></dl>
         <a class="button button-ink journey-next-button" href="/community" data-review-next hidden>下一步：选择是否使用互助${arrow}</a>
@@ -1161,10 +1343,10 @@ const myDataContent = `
   <main id="main-content" class="study-tool-page">
     ${studyPageHero({ current: "", number: "数", label: "我的本机数据", title: "知道数据在哪里，<br />也能自己带走或清除。", lead: "账户登录用于保护学习页面；学习闭环数据，以及 Sofia智能老师的对话副本和未发送人工请求，仍分别保存在当前浏览器的两个版本化命名空间中，不会自动绑定账户、上传或同步到其他设备。", note: "你掌握数据控制权" })}
     <section class="single-tool-section data-page" aria-labelledby="data-title"><div class="single-tool-inner narrow-tool"><header class="tool-panel-header"><div><span>数</span><div><p>数据控制</p><h2 id="data-title">当前浏览器中的 Sufeiya 数据</h2></div></div><small data-data-status>正在读取</small></header>
-      <div class="data-facts"><article><strong>两个本机命名空间</strong><p>学习闭环与 Sofia智能老师对话分开保存；下方导出和清除会明确列出范围。</p></article><article><strong>本地但未加密</strong><p>同一设备上的其他使用者可能看到这些记录，请勿填写敏感成绩截图或身份材料。</p></article><article><strong>不保存录音</strong><p>口语练习不申请麦克风权限，也不会储存或上传声音。</p></article></div>
+      <div class="data-facts"><article><strong>两个本机命名空间</strong><p>学习闭环与 Sofia智能老师对话分开保存；下方导出和清除会明确列出范围。</p></article><article><strong>本地但未加密</strong><p>同一设备上的其他使用者可能看到这些记录，请勿填写敏感成绩截图或身份材料。</p></article><article><strong>学习事件哈希链</strong><p>事件只保存受限元数据，可发现意外损坏；它不是服务器签名，也不能防止恶意本机重算。当前不连接 LRS。</p></article><article><strong>不保存录音</strong><p>口语练习不申请麦克风权限，也不会储存或上传声音。</p></article></div>
       <div class="data-summary" data-data-summary><p>正在统计本机记录…</p></div>
-      <div class="data-actions"><button class="button button-ink" type="button" data-export-workspace>导出全部本机 JSON 数据</button><button class="button button-ghost" type="button" data-clear-workspace>仅清除学习闭环数据</button><button class="button button-ghost" type="button" data-clear-super-teacher>仅清除 Sofia智能老师对话</button><button class="button button-ghost" type="button" data-clear-all-sufeiya>清除全部本机 Sufeiya 数据</button></div>
-      <p class="save-message" data-data-message role="status" aria-live="polite">导出文件包含两个命名空间，可用于个人备份；本站目前不提供导入或云同步。</p>
+      <div class="data-actions"><button class="button button-ink" type="button" data-export-workspace>导出全部本机 JSON 数据</button><button class="button button-ghost" type="button" data-export-learning-events>仅导出学习事件备份</button><button class="button button-ghost" type="button" data-clear-learning-events>仅清除学习事件账本</button><button class="button button-ghost" type="button" data-clear-workspace>仅清除学习闭环数据</button><button class="button button-ghost" type="button" data-clear-super-teacher>仅清除 Sofia智能老师对话</button><button class="button button-ghost" type="button" data-clear-all-sufeiya>清除全部本机 Sufeiya 数据</button></div>
+      <p class="save-message" data-data-message role="status" aria-live="polite">导出文件仅供个人备份，不是 LRS 或 xAPI 导出；本站目前不提供导入或云同步。</p>
     </div></section>
   </main>`;
 
@@ -1356,7 +1538,11 @@ const pages = [
   },
 ];
 
-const shell = ({ page, path, title, description, content, scripts = [] }) => `<!doctype html>
+const shell = ({ page, path, title, description, content, scripts = [] }) => {
+  const orderedScripts = scripts.some((source) => ["/workspace.js", "/journey.js"].includes(source))
+    ? ["/learning-events.js", ...scripts]
+    : scripts;
+  return `<!doctype html>
 <html lang="zh-CN">
   <head>
     <meta charset="utf-8" />
@@ -1397,7 +1583,7 @@ const shell = ({ page, path, title, description, content, scripts = [] }) => `<!
       }).replace(',"isPartOf":undefined', "")}
     </script>
     <script src="/script.js" defer></script>
-    ${scripts.map((source) => `<script src="${source}" defer></script>`).join("\n    ")}
+    ${orderedScripts.map((source) => `<script src="${source}" defer></script>`).join("\n    ")}
   </head>
   <body data-page="${page}">
     ${header(page)}
@@ -1406,6 +1592,7 @@ const shell = ({ page, path, title, description, content, scripts = [] }) => `<!
   </body>
 </html>
 `;
+};
 
 for (const page of pages) {
   const html = shell(page).replace(/[ \t]+$/gm, "");

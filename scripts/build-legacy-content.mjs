@@ -67,6 +67,7 @@ await mkdir(new URL("../public/assets/", import.meta.url), { recursive: true });
 for (const [from, to] of [
   ["../workspace.js", "../public/workspace.js"],
   ["../journey.js", "../public/journey.js"],
+  ["../learning-events.js", "../public/learning-events.js"],
   ["../script.js", "../public/script.js"],
   ["../resources.js", "../public/resources.js"],
 ]) {

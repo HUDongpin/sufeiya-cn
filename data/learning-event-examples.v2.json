@@ -1,0 +1,407 @@
+{
+  "examplesProtocol": "sufeiya.learning-event-examples.v2",
+  "contractId": "sufeiya.learning-event.v2",
+  "schemaVersion": 2,
+  "examplesAreSynthetic": true,
+  "ledgerExpectation": {
+    "chainScope": "one_anonymous_subject_installation",
+    "chainScenario": "new_cycle_all_six_events_after_activation",
+    "evidenceScenario": "listening_insufficient_human_confirmed_balanced_focus",
+    "firstObservedEventPolicy": "any_allowlisted_post_activation_event_no_backfill",
+    "subjectId": "anon_90000000-0000-4000-8000-000000000001",
+    "eventCount": 6,
+    "firstSequence": 1,
+    "lastSequence": 6,
+    "integrityExpectation": "valid_complete_chain",
+    "backupGovernance": "local_user_backup_only_not_lrs_exportable"
+  },
+  "runtimeAssertions": {
+    "actualCandidateValidatedAgainstCanonicalSchemaBeforeAppend": true,
+    "recordedAtNotBeforeOccurredAt": true,
+    "eventIdsUnique": true,
+    "idempotencyKeysUnique": true,
+    "sameCycleForwardOnlyAfterFirstObservedEvent": true,
+    "historicalBackfillAllowed": false,
+    "corruptEventOnlyValidBackupAllowed": false,
+    "fullRawQuarantineExportAllowed": true
+  },
+  "events": [
+    {
+      "contractId": "sufeiya.learning-event.v2",
+      "schemaVersion": 2,
+      "eventId": "00000000-0000-4000-8000-000000000001",
+      "idempotencyKey": "01000000-0000-4000-8000-000000000001",
+      "eventType": "learning_cycle.started",
+      "sequence": 1,
+      "occurredAt": "2026-08-10T12:00:00.000Z",
+      "recordedAt": "2026-08-10T12:00:00.010Z",
+      "subject": {
+        "subjectId": "anon_90000000-0000-4000-8000-000000000001",
+        "subjectType": "anonymous_installation",
+        "identityAssurance": "local_random_alias",
+        "assignedBy": "local_runtime_csprng"
+      },
+      "context": {
+        "learningCycleId": "12000000-0000-4000-8000-000000000001",
+        "diagnosticSessionId": "13000000-0000-4000-8000-000000000001"
+      },
+      "activity": {
+        "kind": "learning_cycle",
+        "id": "https://sufeiya.cn/activities/learning-cycle/gate-a/v1",
+        "version": "gate_a_local_v1"
+      },
+      "attributes": {
+        "outcome": "started",
+        "taskSetVersion": "gate_a_original_6_v1",
+        "taskSetDigest": "c1b2922ca96677665690bf790281be2438a016bbbe0d9f85478685af3c8dfc2c"
+      },
+      "privacy": {
+        "classification": "pseudonymous_local_learning_metadata",
+        "containsDirectIdentifier": false,
+        "containsAccountIdentifier": false,
+        "containsClerkIdentifier": false,
+        "containsFreeText": false,
+        "containsRawResponse": false,
+        "containsAudio": false,
+        "containsSofiaContent": false
+      },
+      "governance": {
+        "captureMode": "forward_only_no_backfill",
+        "historicalBackfillAllowed": false,
+        "storageScope": "browser_local_only",
+        "appendPolicy": "application_append_only",
+        "integrityAssurance": "local_hash_chain_not_tamper_proof",
+        "corruptionPolicy": "fail_closed",
+        "networkDispatch": "disabled",
+        "lrsDispatch": "disabled",
+        "xapiDispatch": "disabled",
+        "sofiaAccess": "forbidden",
+        "exportEligibility": "local_user_backup_only_not_lrs_exportable"
+      },
+      "previousEventHash": null,
+      "eventHash": "2f9909a451a2baba81ebecf3f7d443a656ebd5da0f9bdf31c60cf2c431c4c565"
+    },
+    {
+      "contractId": "sufeiya.learning-event.v2",
+      "schemaVersion": 2,
+      "eventId": "00000000-0000-4000-8000-000000000002",
+      "idempotencyKey": "01000000-0000-4000-8000-000000000002",
+      "eventType": "recommendation.decided",
+      "sequence": 2,
+      "occurredAt": "2026-08-10T12:01:00.000Z",
+      "recordedAt": "2026-08-10T12:01:00.010Z",
+      "subject": {
+        "subjectId": "anon_90000000-0000-4000-8000-000000000001",
+        "subjectType": "anonymous_installation",
+        "identityAssurance": "local_random_alias",
+        "assignedBy": "local_runtime_csprng"
+      },
+      "context": {
+        "learningCycleId": "12000000-0000-4000-8000-000000000001",
+        "diagnosticSessionId": "13000000-0000-4000-8000-000000000001",
+        "planId": "14000000-0000-4000-8000-000000000001",
+        "recommendationId": "15000000-0000-4000-8000-000000000001",
+        "bindingId": "16000000-0000-4000-8000-000000000001",
+        "causationEventId": "00000000-0000-4000-8000-000000000001"
+      },
+      "activity": {
+        "kind": "recommendation",
+        "id": "https://sufeiya.cn/activities/recommendations/gate-a/v1",
+        "version": "gate_a_local_v1"
+      },
+      "attributes": {
+        "decision": "accepted",
+        "bindingReviewStatus": "gate_a_unreviewed"
+      },
+      "privacy": {
+        "classification": "pseudonymous_local_learning_metadata",
+        "containsDirectIdentifier": false,
+        "containsAccountIdentifier": false,
+        "containsClerkIdentifier": false,
+        "containsFreeText": false,
+        "containsRawResponse": false,
+        "containsAudio": false,
+        "containsSofiaContent": false
+      },
+      "governance": {
+        "captureMode": "forward_only_no_backfill",
+        "historicalBackfillAllowed": false,
+        "storageScope": "browser_local_only",
+        "appendPolicy": "application_append_only",
+        "integrityAssurance": "local_hash_chain_not_tamper_proof",
+        "corruptionPolicy": "fail_closed",
+        "networkDispatch": "disabled",
+        "lrsDispatch": "disabled",
+        "xapiDispatch": "disabled",
+        "sofiaAccess": "forbidden",
+        "exportEligibility": "local_user_backup_only_not_lrs_exportable"
+      },
+      "previousEventHash": "2f9909a451a2baba81ebecf3f7d443a656ebd5da0f9bdf31c60cf2c431c4c565",
+      "eventHash": "12a73b6eda2002501ff5de9a2b88c94611478b3ebf044ca9cce555b1e1297559"
+    },
+    {
+      "contractId": "sufeiya.learning-event.v2",
+      "schemaVersion": 2,
+      "eventId": "00000000-0000-4000-8000-000000000003",
+      "idempotencyKey": "01000000-0000-4000-8000-000000000003",
+      "eventType": "practice_attempt.finalized",
+      "sequence": 3,
+      "occurredAt": "2026-08-10T12:05:00.000Z",
+      "recordedAt": "2026-08-10T12:05:00.010Z",
+      "subject": {
+        "subjectId": "anon_90000000-0000-4000-8000-000000000001",
+        "subjectType": "anonymous_installation",
+        "identityAssurance": "local_random_alias",
+        "assignedBy": "local_runtime_csprng"
+      },
+      "context": {
+        "learningCycleId": "12000000-0000-4000-8000-000000000001",
+        "diagnosticSessionId": "13000000-0000-4000-8000-000000000001",
+        "planId": "14000000-0000-4000-8000-000000000001",
+        "recommendationId": "15000000-0000-4000-8000-000000000001",
+        "bindingId": "16000000-0000-4000-8000-000000000001",
+        "taskId": "17000000-0000-4000-8000-000000000001",
+        "attemptId": "18000000-0000-4000-8000-000000000001",
+        "practiceReceiptId": "19000000-0000-4000-8000-000000000001",
+        "causationEventId": "00000000-0000-4000-8000-000000000002"
+      },
+      "activity": {
+        "kind": "practice",
+        "id": "https://sufeiya.cn/activities/practice/listening-club/v1",
+        "version": "gate_a_local_v1"
+      },
+      "attributes": {
+        "outcome": "needs_retry",
+        "skill": "Listening",
+        "evidenceType": "single_task_needs_retry",
+        "evidenceStatus": "evidence_insufficient",
+        "automatedScoreProduced": false,
+        "formalDiagnosisProduced": false,
+        "officialEquivalenceClaimed": false,
+        "attemptCount": 1
+      },
+      "privacy": {
+        "classification": "pseudonymous_local_learning_metadata",
+        "containsDirectIdentifier": false,
+        "containsAccountIdentifier": false,
+        "containsClerkIdentifier": false,
+        "containsFreeText": false,
+        "containsRawResponse": false,
+        "containsAudio": false,
+        "containsSofiaContent": false
+      },
+      "governance": {
+        "captureMode": "forward_only_no_backfill",
+        "historicalBackfillAllowed": false,
+        "storageScope": "browser_local_only",
+        "appendPolicy": "application_append_only",
+        "integrityAssurance": "local_hash_chain_not_tamper_proof",
+        "corruptionPolicy": "fail_closed",
+        "networkDispatch": "disabled",
+        "lrsDispatch": "disabled",
+        "xapiDispatch": "disabled",
+        "sofiaAccess": "forbidden",
+        "exportEligibility": "local_user_backup_only_not_lrs_exportable"
+      },
+      "previousEventHash": "12a73b6eda2002501ff5de9a2b88c94611478b3ebf044ca9cce555b1e1297559",
+      "eventHash": "1b25a97760b7245818d0efc81130c866bc6fdb664b85fedc18b33fcb8d7e2fce"
+    },
+    {
+      "contractId": "sufeiya.learning-event.v2",
+      "schemaVersion": 2,
+      "eventId": "00000000-0000-4000-8000-000000000004",
+      "idempotencyKey": "01000000-0000-4000-8000-000000000004",
+      "eventType": "check_in.committed",
+      "sequence": 4,
+      "occurredAt": "2026-08-10T12:06:00.000Z",
+      "recordedAt": "2026-08-10T12:06:00.010Z",
+      "subject": {
+        "subjectId": "anon_90000000-0000-4000-8000-000000000001",
+        "subjectType": "anonymous_installation",
+        "identityAssurance": "local_random_alias",
+        "assignedBy": "local_runtime_csprng"
+      },
+      "context": {
+        "learningCycleId": "12000000-0000-4000-8000-000000000001",
+        "diagnosticSessionId": "13000000-0000-4000-8000-000000000001",
+        "planId": "14000000-0000-4000-8000-000000000001",
+        "recommendationId": "15000000-0000-4000-8000-000000000001",
+        "bindingId": "16000000-0000-4000-8000-000000000001",
+        "taskId": "17000000-0000-4000-8000-000000000001",
+        "practiceReceiptId": "19000000-0000-4000-8000-000000000001",
+        "checkInId": "20000000-0000-4000-8000-000000000001",
+        "causationEventId": "00000000-0000-4000-8000-000000000003"
+      },
+      "activity": {
+        "kind": "check_in",
+        "id": "https://sufeiya.cn/activities/check-in/evidence/v1",
+        "version": "gate_a_local_v1"
+      },
+      "attributes": {
+        "outcome": "committed",
+        "evidenceClass": "practice_receipt",
+        "evidenceStatus": "evidence_limited",
+        "questionStatus": "none"
+      },
+      "privacy": {
+        "classification": "pseudonymous_local_learning_metadata",
+        "containsDirectIdentifier": false,
+        "containsAccountIdentifier": false,
+        "containsClerkIdentifier": false,
+        "containsFreeText": false,
+        "containsRawResponse": false,
+        "containsAudio": false,
+        "containsSofiaContent": false
+      },
+      "governance": {
+        "captureMode": "forward_only_no_backfill",
+        "historicalBackfillAllowed": false,
+        "storageScope": "browser_local_only",
+        "appendPolicy": "application_append_only",
+        "integrityAssurance": "local_hash_chain_not_tamper_proof",
+        "corruptionPolicy": "fail_closed",
+        "networkDispatch": "disabled",
+        "lrsDispatch": "disabled",
+        "xapiDispatch": "disabled",
+        "sofiaAccess": "forbidden",
+        "exportEligibility": "local_user_backup_only_not_lrs_exportable"
+      },
+      "previousEventHash": "1b25a97760b7245818d0efc81130c866bc6fdb664b85fedc18b33fcb8d7e2fce",
+      "eventHash": "058ce0de461b444d6980a28ce36ce6b34ae1e692211c72ee0c91a19ac8e3ae87"
+    },
+    {
+      "contractId": "sufeiya.learning-event.v2",
+      "schemaVersion": 2,
+      "eventId": "00000000-0000-4000-8000-000000000005",
+      "idempotencyKey": "01000000-0000-4000-8000-000000000005",
+      "eventType": "retest.completed",
+      "sequence": 5,
+      "occurredAt": "2026-08-10T12:10:00.000Z",
+      "recordedAt": "2026-08-10T12:10:00.010Z",
+      "subject": {
+        "subjectId": "anon_90000000-0000-4000-8000-000000000001",
+        "subjectType": "anonymous_installation",
+        "identityAssurance": "local_random_alias",
+        "assignedBy": "local_runtime_csprng"
+      },
+      "context": {
+        "learningCycleId": "12000000-0000-4000-8000-000000000001",
+        "diagnosticSessionId": "13000000-0000-4000-8000-000000000001",
+        "planId": "14000000-0000-4000-8000-000000000001",
+        "recommendationId": "15000000-0000-4000-8000-000000000001",
+        "bindingId": "16000000-0000-4000-8000-000000000001",
+        "checkInId": "20000000-0000-4000-8000-000000000001",
+        "retestId": "21000000-0000-4000-8000-000000000001",
+        "baselinePracticeReceiptId": "19000000-0000-4000-8000-000000000001",
+        "humanReviewReceiptId": "23000000-0000-4000-8000-000000000001",
+        "causationEventId": "00000000-0000-4000-8000-000000000004"
+      },
+      "activity": {
+        "kind": "retest",
+        "id": "https://sufeiya.cn/activities/retest/listening-parallel/v1",
+        "version": "gate_a_local_v1"
+      },
+      "attributes": {
+        "outcome": "completed",
+        "skill": "Listening",
+        "evidenceType": "single_task_needs_review",
+        "evidenceSufficiency": "insufficient_audio_conditions",
+        "comparabilityClass": "same_skill_unreviewed_construct",
+        "humanConfirmationStatus": "completed",
+        "automatedScoreProduced": false,
+        "formalDiagnosisProduced": false,
+        "growthClaimed": false,
+        "officialEquivalenceClaimed": false
+      },
+      "privacy": {
+        "classification": "pseudonymous_local_learning_metadata",
+        "containsDirectIdentifier": false,
+        "containsAccountIdentifier": false,
+        "containsClerkIdentifier": false,
+        "containsFreeText": false,
+        "containsRawResponse": false,
+        "containsAudio": false,
+        "containsSofiaContent": false
+      },
+      "governance": {
+        "captureMode": "forward_only_no_backfill",
+        "historicalBackfillAllowed": false,
+        "storageScope": "browser_local_only",
+        "appendPolicy": "application_append_only",
+        "integrityAssurance": "local_hash_chain_not_tamper_proof",
+        "corruptionPolicy": "fail_closed",
+        "networkDispatch": "disabled",
+        "lrsDispatch": "disabled",
+        "xapiDispatch": "disabled",
+        "sofiaAccess": "forbidden",
+        "exportEligibility": "local_user_backup_only_not_lrs_exportable"
+      },
+      "previousEventHash": "058ce0de461b444d6980a28ce36ce6b34ae1e692211c72ee0c91a19ac8e3ae87",
+      "eventHash": "e3860190e01e285b98b0426257846751b0702b96ae1d522c9bf575f4ea9e0bb4"
+    },
+    {
+      "contractId": "sufeiya.learning-event.v2",
+      "schemaVersion": 2,
+      "eventId": "00000000-0000-4000-8000-000000000006",
+      "idempotencyKey": "01000000-0000-4000-8000-000000000006",
+      "eventType": "learning_cycle.completed",
+      "sequence": 6,
+      "occurredAt": "2026-08-10T12:11:00.000Z",
+      "recordedAt": "2026-08-10T12:11:00.010Z",
+      "subject": {
+        "subjectId": "anon_90000000-0000-4000-8000-000000000001",
+        "subjectType": "anonymous_installation",
+        "identityAssurance": "local_random_alias",
+        "assignedBy": "local_runtime_csprng"
+      },
+      "context": {
+        "learningCycleId": "12000000-0000-4000-8000-000000000001",
+        "diagnosticSessionId": "13000000-0000-4000-8000-000000000001",
+        "planId": "14000000-0000-4000-8000-000000000001",
+        "retestId": "21000000-0000-4000-8000-000000000001",
+        "updatedPlanId": "22000000-0000-4000-8000-000000000001",
+        "humanReviewReceiptId": "23000000-0000-4000-8000-000000000001",
+        "causationEventId": "00000000-0000-4000-8000-000000000005"
+      },
+      "activity": {
+        "kind": "learning_cycle",
+        "id": "https://sufeiya.cn/activities/learning-cycle/gate-a/v1",
+        "version": "gate_a_local_v1"
+      },
+      "attributes": {
+        "outcome": "completed",
+        "nextFocusSkill": "Balanced",
+        "humanConfirmationStatus": "completed",
+        "automatedScoreProduced": false,
+        "formalDiagnosisProduced": false,
+        "growthClaimed": false,
+        "officialEquivalenceClaimed": false
+      },
+      "privacy": {
+        "classification": "pseudonymous_local_learning_metadata",
+        "containsDirectIdentifier": false,
+        "containsAccountIdentifier": false,
+        "containsClerkIdentifier": false,
+        "containsFreeText": false,
+        "containsRawResponse": false,
+        "containsAudio": false,
+        "containsSofiaContent": false
+      },
+      "governance": {
+        "captureMode": "forward_only_no_backfill",
+        "historicalBackfillAllowed": false,
+        "storageScope": "browser_local_only",
+        "appendPolicy": "application_append_only",
+        "integrityAssurance": "local_hash_chain_not_tamper_proof",
+        "corruptionPolicy": "fail_closed",
+        "networkDispatch": "disabled",
+        "lrsDispatch": "disabled",
+        "xapiDispatch": "disabled",
+        "sofiaAccess": "forbidden",
+        "exportEligibility": "local_user_backup_only_not_lrs_exportable"
+      },
+      "previousEventHash": "e3860190e01e285b98b0426257846751b0702b96ae1d522c9bf575f4ea9e0bb4",
+      "eventHash": "944593a6245b9fc2485d970fb4b3a715ef724829b348476d35a05536e84457f9"
+    }
+  ]
+}

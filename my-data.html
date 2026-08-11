@@ -31,6 +31,7 @@
       {"@context":"https://schema.org","@type":"WebPage","name":"我的本机数据｜苏肥鸭学习工作台","url":"https://sufeiya.cn/my-data","inLanguage":"zh-CN","description":"查看、导出或仅清除当前浏览器中的 Sufeiya 学习计划、任务进度、练习草稿与复盘数据。","isPartOf":{"@type":"WebSite","name":"苏肥鸭多邻国","url":"https://sufeiya.cn/"}}
     </script>
     <script src="/script.js" defer></script>
+    <script src="/learning-events.js" defer></script>
     <script src="/workspace.js" defer></script>
   </head>
   <body data-page="my-data">
@@ -114,10 +115,10 @@
   </nav></div>
   </section>
     <section class="single-tool-section data-page" aria-labelledby="data-title"><div class="single-tool-inner narrow-tool"><header class="tool-panel-header"><div><span>数</span><div><p>数据控制</p><h2 id="data-title">当前浏览器中的 Sufeiya 数据</h2></div></div><small data-data-status>正在读取</small></header>
-      <div class="data-facts"><article><strong>两个本机命名空间</strong><p>学习闭环与 Sofia智能老师对话分开保存；下方导出和清除会明确列出范围。</p></article><article><strong>本地但未加密</strong><p>同一设备上的其他使用者可能看到这些记录，请勿填写敏感成绩截图或身份材料。</p></article><article><strong>不保存录音</strong><p>口语练习不申请麦克风权限，也不会储存或上传声音。</p></article></div>
+      <div class="data-facts"><article><strong>两个本机命名空间</strong><p>学习闭环与 Sofia智能老师对话分开保存；下方导出和清除会明确列出范围。</p></article><article><strong>本地但未加密</strong><p>同一设备上的其他使用者可能看到这些记录，请勿填写敏感成绩截图或身份材料。</p></article><article><strong>学习事件哈希链</strong><p>事件只保存受限元数据，可发现意外损坏；它不是服务器签名，也不能防止恶意本机重算。当前不连接 LRS。</p></article><article><strong>不保存录音</strong><p>口语练习不申请麦克风权限，也不会储存或上传声音。</p></article></div>
       <div class="data-summary" data-data-summary><p>正在统计本机记录…</p></div>
-      <div class="data-actions"><button class="button button-ink" type="button" data-export-workspace>导出全部本机 JSON 数据</button><button class="button button-ghost" type="button" data-clear-workspace>仅清除学习闭环数据</button><button class="button button-ghost" type="button" data-clear-super-teacher>仅清除 Sofia智能老师对话</button><button class="button button-ghost" type="button" data-clear-all-sufeiya>清除全部本机 Sufeiya 数据</button></div>
-      <p class="save-message" data-data-message role="status" aria-live="polite">导出文件包含两个命名空间，可用于个人备份；本站目前不提供导入或云同步。</p>
+      <div class="data-actions"><button class="button button-ink" type="button" data-export-workspace>导出全部本机 JSON 数据</button><button class="button button-ghost" type="button" data-export-learning-events>仅导出学习事件备份</button><button class="button button-ghost" type="button" data-clear-learning-events>仅清除学习事件账本</button><button class="button button-ghost" type="button" data-clear-workspace>仅清除学习闭环数据</button><button class="button button-ghost" type="button" data-clear-super-teacher>仅清除 Sofia智能老师对话</button><button class="button button-ghost" type="button" data-clear-all-sufeiya>清除全部本机 Sufeiya 数据</button></div>
+      <p class="save-message" data-data-message role="status" aria-live="polite">导出文件仅供个人备份，不是 LRS 或 xAPI 导出；本站目前不提供导入或云同步。</p>
     </div></section>
   </main>
 

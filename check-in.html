@@ -31,6 +31,7 @@
       {"@context":"https://schema.org","@type":"WebPage","name":"学习复盘｜苏肥鸭学习工作台","url":"https://sufeiya.cn/check-in","inLanguage":"zh-CN","description":"按日期记录今天完成的学习、真实困难与明天的优先行动，内容只保存在当前浏览器。","isPartOf":{"@type":"WebSite","name":"苏肥鸭多邻国","url":"https://sufeiya.cn/"}}
     </script>
     <script src="/script.js" defer></script>
+    <script src="/learning-events.js" defer></script>
     <script src="/workspace.js" defer></script>
   </head>
   <body data-page="check-in">
@@ -100,9 +101,9 @@
         <a class="study-back" href="/workspace">← 返回学习工作台</a>
         <p class="page-label"><span>04</span>证据式打卡</p>
         <h1 id="study-page-title">写下真实困难，<br />让明天更容易开始。</h1>
-        <p>一次记录同时包含做了什么、具体学习证据与仍待解决的问题。草稿会自动保存在本机；点击保存后，只形成 check_in_id，仍需下一页由你确认复盘。</p>
+        <p>一次记录同时包含做了什么、具体学习证据与仍待解决的问题。闭环打卡必须引用本轮核心任务的合格练习回执；没有回执时仍可保存为不推进闭环的独立复盘。</p>
       </div>
-      <aside><strong>证据式打卡 · 本机保存</strong><span>数据只保存在当前浏览器，不上传。</span></aside>
+      <aside><strong>练习回执绑定 · 本机保存</strong><span>数据只保存在当前浏览器，不上传。</span></aside>
     </div>
     <div class="study-nav-wrap">
   <nav class="study-tool-nav" aria-label="学生功能导航">
@@ -119,14 +120,15 @@
         <div class="form-errors" data-checkin-errors role="alert" tabindex="-1" hidden><strong>请检查以下内容：</strong><ul></ul></div>
         <form id="checkin-form" class="checkin-form" novalidate>
           <label><span>复盘日期</span><input type="text" name="date" data-checkin-date-input readonly /></label>
-          <label><span>关联今日任务 <small>闭环记录必选；独立打卡可选</small></span><select name="linkedTaskId" data-linked-task><option value="">不关联任务</option></select><small class="field-error" data-error-for="linkedTaskId"></small></label>
+          <label><span>关联今日任务 <small>闭环记录必须选择带合格练习回执的本轮核心任务</small></span><select name="linkedTaskId" data-linked-task><option value="">不关联任务 · 保存为独立复盘</option></select><small class="field-error" data-error-for="linkedTaskId"></small></label>
+          <p class="checkin-evidence-status" data-checkin-evidence-status data-evidence-class="not_linked" role="status" aria-live="polite">未关联任务的记录可以作为独立复盘，但不会进入当前七步闭环。</p>
           <label><span>今天完成了什么？ <small>10–300 字</small></span><textarea name="didText" rows="5" minlength="10" maxlength="300" data-checkin-field="didText" placeholder="例如：完成了一篇英文短文阅读，并核对了主旨题。"></textarea><small class="field-error" data-error-for="didText"></small></label>
           <label><span>留下什么具体学习证据？ <small>10–500 字</small></span><textarea name="evidenceText" rows="7" minlength="10" maxlength="500" data-checkin-field="evidenceText" placeholder="可以写英文例句、摘要、错误修正或你真正弄懂的一点。"></textarea><small class="field-error" data-error-for="evidenceText"></small></label>
           <fieldset class="question-status"><legend>今天还有需要继续解决的问题吗？</legend><label><input type="radio" name="questionStatus" value="none" /> 暂时没有</label><label><input type="radio" name="questionStatus" value="has_question" /> 有一个问题</label><small class="field-error" data-error-for="questionStatus"></small></fieldset>
           <label data-question-wrap hidden><span>写下这个问题 <small>最多 300 字</small></span><textarea name="questionText" rows="4" maxlength="300" data-checkin-field="questionText" placeholder="明天要先解决的问题是……"></textarea><small class="field-error" data-error-for="questionText"></small></label>
           <div class="checkin-submit"><small data-checkin-draft-status>尚未输入</small><button class="button button-accent" type="submit">保存证据式打卡</button></div>
           <p class="save-message" data-note-status role="status" aria-live="polite">草稿只保存在当前浏览器；保存后还需由你确认复盘。</p>
-          <dl class="compact-receipt" data-checkin-receipt hidden><div><dt>check_in_id</dt><dd data-checkin-id></dd></div><div><dt>plan_id</dt><dd data-checkin-plan-id></dd></div></dl>
+          <dl class="compact-receipt" data-checkin-receipt hidden><div><dt>check_in_id</dt><dd data-checkin-id></dd></div><div><dt>plan_id</dt><dd data-checkin-plan-id></dd></div><div><dt>evidence_class</dt><dd data-checkin-evidence-class></dd></div><div><dt>completion_receipt_id</dt><dd data-checkin-practice-receipt-id></dd></div></dl>
           <a class="button button-ink journey-next-button" href="/review" data-checkin-review-link hidden>下一步：确认复盘
   <svg viewBox="0 0 24 24" aria-hidden="true">
     <path d="M5 12h13M14 7l5 5-5 5" />

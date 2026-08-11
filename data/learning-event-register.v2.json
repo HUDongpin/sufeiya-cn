@@ -1,0 +1,502 @@
+{
+  "registryId": "sufeiya.learning-event-register.v2",
+  "contractId": "sufeiya.learning-event.v2",
+  "schemaVersion": 2,
+  "status": "accepted_runtime_enabled_browser_local",
+  "schemaPath": "data/learning-event.schema.v2.json",
+  "examplesPath": "data/learning-event-examples.v2.json",
+  "envelope": [
+    "contractId",
+    "schemaVersion",
+    "eventId",
+    "idempotencyKey",
+    "eventType",
+    "sequence",
+    "occurredAt",
+    "recordedAt",
+    "subject",
+    "context",
+    "activity",
+    "attributes",
+    "privacy",
+    "governance",
+    "previousEventHash",
+    "eventHash"
+  ],
+  "allowlist": [
+    {
+      "eventType": "learning_cycle.started",
+      "emissionPoint": "after_learning_cycle_start_commit",
+      "cardinality": "once_per_learning_cycle",
+      "requiredContext": [
+        "learningCycleId",
+        "diagnosticSessionId"
+      ],
+      "optionalContext": [],
+      "activities": [
+        {
+          "kind": "learning_cycle",
+          "id": "https://sufeiya.cn/activities/learning-cycle/gate-a/v1",
+          "version": "gate_a_local_v1"
+        }
+      ],
+      "requiredAttributes": [
+        "outcome",
+        "taskSetVersion",
+        "taskSetDigest"
+      ],
+      "attributeConstants": {
+        "outcome": "started",
+        "taskSetVersion": "gate_a_original_6_v1",
+        "taskSetDigest": "c1b2922ca96677665690bf790281be2438a016bbbe0d9f85478685af3c8dfc2c"
+      }
+    },
+    {
+      "eventType": "recommendation.decided",
+      "emissionPoint": "after_recommendation_decision_and_binding_commit",
+      "cardinality": "once_per_recommendation_decision",
+      "requiredContext": [
+        "learningCycleId",
+        "diagnosticSessionId",
+        "planId",
+        "recommendationId",
+        "bindingId"
+      ],
+      "optionalContext": [
+        "causationEventId"
+      ],
+      "activities": [
+        {
+          "kind": "recommendation",
+          "id": "https://sufeiya.cn/activities/recommendations/gate-a/v1",
+          "version": "gate_a_local_v1"
+        }
+      ],
+      "requiredAttributes": [
+        "decision",
+        "bindingReviewStatus"
+      ],
+      "attributeEnums": {
+        "decision": [
+          "accepted",
+          "skipped"
+        ]
+      },
+      "attributeConstants": {
+        "bindingReviewStatus": "gate_a_unreviewed"
+      }
+    },
+    {
+      "eventType": "practice_attempt.finalized",
+      "emissionPoint": "after_practice_attempt_receipt_commit",
+      "cardinality": "zero_or_more_per_learning_cycle",
+      "requiredContext": [
+        "learningCycleId",
+        "diagnosticSessionId",
+        "planId",
+        "recommendationId",
+        "bindingId",
+        "taskId",
+        "attemptId",
+        "practiceReceiptId"
+      ],
+      "optionalContext": [
+        "causationEventId"
+      ],
+      "activities": [
+        {
+          "skill": "Reading",
+          "kind": "practice",
+          "id": "https://sufeiya.cn/activities/practice/reading-library/v1",
+          "version": "gate_a_local_v1"
+        },
+        {
+          "skill": "Listening",
+          "kind": "practice",
+          "id": "https://sufeiya.cn/activities/practice/listening-club/v1",
+          "version": "gate_a_local_v1"
+        },
+        {
+          "skill": "Writing",
+          "kind": "practice",
+          "id": "https://sufeiya.cn/activities/practice/writing-community/v1",
+          "version": "gate_a_local_v1"
+        },
+        {
+          "skill": "Speaking",
+          "kind": "practice",
+          "id": "https://sufeiya.cn/activities/practice/speaking-skill/v1",
+          "version": "gate_a_local_v1"
+        }
+      ],
+      "requiredAttributes": [
+        "outcome",
+        "skill",
+        "evidenceType",
+        "evidenceStatus",
+        "automatedScoreProduced",
+        "formalDiagnosisProduced",
+        "officialEquivalenceClaimed"
+      ],
+      "optionalAttributes": [
+        "attemptCount",
+        "wordCount",
+        "selfCheckCount"
+      ],
+      "attributeConstants": {
+        "automatedScoreProduced": false,
+        "formalDiagnosisProduced": false,
+        "officialEquivalenceClaimed": false
+      },
+      "attributeEnums": {
+        "evidenceStatus": [
+          "evidence_limited",
+          "evidence_insufficient"
+        ]
+      },
+      "resultPairs": [
+        {
+          "outcome": "matched",
+          "evidenceType": "single_task_correct",
+          "evidenceStatus": "evidence_limited",
+          "allowedSkills": [
+            "Reading",
+            "Listening"
+          ]
+        },
+        {
+          "outcome": "needs_retry",
+          "evidenceType": "single_task_needs_retry",
+          "evidenceStatus": "evidence_limited",
+          "allowedSkills": [
+            "Reading",
+            "Listening"
+          ]
+        },
+        {
+          "outcome": "needs_retry",
+          "evidenceType": "single_task_needs_retry",
+          "evidenceStatus": "evidence_insufficient",
+          "allowedSkills": [
+            "Listening"
+          ],
+          "condition": "audio_quality_insufficient"
+        },
+        {
+          "outcome": "self_review_completed",
+          "evidenceType": "task_completed_no_score",
+          "evidenceStatus": "evidence_limited",
+          "allowedSkills": [
+            "Writing",
+            "Speaking"
+          ]
+        }
+      ]
+    },
+    {
+      "eventType": "check_in.committed",
+      "emissionPoint": "after_check_in_receipt_commit",
+      "cardinality": "once_per_check_in_receipt",
+      "requiredContext": [
+        "learningCycleId",
+        "diagnosticSessionId",
+        "planId",
+        "recommendationId",
+        "bindingId",
+        "taskId",
+        "practiceReceiptId",
+        "checkInId"
+      ],
+      "optionalContext": [
+        "causationEventId"
+      ],
+      "activities": [
+        {
+          "kind": "check_in",
+          "id": "https://sufeiya.cn/activities/check-in/evidence/v1",
+          "version": "gate_a_local_v1"
+        }
+      ],
+      "requiredAttributes": [
+        "outcome",
+        "evidenceClass",
+        "evidenceStatus",
+        "questionStatus"
+      ],
+      "attributeEnums": {
+        "questionStatus": [
+          "none",
+          "has_question"
+        ]
+      },
+      "attributeConstants": {
+        "outcome": "committed",
+        "evidenceClass": "practice_receipt",
+        "evidenceStatus": "evidence_limited"
+      }
+    },
+    {
+      "eventType": "retest.completed",
+      "emissionPoint": "after_retest_receipt_commit",
+      "cardinality": "once_per_retest_receipt",
+      "requiredContext": [
+        "learningCycleId",
+        "diagnosticSessionId",
+        "planId",
+        "recommendationId",
+        "bindingId",
+        "checkInId",
+        "retestId",
+        "baselinePracticeReceiptId"
+      ],
+      "optionalContext": [
+        "humanReviewReceiptId",
+        "causationEventId"
+      ],
+      "activities": [
+        {
+          "skill": "Reading",
+          "kind": "retest",
+          "id": "https://sufeiya.cn/activities/retest/reading-parallel/v1",
+          "version": "gate_a_local_v1"
+        },
+        {
+          "skill": "Listening",
+          "kind": "retest",
+          "id": "https://sufeiya.cn/activities/retest/listening-parallel/v1",
+          "version": "gate_a_local_v1"
+        },
+        {
+          "skill": "Writing",
+          "kind": "retest",
+          "id": "https://sufeiya.cn/activities/retest/writing-parallel/v1",
+          "version": "gate_a_local_v1"
+        },
+        {
+          "skill": "Speaking",
+          "kind": "retest",
+          "id": "https://sufeiya.cn/activities/retest/speaking-parallel/v1",
+          "version": "gate_a_local_v1"
+        }
+      ],
+      "requiredAttributes": [
+        "outcome",
+        "skill",
+        "evidenceType",
+        "evidenceSufficiency",
+        "comparabilityClass",
+        "humanConfirmationStatus",
+        "automatedScoreProduced",
+        "formalDiagnosisProduced",
+        "growthClaimed",
+        "officialEquivalenceClaimed"
+      ],
+      "attributeConstants": {
+        "outcome": "completed",
+        "comparabilityClass": "same_skill_unreviewed_construct",
+        "automatedScoreProduced": false,
+        "formalDiagnosisProduced": false,
+        "growthClaimed": false,
+        "officialEquivalenceClaimed": false
+      },
+      "attributeEnums": {
+        "evidenceSufficiency": [
+          "limited_unreviewed_same_skill_task",
+          "insufficient_audio_conditions"
+        ]
+      },
+      "resultPairs": [
+        {
+          "evidenceType": "single_task_correct",
+          "evidenceSufficiency": "limited_unreviewed_same_skill_task",
+          "allowedSkills": [
+            "Reading",
+            "Listening"
+          ],
+          "allowedHumanConfirmationStatus": [
+            "not_required_for_gate_a_flow"
+          ]
+        },
+        {
+          "evidenceType": "single_task_needs_review",
+          "evidenceSufficiency": "limited_unreviewed_same_skill_task",
+          "allowedSkills": [
+            "Reading",
+            "Listening"
+          ],
+          "allowedHumanConfirmationStatus": [
+            "required_not_completed",
+            "completed"
+          ]
+        },
+        {
+          "evidenceType": "task_completed_no_score",
+          "evidenceSufficiency": "limited_unreviewed_same_skill_task",
+          "allowedSkills": [
+            "Writing",
+            "Speaking"
+          ],
+          "allowedHumanConfirmationStatus": [
+            "required_not_completed",
+            "completed"
+          ]
+        },
+        {
+          "evidenceType": "single_task_needs_review",
+          "evidenceSufficiency": "insufficient_audio_conditions",
+          "allowedSkills": [
+            "Listening"
+          ],
+          "allowedHumanConfirmationStatus": [
+            "required_not_completed",
+            "completed"
+          ],
+          "condition": "audio_quality_insufficient"
+        }
+      ]
+    },
+    {
+      "eventType": "learning_cycle.completed",
+      "emissionPoint": "after_updated_plan_commit_and_any_required_human_confirmation",
+      "cardinality": "once_per_learning_cycle",
+      "requiredContext": [
+        "learningCycleId",
+        "diagnosticSessionId",
+        "planId",
+        "retestId",
+        "updatedPlanId"
+      ],
+      "optionalContext": [
+        "humanReviewReceiptId",
+        "causationEventId"
+      ],
+      "activities": [
+        {
+          "kind": "learning_cycle",
+          "id": "https://sufeiya.cn/activities/learning-cycle/gate-a/v1",
+          "version": "gate_a_local_v1"
+        }
+      ],
+      "requiredAttributes": [
+        "outcome",
+        "nextFocusSkill",
+        "humanConfirmationStatus",
+        "automatedScoreProduced",
+        "formalDiagnosisProduced",
+        "growthClaimed",
+        "officialEquivalenceClaimed"
+      ],
+      "attributeConstants": {
+        "outcome": "completed",
+        "automatedScoreProduced": false,
+        "formalDiagnosisProduced": false,
+        "growthClaimed": false,
+        "officialEquivalenceClaimed": false
+      },
+      "attributeEnums": {
+        "nextFocusSkill": [
+          "Reading",
+          "Listening",
+          "Writing",
+          "Speaking",
+          "Balanced"
+        ],
+        "humanConfirmationStatus": [
+          "not_required_for_gate_a_flow",
+          "completed"
+        ]
+      },
+      "emissionGuard": "required_human_confirmation_must_be_completed_and_humanReviewReceiptId_present"
+    }
+  ],
+  "ordering": {
+    "canonicalFlow": [
+      "learning_cycle.started",
+      "recommendation.decided",
+      "practice_attempt.finalized",
+      "check_in.committed",
+      "retest.completed",
+      "learning_cycle.completed"
+    ],
+    "repeatable": [
+      "practice_attempt.finalized"
+    ],
+    "practiceMinimumOccurrences": 0,
+    "activationPolicy": {
+      "firstObservedEventMayBeAnyAllowlistedType": true,
+      "preActivationPhaseEventsRequired": false,
+      "historicalBackfillAllowed": false,
+      "sameCycleAfterFirstObserved": "forward_only_no_phase_regression",
+      "existingActiveCyclePolicy": "start_at_first_post_activation_successful_commit"
+    },
+    "sequenceStartsAt": 1,
+    "sequenceIncrement": 1
+  },
+  "subjectPolicy": {
+    "subjectType": "anonymous_installation",
+    "identityAssurance": "local_random_alias",
+    "assignedBy": "local_runtime_csprng",
+    "subjectIdPattern": "^anon_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+    "accountBinding": "forbidden",
+    "clerkIdentifierAllowed": false,
+    "clerkDerivedValueAllowed": false
+  },
+  "contextPolicy": {
+    "valueType": "event_layer_uuid_v4_alias_only",
+    "rawBusinessIdentifiersAllowed": false,
+    "accountIdentifiersAllowed": false,
+    "freeTextAllowed": false
+  },
+  "privacy": {
+    "classification": "pseudonymous_local_learning_metadata",
+    "containsDirectIdentifier": false,
+    "containsAccountIdentifier": false,
+    "containsClerkIdentifier": false,
+    "containsFreeText": false,
+    "containsRawResponse": false,
+    "containsAudio": false,
+    "containsSofiaContent": false
+  },
+  "governance": {
+    "captureMode": "forward_only_no_backfill",
+    "historicalBackfillAllowed": false,
+    "storageScope": "browser_local_only",
+    "appendPolicy": "application_append_only",
+    "integrityAssurance": "local_hash_chain_not_tamper_proof",
+    "corruptionPolicy": "fail_closed",
+    "networkDispatch": "disabled",
+    "lrsDispatch": "disabled",
+    "xapiDispatch": "disabled",
+    "sofiaAccess": "forbidden",
+    "exportEligibility": "local_user_backup_only_not_lrs_exportable"
+  },
+  "integrity": {
+    "hashAlgorithm": "sha256",
+    "canonicalization": "rfc8785-jcs",
+    "hashScope": "complete_event_with_top_level_eventHash_omitted",
+    "firstPreviousEventHash": null,
+    "hashEncoding": "lowercase_hex",
+    "readAndAppendChecks": [
+      "stored_event_schema_valid_on_read",
+      "runtime_actual_event_schema_valid_before_append",
+      "event_type_allowlisted",
+      "recorded_at_not_before_occurred_at",
+      "event_id_unique",
+      "idempotency_key_unique",
+      "single_anonymous_subject",
+      "sequence_contiguous",
+      "previous_hash_linked",
+      "event_hash_recomputed"
+    ],
+    "failureBehavior": [
+      "reject_append",
+      "reject_partial_projection",
+      "reject_auto_repair",
+      "reject_sofia_access",
+      "reject_event_only_valid_backup_when_corrupt",
+      "allow_user_initiated_full_raw_quarantine_export",
+      "allow_user_initiated_clear_and_restart"
+    ],
+    "tamperProof": false
+  }
+}

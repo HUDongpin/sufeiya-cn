@@ -7,6 +7,21 @@
   const DIAGNOSTIC_PROTOCOL_VERSION = "gate_a_diagnostic_evidence_v1";
   const DIAGNOSTIC_TASK_SET_VERSION = "gate_a_original_6_v1";
   const DIAGNOSTIC_TASK_SET_DIGEST = "c1b2922ca96677665690bf790281be2438a016bbbe0d9f85478685af3c8dfc2c";
+  const PRACTICE_RECEIPT_VERSION = "sufeiya_practice_receipt_v2";
+  const LEGACY_PRACTICE_RECEIPT_VERSION = "sufeiya_practice_receipt_v1";
+  const learningEventsRuntime = window.SufeiyaLearningEvents;
+  const PRACTICE_ACTIVITY_CATALOG = Object.freeze({
+    "reading-library-v1": Object.freeze({ activityId: "https://sufeiya.cn/activities/practice/reading-library/v1", activityVersion: "v1", contentId: "reading-library-v1", contentHash: "7238e32977e09ec90227c0dcbdf85d63506e0f0b9458e6efeafc68f4326bbb6f", skill: "Reading", route: "/practice-reading", receiptEvidenceClass: "objective_response", evidenceType: "answer_matched", completionCondition: "correct_answer_observed", responseType: "single_choice", domCompletionRule: "final_answer_correct", correctValue: "b" }),
+    "listening-club-v1": Object.freeze({ activityId: "https://sufeiya.cn/activities/practice/listening-club/v1", activityVersion: "v1", contentId: "listening-club-v1", contentHash: "1415f88a1903064dbe1fc21384ca5160be811b9bcab691b7fe7afeeb1928c2cb", skill: "Listening", route: "/practice-listening", receiptEvidenceClass: "audio_objective_response", evidenceType: "answer_matched", completionCondition: "correct_answer_observed", responseType: "single_choice_audio", domCompletionRule: "final_answer_correct_with_audio_quality", correctValue: "b" }),
+    "writing-community-v1": Object.freeze({ activityId: "https://sufeiya.cn/activities/practice/writing-community/v1", activityVersion: "v1", contentId: "writing-community-v1", contentHash: "1c52065b38cc80712ef3f8832fe8da110cb547a32c06e3a0e98c79cd8f4bc75b", skill: "Writing", route: "/practice-writing", receiptEvidenceClass: "self_reviewed_artifact", evidenceType: "task_completed_no_score", completionCondition: "minimum_words_and_self_review", responseType: "local_text_self_review", domCompletionRule: "minimum_words_and_all_self_checks", minimumWords: 20 }),
+    "speaking-skill-v1": Object.freeze({ activityId: "https://sufeiya.cn/activities/practice/speaking-skill/v1", activityVersion: "v1", contentId: "speaking-skill-v1", contentHash: "c52c0194f8ee42d677148bc3e54bbf772fa74f8ee1a7d5bd90a21d8dd2a87843", skill: "Speaking", route: "/practice-speaking", receiptEvidenceClass: "timed_self_report", evidenceType: "task_completed_no_score", completionCondition: "timer_and_self_review", responseType: "timed_self_report", domCompletionRule: "full_timer_and_all_self_checks", prepSeconds: 20, responseSeconds: 60 }),
+  });
+  const RETEST_TASK_CATALOG = Object.freeze({
+    Reading: Object.freeze({ taskId: "retest-reading-garden-labels-v1", taskVersion: "v1", parallelFormPairId: "gate-a-reading-skill-pair-v1", constructAlignment: "same_skill_unreviewed_construct", responseType: "single_choice", correctValue: "b", humanReviewRule: "incorrect_objective_response" }),
+    Listening: Object.freeze({ taskId: "retest-listening-writing-center-v1", taskVersion: "v1", parallelFormPairId: "gate-a-listening-skill-pair-v1", constructAlignment: "same_skill_unreviewed_construct", responseType: "single_choice", correctValue: "c", humanReviewRule: "incorrect_or_insufficient_audio_evidence", audioEvidenceRule: "full_play_without_seek_transcript_or_failure" }),
+    Writing: Object.freeze({ taskId: "retest-writing-study-habit-v1", taskVersion: "v1", parallelFormPairId: "gate-a-writing-skill-pair-v1", constructAlignment: "same_skill_unreviewed_construct", responseType: "self_reviewed_writing", minimumWordCount: 20, humanReviewRule: "always_required_for_open_response" }),
+    Speaking: Object.freeze({ taskId: "retest-speaking-study-place-v1", taskVersion: "v1", parallelFormPairId: "gate-a-speaking-skill-pair-v1", constructAlignment: "same_skill_unreviewed_construct", responseType: "learner_confirmed_speaking", humanReviewRule: "always_required_for_open_response" }),
+  });
   const DIAGNOSTIC_TASK_MANIFEST = Object.freeze({
     "diagnostic-reading-library-v1": Object.freeze({ taskVersion: "v1", skill: "Reading", responseType: "single_choice", constructTag: "purpose_from_supporting_details", contentHash: "f1c71d28d6e9b3ebe8b4c29fa5cec52c20b83d737b57f0bc98e15e15f97decd7" }),
     "diagnostic-reading-newsletter-v1": Object.freeze({ taskVersion: "v1", skill: "Reading", responseType: "single_choice", constructTag: "cause_from_text_structure", contentHash: "8b5feb0e382ea0ffe016ab64f17edb30b8467b40fccf5d8b96d3e2bb74ba44ca" }),
@@ -43,6 +58,7 @@
   ]);
   const VALID_SKILLS = new Set(["Balanced", "Reading", "Listening", "Writing", "Speaking"]);
   const VALID_PEER_HELP_STATES = new Set(["used", "declined", "not_needed", "unavailable"]);
+  const UUID_V4_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
   const skillLabels = {
     Balanced: "综合训练",
     Reading: "Reading · 阅读",
@@ -72,6 +88,10 @@
     Listening: ["Listening", "Reading", "Listening", "Writing", "Listening", "Speaking", "Listening"],
     Writing: ["Writing", "Reading", "Writing", "Listening", "Writing", "Speaking", "Writing"],
     Speaking: ["Speaking", "Reading", "Speaking", "Listening", "Speaking", "Writing", "Speaking"],
+  };
+  const practiceCatalogForSkill = (skill) => {
+    const match = Object.entries(PRACTICE_ACTIVITY_CATALOG).find(([, entry]) => entry.skill === skill);
+    return match ? { exerciseId: match[0], ...match[1] } : null;
   };
   const priorityBasisLabels = {
     objective_first_response_pattern: "客观题首答模式",
@@ -104,6 +124,141 @@
         ),
     );
   };
+  const hasValidPracticeEvidencePayload = (receipt, catalog) => {
+    const evidence = receipt.evidence;
+    if (!isRecord(evidence)) return false;
+    if (["objective_response", "audio_objective_response"].includes(catalog.receiptEvidenceClass)) {
+      const choiceValid =
+        ["a", "b", "c"].includes(evidence.firstResponse) &&
+        ["a", "b", "c"].includes(evidence.finalResponse) &&
+        evidence.finalResponse === catalog.correctValue &&
+        Number.isInteger(evidence.attemptCount) &&
+        evidence.attemptCount >= 1 &&
+        evidence.attemptCount === receipt.attemptCount &&
+        evidence.resultType === "correct" &&
+        (evidence.attemptCount > 1) === receipt.qualityFlags.includes("multiple_attempts");
+      if (!choiceValid) return false;
+      if (catalog.receiptEvidenceClass === "objective_response") {
+        return receipt.evidenceStatus === "evidence_limited";
+      }
+      const audioFlags = ["audio_not_played", "audio_not_completed", "audio_seek_detected", "audio_playback_failed", "transcript_used"];
+      const audioSufficient =
+        evidence.audioPlayed === true &&
+        evidence.audioCompleted === true &&
+        Number.isInteger(evidence.playCount) &&
+        evidence.playCount >= 1 &&
+        evidence.transcriptUsed === false &&
+        evidence.seekDetected === false &&
+        evidence.playbackFailed === false &&
+        !receipt.qualityFlags.some((flag) => audioFlags.includes(flag));
+      return Boolean(
+        evidence.audioPlayed === receipt.audioPlayed &&
+        evidence.audioCompleted === receipt.audioCompleted &&
+        evidence.transcriptUsed === receipt.qualityFlags.includes("transcript_used") &&
+        evidence.seekDetected === receipt.qualityFlags.includes("audio_seek_detected") &&
+        evidence.playbackFailed === receipt.qualityFlags.includes("audio_playback_failed") &&
+        receipt.evidenceStatus === (audioSufficient ? "evidence_limited" : "evidence_insufficient")
+      );
+    }
+    if (catalog.receiptEvidenceClass === "self_reviewed_artifact") {
+      return Boolean(
+        Number.isInteger(evidence.wordCount) &&
+        evidence.wordCount >= catalog.minimumWords &&
+        evidence.wordCount === receipt.wordCount &&
+        evidence.selfChecks?.idea === true &&
+        evidence.selfChecks?.reason === true &&
+        evidence.selfChecks?.edit === true &&
+        evidence.selfCheckCount === 3 &&
+        evidence.selfCheckCount === receipt.selfCheckCount &&
+        /^[0-9a-f]{64}$/.test(evidence.artifactHash || "") &&
+        evidence.resultType === "completed_no_score" &&
+        receipt.evidenceStatus === "evidence_limited" &&
+        receipt.qualityFlags.includes("open_response_not_human_reviewed")
+      );
+    }
+    if (catalog.receiptEvidenceClass === "timed_self_report") {
+      return Boolean(
+        evidence.prepSeconds === catalog.prepSeconds &&
+        evidence.responseSeconds === catalog.responseSeconds &&
+        evidence.timerCompleted === true &&
+        evidence.selfChecks?.answer === true &&
+        evidence.selfChecks?.example === true &&
+        evidence.selfChecks?.flow === true &&
+        evidence.selfCheckCount === 3 &&
+        evidence.selfCheckCount === receipt.selfCheckCount &&
+        evidence.audioRecorded === false &&
+        receipt.audioRecorded === false &&
+        evidence.resultType === "completed_no_score" &&
+        receipt.evidenceStatus === "evidence_limited" &&
+        receipt.qualityFlags.includes("audio_not_recorded") &&
+        receipt.qualityFlags.includes("open_response_not_human_reviewed")
+      );
+    }
+    return false;
+  };
+  const hasValidPracticeReceiptShape = (receipt, receiptId = null) => {
+    if (!isRecord(receipt) || receipt.protocolVersion !== PRACTICE_RECEIPT_VERSION) return false;
+    const catalog = PRACTICE_ACTIVITY_CATALOG[receipt.exerciseId];
+    return Boolean(
+      catalog &&
+      UUID_V4_PATTERN.test(receipt.practiceAttemptId || "") &&
+      UUID_V4_PATTERN.test(receipt.completionReceiptId || "") &&
+      (!receiptId || receiptId === receipt.completionReceiptId) &&
+      receipt.sealed === true &&
+      receipt.ownerScope === "browser_local_not_account_bound" &&
+      receipt.integrityClass === "unsigned_local_receipt" &&
+      receipt.activityId === catalog.activityId &&
+      receipt.activityVersion === catalog.activityVersion &&
+      receipt.contentId === catalog.contentId &&
+      receipt.contentHash === catalog.contentHash &&
+      receipt.skill === catalog.skill &&
+      receipt.route === catalog.route &&
+      receipt.receiptEvidenceClass === catalog.receiptEvidenceClass &&
+      receipt.evidenceType === catalog.evidenceType &&
+      receipt.completionCondition === catalog.completionCondition &&
+      ["evidence_limited", "evidence_insufficient"].includes(receipt.evidenceStatus) &&
+      Array.isArray(receipt.qualityFlags) &&
+      receipt.status === "completed" &&
+      hasValidPracticeEvidencePayload(receipt, catalog)
+    );
+  };
+  const hasSafeLegacyPracticeReceiptShape = (receipt, receiptId = null) => {
+    if (
+      !isRecord(receipt) ||
+      receipt.protocolVersion !== LEGACY_PRACTICE_RECEIPT_VERSION ||
+      receipt.evidence !== undefined
+    ) return false;
+    const catalog = PRACTICE_ACTIVITY_CATALOG[receipt.exerciseId];
+    return Boolean(
+      catalog &&
+      UUID_V4_PATTERN.test(receipt.practiceAttemptId || "") &&
+      UUID_V4_PATTERN.test(receipt.completionReceiptId || "") &&
+      (!receiptId || receiptId === receipt.completionReceiptId) &&
+      receipt.sealed === true &&
+      receipt.ownerScope === "browser_local_not_account_bound" &&
+      receipt.integrityClass === "unsigned_local_receipt" &&
+      receipt.activityId === catalog.activityId &&
+      receipt.activityVersion === catalog.activityVersion &&
+      receipt.contentId === catalog.contentId &&
+      receipt.contentHash === catalog.contentHash &&
+      receipt.skill === catalog.skill &&
+      receipt.route === catalog.route &&
+      receipt.receiptEvidenceClass === catalog.receiptEvidenceClass &&
+      receipt.evidenceType === catalog.evidenceType &&
+      receipt.completionCondition === catalog.completionCondition &&
+      ["evidence_limited", "evidence_insufficient"].includes(receipt.evidenceStatus) &&
+      Array.isArray(receipt.qualityFlags) &&
+      receipt.qualityFlags.every((flag) => typeof flag === "string") &&
+      receipt.status === "completed" &&
+      receipt.completionSource === "guided_practice" &&
+      receipt.evidenceClass === "practice_receipt" &&
+      receipt.automatedScoreProduced === false &&
+      receipt.formalDiagnosisProduced === false &&
+      receipt.officialEquivalenceClaimed === false &&
+      typeof receipt.completedAt === "string" &&
+      !Number.isNaN(Date.parse(receipt.completedAt))
+    );
+  };
   const isoNow = () => new Date().toISOString();
   const makeId = (prefix) => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
   const keyForDate = (date) => {
@@ -117,7 +272,6 @@
     next.setDate(next.getDate() + amount);
     return next;
   };
-  const todayKey = () => keyForDate(new Date());
   const clearChildren = (node) => node?.replaceChildren();
   const setText = (selector, value) => {
     const node = document.querySelector(selector);
@@ -132,6 +286,9 @@
     planHistory: [],
     taskProgress: {},
     practice: {},
+    practiceReceipts: {},
+    learningEvents: [],
+    learningEventBindings: null,
     checkIns: {},
     checkInHistory: [],
     focus: { active: null, sessions: [] },
@@ -201,9 +358,15 @@
         return null;
       }
     }
-    for (const key of ["taskProgress", "practice", "checkIns"]) {
+    for (const key of ["taskProgress", "practice", "practiceReceipts", "checkIns"]) {
       if (value[key] !== undefined && !isRecord(value[key])) return null;
     }
+    if (
+      value.practiceReceipts !== undefined &&
+      !Object.entries(value.practiceReceipts).every(([receiptId, receipt]) =>
+        hasValidPracticeReceiptShape(receipt, receiptId) || hasSafeLegacyPracticeReceiptShape(receipt, receiptId),
+      )
+    ) return null;
     if (value.planHistory !== undefined && !Array.isArray(value.planHistory)) return null;
     if (Array.isArray(value.planHistory) && !value.planHistory.every(hasValidPlanShape)) return null;
     if (value.checkInHistory !== undefined && !Array.isArray(value.checkInHistory)) return null;
@@ -215,6 +378,9 @@
       planHistory: Array.isArray(value.planHistory) ? value.planHistory : [],
       taskProgress: value.taskProgress || {},
       practice: value.practice || {},
+      practiceReceipts: value.practiceReceipts || {},
+      learningEvents: value.learningEvents === undefined ? [] : value.learningEvents,
+      learningEventBindings: value.learningEventBindings === undefined ? null : value.learningEventBindings,
       checkIns: value.checkIns || {},
       checkInHistory: Array.isArray(value.checkInHistory) ? value.checkInHistory : [],
       focus: isRecord(value.focus)
@@ -240,6 +406,13 @@
         return;
       }
       state = normalized;
+      if (
+        !window.__sufeiyaLegacyReceiptWarningShown &&
+        Object.values(state.practiceReceipts).some((receipt) => receipt?.protocolVersion === LEGACY_PRACTICE_RECEIPT_VERSION)
+      ) {
+        window.__sufeiyaLegacyReceiptWarningShown = true;
+        showStorageWarning("已保留旧版练习记录，但旧回执缺少可复算证据字段，不会继续推进当前闭环；请重新完成绑定练习生成 v2 回执。");
+      }
     } catch {
       storageWritable = false;
       showStorageWarning("当前本机学习数据无法安全读取。为避免覆盖，闭环功能已切换为只读。");
@@ -283,6 +456,15 @@
     }
   };
 
+  const appendLearningEvent = async (eventType, domain) => {
+    if (!learningEventsRuntime) return { status: "ledger_invalid", code: "runtime_unavailable" };
+    try {
+      return await learningEventsRuntime.appendDomainEvent(state, eventType, domain);
+    } catch {
+      return { status: "ledger_invalid", code: "runtime_exception" };
+    }
+  };
+
   const createPlan = ({ nickname, examDate, dailyMinutes, focusSkill }, provenance) => {
     const start = new Date();
     start.setHours(12, 0, 0, 0);
@@ -294,6 +476,7 @@
       const warmupMinutes = Math.max(3, Math.floor(minutes * 0.2));
       const reflectionMinutes = Math.max(3, Math.floor(minutes * 0.2));
       const coreMinutes = minutes - warmupMinutes - reflectionMinutes;
+      const practiceCatalog = practiceCatalogForSkill(skill);
       return {
         date,
         coreSkill: skill,
@@ -315,6 +498,14 @@
             instructionZh: skillTasks[skill][1],
             durationMinutes: coreMinutes,
             route: skillRoutes[skill],
+            contentRef: practiceCatalog
+              ? {
+                  exerciseId: practiceCatalog.exerciseId,
+                  contentId: practiceCatalog.contentId,
+                  contentVersion: practiceCatalog.activityVersion,
+                  contentHash: practiceCatalog.contentHash,
+                }
+              : null,
           },
           {
             taskId: `${planId}-${date}-reflection`,
@@ -361,6 +552,233 @@
     if (state.plan?.planId === planId) return state.plan;
     return state.planHistory.find((plan) => plan?.planId === planId) || null;
   };
+  const planTaskById = (plan, taskId) =>
+    plan?.days?.flatMap((day) => day.tasks || []).find((task) => task.taskId === taskId) || null;
+  const planTaskBindsPracticeCatalog = (planTask, catalog) => {
+    if (!isRecord(planTask) || !catalog) return false;
+    if (planTask.contentRef !== undefined && planTask.contentRef !== null) {
+      return Boolean(
+        planTask.contentRef.exerciseId === catalog.exerciseId &&
+        planTask.contentRef.contentId === catalog.contentId &&
+        planTask.contentRef.contentVersion === catalog.activityVersion &&
+        planTask.contentRef.contentHash === catalog.contentHash
+      );
+    }
+    const routeMatches = Object.entries(PRACTICE_ACTIVITY_CATALOG).filter(
+      ([, entry]) => entry.skill === planTask.skill && entry.route === planTask.route,
+    );
+    return routeMatches.length === 1 && routeMatches[0][0] === catalog.exerciseId;
+  };
+  const deriveRecommendationBindingCore = ({ cycle, diagnostic, plan, primary }) => {
+    if (!cycle || !diagnostic || !plan || !isRecord(primary)) return null;
+    const planDay = plan.days?.find((day) => day.tasks?.some((task) => task.taskId === primary.taskId));
+    const planTask = planTaskById(plan, primary.taskId);
+    const catalog = practiceCatalogForSkill(diagnostic.prioritySkill);
+    if (
+      !planDay ||
+      !planTask ||
+      !catalog ||
+      planDay.coreSkill !== diagnostic.prioritySkill ||
+      planTask.skill !== diagnostic.prioritySkill ||
+      planTask.route !== catalog.route ||
+      !planTaskBindsPracticeCatalog(planTask, catalog)
+    ) return null;
+
+    const expectedPrimary = {
+      role: "主任务",
+      taskId: planTask.taskId,
+      skill: diagnostic.prioritySkill,
+      exerciseId: catalog.exerciseId,
+      contentId: catalog.contentId,
+      contentVersion: catalog.activityVersion,
+      contentHash: catalog.contentHash,
+      title: planTask.titleZh,
+      route: `${planTask.route}?${new URLSearchParams({ plan_id: plan.planId, task_id: planTask.taskId }).toString()}`,
+      reason: diagnostic.report?.priorityExplanation || `当前 7 天计划把 ${skillLabels[diagnostic.prioritySkill] || diagnostic.prioritySkill} 设为这一天的核心练习。`,
+      duration: `${planTask.durationMinutes} 分钟`,
+      source: "Sufeiya 原创 Gate A 微练习 v1 · 未经教研与测量双签",
+      verification: "从本绑定入口完成任务并生成本机练习回执，再在复盘页引用同一回执。",
+      reviewStatus: "gate_a_unreviewed",
+      reviewedAt: null,
+      prerequisites: ["18_plus_gate_a", "same_browser_local_storage", "safe_write_lock"],
+    };
+    const primaryMatches = Object.entries(expectedPrimary).every(([key, value]) =>
+      Array.isArray(value)
+        ? Array.isArray(primary[key]) && JSON.stringify(primary[key]) === JSON.stringify(value)
+        : primary[key] === value,
+    );
+    if (!primaryMatches) return null;
+
+    const skillEvidence = Array.isArray(diagnostic.taskEvidence)
+      ? diagnostic.taskEvidence.filter((item) => item.skill === diagnostic.prioritySkill)
+      : [];
+    if (!skillEvidence.length) return null;
+    const patternEvidence = skillEvidence.filter(
+      (item) => item.resultType === "first_response_not_matched" || item.evidenceStatus === "evidence_insufficient" || item.status !== "completed",
+    );
+    const sourceEvidence = patternEvidence.length ? patternEvidence : skillEvidence;
+    const errorPatternIds = [...new Set([
+      ...sourceEvidence.map((item) => item.constructTag).filter(Boolean),
+      diagnostic.priorityBasis,
+    ].filter(Boolean))];
+    if (!errorPatternIds.length) return null;
+    return {
+      cycleId: cycle.cycleId,
+      diagnosticSessionId: cycle.diagnosticSessionId,
+      errorPatternIds,
+      diagnosticEvidenceTaskIds: sourceEvidence.map((item) => item.taskId),
+      diagnosticQualityFlags: [...new Set(sourceEvidence.flatMap((item) => item.qualityFlags || []).filter(Boolean))],
+      practiceTaskId: planTask.taskId,
+      exerciseId: catalog.exerciseId,
+      contentId: catalog.contentId,
+      contentVersion: catalog.activityVersion,
+      contentHash: catalog.contentHash,
+      bindingReason: expectedPrimary.reason,
+      sourceClass: "first_party_original_gate_a",
+      reviewStatus: "gate_a_unreviewed",
+      reviewedAt: null,
+      teacherReviewed: false,
+      measurementReviewed: false,
+      videoTimestamp: null,
+      prerequisites: expectedPrimary.prerequisites,
+    };
+  };
+  const recommendationBindingMatches = ({ binding, cycle, diagnostic, plan, primary }) => {
+    if (!isRecord(binding) || typeof binding.bindingId !== "string" || !binding.bindingId.startsWith("recommendation-binding-")) return false;
+    if (typeof binding.createdAt !== "string" || Number.isNaN(Date.parse(binding.createdAt))) return false;
+    const expected = deriveRecommendationBindingCore({ cycle, diagnostic, plan, primary });
+    return Boolean(
+      expected &&
+      Object.entries(expected).every(([key, value]) =>
+        Array.isArray(value)
+          ? Array.isArray(binding[key]) && JSON.stringify(binding[key]) === JSON.stringify(value)
+          : binding[key] === value,
+      )
+    );
+  };
+  const deriveRetestOutcome = (skill, evidence) => {
+    const catalog = RETEST_TASK_CATALOG[skill];
+    if (!catalog || !isRecord(evidence) || evidence.responseType !== catalog.responseType) return null;
+    let resultType;
+    let audioEvidenceInsufficient = false;
+    if (catalog.responseType === "single_choice") {
+      if (!["a", "b", "c"].includes(evidence.selectedAnswer)) return null;
+      resultType = evidence.selectedAnswer === catalog.correctValue ? "single_task_correct" : "single_task_needs_review";
+      if (skill === "Listening") {
+        if (
+          typeof evidence.audioPlayed !== "boolean" ||
+          typeof evidence.audioCompleted !== "boolean" ||
+          !Number.isInteger(evidence.playCount) ||
+          evidence.playCount < 0 ||
+          typeof evidence.transcriptUsed !== "boolean" ||
+          typeof evidence.seekDetected !== "boolean" ||
+          typeof evidence.playbackFailed !== "boolean" ||
+          evidence.audioPlayed !== (evidence.playCount >= 1)
+        ) return null;
+        audioEvidenceInsufficient = Boolean(
+          evidence.audioPlayed !== true ||
+          evidence.audioCompleted !== true ||
+          evidence.transcriptUsed === true ||
+          evidence.seekDetected === true ||
+          evidence.playbackFailed === true
+        );
+      }
+    } else if (catalog.responseType === "self_reviewed_writing") {
+      if (!Number.isInteger(evidence.wordCount) || evidence.wordCount < catalog.minimumWordCount || evidence.selfChecksComplete !== true) return null;
+      resultType = "task_completed_no_score";
+    } else if (catalog.responseType === "learner_confirmed_speaking") {
+      if (evidence.selfChecksComplete !== true || evidence.audioRecorded !== false) return null;
+      resultType = "task_completed_no_score";
+    } else {
+      return null;
+    }
+    const humanReviewRequired =
+      catalog.humanReviewRule === "always_required_for_open_response" ||
+      resultType === "single_task_needs_review" ||
+      audioEvidenceInsufficient;
+    return {
+      resultType,
+      evidenceStatus: audioEvidenceInsufficient
+        ? "evidence_insufficient"
+        : resultType === "single_task_needs_review"
+          ? "needs_review"
+          : "limited_single_task",
+      evidenceSufficiency: audioEvidenceInsufficient
+        ? "insufficient_audio_conditions"
+        : "limited_unreviewed_same_skill_task",
+      humanConfirmationStatus: humanReviewRequired ? "required_not_completed" : "not_required_for_gate_a_flow",
+      humanReviewRequired,
+    };
+  };
+  const practiceReceiptMatches = ({ receipt, cycle, diagnostic, plan, recommendation, task }) => {
+    if (!hasValidPracticeReceiptShape(receipt, receipt?.completionReceiptId)) return false;
+    const catalog = PRACTICE_ACTIVITY_CATALOG[receipt.exerciseId];
+    if (
+      !catalog ||
+      !UUID_V4_PATTERN.test(receipt.practiceAttemptId || "") ||
+      !UUID_V4_PATTERN.test(receipt.completionReceiptId || "") ||
+      receipt.activityId !== catalog.activityId ||
+      receipt.activityVersion !== catalog.activityVersion ||
+      receipt.contentId !== catalog.contentId ||
+      receipt.contentHash !== catalog.contentHash ||
+      receipt.skill !== catalog.skill ||
+      receipt.route !== catalog.route ||
+      receipt.receiptEvidenceClass !== catalog.receiptEvidenceClass ||
+      receipt.evidenceType !== catalog.evidenceType ||
+      receipt.completionCondition !== catalog.completionCondition ||
+      receipt.completionSource !== "guided_practice" ||
+      receipt.evidenceClass !== "practice_receipt" ||
+      receipt.evidenceStatus !== "evidence_limited" ||
+      receipt.sealed !== true ||
+      receipt.ownerScope !== "browser_local_not_account_bound" ||
+      receipt.integrityClass !== "unsigned_local_receipt" ||
+      receipt.status !== "completed" ||
+      !Array.isArray(receipt.qualityFlags) ||
+      typeof receipt.completedAt !== "string" ||
+      receipt.automatedScoreProduced !== false ||
+      receipt.formalDiagnosisProduced !== false ||
+      receipt.officialEquivalenceClaimed !== false
+    ) return false;
+    if (
+      !cycle ||
+      !diagnostic ||
+      !plan ||
+      !recommendation ||
+      !task ||
+      receipt.taskId !== task.taskId ||
+      receipt.planId !== plan.planId ||
+      receipt.cycleId !== cycle.cycleId ||
+      receipt.diagnosticSessionId !== cycle.diagnosticSessionId ||
+      receipt.recommendationId !== cycle.recommendationId ||
+      recommendation.recommendationId !== cycle.recommendationId ||
+      receipt.skill !== task.skill ||
+      receipt.route !== task.route ||
+      receipt.skill !== diagnostic.prioritySkill
+    ) return false;
+    if (
+      receipt.taskRef?.cycleId !== cycle.cycleId ||
+      receipt.taskRef?.diagnosticSessionId !== cycle.diagnosticSessionId ||
+      receipt.taskRef?.planId !== plan.planId ||
+      receipt.taskRef?.taskId !== task.taskId ||
+      receipt.taskRef?.taskDate !== task.date ||
+      receipt.contentRef?.exerciseId !== receipt.exerciseId ||
+      receipt.contentRef?.contentId !== catalog.contentId ||
+      receipt.contentRef?.contentVersion !== catalog.activityVersion ||
+      receipt.contentRef?.contentHash !== catalog.contentHash
+    ) return false;
+    if (
+      task.contentRef &&
+      (
+        task.contentRef.exerciseId !== receipt.exerciseId ||
+        task.contentRef.contentId !== receipt.contentId ||
+        task.contentRef.contentVersion !== receipt.activityVersion ||
+        task.contentRef.contentHash !== receipt.contentHash
+      )
+    ) return false;
+    if (recommendation.status === "accepted" && task.taskId !== recommendation.primary?.taskId) return false;
+    if (recommendation.status === "skipped" && task.taskId === recommendation.primary?.taskId) return false;
+    return true;
+  };
 
   const validateCycleEvidence = () => {
     const cycle = activeCycle();
@@ -369,9 +787,15 @@
     const baseTaskIds = new Set(basePlan?.days?.flatMap((day) => day.tasks?.map((task) => task.taskId) || []) || []);
     const recommendation = state.journey.recommendation;
     const checkIn = getCycleCheckIn();
+    const linkedPracticeTask = planTaskById(basePlan, checkIn?.linkedTaskId);
+    const linkedPracticeReceipt = checkIn?.practiceReceipt;
+    const storedPracticeReceipt = state.practiceReceipts[linkedPracticeReceipt?.completionReceiptId];
+    const linkedTaskProgress = state.taskProgress[checkIn?.linkedTaskId];
     const review = state.journey.review;
     const peerHelp = state.journey.peerHelp;
     const retest = state.journey.retest;
+    const retestCatalog = RETEST_TASK_CATALOG[retest?.skill];
+    const derivedRetestOutcome = deriveRetestOutcome(retest?.skill, retest?.evidence);
     const planUpdate = state.journey.planUpdate;
     const updatedPlan = planById(cycle?.updatedPlanId);
     const sixTaskEvidenceComplete =
@@ -410,7 +834,15 @@
         recommendation?.diagnosticSessionId === cycle?.diagnosticSessionId &&
         recommendation?.planId === cycle?.basePlanId &&
         ["accepted", "skipped"].includes(recommendation?.status) &&
-        baseTaskIds.has(recommendation?.primary?.taskId),
+        baseTaskIds.has(recommendation?.primary?.taskId) &&
+        recommendation?.primary?.skill === diagnostic?.prioritySkill &&
+        recommendationBindingMatches({
+          binding: recommendation?.evidenceBinding,
+          cycle,
+          diagnostic,
+          plan: basePlan,
+          primary: recommendation?.primary,
+        }),
     );
     const checkInComplete = Boolean(
       recommendationComplete &&
@@ -424,7 +856,22 @@
         checkIn?.evidenceText?.length >= 10 &&
         ["none", "has_question"].includes(checkIn?.questionStatus) &&
         (checkIn.questionStatus !== "has_question" || Boolean(checkIn.questionText)) &&
-        baseTaskIds.has(checkIn?.linkedTaskId),
+        baseTaskIds.has(checkIn?.linkedTaskId) &&
+        checkIn?.evidenceClass === "practice_receipt" &&
+        checkIn?.practiceAttemptId === linkedPracticeReceipt?.practiceAttemptId &&
+        checkIn?.taskCompletionReceiptId === linkedPracticeReceipt?.completionReceiptId &&
+        linkedTaskProgress?.completionClass === "practice_receipt" &&
+        linkedTaskProgress?.practiceReceiptId === linkedPracticeReceipt?.completionReceiptId &&
+        isRecord(storedPracticeReceipt) &&
+        JSON.stringify(storedPracticeReceipt) === JSON.stringify(linkedPracticeReceipt) &&
+        practiceReceiptMatches({
+          receipt: linkedPracticeReceipt,
+          cycle,
+          diagnostic,
+          plan: basePlan,
+          recommendation,
+          task: linkedPracticeTask,
+        }),
     );
     const reviewComplete = Boolean(
       checkInComplete &&
@@ -455,13 +902,35 @@
         retest?.checkInId === cycle?.checkInId &&
         retest?.reviewId === cycle?.reviewId &&
         retest?.peerHelpId === cycle?.peerHelpId &&
+        retest?.skill === diagnostic?.prioritySkill &&
+        retest?.skill === linkedPracticeReceipt?.skill &&
+        retest?.baselineTaskId === linkedPracticeTask?.taskId &&
+        retest?.baselinePracticeReceiptId === linkedPracticeReceipt?.completionReceiptId &&
+        retest?.parallelTaskId === retestCatalog?.taskId &&
+        retest?.taskVersion === retestCatalog?.taskVersion &&
+        retest?.parallelFormPairId === retestCatalog?.parallelFormPairId &&
         retest?.parallelRetest === true &&
+        retest?.comparability?.targetSkill === diagnostic?.prioritySkill &&
+        retest?.comparability?.sameSkill === true &&
+        retest?.comparability?.sameAsDiagnosticPriority === true &&
+        retest?.comparability?.sameAsPlanTask === true &&
+        retest?.comparability?.sameAsPracticeReceipt === true &&
+        retest?.comparability?.newOriginalPrompt === true &&
+        retest?.comparability?.constructAlignment === retestCatalog?.constructAlignment &&
+        retest?.comparability?.teacherReviewed === false &&
+        retest?.comparability?.measurementReviewed === false &&
+        retest?.comparability?.officialEquivalenceClaimed === false &&
+        retest?.comparability?.comparisonBoundary === "same_skill_only_no_calibrated_construct_or_difficulty_equivalence" &&
+        derivedRetestOutcome &&
+        retest?.evidence?.resultType === derivedRetestOutcome.resultType &&
+        retest?.evidenceStatus === derivedRetestOutcome.evidenceStatus &&
+        retest?.evidenceSufficiency === derivedRetestOutcome.evidenceSufficiency &&
+        retest?.humanConfirmationStatus === derivedRetestOutcome.humanConfirmationStatus &&
         retest?.automatedScoreProduced === false &&
         retest?.growthClaimProduced === false,
     );
-    const updateComplete = Boolean(
+    const planUpdateBaseComplete = Boolean(
       retestEvidenceComplete &&
-        cycle?.status === "completed" &&
         planUpdate?.cycleId === cycle?.cycleId &&
         planUpdate?.retestId === cycle?.retestId &&
         planUpdate?.supersedesPlanId === cycle?.basePlanId &&
@@ -477,6 +946,23 @@
         updatedPlan?.provenance?.taskSetVersion === diagnostic?.taskSetVersion &&
         updatedPlan?.provenance?.taskSetDigest === diagnostic?.taskSetDigest,
     );
+    const provisionalUpdateRecorded = Boolean(
+      planUpdateBaseComplete &&
+        derivedRetestOutcome?.humanReviewRequired === true &&
+        retest?.humanConfirmationStatus === "required_not_completed" &&
+        cycle?.status === "provisional_pending_human_review" &&
+        planUpdate?.confirmationClass === "provisional_pending_human_review" &&
+        planUpdate?.humanConfirmationStatus === "required_not_completed",
+    );
+    const updateComplete = Boolean(
+      planUpdateBaseComplete &&
+        derivedRetestOutcome?.humanReviewRequired === false &&
+        retest?.humanConfirmationStatus === "not_required_for_gate_a_flow" &&
+        cycle?.status === "completed" &&
+        planUpdate?.confirmationClass === "learner_confirmed_gate_a" &&
+        planUpdate?.humanConfirmationStatus === "not_required_for_gate_a_flow",
+    );
+    const planUpdateRecorded = updateComplete || provisionalUpdateRecorded;
 
     return {
       cycle,
@@ -484,6 +970,8 @@
       basePlan,
       recommendation,
       checkIn,
+      linkedPracticeTask,
+      linkedPracticeReceipt,
       review,
       peerHelp,
       retest,
@@ -497,6 +985,8 @@
       peerHelpComplete,
       preRetestComplete: peerHelpComplete,
       retestEvidenceComplete,
+      planUpdateRecorded,
+      provisionalUpdateRecorded,
       updateComplete,
     };
   };
@@ -1230,7 +1720,7 @@
       }
     });
 
-    startForm?.addEventListener("submit", (event) => {
+    startForm?.addEventListener("submit", async (event) => {
       event.preventDefault();
       if (!storageAvailable) {
         if (message) message.textContent = "当前浏览器无法安全写入本机数据，因此不能生成可追踪诊断回执。请调整隐私设置或使用其他浏览器。";
@@ -1263,66 +1753,87 @@
       const previousCycle = activeCycle();
       const hasDownstream = previousCycle && [previousCycle.basePlanId, previousCycle.recommendationId, previousCycle.checkInId, previousCycle.reviewId, previousCycle.peerHelpId, previousCycle.retestId].some(Boolean);
       if (hasDownstream && !window.confirm("开始新一轮诊断会关闭当前未完成闭环的后续连接，并仅归档不含作文原文或首答内容的证据摘要；旧计划本身仍保留。确定继续吗？")) return;
-      const snapshot = JSON.parse(JSON.stringify(state));
-      archiveSupersededCycle();
-      const diagnosticSessionId = makeId("diagnostic");
-      const cycle = {
-        cycleId: makeId("cycle"),
-        protocolVersion: PROTOCOL_VERSION,
-        status: "in_progress",
-        diagnosticSessionId,
-        basePlanId: null,
-        recommendationId: null,
-        checkInId: null,
-        reviewId: null,
-        peerHelpId: null,
-        retestId: null,
-        updatedPlanId: null,
-        createdAt: isoNow(),
-        updatedAt: isoNow(),
-      };
-      state.journey.activeCycle = cycle;
-      state.journey.diagnostic = {
-        diagnosticSessionId,
-        cycleId: cycle.cycleId,
-        protocolVersion: PROTOCOL_VERSION,
-        diagnosticProtocolVersion: DIAGNOSTIC_PROTOCOL_VERSION,
-        taskSetVersion: DIAGNOSTIC_TASK_SET_VERSION,
-        taskSetDigest: DIAGNOSTIC_TASK_SET_DIGEST,
-        status: "in_progress",
-        adultConfirmed: true,
-        consent: {
-          localOnlyConfirmed: true,
-          noScoreConfirmed: true,
-          noModelTrainingConfirmed: true,
-          confirmedAt: isoNow(),
-        },
-        demoGoal: "det_preparation_4_weeks",
-        devicePrecheck: {
-          storageStatus: "available",
-          audioOutputStatus,
-          mp3Supported,
-          speechSynthesisSupported: speechSupported,
-          safeWriteLockSupported: true,
-          keyboardConfirmed: true,
-          environmentConfirmed: true,
-          microphoneMode: "not_requested",
-          viewportMode: window.innerWidth >= 820 ? "desktop_or_tablet" : "mobile_lightweight",
-          networkAtStart: navigator.onLine ? "online" : "offline",
-          completedAt: isoNow(),
-        },
-        taskEvidence: [],
-        activeTaskId: DIAGNOSTIC_TASK_IDS[0],
-        automatedScoreProduced: false,
-        formalDiagnosisProduced: false,
-        officialEquivalenceClaimed: false,
-        createdAt: isoNow(),
-        updatedAt: isoNow(),
-      };
-      resetDiagnosticDownstream();
-      if (!persist()) {
-        state = snapshot;
-        if (message) message.textContent = "当前无法保存，新诊断会话未建立，原本机记录保持不变。";
+      const outcome = await withExclusiveJourneyWrite(async () => {
+        const snapshot = snapshotState();
+        archiveSupersededCycle();
+        const diagnosticSessionId = makeId("diagnostic");
+        const createdAt = isoNow();
+        const cycle = {
+          cycleId: makeId("cycle"),
+          protocolVersion: PROTOCOL_VERSION,
+          status: "in_progress",
+          diagnosticSessionId,
+          basePlanId: null,
+          recommendationId: null,
+          checkInId: null,
+          reviewId: null,
+          peerHelpId: null,
+          retestId: null,
+          updatedPlanId: null,
+          createdAt,
+          updatedAt: createdAt,
+        };
+        state.journey.activeCycle = cycle;
+        state.journey.diagnostic = {
+          diagnosticSessionId,
+          cycleId: cycle.cycleId,
+          protocolVersion: PROTOCOL_VERSION,
+          diagnosticProtocolVersion: DIAGNOSTIC_PROTOCOL_VERSION,
+          taskSetVersion: DIAGNOSTIC_TASK_SET_VERSION,
+          taskSetDigest: DIAGNOSTIC_TASK_SET_DIGEST,
+          status: "in_progress",
+          adultConfirmed: true,
+          consent: {
+            localOnlyConfirmed: true,
+            noScoreConfirmed: true,
+            noModelTrainingConfirmed: true,
+            confirmedAt: createdAt,
+          },
+          demoGoal: "det_preparation_4_weeks",
+          devicePrecheck: {
+            storageStatus: "available",
+            audioOutputStatus,
+            mp3Supported,
+            speechSynthesisSupported: speechSupported,
+            safeWriteLockSupported: true,
+            keyboardConfirmed: true,
+            environmentConfirmed: true,
+            microphoneMode: "not_requested",
+            viewportMode: window.innerWidth >= 820 ? "desktop_or_tablet" : "mobile_lightweight",
+            networkAtStart: navigator.onLine ? "online" : "offline",
+            completedAt: createdAt,
+          },
+          taskEvidence: [],
+          activeTaskId: DIAGNOSTIC_TASK_IDS[0],
+          automatedScoreProduced: false,
+          formalDiagnosisProduced: false,
+          officialEquivalenceClaimed: false,
+          createdAt,
+          updatedAt: createdAt,
+        };
+        resetDiagnosticDownstream();
+        const eventOutcome = await appendLearningEvent("learning_cycle.started", {
+          cycle,
+          diagnostic: state.journey.diagnostic,
+        });
+        if (!["appended", "already_recorded"].includes(eventOutcome.status)) {
+          state = snapshot;
+          return { status: eventOutcome.status, code: eventOutcome.code };
+        }
+        if (!persist()) {
+          state = snapshot;
+          return { status: "persist_failed" };
+        }
+        return { status: "saved" };
+      });
+      if (outcome.status !== "saved") {
+        if (message) message.textContent = outcome.status === "lock_unavailable"
+          ? "当前浏览器无法取得安全写入锁，新诊断会话未建立。"
+          : outcome.status === "persist_failed"
+            ? "当前无法保存，新诊断会话未建立，原本机记录保持不变。"
+            : outcome.status === "stale"
+              ? "本机记录已在另一个页面发生变化；新诊断会话未建立，请刷新后重试。"
+              : "学习事件链未通过核对；新诊断会话未建立。";
         return;
       }
       startForm.reset();
@@ -1858,28 +2369,35 @@
     renderDiagnostic();
   };
 
-  const getCurrentPlanDay = () => {
-    if (!state.plan?.days?.length) return null;
-    return state.plan.days.find((day) => day.date === todayKey()) || state.plan.days[0];
-  };
-
   const recommendationItems = () => {
-    const day = getCurrentPlanDay();
+    const diagnosticSkill = state.journey.diagnostic?.prioritySkill;
+    const day = state.plan?.days?.find(
+      (candidate) => candidate.coreSkill === diagnosticSkill && candidate.tasks?.some((task) => task.skill === diagnosticSkill),
+    ) || null;
     if (!day) return [];
     const coreTask = day.tasks?.find((task) => task.skill === day.coreSkill) || day.tasks?.[0];
     if (!coreTask) return [];
+    const practiceCatalog = practiceCatalogForSkill(day.coreSkill);
+    const diagnosticReason = state.journey.diagnostic?.report?.priorityExplanation;
+    const boundRoute = `${coreTask.route}?${new URLSearchParams({ plan_id: state.plan.planId, task_id: coreTask.taskId }).toString()}`;
     return [
       {
         role: "主任务",
         taskId: coreTask.taskId,
-        contentId: `gate-a-${String(day.coreSkill).toLowerCase()}-practice`,
-        contentVersion: "v1",
+        skill: day.coreSkill,
+        exerciseId: practiceCatalog?.exerciseId || null,
+        contentId: practiceCatalog?.contentId || null,
+        contentVersion: practiceCatalog?.activityVersion || null,
+        contentHash: practiceCatalog?.contentHash || null,
         title: coreTask.titleZh,
-        route: coreTask.route,
-        reason: `当前 7 天计划把 ${skillLabels[day.coreSkill] || day.coreSkill} 设为这一天的核心练习。`,
+        route: boundRoute,
+        reason: diagnosticReason || `当前 7 天计划把 ${skillLabels[day.coreSkill] || day.coreSkill} 设为这一天的核心练习。`,
         duration: `${coreTask.durationMinutes} 分钟`,
-        source: "Sufeiya 原创 Gate A 微练习 v1",
-        verification: "完成任务后，在复盘页留下具体学习证据。",
+        source: "Sufeiya 原创 Gate A 微练习 v1 · 未经教研与测量双签",
+        verification: "从本绑定入口完成任务并生成本机练习回执，再在复盘页引用同一回执。",
+        reviewStatus: "gate_a_unreviewed",
+        reviewedAt: null,
+        prerequisites: ["18_plus_gate_a", "same_browser_local_storage", "safe_write_lock"],
       },
       {
         role: "可选补充 1",
@@ -1901,6 +2419,20 @@
       },
     ];
   };
+  const createRecommendationBinding = (chain, primary) => {
+    const core = deriveRecommendationBindingCore({
+      cycle: chain.cycle,
+      diagnostic: chain.diagnostic,
+      plan: chain.basePlan,
+      primary,
+    });
+    if (!core) return null;
+    return {
+      bindingId: makeId("recommendation-binding"),
+      ...core,
+      createdAt: isoNow(),
+    };
+  };
 
   const renderRecommendationCards = (items) => {
     const list = document.querySelector("[data-recommendation-items]");
@@ -1919,6 +2451,7 @@
       [
         ["预计时长", item.duration],
         ["来源", item.source],
+        ...(item.reviewStatus ? [["审核状态", "Gate A 未经教研与测量双签"]] : []),
         ["如何验证", item.verification],
       ].forEach(([term, value]) => {
         const row = document.createElement("div");
@@ -1952,12 +2485,13 @@
     if (start) start.hidden = recommendation.status !== "accepted";
     setText("[data-recommendation-id]", recommendation.recommendationId);
     setText("[data-recommendation-plan-id]", recommendation.planId);
+    setText("[data-recommendation-binding-id]", recommendation.evidenceBinding?.bindingId || "未形成");
     setText("[data-recommendation-status]", recommendation.status === "accepted" ? "已接受主任务" : "已明确跳过");
     setText(
       "[data-recommendation-message]",
       recommendation.status === "accepted"
         ? "已保存接受状态；完成仍以任务记录与学习复盘为准。"
-        : "已保存谢绝状态；跳过不会产生惩罚或阻断后续步骤。",
+        : "已保存谢绝状态；不会产生惩罚。若要继续本轮闭环，可在打卡页选择计划内另一项同技能核心练习并生成新回执。",
     );
   };
 
@@ -1981,6 +2515,7 @@
     }
     renderRecommendationCards(items);
     const saved =
+      chain.recommendationComplete &&
       state.journey.recommendation?.recommendationId === cycle.recommendationId &&
       state.journey.recommendation?.planId === cycle.basePlanId &&
       state.journey.recommendation?.cycleId === cycle.cycleId
@@ -1990,7 +2525,7 @@
     if (!saved) setText("[data-recommendation-status]", "等待你的选择");
 
     const saveChoice = async (status) => {
-      const outcome = await withExclusiveJourneyWrite(() => {
+      const outcome = await withExclusiveJourneyWrite(async () => {
         if (!persistedStateIsFresh()) return { status: "stale" };
         const latestChain = validateCycleEvidence();
         const latestCycle = latestChain.cycle;
@@ -2002,6 +2537,7 @@
         ) return { status: "stale" };
         const previous = state.journey.recommendation;
         if (
+          latestChain.recommendationComplete &&
           previous?.recommendationId === latestCycle.recommendationId &&
           previous?.cycleId === latestCycle.cycleId &&
           previous?.planId === latestCycle.basePlanId
@@ -2009,6 +2545,8 @@
 
         const before = snapshotState();
         const recommendationId = makeId("recommendation");
+        const evidenceBinding = createRecommendationBinding(latestChain, items[0]);
+        if (!evidenceBinding) return { status: "binding_invalid" };
         state.journey.recommendation = {
           recommendationId,
           cycleId: latestCycle.cycleId,
@@ -2017,6 +2555,7 @@
           status,
           itemCount: items.length,
           primary: items[0],
+          evidenceBinding,
           supplements: items.slice(1),
           sourceMode: "frozen_local_routes_no_rag",
           learnerChoice: true,
@@ -2034,6 +2573,13 @@
         state.journey.peerHelp = null;
         state.journey.retest = null;
         state.journey.planUpdate = null;
+        const eventOutcome = await appendLearningEvent("recommendation.decided", {
+          recommendation: state.journey.recommendation,
+        });
+        if (!["appended", "already_recorded"].includes(eventOutcome.status)) {
+          state = before;
+          return { status: eventOutcome.status, code: eventOutcome.code };
+        }
         if (!persist()) {
           state = before;
           return { status: "persist_failed" };
@@ -2056,7 +2602,9 @@
           ? "当前浏览器无法取得安全写入锁，未保存推荐选择；请使用最新版浏览器后重试。"
           : outcome.status === "persist_failed"
             ? "当前无法保存，推荐选择尚未形成正式本机记录。"
-            : "本机记录已在另一个页面发生变化；未覆盖首份选择，请刷新后核对。",
+            : outcome.status === "binding_invalid"
+              ? "诊断证据、计划任务与原创练习版本无法形成精确绑定；未保存推荐，请刷新后重新核对。"
+              : "本机记录已在另一个页面发生变化；未覆盖首份选择，请刷新后核对。",
       );
     };
     document.querySelector("[data-accept-recommendation]")?.addEventListener("click", () => saveChoice("accepted"));
@@ -2088,6 +2636,8 @@
     setText("[data-review-date]", `${record.date} 的证据式打卡`);
     setText("[data-review-did]", record.didText);
     setText("[data-review-evidence]", record.evidenceText);
+    setText("[data-review-evidence-class]", record.evidenceClass === "practice_receipt" ? "practice_receipt · 本机练习回执" : "learner_self_report · 学习者自报");
+    setText("[data-review-practice-receipt-id]", record.taskCompletionReceiptId || "无 · 不进入当前闭环");
     setText(
       "[data-review-question]",
       record.questionStatus === "has_question" ? `仍有问题：${record.questionText}` : "暂时没有待解决问题",
@@ -2274,17 +2824,37 @@
     });
   };
 
+  const retestListeningQuality = {
+    audioPlayed: false,
+    audioCompleted: false,
+    playCount: 0,
+    transcriptUsed: false,
+    seekDetected: false,
+    playbackFailed: false,
+    startedNearBeginning: false,
+  };
+
   const readRetestEvidence = (form, skill) => {
     if (skill === "Reading" || skill === "Listening") {
       const fieldName = skill === "Reading" ? "retestReading" : "retestListening";
       const selected = form.querySelector(`input[name="${fieldName}"]:checked`)?.value;
       if (!selected) return { error: "请先选择一个答案。" };
-      const correctValue = skill === "Reading" ? "b" : "c";
+      const taskCatalog = RETEST_TASK_CATALOG[skill];
       return {
         evidence: {
-          responseType: "single_choice",
+          responseType: taskCatalog.responseType,
           selectedAnswer: selected,
-          resultType: selected === correctValue ? "single_task_correct" : "single_task_needs_review",
+          resultType: selected === taskCatalog.correctValue ? "single_task_correct" : "single_task_needs_review",
+          ...(skill === "Listening"
+            ? {
+                audioPlayed: retestListeningQuality.audioPlayed,
+                audioCompleted: retestListeningQuality.audioCompleted,
+                playCount: retestListeningQuality.playCount,
+                transcriptUsed: retestListeningQuality.transcriptUsed,
+                seekDetected: retestListeningQuality.seekDetected,
+                playbackFailed: retestListeningQuality.playbackFailed,
+              }
+            : {}),
         },
       };
     }
@@ -2292,8 +2862,8 @@
       const value = form.elements.retestWriting.value.trim();
       const words = value ? value.split(/\s+/).filter(Boolean).length : 0;
       const checks = [...form.querySelectorAll("[data-retest-writing-review]")];
-      if (words < 20 || !checks.every((item) => item.checked)) {
-        return { error: "Writing 任务需要至少 20 个英文词，并完成三项自查。" };
+      if (words < RETEST_TASK_CATALOG.Writing.minimumWordCount || !checks.every((item) => item.checked)) {
+        return { error: `Writing 任务需要至少 ${RETEST_TASK_CATALOG.Writing.minimumWordCount} 个英文词，并完成三项自查。` };
       }
       return { evidence: { responseType: "self_reviewed_writing", wordCount: words, selfChecksComplete: true, resultType: "task_completed_no_score" } };
     }
@@ -2307,15 +2877,21 @@
 
   const retestGate = () => {
     const chain = validateCycleEvidence();
-    const { cycle, checkIn: record, review, peerHelp } = chain;
+    const { cycle, diagnostic, checkIn: record, linkedPracticeTask, linkedPracticeReceipt, review, peerHelp } = chain;
     const evidenceAlreadyRecorded = chain.retestEvidenceComplete;
+    const targetSkill = chain.preRetestComplete && linkedPracticeReceipt?.evidenceStatus === "evidence_limited"
+      ? linkedPracticeReceipt.skill
+      : null;
     const ready = Boolean(
       cycle?.status === "in_progress" &&
         cycle.basePlanId === state.plan?.planId &&
         chain.preRetestComplete &&
+        targetSkill &&
+        targetSkill === diagnostic?.prioritySkill &&
+        targetSkill === linkedPracticeTask?.skill &&
         !evidenceAlreadyRecorded,
     );
-    return { cycle, record, review, peerHelp, ready, evidenceAlreadyRecorded, completed: chain.updateComplete };
+    return { cycle, diagnostic, record, linkedPracticeTask, linkedPracticeReceipt, review, peerHelp, targetSkill, ready, evidenceAlreadyRecorded, completed: chain.planUpdateRecorded };
   };
 
   const renderRetest = () => {
@@ -2330,28 +2906,42 @@
     }
     const selector = document.querySelector("[data-retest-skill]");
     if (selector) selector.value = retest.skill;
+    setText("[data-retest-skill-label]", skillLabels[retest.skill] || retest.skill);
+    setText("[data-retest-comparability]", "与本轮诊断优先项、计划任务和练习回执保持同技能；构念与难度尚未经教研、测量双签。");
     showRetestPanel(retest.skill);
     if (result) result.hidden = false;
     if (updateForm) updateForm.hidden = false;
     setText(
       "[data-retest-status]",
-      retest.evidenceStatus === "needs_review" ? "已完成，单题需复核" : "平行任务已留证",
+      retest.humanConfirmationStatus === "required_not_completed" ? "已留证，等待人工确认" : "同技能平行任务已留证",
     );
     setText("[data-retest-id]", retest.retestId);
+    setText("[data-retest-target-skill]", retest.comparability.targetSkill);
+    setText("[data-retest-same-skill]", retest.comparability.sameSkill ? "true · 已由代码核对" : "false · 不可比较");
+    setText("[data-retest-parallel-pair]", retest.parallelFormPairId);
     setText(
       "[data-retest-result-copy]",
-      retest.evidence.resultType === "single_task_correct"
-        ? "本次单题回答正确；这只描述当前任务，不证明能力增长或分数变化。"
-        : "本次任务已经完成并保存；结果不形成分数、能力等级或增长结论。",
+      retest.evidenceStatus === "evidence_insufficient"
+        ? "本次 Listening 平行任务已保存，但音频未从头完整连续播放、使用了英文原文、发生拖动或播放失败；当前只能形成证据不足记录，需人工确认，不能关闭完整闭环。"
+        : retest.evidence.resultType === "single_task_correct"
+        ? "本次同技能单题回答正确；只描述当前任务，不证明构念等值、能力增长或分数变化。"
+        : retest.humanConfirmationStatus === "required_not_completed"
+          ? "本次任务已保存，但开放作答或单题结果仍需具备资质的人工确认；当前不形成趋势、分数、能力等级或增长结论。"
+          : "本次任务已经完成并保存；结果不形成分数、能力等级或增长结论。",
     );
 
     const receipt = document.querySelector("[data-plan-update-receipt]");
-    if (chain.updateComplete) {
+    if (chain.planUpdateRecorded) {
       if (receipt) receipt.hidden = false;
       if (updateForm) updateForm.hidden = true;
       setText("[data-updated-plan-id]", planUpdate.updatedPlanId);
       setText("[data-superseded-plan-id]", planUpdate.supersedesPlanId);
-      setText("[data-plan-update-message]", "学习者已确认下一轮重点，更新后的计划已保存在本机。");
+      setText(
+        "[data-plan-update-message]",
+        chain.provisionalUpdateRecorded
+          ? "学习者已选择下一轮重点并保存临时计划；本轮仍等待具备资质的人工确认，不能计作完整闭环。"
+          : "学习者已确认下一轮重点，更新后的计划已保存在本机。",
+      );
     } else if (receipt) {
       receipt.hidden = true;
     }
@@ -2360,10 +2950,41 @@
   const setupRetest = () => {
     const form = document.querySelector("#retest-form");
     if (!form) return;
+    const listeningAudio = form.querySelector("[data-retest-listening-audio]");
+    const listeningTranscript = form.querySelector('[data-retest-panel="Listening"] .listening-transcript');
+    listeningAudio?.addEventListener("play", () => {
+      retestListeningQuality.audioPlayed = true;
+      retestListeningQuality.playCount += 1;
+      retestListeningQuality.startedNearBeginning =
+        retestListeningQuality.startedNearBeginning || listeningAudio.currentTime <= 0.25;
+    });
+    listeningAudio?.addEventListener("seeking", () => {
+      retestListeningQuality.seekDetected = true;
+      retestListeningQuality.audioCompleted = false;
+    });
+    listeningAudio?.addEventListener("ended", () => {
+      retestListeningQuality.audioCompleted =
+        retestListeningQuality.audioCompleted ||
+        (retestListeningQuality.startedNearBeginning && !retestListeningQuality.seekDetected);
+    });
+    listeningAudio?.addEventListener("error", () => {
+      retestListeningQuality.playbackFailed = true;
+      retestListeningQuality.audioCompleted = false;
+    });
+    listeningTranscript?.addEventListener("toggle", () => {
+      if (listeningTranscript.open) retestListeningQuality.transcriptUsed = true;
+    });
     const selector = document.querySelector("[data-retest-skill]");
-    showRetestPanel(selector?.value || "Reading");
-    selector?.addEventListener("change", () => showRetestPanel(selector.value));
     const initialGate = retestGate();
+    if (selector) selector.value = initialGate.targetSkill || "";
+    setText("[data-retest-skill-label]", initialGate.targetSkill ? skillLabels[initialGate.targetSkill] : "等待同技能练习记录");
+    setText(
+      "[data-retest-comparability]",
+      initialGate.targetSkill
+        ? "系统已锁定与本轮诊断优先项、计划任务和练习回执相同的技能；构念与难度仍未经教研、测量双签。"
+        : "完成前置步骤并留下合格练习记录后，系统才会锁定同技能平行任务。",
+    );
+    showRetestPanel(initialGate.targetSkill || "");
     const alreadyCompleted = initialGate.completed;
     if (!initialGate.ready && !alreadyCompleted && !initialGate.evidenceAlreadyRecorded) {
       form.querySelectorAll("input, select, textarea, button").forEach((control) => {
@@ -2382,8 +3003,9 @@
       event.preventDefault();
       const skill = form.elements.retestSkill.value;
       const message = document.querySelector("[data-retest-message]");
-      if (!VALID_SKILLS.has(skill) || skill === "Balanced") {
-        if (message) message.textContent = "请选择一项平行任务。";
+      const expectedTarget = retestGate().targetSkill;
+      if (!VALID_SKILLS.has(skill) || skill === "Balanced" || skill !== expectedTarget) {
+        if (message) message.textContent = "平行任务必须与本轮诊断、计划和练习记录保持同技能；当前状态已变化，请刷新后核对。";
         return;
       }
       const { evidence, error } = readRetestEvidence(form, skill);
@@ -2391,14 +3013,30 @@
         if (message) message.textContent = error;
         return;
       }
-      const outcome = await withExclusiveJourneyWrite(() => {
+      const outcome = await withExclusiveJourneyWrite(async () => {
         if (!persistedStateIsFresh()) return { status: "stale" };
-        const { cycle, record, review, peerHelp, ready, evidenceAlreadyRecorded } = retestGate();
+        const { cycle, diagnostic, record, linkedPracticeTask, linkedPracticeReceipt, review, peerHelp, targetSkill, ready, evidenceAlreadyRecorded } = retestGate();
         if (evidenceAlreadyRecorded) return { status: "already_saved" };
-        if (!ready) return { status: "stale" };
+        if (!ready || skill !== targetSkill) return { status: "stale" };
 
         const before = snapshotState();
         const retestId = makeId("retest");
+        const taskCatalog = RETEST_TASK_CATALOG[skill];
+        const derivedOutcome = deriveRetestOutcome(skill, evidence);
+        if (!derivedOutcome) return { status: "evidence_invalid" };
+        const comparability = {
+          targetSkill,
+          sameSkill: skill === targetSkill,
+          sameAsDiagnosticPriority: skill === diagnostic.prioritySkill,
+          sameAsPlanTask: skill === linkedPracticeTask.skill,
+          sameAsPracticeReceipt: skill === linkedPracticeReceipt.skill,
+          newOriginalPrompt: true,
+          constructAlignment: taskCatalog.constructAlignment,
+          teacherReviewed: false,
+          measurementReviewed: false,
+          officialEquivalenceClaimed: false,
+          comparisonBoundary: "same_skill_only_no_calibrated_construct_or_difficulty_equivalence",
+        };
         state.journey.retest = {
           retestId,
           cycleId: cycle.cycleId,
@@ -2409,11 +3047,17 @@
           reviewId: review.reviewId,
           peerHelpId: peerHelp.peerHelpId,
           skill,
-          taskVersion: `${skill.toLowerCase()}-parallel-v1`,
+          baselineTaskId: linkedPracticeTask.taskId,
+          baselinePracticeReceiptId: linkedPracticeReceipt.completionReceiptId,
+          parallelTaskId: taskCatalog.taskId,
+          taskVersion: taskCatalog.taskVersion,
+          parallelFormPairId: taskCatalog.parallelFormPairId,
           status: "completed",
           parallelRetest: true,
-          comparability: { sameSkill: true, newOriginalPrompt: true, officialEquivalenceClaimed: false },
-          evidenceStatus: evidence.resultType === "single_task_needs_review" ? "needs_review" : "limited_single_task",
+          comparability,
+          evidenceStatus: derivedOutcome.evidenceStatus,
+          evidenceSufficiency: derivedOutcome.evidenceSufficiency,
+          humanConfirmationStatus: derivedOutcome.humanConfirmationStatus,
           evidence,
           automatedScoreProduced: false,
           growthClaimProduced: false,
@@ -2424,6 +3068,14 @@
         cycle.updatedPlanId = null;
         cycle.updatedAt = isoNow();
         state.journey.planUpdate = null;
+        const eventOutcome = await appendLearningEvent("retest.completed", {
+          retest: state.journey.retest,
+          recommendation: state.journey.recommendation,
+        });
+        if (!["appended", "already_recorded"].includes(eventOutcome.status)) {
+          state = before;
+          return { status: eventOutcome.status, code: eventOutcome.code };
+        }
         if (!persist()) {
           state = before;
           return { status: "persist_failed" };
@@ -2437,6 +3089,8 @@
             ? "当前浏览器无法取得安全写入锁；平行任务尚未形成正式 retest_id。"
             : outcome.status === "persist_failed"
               ? "当前无法保存；平行任务尚未形成正式 retest_id。"
+              : outcome.status === "evidence_invalid"
+                ? "平行任务答案与冻结任务版本无法重新核对；未保存证据，请刷新后重试。"
               : "本机记录已在另一个页面发生变化；未覆盖首份平行任务，请刷新后核对。";
         if (outcome.status === "already_saved") form.querySelectorAll("input, select, textarea, button").forEach((control) => { control.disabled = true; });
         return;
@@ -2461,7 +3115,7 @@
         updateForm.elements.learnerConfirmed.focus();
         return;
       }
-      const outcome = await withExclusiveJourneyWrite(() => {
+      const outcome = await withExclusiveJourneyWrite(async () => {
         if (!persistedStateIsFresh()) return { status: "stale" };
         const chain = validateCycleEvidence();
         const { cycle, retest } = chain;
@@ -2471,6 +3125,11 @@
             state.plan?.planId === cycle.basePlanId,
         );
         if (!exactChain) return { status: "chain_changed" };
+        const derivedOutcome = deriveRetestOutcome(retest.skill, retest.evidence);
+        if (!derivedOutcome || derivedOutcome.humanConfirmationStatus !== retest.humanConfirmationStatus) {
+          return { status: "chain_changed" };
+        }
+        const provisional = derivedOutcome.humanReviewRequired;
 
         const stateBeforeUpdate = snapshotState();
         const previousPlan = state.plan;
@@ -2481,7 +3140,9 @@
         ];
         state.profile = { ...state.profile, focusSkill };
         const nextPlan = createPlan(state.profile, {
-          source: "learner_confirmed_parallel_retest_followup",
+          source: provisional
+            ? "learner_selected_provisional_followup_pending_human_review"
+            : "learner_confirmed_parallel_retest_followup",
           cycleId: cycle.cycleId,
           diagnosticSessionId: cycle.diagnosticSessionId,
           taskSetVersion: state.journey.diagnostic.taskSetVersion,
@@ -2497,18 +3158,21 @@
           retestId: retest.retestId,
           focusSkill,
           learnerConfirmed: true,
+          confirmationClass: provisional ? "provisional_pending_human_review" : "learner_confirmed_gate_a",
+          humanConfirmationStatus: derivedOutcome.humanConfirmationStatus,
           automatedAbilityDecision: false,
           createdAt: closedAt,
         };
         cycle.updatedPlanId = nextPlan.planId;
-        cycle.status = "completed";
-        cycle.closedAt = closedAt;
+        cycle.status = provisional ? "provisional_pending_human_review" : "completed";
+        cycle.closedAt = provisional ? null : closedAt;
+        cycle.provisionalAt = provisional ? closedAt : null;
         cycle.updatedAt = closedAt;
         state.journey.history = [
           ...state.journey.history,
           {
             ...cycle,
-            status: "completed",
+            status: cycle.status,
             diagnostic: state.journey.diagnostic,
             recommendation: state.journey.recommendation,
             checkIn: getCycleCheckIn(),
@@ -2518,11 +3182,22 @@
             planUpdate: state.journey.planUpdate,
           },
         ];
+        if (!provisional) {
+          const eventOutcome = await appendLearningEvent("learning_cycle.completed", {
+            cycle,
+            retest,
+            planUpdate: state.journey.planUpdate,
+          });
+          if (!["appended", "already_recorded"].includes(eventOutcome.status)) {
+            state = stateBeforeUpdate;
+            return { status: eventOutcome.status, code: eventOutcome.code };
+          }
+        }
         if (!persist()) {
           state = stateBeforeUpdate;
           return { status: "persist_failed" };
         }
-        return { status: "saved" };
+        return { status: "saved", provisional };
       });
       if (outcome.status !== "saved") {
         if (message) message.textContent = outcome.status === "lock_unavailable"
@@ -2534,7 +3209,11 @@
               : "本机记录已在另一个页面发生变化；未覆盖首份更新计划，请刷新后核对。";
         return;
       }
-      if (message) message.textContent = "更新后的 7 天计划已生成，旧计划完整归档，本轮闭环已关闭。";
+      if (message) {
+        message.textContent = outcome.provisional
+          ? "临时 7 天计划已生成；本轮仍等待具备资质的人工确认，尚未计作完整闭环。"
+          : "更新后的 7 天计划已生成，旧计划完整归档，本轮闭环已关闭。";
+      }
       renderRetest();
     });
   };
@@ -2571,10 +3250,11 @@
       peerHelpLabels[peerHelp?.status] || "状态已记录",
       retest?.evidenceStatus === "needs_review" ? "已完成，需复核" : "微复测与计划已更新",
     ];
+    const pendingLabels = [null, null, null, null, null, null, chain.provisionalUpdateRecorded ? "等待具备资质的人工确认" : null];
     return journeyDefinitions.map((definition, index) => {
       const complete = Boolean(raw[index] && previousComplete);
       previousComplete = complete;
-      return { ...definition, rawComplete: raw[index], complete, completeLabel: labels[index] };
+      return { ...definition, rawComplete: raw[index], complete, completeLabel: labels[index], pendingLabel: pendingLabels[index] };
     });
   };
 
@@ -2592,7 +3272,7 @@
         if (label) label.textContent = step.completeLabel;
       } else if (next?.key === step.key) {
         item?.classList.add("is-current");
-        if (label) label.textContent = "下一步";
+        if (label) label.textContent = step.pendingLabel || "下一步";
       } else {
         item?.classList.add("is-locked");
         if (label) label.textContent = "等待前一步";
@@ -2615,6 +3295,23 @@
   const workspaceWriterLeaseAvailable = await acquireSharedWorkspaceWriterLease();
   if (!workspaceWriterLeaseAvailable) storageWritable = false;
   loadState();
+  let learningLedgerStatus = { ok: false, code: "runtime_unavailable" };
+  if (learningEventsRuntime) {
+    try {
+      learningLedgerStatus = await learningEventsRuntime.validateLedger(state);
+    } catch {
+      learningLedgerStatus = { ok: false, code: "runtime_exception" };
+    }
+  }
+  if (!learningLedgerStatus.ok) {
+    storageWritable = false;
+    showStorageWarning(
+      learningLedgerStatus.code === "runtime_unavailable"
+        ? "本机学习事件组件未能加载；为避免保存不完整闭环，本页已切换为只读。"
+        : "本机学习事件链未通过完整性核对；系统不会自动修复或覆盖。请先在“我的本机数据”导出备份，或仅清除学习事件后再继续。",
+    );
+    disableJourneyControls();
+  }
   if (!workspaceWriterLeaseAvailable) {
     showStorageWarning(
       navigator.locks?.request

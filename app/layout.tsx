@@ -1,6 +1,7 @@
 import { zhCN } from "@clerk/localizations";
 import { ClerkProvider } from "@clerk/nextjs";
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import type { ReactNode } from "react";
 
 import "../styles.css";
@@ -31,6 +32,11 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
   return (
     <html lang="zh-CN">
       <body>
+        <Script
+          id="sufeiya-learning-events-runtime"
+          src="/learning-events.js"
+          strategy="beforeInteractive"
+        />
         {clerkState.configured ? (
           <ClerkProvider
             dynamic

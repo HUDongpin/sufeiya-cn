@@ -14,6 +14,8 @@
   --color-muted: #62726d;
   --color-border: #d7d2c8;
   --color-border-dark: rgba(255, 255, 255, 0.17);
+  --color-danger: #8b2f32;
+  --color-danger-soft: #faeeeb;
   --font-display: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
   --font-sans: "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC",
     sans-serif;
@@ -426,7 +428,7 @@ button {
   stroke-width: 1.8;
 }
 
-.button:hover {
+.button:hover:not(:disabled) {
   transform: translateY(-2px);
 }
 
@@ -2827,6 +2829,32 @@ input[readonly] {
   line-height: 1.65;
 }
 
+.task-evidence-badge {
+  width: fit-content;
+  margin-top: 9px;
+  padding: 4px 8px;
+  display: inline-flex;
+  border: 1px solid var(--color-border);
+  background: var(--color-paper);
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.task-evidence-badge[data-evidence-class="practice_receipt"] {
+  border-color: #7a9b83;
+  background: #edf5ef;
+  color: #284c34;
+}
+
+.task-evidence-badge[data-evidence-class="learner_self_report"] {
+  border-color: #c9a15a;
+  background: #fff8e8;
+  color: #77500b;
+}
+
 .task-route {
   min-height: 44px;
   padding: 8px 14px;
@@ -3213,6 +3241,71 @@ button:disabled {
   font-size: 11px;
 }
 
+.checkin-evidence-status,
+.practice-binding-status,
+.locked-retest-target {
+  margin: 0;
+  padding: 16px 18px;
+  border: 1px solid var(--color-border);
+  background: var(--color-paper);
+  color: var(--color-muted);
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.checkin-evidence-status[data-evidence-class="practice_receipt"],
+.practice-binding-status[data-binding-status="bound_cycle_receipt"],
+.practice-binding-status[data-binding-status="bound_cycle_task"] {
+  border-left: 4px solid #5e8068;
+  background: #edf5ef;
+  color: #284c34;
+}
+
+.checkin-evidence-status[data-evidence-class="learner_self_report"],
+.checkin-evidence-status[data-evidence-class="evidence_insufficient"],
+.practice-binding-status[data-binding-status="bound_plan_task"],
+.practice-binding-status[data-binding-status="bound_plan_receipt"],
+.practice-binding-status[data-binding-status="standalone"],
+.practice-binding-status[data-binding-status="standalone_receipt"] {
+  border-left: 4px solid var(--color-accent-deep);
+  background: #fff8e8;
+  color: #77500b;
+}
+
+.practice-binding-status {
+  margin: 22px 0;
+}
+
+.practice-binding-status strong,
+.locked-retest-target > span,
+.locked-retest-target h3 {
+  display: block;
+}
+
+.practice-binding-status strong,
+.locked-retest-target h3 {
+  color: var(--color-ink);
+}
+
+.practice-binding-status p,
+.locked-retest-target p {
+  margin: 6px 0 0;
+}
+
+.locked-retest-target > span {
+  color: var(--color-accent-deep);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 0.1em;
+}
+
+.locked-retest-target h3 {
+  margin: 8px 0 0;
+  font-family: var(--font-display);
+  font-size: 24px;
+}
+
 .save-message {
   margin: 0;
 }
@@ -3285,6 +3378,31 @@ button:disabled {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
+}
+
+.data-actions [data-clear-learning-events],
+.data-actions [data-clear-workspace],
+.data-actions [data-clear-super-teacher] {
+  border-color: rgba(139, 47, 50, 0.38);
+  color: var(--color-danger);
+}
+
+.data-actions [data-clear-learning-events]:hover:not(:disabled),
+.data-actions [data-clear-workspace]:hover:not(:disabled),
+.data-actions [data-clear-super-teacher]:hover:not(:disabled) {
+  border-color: var(--color-danger);
+  background: var(--color-danger-soft);
+}
+
+.data-actions [data-clear-all-sufeiya] {
+  border-color: var(--color-danger);
+  background: var(--color-danger);
+  color: var(--color-white);
+}
+
+.data-actions [data-clear-all-sufeiya]:hover:not(:disabled) {
+  border-color: #712427;
+  background: #712427;
 }
 
 .resource-browser {
