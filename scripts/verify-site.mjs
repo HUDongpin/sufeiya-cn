@@ -1489,8 +1489,9 @@ check(
   workspace.indexOf('class="cycle-ledger-section') < workspace.indexOf('class="gate0-section') &&
     workspace.indexOf('class="cycle-ledger-section') < workspace.indexOf('class="cycle-history-section') &&
     workspace.indexOf('class="cycle-history-section') < workspace.indexOf('class="gate0-section') &&
-    workspace.indexOf('class="gate0-section') < workspace.indexOf('class="workspace-launch section'),
-  "workspace places cycle history after the current receipt and Gate 0 before supporting tools",
+    workspace.indexOf('class="gate0-section') < workspace.indexOf('class="source-admission-section') &&
+    workspace.indexOf('class="source-admission-section') < workspace.indexOf('class="workspace-launch section'),
+  "workspace places cycle history after the current receipt and Gate 0 plus source admission before supporting tools",
 );
 check(
   /aria-labelledby="gate0-title"/.test(gate0Section) &&
@@ -1515,15 +1516,55 @@ check(
     /formalGate0Pass !== false/.test(journeyScript),
   "workspace fetches only the bounded same-origin sanitized Gate 0 summary and fails closed on invalid data",
 );
+const sourceAdmissionSection = workspace.match(/<section class="source-admission-section[\s\S]*?<\/section>/)?.[0] || "";
+const sourceAdmissionCriteria = [...sourceAdmissionSection.matchAll(/data-source-criterion="([^"]+)"/g)].map((match) => match[1]);
+check(
+  /aria-labelledby="source-admission-title"/.test(sourceAdmissionSection) &&
+    /data-source-governance-status[^>]*aria-live="polite"/.test(sourceAdmissionSection) &&
+    JSON.stringify(sourceAdmissionCriteria) === JSON.stringify([
+      "teacher-reviewed",
+      "rag-rights",
+      "exam-version",
+      "explicit-rag",
+      "no-safety-flags",
+    ]) &&
+    /五项必须同时满足/.test(sourceAdmissionSection) &&
+    /仅链接目录必须先形成可审核正文/.test(sourceAdmissionSection) &&
+    /归档记录继续整体阻断/.test(sourceAdmissionSection) &&
+    /RAG 准入与 Gate A 的确定性静态解释是不同状态/.test(sourceAdmissionSection),
+  "workspace source-admission view is accessible and separates static, link-only, archived, and RAG states",
+);
+check(
+  /const SOURCE_GOVERNANCE_PROTOCOL_VERSION = "sufeiya_content_governance_v1"/.test(journeyScript) &&
+    /parseSourceGovernancePublicSummary\(body\.sourceGovernance\)/.test(journeyScript) &&
+    /candidate\.trackedRecords !== 15/.test(journeyScript) &&
+    /candidate\.blockedArchiveRecords !== 655/.test(journeyScript) &&
+    /candidate\.ragBlocked !== candidate\.trackedRecords - candidate\.ragEligible/.test(journeyScript) &&
+    /status\.textContent = "暂时无法核对来源准入登记"/.test(journeyScript),
+  "workspace validates the exact sanitized source-governance protocol and fails closed on count drift",
+);
+check(
+  contrastRatio([255, 255, 255], [16, 44, 41]) >= 4.5 &&
+    contrastRatio(compositeRgb([255, 255, 255], [16, 44, 41], 0.78), [16, 44, 41]) >= 4.5 &&
+    /@media \(max-width: 620px\) \{[\s\S]*?\.source-admission-metrics \{[\s\S]*?grid-template-columns: 1fr;/.test(styles),
+  "source-admission status card maintains AA contrast and collapses without mobile horizontal overflow",
+);
 const gate0RuntimeSource = sourceSection(
   journeyScript,
   "const gate0PublicKeys",
   "const renderJourneyDashboard",
 );
 await checkExecutableAsync(
-  "Gate 0 client renders a valid zero-of-29 response and treats protocol drift as unavailable rather than approved",
+  "workspace governance client renders valid Gate 0 and zero-RAG summaries while failing closed on independent protocol drift",
   async () => {
-    const runGate0Fixture = async (p0Gate) => {
+    const makeElement = () => ({
+      textContent: "",
+      value: undefined,
+      attributes: {},
+      setAttribute(name, value) { this.attributes[name] = String(value); },
+      removeAttribute(name) { delete this.attributes[name]; },
+    });
+    const runGate0Fixture = async (p0Gate, sourceGovernance) => {
       const elements = Object.fromEntries(
         [
           "[data-gate0-status]",
@@ -1531,17 +1572,38 @@ await checkExecutableAsync(
           "[data-gate0-resolved]",
           "[data-gate0-total]",
           "[data-gate0-progress]",
-        ].map((selector) => [selector, {
-          textContent: "",
-          value: undefined,
-          attributes: {},
-          setAttribute(name, value) { this.attributes[name] = String(value); },
-          removeAttribute(name) { delete this.attributes[name]; },
-        }]),
+        ].map((selector) => [selector, makeElement()]),
       );
       const root = {
         dataset: {},
         querySelector(selector) { return elements[selector] || null; },
+      };
+      const sourceElements = Object.fromEntries(
+        [
+          "[data-source-governance-status]",
+          "[data-source-governance-copy]",
+          "[data-source-rag-eligible]",
+          "[data-source-tracked]",
+          "[data-source-gate-a]",
+          "[data-source-link-only]",
+          "[data-source-archive-blocked]",
+          '[data-source-criterion="teacher-reviewed"]',
+          '[data-source-criterion="rag-rights"]',
+          '[data-source-criterion="exam-version"]',
+          '[data-source-criterion="explicit-rag"]',
+          '[data-source-criterion="no-safety-flags"]',
+        ].map((selector) => [selector, makeElement()]),
+      );
+      const sourceRoot = {
+        dataset: {},
+        querySelector(selector) { return sourceElements[selector] || null; },
+        querySelectorAll(selector) {
+          return selector === "[data-source-criterion]"
+            ? Object.entries(sourceElements)
+                .filter(([key]) => key.startsWith('[data-source-criterion="'))
+                .map(([, value]) => value)
+            : [];
+        },
       };
       let requestOptions = null;
       const context = {
@@ -1556,7 +1618,11 @@ await checkExecutableAsync(
           abort() {}
         },
         document: {
-          querySelector(selector) { return selector === "[data-gate0-summary]" ? root : null; },
+          querySelector(selector) {
+            if (selector === "[data-gate0-summary]") return root;
+            if (selector === "[data-source-governance]") return sourceRoot;
+            return null;
+          },
         },
         window: {
           location: { origin: "https://sufeiya.cn" },
@@ -1569,7 +1635,7 @@ await checkExecutableAsync(
             ok: true,
             url: "https://sufeiya.cn/api/governance/status",
             headers: { get: () => "application/json; charset=utf-8" },
-            text: async () => JSON.stringify({ mode: "sanitized_read_only_status", p0Gate }),
+            text: async () => JSON.stringify({ mode: "sanitized_read_only_status", p0Gate, sourceGovernance }),
           };
         },
       };
@@ -1578,15 +1644,16 @@ await checkExecutableAsync(
           const GATE0_STATUS_PATH = "/api/governance/status";
           const GATE0_PROTOCOL_VERSION = "sufeiya_p0_decision_log_v1";
           const GATE0_RELEASE_AUTHORIZATION = "separate_explicit_controls_required";
+          const SOURCE_GOVERNANCE_PROTOCOL_VERSION = "sufeiya_content_governance_v1";
           const isRecord = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value);
           ${gate0RuntimeSource}
           await loadGate0GovernanceStatus();
         })()
       `, context);
-      return { root, elements, requestOptions };
+      return { root, elements, sourceRoot, sourceElements, requestOptions };
     };
 
-    const valid = await runGate0Fixture({
+    const validP0 = {
       protocolVersion: "sufeiya_p0_decision_log_v1",
       status: "blocked",
       total: 29,
@@ -1595,8 +1662,27 @@ await checkExecutableAsync(
       defaultDisposition: "deny",
       formalGate0Pass: false,
       releaseAuthorization: "separate_explicit_controls_required",
-    });
-    const drifted = await runGate0Fixture({
+    };
+    const validSourceGovernance = {
+      protocolVersion: "sufeiya_content_governance_v1",
+      status: "none_admitted",
+      defaultDisposition: "deny",
+      trackedRecords: 15,
+      gateAClaimSources: 10,
+      catalogLinkOnly: 5,
+      ragEligible: 0,
+      ragBlocked: 15,
+      blockedArchiveRecords: 655,
+      criteria: {
+        teacherReviewed: 0,
+        ragRightsAllowed: 0,
+        examVersionCurrentOrNotApplicable: 10,
+        explicitRagAllowed: 0,
+        noBlockingSafetyFlags: 15,
+      },
+    };
+    const valid = await runGate0Fixture(validP0, validSourceGovernance);
+    const gate0Drifted = await runGate0Fixture({
       protocolVersion: "unknown_protocol",
       status: "decision_complete",
       total: 29,
@@ -1605,17 +1691,72 @@ await checkExecutableAsync(
       defaultDisposition: "deny",
       formalGate0Pass: true,
       releaseAuthorization: "opens_everything",
+    }, validSourceGovernance);
+    const sourceDrifted = await runGate0Fixture(validP0, {
+      ...validSourceGovernance,
+      status: "some_admitted",
+      ragEligible: 1,
+      ragBlocked: 14,
+    });
+    const sourceLowerBoundDrifted = await runGate0Fixture(validP0, {
+      ...validSourceGovernance,
+      criteria: {
+        teacherReviewed: 15,
+        ragRightsAllowed: 15,
+        examVersionCurrentOrNotApplicable: 15,
+        explicitRagAllowed: 15,
+        noBlockingSafetyFlags: 15,
+      },
+    });
+    const sourceLinkOnlyAdmittedDrifted = await runGate0Fixture(validP0, {
+      ...validSourceGovernance,
+      status: "some_admitted",
+      ragEligible: 11,
+      ragBlocked: 4,
+      criteria: {
+        teacherReviewed: 11,
+        ragRightsAllowed: 11,
+        examVersionCurrentOrNotApplicable: 15,
+        explicitRagAllowed: 11,
+        noBlockingSafetyFlags: 15,
+      },
+    });
+    const sourceLinkOnlyExplicitDrifted = await runGate0Fixture(validP0, {
+      ...validSourceGovernance,
+      criteria: {
+        ...validSourceGovernance.criteria,
+        explicitRagAllowed: 11,
+      },
     });
 
     return valid.root.dataset.gate0State === "blocked" &&
       valid.elements["[data-gate0-status]"].textContent === "Gate 0 尚未通过" &&
       valid.elements["[data-gate0-resolved]"].textContent === "0" &&
       valid.elements["[data-gate0-progress]"].value === 0 &&
+      valid.sourceRoot.dataset.sourceGovernanceState === "none-admitted" &&
+      valid.sourceElements["[data-source-governance-status]"].textContent === "RAG 准入仍为 0 条" &&
+      valid.sourceElements["[data-source-rag-eligible]"].textContent === "0" &&
+      valid.sourceElements['[data-source-criterion="exam-version"]'].textContent === "10 / 15" &&
       valid.requestOptions?.method === "GET" &&
       !("body" in valid.requestOptions) &&
-      drifted.root.dataset.gate0State === "unavailable" &&
-      drifted.elements["[data-gate0-resolved]"].textContent === "—" &&
-      drifted.elements["[data-gate0-status]"].textContent === "暂时无法核对 Gate 0 注册表";
+      gate0Drifted.root.dataset.gate0State === "unavailable" &&
+      gate0Drifted.elements["[data-gate0-resolved]"].textContent === "—" &&
+      gate0Drifted.elements["[data-gate0-status]"].textContent === "暂时无法核对 Gate 0 注册表" &&
+      gate0Drifted.sourceRoot.dataset.sourceGovernanceState === "none-admitted" &&
+      gate0Drifted.sourceElements["[data-source-governance-status]"].textContent === "RAG 准入仍为 0 条" &&
+      sourceDrifted.root.dataset.gate0State === "blocked" &&
+      sourceDrifted.sourceRoot.dataset.sourceGovernanceState === "unavailable" &&
+      sourceDrifted.sourceElements["[data-source-rag-eligible]"].textContent === "—" &&
+      sourceDrifted.sourceElements["[data-source-governance-status]"].textContent === "暂时无法核对来源准入登记" &&
+      sourceLowerBoundDrifted.root.dataset.gate0State === "blocked" &&
+      sourceLowerBoundDrifted.sourceRoot.dataset.sourceGovernanceState === "unavailable" &&
+      sourceLowerBoundDrifted.sourceElements["[data-source-rag-eligible]"].textContent === "—" &&
+      sourceLinkOnlyAdmittedDrifted.root.dataset.gate0State === "blocked" &&
+      sourceLinkOnlyAdmittedDrifted.sourceRoot.dataset.sourceGovernanceState === "unavailable" &&
+      sourceLinkOnlyAdmittedDrifted.sourceElements["[data-source-rag-eligible]"].textContent === "—" &&
+      sourceLinkOnlyExplicitDrifted.root.dataset.gate0State === "blocked" &&
+      sourceLinkOnlyExplicitDrifted.sourceRoot.dataset.sourceGovernanceState === "unavailable" &&
+      sourceLinkOnlyExplicitDrifted.sourceElements["[data-source-rag-eligible]"].textContent === "—";
   },
 );
 
@@ -4731,7 +4872,7 @@ check(
     /read-only-no-mutations/.test(releaseGovernanceStatusRoute) &&
     /p0Gate:\s*\{[\s\S]*resolved: p0Summary\.resolved[\s\S]*formalGate0Pass: p0Summary\.formalGate0Pass/.test(releaseGovernanceStatusRoute) &&
     /X-Sufeiya-P0-Protocol/.test(releaseGovernanceStatusRoute) &&
-    !/evidenceCatalog|decisionOwner|contentSha256|locator/.test(releaseGovernanceStatusRoute),
+    !/evidenceCatalog|decisionOwner|contentSha256|locator|nextRegisterReviewAt|blockedDecisionIds|blockedBindingIds/.test(releaseGovernanceStatusRoute),
   "governance status API is GET-only, no-store, sanitized, and exposes no mutation surface",
 );
 check(

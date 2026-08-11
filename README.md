@@ -33,6 +33,8 @@ SUFEIYA_CLERK_E2E_BASE_URL=https://your-new-preview.vercel.app npm run test:e2e:
 
 跨出 Gate A 本机演示边界的能力统一受 `data/release-decision-register.v1.json` 控制。该登记表对本机、预览和生产使用同一版本，默认拒绝；环境变量只能表达请求配置，不能把待审或未批准的能力打开。登记表包含批准方案文件的 SHA-256、结构化证据引用、实施影响、实施状态和复核日期，解析后在运行时深度冻结；外部调用还必须逐项匹配获批的 provider、model、region 与 data mode，并在供应商请求前再次核对。当前只有本机合成学习闭环、Clerk 访问边界、Qwen 供应商选择，以及“项目所有者已声明获得声音授权”这一事实有明确记录；书面授权证据核验、外部文本模型的数据流/留存/地域/预算/语义引用校验、声音的数据流/删除/披露/传输、服务器学生数据、真实社区、真实人工队列、教研管理员写入和真实奖励仍被统一闸门阻断。供应商选择或授权声明不等于发布批准。
 
+Sofia 的 10 条 Gate A 静态解释来源与 5 条仅链接目录另由 `data/content-governance.v1.json` 逐条绑定到来源登记表的 SHA-256。规范字段严格拆分为 `source_class`、`claim_verification_status`、`review_status`、六种用途的 `rights_status`、`exam_version_status`、数组型 `safety_flags` 与 `rag_eligibility`。仅链接目录没有可审核正文或转写，结构上不得直接成为 RAG 材料；未来必须先形成并重新绑定一条可审核的完整来源记录。RAG 只有在这样的候选记录同时满足教师审核、`rights_status.rag=allowed`、考试版本为 `current` 或 `not_applicable`、`rag_eligibility=allowed` 且无阻断安全旗标时才可准入；任一字段缺失、协议漂移、来源载荷变更或显式标签与其他条件冲突都会失败关闭。当前 15 条逐条登记来源的 RAG 准入数仍为 0，另有 655 条归档记录整体阻断；Gate A 静态解释可用、公开视频可显示标题链接，与 RAG 准入是三个不同状态。
+
 批准方案附录 A 的 29 项 P0 另由 `data/p0-decision-log.v1.json` 一对一登记。问题标签采用附录原文；其中 `operationalGuardrail` 是保守的工程摘要，不冒充完整原文默认建议或会议结论。完整定义（含该摘要与固定运行时控制映射）受逐项摘要和集合摘要约束：没有逐项会议事件时一律派生为 `not_approved`。后续采用、拒绝、暂缓或撤销必须新增逐 item、逐 outcome、逐事件摘要绑定的记录；项目特定的多角色书面证据、主/备责任角色、实现影响和复审条件均须齐备。同一个 owner-decision 材料摘要默认不得跨角色或跨项目复用，避免把一份“整体批准”复制成 29 项结论；如未来确需批量会议纪要，须先增加逐项列出 item、outcome、role 与事件摘要的签名 batch manifest，目前没有该放行路径。事件以 SHA-256 回链前一事件，账本修订以 `previousLedgerSha256` 回链；`data/p0-decision-log-published-baseline.v1.json` 进一步封存已发布证据与事件前缀，跨修订校验禁止删除或替换历史。负责人只使用角色 ID，不在仓库或公开 API 中保存个人姓名、联系方式或证据位置。即使 29 项全部形成采用或拒绝结论，该 Decision Log 也不会直接打开任何运行时 surface；现有发布登记表仍须独立满足批准、实施、复核与 provider/model/region/data-mode 绑定。
 
 Qwen 后端已按 2026-08-11 最新的 Alibaba Cloud 官方 DashScope/OpenAI 兼容 API 文档锁定正式模型 `qwen3.8-max`。单独的 `qwen3.8-max-preview` Token Plan 模型、`sk-sp` 类凭据与 Token Plan 专用端点仍不允许用于 Sofia 应用后端。模型配置已完成，但在外部数据流、留存删除、地域、预算和语义引用校验获批前，供应商请求仍会以零网络调用失败关闭。
@@ -40,7 +42,7 @@ Qwen 后端已按 2026-08-11 最新的 Alibaba Cloud 官方 DashScope/OpenAI 兼
 ## Page structure
 
 - `/`：精炼首页与四个页面入口；
-- `/workspace`：七阶段 Gate A 闭环进度、独立功能页入口、只投影中央校验器已确认 ID 的本轮证据链总览、最近最多 10 轮的本机计划版本历史，以及脱敏的 29 项 P0 书面决定汇总；
+- `/workspace`：七阶段 Gate A 闭环进度、独立功能页入口、只投影中央校验器已确认 ID 的本轮证据链总览、最近最多 10 轮的本机计划版本历史、脱敏的 29 项 P0 书面决定汇总，以及逐条来源治理/RAG 准入的只读计数；
 - `/super-teacher`：有来源的 Gate A 学习解释、拒答边界、非 AI 退出与本机人工支持请求；
 - `/diagnostic`：18+、本机、无评分的六任务诊断证据包（2 Reading + 2 Listening + 90 秒 Speaking + 3 分钟 Writing）；
 - `/plan`：7 天学习计划生成器；
@@ -68,6 +70,7 @@ Qwen 后端已按 2026-08-11 最新的 Alibaba Cloud 官方 DashScope/OpenAI 兼
 - 在工作台集中核对 `diagnostic_session_id → plan_id → recommendation_id → check_in_id → review_id → peer_help_id/status → retest_id → updated_plan_id`；未通过前序回链的节点不会提前显示，临时更新计划单独标记为等待具备资质的人工确认；
 - 在本轮回执之后查看最近最多 10 轮的本机历史与 `base_plan_id → updated_plan_id` 重点对照；历史按结束时间最新在前，同一 `cycle_id` 重复记录全部失败关闭，仍在上方显示的当前轮次不会重复列入历史。每一轮都重新核对完整域 ID 链、`gate_a_original_6_v1` 任务集与摘要、能力方向、计划来源、里程碑 UTC 时间顺序、匿名事件绑定和该轮事件片段；只有“本机闭环已完成”或明确“待具备资格人员复核”的记录可进入投影，二者不会合并计数或混用文案；
 - 在工作台查看同源、只读、无缓存的 Gate 0 脱敏汇总；接口异常、协议漂移、超时或字段不完整时按“未通过”处理，不公开 29 项问题文本、负责人、证据、控制映射或复审日期，也不把登录与功能实现计为批准；
+- 在工作台查看同一无缓存接口返回的来源治理脱敏汇总：区分 Gate A 静态来源、仅链接目录、逐条 RAG 准入与整体阻断的归档记录，并显示五项独立准入条件的通过计数；协议、分项计数、总数或状态关系漂移时只把来源区块降级为“无法核对”，不会把未知状态显示成可检索；
 - 依次完成 2 项 Reading、2 项 Listening、90 秒 Speaking 与 3 分钟 Writing：客观题只封存首答，若本机持久化失败则完整回滚到提交前状态；听力文本替代、播放失败、中断、跳过等情况进入质量标记，最终由学习者确认一条下一步优先任务；
 - 纯前端 7 天计划生成器；
 - 可跨页面同步的今日任务清单；

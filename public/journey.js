@@ -10,6 +10,7 @@
   const GATE0_STATUS_PATH = "/api/governance/status";
   const GATE0_PROTOCOL_VERSION = "sufeiya_p0_decision_log_v1";
   const GATE0_RELEASE_AUTHORIZATION = "separate_explicit_controls_required";
+  const SOURCE_GOVERNANCE_PROTOCOL_VERSION = "sufeiya_content_governance_v1";
   const PRACTICE_RECEIPT_VERSION = "sufeiya_practice_receipt_v2";
   const LEGACY_PRACTICE_RECEIPT_VERSION = "sufeiya_practice_receipt_v1";
   const learningEventsRuntime = window.SufeiyaLearningEvents;
@@ -4026,6 +4027,69 @@
     };
   };
 
+  const sourceGovernancePublicKeys = Object.freeze([
+    "blockedArchiveRecords",
+    "catalogLinkOnly",
+    "criteria",
+    "defaultDisposition",
+    "gateAClaimSources",
+    "protocolVersion",
+    "ragBlocked",
+    "ragEligible",
+    "status",
+    "trackedRecords",
+  ].sort());
+  const sourceGovernanceCriteriaKeys = Object.freeze([
+    "examVersionCurrentOrNotApplicable",
+    "explicitRagAllowed",
+    "noBlockingSafetyFlags",
+    "ragRightsAllowed",
+    "teacherReviewed",
+  ].sort());
+
+  const parseSourceGovernancePublicSummary = (candidate) => {
+    if (!isRecord(candidate) || !isRecord(candidate.criteria)) return null;
+    if (JSON.stringify(Object.keys(candidate).sort()) !== JSON.stringify(sourceGovernancePublicKeys)) return null;
+    if (JSON.stringify(Object.keys(candidate.criteria).sort()) !== JSON.stringify(sourceGovernanceCriteriaKeys)) return null;
+    const counts = [
+      candidate.trackedRecords,
+      candidate.gateAClaimSources,
+      candidate.catalogLinkOnly,
+      candidate.ragEligible,
+      candidate.ragBlocked,
+      candidate.blockedArchiveRecords,
+      ...Object.values(candidate.criteria),
+    ];
+    const criterionCounts = Object.values(candidate.criteria);
+    const minimumPossibleEligible = Math.max(
+      0,
+      criterionCounts.reduce((total, value) => total + value, 0) -
+        ((criterionCounts.length - 1) * candidate.trackedRecords),
+    );
+    if (
+      candidate.protocolVersion !== SOURCE_GOVERNANCE_PROTOCOL_VERSION ||
+      !["none_admitted", "some_admitted", "all_tracked_admitted"].includes(candidate.status) ||
+      candidate.defaultDisposition !== "deny" ||
+      !counts.every((value) => Number.isSafeInteger(value) && value >= 0) ||
+      candidate.trackedRecords !== 15 ||
+      candidate.gateAClaimSources !== 10 ||
+      candidate.catalogLinkOnly !== 5 ||
+      candidate.gateAClaimSources + candidate.catalogLinkOnly !== candidate.trackedRecords ||
+      candidate.ragBlocked !== candidate.trackedRecords - candidate.ragEligible ||
+      candidate.ragEligible > candidate.trackedRecords ||
+      candidate.ragEligible > candidate.gateAClaimSources ||
+      candidate.blockedArchiveRecords !== 655 ||
+      criterionCounts.some((value) => value > candidate.trackedRecords) ||
+      candidate.criteria.explicitRagAllowed > candidate.gateAClaimSources ||
+      criterionCounts.some((value) => candidate.ragEligible > value) ||
+      candidate.ragEligible < minimumPossibleEligible ||
+      (candidate.status === "none_admitted" && candidate.ragEligible !== 0) ||
+      (candidate.status === "some_admitted" && (candidate.ragEligible === 0 || candidate.ragEligible === candidate.trackedRecords)) ||
+      (candidate.status === "all_tracked_admitted" && candidate.ragEligible !== candidate.trackedRecords)
+    ) return null;
+    return candidate;
+  };
+
   const renderGate0Failure = () => {
     const root = document.querySelector("[data-gate0-summary]");
     if (!root) return;
@@ -4075,8 +4139,74 @@
     }
   };
 
+  const renderSourceGovernanceFailure = () => {
+    const root = document.querySelector("[data-source-governance]");
+    if (!root) return;
+    root.dataset.sourceGovernanceState = "unavailable";
+    const status = root.querySelector("[data-source-governance-status]");
+    const copy = root.querySelector("[data-source-governance-copy]");
+    if (status) status.textContent = "暂时无法核对来源准入登记";
+    if (copy) copy.textContent = "为避免把未知状态显示成可检索，当前 RAG 准入按 0 处理；Gate A 的静态解释边界不变。";
+    [
+      "[data-source-rag-eligible]",
+      "[data-source-tracked]",
+      "[data-source-gate-a]",
+      "[data-source-link-only]",
+      "[data-source-archive-blocked]",
+    ].forEach((selector) => {
+      const element = root.querySelector(selector);
+      if (element) element.textContent = "—";
+    });
+    root.querySelectorAll("[data-source-criterion]").forEach((element) => {
+      element.textContent = "— / —";
+    });
+  };
+
+  const renderSourceGovernanceSummary = (summary) => {
+    const root = document.querySelector("[data-source-governance]");
+    if (!root) return;
+    root.dataset.sourceGovernanceState = summary.status.replaceAll("_", "-");
+    const status = root.querySelector("[data-source-governance-status]");
+    const copy = root.querySelector("[data-source-governance-copy]");
+    if (status) {
+      status.textContent = summary.status === "none_admitted"
+        ? "RAG 准入仍为 0 条"
+        : summary.status === "all_tracked_admitted"
+          ? `${summary.ragEligible} 条均通过逐项准入`
+          : `${summary.ragEligible} 条通过逐项准入`;
+    }
+    if (copy) {
+      copy.textContent = summary.ragEligible === 0
+        ? "10 条 Gate A 静态解释来源与 5 条仅链接目录都已逐条登记，但没有任何一条同时通过五项 RAG 准入条件。"
+        : `已有 ${summary.ragEligible} 条通过逐项准入；这仍不代表外部模型、供应商数据流或生产发布已经批准。`;
+    }
+    const setSourceText = (selector, value) => {
+      const element = root.querySelector(selector);
+      if (element) element.textContent = String(value);
+    };
+    setSourceText("[data-source-rag-eligible]", summary.ragEligible);
+    setSourceText("[data-source-tracked]", summary.trackedRecords);
+    setSourceText("[data-source-gate-a]", `${summary.gateAClaimSources} 条`);
+    setSourceText("[data-source-link-only]", `${summary.catalogLinkOnly} 条`);
+    setSourceText("[data-source-archive-blocked]", `${summary.blockedArchiveRecords} 条`);
+    const criterionCounts = {
+      "teacher-reviewed": summary.criteria.teacherReviewed,
+      "rag-rights": summary.criteria.ragRightsAllowed,
+      "exam-version": summary.criteria.examVersionCurrentOrNotApplicable,
+      "explicit-rag": summary.criteria.explicitRagAllowed,
+      "no-safety-flags": summary.criteria.noBlockingSafetyFlags,
+    };
+    Object.entries(criterionCounts).forEach(([criterion, value]) => {
+      const element = root.querySelector(`[data-source-criterion="${criterion}"]`);
+      if (element) element.textContent = `${value} / ${summary.trackedRecords}`;
+    });
+  };
+
   const loadGate0GovernanceStatus = async () => {
-    if (!document.querySelector("[data-gate0-summary]")) return;
+    if (
+      !document.querySelector("[data-gate0-summary]") &&
+      !document.querySelector("[data-source-governance]")
+    ) return;
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 6000);
     try {
@@ -4102,10 +4232,14 @@
       const body = JSON.parse(raw);
       if (!isRecord(body) || body.mode !== "sanitized_read_only_status") throw new Error("invalid_gate0_envelope");
       const summary = parseGate0PublicSummary(body.p0Gate);
-      if (!summary) throw new Error("invalid_gate0_summary");
-      renderGate0Summary(summary);
+      if (summary) renderGate0Summary(summary);
+      else renderGate0Failure();
+      const sourceSummary = parseSourceGovernancePublicSummary(body.sourceGovernance);
+      if (sourceSummary) renderSourceGovernanceSummary(sourceSummary);
+      else renderSourceGovernanceFailure();
     } catch {
       renderGate0Failure();
+      renderSourceGovernanceFailure();
     } finally {
       window.clearTimeout(timeout);
     }

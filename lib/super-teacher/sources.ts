@@ -1,6 +1,14 @@
+import { createHash } from "node:crypto";
+
 import { z } from "zod";
 
+import contentGovernanceRegisterJson from "@/data/content-governance.v1.json";
 import sourceRegisterJson from "@/data/super-teacher-source-register.json";
+import {
+  BLOCKING_SAFETY_FLAGS,
+  evaluateRagAdmission,
+  parseContentGovernanceRegister,
+} from "@/lib/content-governance";
 import type {
   GroundingBundle,
   GroundingSource,
@@ -50,9 +58,102 @@ const registerSchema = z
         .strict(),
     ),
   })
-  .strict();
+  .strict()
+  .superRefine((register, context) => {
+    const sourceIds = new Map<string, string>();
+    [
+      ...register.claimSources.map((source, index) => ({ id: source.id, section: "claimSources" as const, index })),
+      ...register.linkOnlyResources.map((source, index) => ({ id: source.id, section: "linkOnlyResources" as const, index })),
+    ].forEach(({ id, section, index }) => {
+      const previousSection = sourceIds.get(id);
+      if (previousSection) {
+        context.addIssue({
+          code: "custom",
+          message: `duplicate source ID across ${previousSection} and ${section}: ${id}`,
+          path: [section, index, "id"],
+        });
+      }
+      sourceIds.set(id, section);
+    });
 
-const sourceRegister = registerSchema.parse(sourceRegisterJson);
+    const blockedFamilyIds = new Set<string>();
+    register.blockedFamilies.forEach((family, index) => {
+      if (blockedFamilyIds.has(family.id)) {
+        context.addIssue({
+          code: "custom",
+          message: `duplicate blocked-family ID: ${family.id}`,
+          path: ["blockedFamilies", index, "id"],
+        });
+      }
+      blockedFamilyIds.add(family.id);
+    });
+  });
+
+function deepFreeze<T>(value: T): T {
+  if (!value || typeof value !== "object" || Object.isFrozen(value)) return value;
+  for (const nested of Object.values(value)) deepFreeze(nested);
+  return Object.freeze(value);
+}
+
+const sourceRegister = deepFreeze(registerSchema.parse(sourceRegisterJson));
+
+export const CONTENT_GOVERNANCE_REGISTER = deepFreeze(
+  parseContentGovernanceRegister(contentGovernanceRegisterJson),
+);
+
+function sha256(value: string) {
+  return createHash("sha256").update(value, "utf8").digest("hex");
+}
+
+function canonicalClaimSourcePayload(source: (typeof sourceRegister.claimSources)[number]) {
+  return JSON.stringify({
+    id: source.id,
+    title: source.title,
+    href: source.href,
+    sourceClass: source.sourceClass,
+    admissionStatus: source.admissionStatus,
+    content: source.content,
+    allowedIntents: source.allowedIntents,
+  });
+}
+
+function canonicalLinkOnlyPayload(resource: (typeof sourceRegister.linkOnlyResources)[number]) {
+  return JSON.stringify({
+    id: resource.id,
+    title: resource.title,
+    href: resource.href,
+    duration: resource.duration,
+    skills: resource.skills,
+    admissionStatus: resource.admissionStatus,
+    restriction: resource.restriction,
+  });
+}
+
+const sourcePayloads = new Map<string, { registerSection: "claim_source" | "link_only_resource"; sha256: string }>([
+  ...sourceRegister.claimSources.map((source) => [
+    source.id,
+    { registerSection: "claim_source" as const, sha256: sha256(canonicalClaimSourcePayload(source)) },
+  ] as const),
+  ...sourceRegister.linkOnlyResources.map((resource) => [
+    resource.id,
+    { registerSection: "link_only_resource" as const, sha256: sha256(canonicalLinkOnlyPayload(resource)) },
+  ] as const),
+]);
+
+if (sourcePayloads.size !== CONTENT_GOVERNANCE_REGISTER.records.length) {
+  throw new Error("Invalid Sufeiya content governance register at records");
+}
+
+for (const record of CONTENT_GOVERNANCE_REGISTER.records) {
+  const source = sourcePayloads.get(record.id);
+  if (
+    !source ||
+    source.registerSection !== record.register_section ||
+    source.sha256 !== record.record_payload_sha256
+  ) {
+    throw new Error(`Invalid Sufeiya content governance source binding: ${record.id}`);
+  }
+}
 
 const skillLabels: Record<string, string> = {
   Reading: "Reading 阅读",
@@ -214,5 +315,45 @@ export function admittedSourceCounts() {
     linkOnlyResources: sourceRegister.linkOnlyResources.length,
     detOfficialSources: 0 as const,
     archivedKnowledgeChunks: 0 as const,
+  };
+}
+
+export function sourceGovernanceSummary() {
+  const evaluations = CONTENT_GOVERNANCE_REGISTER.records.map((record) => ({
+    record,
+    evaluation: evaluateRagAdmission(record),
+  }));
+  const trackedRecords = evaluations.length;
+  const ragEligible = evaluations.filter(({ evaluation }) => evaluation.admitted).length;
+  const blockedArchiveRecords = sourceRegister.blockedFamilies.reduce(
+    (total, family) => total + family.recordCount,
+    0,
+  );
+
+  return {
+    protocolVersion: CONTENT_GOVERNANCE_REGISTER.protocolVersion,
+    status: ragEligible === 0
+      ? "none_admitted" as const
+      : ragEligible === trackedRecords
+        ? "all_tracked_admitted" as const
+        : "some_admitted" as const,
+    defaultDisposition: CONTENT_GOVERNANCE_REGISTER.defaultDisposition,
+    trackedRecords,
+    gateAClaimSources: sourceRegister.claimSources.length,
+    catalogLinkOnly: sourceRegister.linkOnlyResources.length,
+    ragEligible,
+    ragBlocked: trackedRecords - ragEligible,
+    blockedArchiveRecords,
+    criteria: {
+      teacherReviewed: evaluations.filter(({ record }) => record.review_status === "teacher_reviewed").length,
+      ragRightsAllowed: evaluations.filter(({ record }) => record.rights_status.rag === "allowed").length,
+      examVersionCurrentOrNotApplicable: evaluations.filter(({ record }) =>
+        ["current", "not_applicable"].includes(record.exam_version_status),
+      ).length,
+      explicitRagAllowed: evaluations.filter(({ record }) => record.rag_eligibility === "allowed").length,
+      noBlockingSafetyFlags: evaluations.filter(({ record }) =>
+        !record.safety_flags.some((flag) => BLOCKING_SAFETY_FLAGS.includes(flag)),
+      ).length,
+    },
   };
 }

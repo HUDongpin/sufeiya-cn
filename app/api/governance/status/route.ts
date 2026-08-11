@@ -4,10 +4,12 @@ import {
   releaseGovernanceSummary,
 } from "@/lib/release-governance";
 import { P0_DECISION_PROTOCOL, summarizeP0DecisionLog } from "@/lib/p0-decision-log";
+import { sourceGovernanceSummary } from "@/lib/super-teacher/sources";
 
 export async function GET() {
   const summary = releaseGovernanceSummary();
   const p0Summary = summarizeP0DecisionLog();
+  const sourceSummary = sourceGovernanceSummary();
   const surfaces = Object.fromEntries(
     RELEASE_SURFACES.map((surface) => {
       const evaluation = summary[surface];
@@ -15,19 +17,13 @@ export async function GET() {
         enabled: evaluation.enabled,
         status: evaluation.status,
         reasonCode: evaluation.reasonCode,
-        blockedDecisionIds: evaluation.blockedControlIds,
-        blockedBindingIds: evaluation.blockedBindingIds,
       }];
     }),
   );
 
   return Response.json({
     protocolVersion: RELEASE_DECISION_REGISTER.protocolVersion,
-    effectiveAt: RELEASE_DECISION_REGISTER.effectiveAt,
-    nextRegisterReviewAt: RELEASE_DECISION_REGISTER.nextRegisterReviewAt,
-    registerReviewStatus: RELEASE_DECISION_REGISTER.registerReviewStatus,
     defaultDisposition: RELEASE_DECISION_REGISTER.defaultDisposition,
-    environmentPolicy: RELEASE_DECISION_REGISTER.environmentPolicy,
     mode: "sanitized_read_only_status",
     p0Gate: {
       protocolVersion: p0Summary.protocolVersion,
@@ -39,6 +35,7 @@ export async function GET() {
       formalGate0Pass: p0Summary.formalGate0Pass,
       releaseAuthorization: p0Summary.releaseAuthorization,
     },
+    sourceGovernance: sourceSummary,
     surfaces,
   }, {
     headers: {

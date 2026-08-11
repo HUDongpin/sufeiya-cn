@@ -1044,6 +1044,39 @@ const workspaceContent = `
         <p class="gate0-footnote">当前只公开脱敏汇总，不公开负责人、证据位置、内部决策摘要、控制项映射或复审日期。完整 Decision Log 需要独立 staff RBAC 才能查看。</p>
       </div>
     </section>
+    <section class="source-admission-section section" aria-labelledby="source-admission-title" data-source-governance data-source-governance-state="loading">
+      <div class="section-inner">
+        <div class="source-admission-heading">
+          <div><p class="workspace-overline">SOURCE GOVERNANCE / DEFAULT DENY</p><h2 id="source-admission-title">能被看到，<br />不等于能进入 RAG。</h2></div>
+          <p>仅链接目录必须先形成可审核正文，才可成为 RAG 候选；候选内容还必须同时通过教师审核、用途权利、考试版本、显式准入和安全旗标五项检查。这里仅显示脱敏计数，不开放知识库内容。</p>
+        </div>
+        <div class="source-admission-shell">
+          <div class="source-admission-status-card">
+            <span>CANONICAL CONTRACT · READ ONLY</span>
+            <strong data-source-governance-status aria-live="polite">正在核对来源准入登记</strong>
+            <p data-source-governance-copy>核对完成前，RAG 准入数按 0 处理；Gate A 静态解释来源与仅链接目录不会被当作可检索知识库。</p>
+            <dl class="source-admission-metrics">
+              <div><dt>RAG 已准入</dt><dd><span data-source-rag-eligible>—</span> / <span data-source-tracked>15</span></dd></div>
+              <div><dt>Gate A 静态来源</dt><dd data-source-gate-a>—</dd></div>
+              <div><dt>仅链接目录</dt><dd data-source-link-only>—</dd></div>
+              <div><dt>归档继续阻断</dt><dd data-source-archive-blocked>—</dd></div>
+            </dl>
+          </div>
+          <aside class="source-admission-contract" aria-label="RAG 逐条准入合同">
+            <span>ALL FIVE MUST PASS</span>
+            <strong>五项必须同时满足</strong>
+            <ol>
+              <li><span>01</span><div><b>教师审核</b><small>review_status = teacher_reviewed</small></div><em data-source-criterion="teacher-reviewed">— / 15</em></li>
+              <li><span>02</span><div><b>RAG 用途权利</b><small>rights_status.rag = allowed</small></div><em data-source-criterion="rag-rights">— / 15</em></li>
+              <li><span>03</span><div><b>版本当前或不适用</b><small>exam_version_status</small></div><em data-source-criterion="exam-version">— / 15</em></li>
+              <li><span>04</span><div><b>显式准入</b><small>rag_eligibility = allowed</small></div><em data-source-criterion="explicit-rag">— / 15</em></li>
+              <li><span>05</span><div><b>无阻断安全旗标</b><small>safety_flags</small></div><em data-source-criterion="no-safety-flags">— / 15</em></li>
+            </ol>
+          </aside>
+        </div>
+        <p class="source-admission-footnote">这份视图只说明逐条登记来源的准入状态；归档记录继续整体阻断。RAG 准入与 Gate A 的确定性静态解释是不同状态；静态来源、公开视频标题或归档预览不得冒充已审核 RAG。</p>
+      </div>
+    </section>
     <section class="workspace-launch section" aria-labelledby="workspace-launch-title">
       <div class="section-inner">
         <div class="workspace-launch-heading">

@@ -271,6 +271,10 @@ test("a temporary Development user can traverse the protected smoke path and is 
     await expect(page.locator("[data-gate0-status]")).toHaveText("Gate 0 尚未通过");
     await expect(page.locator("[data-gate0-resolved]")).toHaveText("0");
     await expect(page.locator("[data-gate0-total]")).toHaveText("29");
+    await expect(page.locator("[data-source-governance]")).toHaveAttribute("data-source-governance-state", "none-admitted");
+    await expect(page.locator("[data-source-governance-status]")).toHaveText("RAG 准入仍为 0 条");
+    await expect(page.locator("[data-source-rag-eligible]")).toHaveText("0");
+    await expect(page.locator('[data-source-criterion="exam-version"]')).toHaveText("10 / 15");
 
     stage = "authenticated teaching-review demo";
     await page.goto("/teaching-review-demo", { waitUntil: "domcontentloaded" });
