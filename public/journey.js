@@ -1088,6 +1088,515 @@
     };
   };
 
+  const cycleHistoryTopLevelKeys = Object.freeze([
+    "basePlanId",
+    "checkIn",
+    "checkInId",
+    "closedAt",
+    "createdAt",
+    "cycleId",
+    "diagnostic",
+    "diagnosticSessionId",
+    "peerHelp",
+    "peerHelpId",
+    "planUpdate",
+    "protocolVersion",
+    "provisionalAt",
+    "recommendation",
+    "recommendationId",
+    "retest",
+    "retestId",
+    "review",
+    "reviewId",
+    "status",
+    "updatedAt",
+    "updatedPlanId",
+  ].sort());
+  const CYCLE_HISTORY_LIMIT = 10;
+  const CYCLE_HISTORY_TERMINAL_STATUSES = new Set(["completed", "provisional_pending_human_review"]);
+  const CYCLE_HISTORY_FORBIDDEN_KEYS = new Set([
+    "accountId",
+    "clerkId",
+    "conversation",
+    "email",
+    "examDate",
+    "messages",
+    "name",
+    "nickname",
+    "profile",
+    "sofiaChat",
+    "sofiaMessages",
+  ]);
+  const CYCLE_HISTORY_ID_FIELDS = Object.freeze([
+    "cycleId",
+    "diagnosticSessionId",
+    "basePlanId",
+    "recommendationId",
+    "checkInId",
+    "reviewId",
+    "peerHelpId",
+    "retestId",
+    "updatedPlanId",
+  ]);
+  const CYCLE_HISTORY_EVENT_TYPES = Object.freeze([
+    "learning_cycle.started",
+    "recommendation.decided",
+    "practice_attempt.finalized",
+    "check_in.committed",
+    "retest.completed",
+    "learning_cycle.completed",
+  ]);
+  const ISO_UTC_MILLISECOND_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+
+  const exactHistoryKeys = (value, expectedKeys) =>
+    isRecord(value) && JSON.stringify(Object.keys(value).sort()) === JSON.stringify(expectedKeys);
+  const exactUtcTimestamp = (value) => {
+    if (typeof value !== "string" || !ISO_UTC_MILLISECOND_PATTERN.test(value)) return false;
+    const timestamp = Date.parse(value);
+    return Number.isFinite(timestamp) && new Date(timestamp).toISOString() === value;
+  };
+  const historyIdValid = (value) =>
+    typeof value === "string" &&
+    value.length >= 3 &&
+    value.length <= 180 &&
+    !/[\u0000-\u001f\u007f]/.test(value);
+  const historyContainsForbiddenEnvelope = (value, seen = new Set()) => {
+    if (!value || typeof value !== "object") return false;
+    if (seen.has(value)) return true;
+    seen.add(value);
+    const entries = Array.isArray(value) ? value.map((item, index) => [String(index), item]) : Object.entries(value);
+    for (const [key, child] of entries) {
+      if (CYCLE_HISTORY_FORBIDDEN_KEYS.has(key)) return true;
+      if (child && typeof child === "object" && historyContainsForbiddenEnvelope(child, seen)) return true;
+    }
+    return false;
+  };
+  const uniquePlanForHistory = (candidateState, planId) => {
+    if (!historyIdValid(planId)) return null;
+    const plans = [candidateState?.plan, ...(Array.isArray(candidateState?.planHistory) ? candidateState.planHistory : [])]
+      .filter((plan) => isRecord(plan) && plan.planId === planId);
+    return plans.length === 1 ? plans[0] : null;
+  };
+  const boundHistoryAlias = (bindings, kind, domainId) => {
+    const alias = bindings?.records?.[kind]?.[domainId];
+    return UUID_V4_PATTERN.test(alias || "") ? alias : null;
+  };
+  const historyEventBoundaryValid = (event) => Boolean(
+    isRecord(event) &&
+    CYCLE_HISTORY_EVENT_TYPES.includes(event.eventType) &&
+    UUID_V4_PATTERN.test(event.eventId || "") &&
+    /^[0-9a-f]{64}$/.test(event.eventHash || "") &&
+    exactUtcTimestamp(event.occurredAt) &&
+    isRecord(event.context) &&
+    isRecord(event.attributes) &&
+    exactHistoryKeys(event.privacy, [
+      "classification",
+      "containsAccountIdentifier",
+      "containsAudio",
+      "containsClerkIdentifier",
+      "containsDirectIdentifier",
+      "containsFreeText",
+      "containsRawResponse",
+      "containsSofiaContent",
+    ]) &&
+    event.privacy.classification === "pseudonymous_local_learning_metadata" &&
+    event.privacy.containsDirectIdentifier === false &&
+    event.privacy.containsAccountIdentifier === false &&
+    event.privacy.containsClerkIdentifier === false &&
+    event.privacy.containsFreeText === false &&
+    event.privacy.containsRawResponse === false &&
+    event.privacy.containsAudio === false &&
+    event.privacy.containsSofiaContent === false &&
+    isRecord(event.governance) &&
+    event.governance.storageScope === "browser_local_only" &&
+    event.governance.corruptionPolicy === "fail_closed" &&
+    event.governance.networkDispatch === "disabled" &&
+    event.governance.lrsDispatch === "disabled" &&
+    event.governance.xapiDispatch === "disabled" &&
+    event.governance.sofiaAccess === "forbidden"
+  );
+
+  const historyMilestonesValid = ({ record, diagnostic, basePlan, recommendation, checkIn, review, peerHelp, retest, planUpdate, updatedPlan }) => {
+    const terminalAt = record.status === "completed" ? record.closedAt : record.provisionalAt;
+    const ordered = [
+      record.createdAt,
+      diagnostic.completedAt,
+      basePlan.createdAt,
+      recommendation.evidenceBinding?.createdAt,
+      recommendation.createdAt,
+      checkIn.practiceReceipt?.completedAt,
+      checkIn.savedAt,
+      review.confirmedAt,
+      retest.completedAt,
+      planUpdate.createdAt,
+    ];
+    if (!ordered.every(exactUtcTimestamp) || !exactUtcTimestamp(terminalAt) || !exactUtcTimestamp(updatedPlan.createdAt)) return false;
+    const times = ordered.map(Date.parse);
+    if (times.some((timestamp, index) => index > 0 && timestamp < times[index - 1])) return false;
+    if (
+      planUpdate.createdAt !== terminalAt ||
+      record.updatedAt !== terminalAt ||
+      basePlan.status !== "superseded" ||
+      basePlan.supersededAt !== terminalAt ||
+      basePlan.supersededByRetestId !== record.retestId ||
+      checkIn.reviewedAt !== review.confirmedAt ||
+      !exactUtcTimestamp(peerHelp.createdAt) ||
+      !exactUtcTimestamp(peerHelp.updatedAt) ||
+      Date.parse(peerHelp.createdAt) < Date.parse(review.confirmedAt) ||
+      Date.parse(peerHelp.updatedAt) < Date.parse(review.confirmedAt) ||
+      Date.parse(peerHelp.createdAt) > Date.parse(retest.completedAt) ||
+      Date.parse(peerHelp.updatedAt) > Date.parse(retest.completedAt) ||
+      Date.parse(updatedPlan.createdAt) < Date.parse(terminalAt) ||
+      Date.parse(updatedPlan.createdAt) - Date.parse(terminalAt) > 5 * 60 * 1000
+    ) return false;
+    if (
+      record.status === "completed"
+        ? record.provisionalAt !== null || record.closedAt !== terminalAt
+        : record.closedAt !== null || record.provisionalAt !== terminalAt
+    ) return false;
+    return diagnostic.taskEvidence.every((evidence) => Boolean(
+      exactUtcTimestamp(evidence.startedAt) &&
+      exactUtcTimestamp(evidence.completedAt) &&
+      exactUtcTimestamp(evidence.updatedAt) &&
+      Date.parse(evidence.startedAt) >= Date.parse(record.createdAt) &&
+      Date.parse(evidence.completedAt) >= Date.parse(evidence.startedAt) &&
+      Date.parse(evidence.updatedAt) >= Date.parse(evidence.completedAt) &&
+      Date.parse(evidence.updatedAt) <= Date.parse(diagnostic.completedAt)
+    ));
+  };
+
+  const historyEventChainProjection = ({ candidateState, record, diagnostic, recommendation, checkIn, retest, planUpdate }) => {
+    const bindings = candidateState?.learningEventBindings;
+    const events = Array.isArray(candidateState?.learningEvents) ? candidateState.learningEvents : [];
+    const aliases = {
+      cycle: boundHistoryAlias(bindings, "cycle", record.cycleId),
+      diagnostic: boundHistoryAlias(bindings, "diagnostic", record.diagnosticSessionId),
+      plan: boundHistoryAlias(bindings, "plan", record.basePlanId),
+      recommendation: boundHistoryAlias(bindings, "recommendation", record.recommendationId),
+      binding: boundHistoryAlias(bindings, "binding", recommendation.evidenceBinding?.bindingId),
+      task: boundHistoryAlias(bindings, "task", checkIn.linkedTaskId),
+      practiceAttempt: boundHistoryAlias(bindings, "practiceAttempt", checkIn.practiceAttemptId),
+      practiceReceipt: boundHistoryAlias(bindings, "practiceReceipt", checkIn.taskCompletionReceiptId),
+      checkIn: boundHistoryAlias(bindings, "checkIn", record.checkInId),
+      retest: boundHistoryAlias(bindings, "retest", record.retestId),
+      updatedPlan: record.status === "completed"
+        ? boundHistoryAlias(bindings, "updatedPlan", record.updatedPlanId)
+        : null,
+    };
+    const requiredAliases = Object.entries(aliases)
+      .filter(([key]) => key !== "updatedPlan" || record.status === "completed")
+      .map(([, alias]) => alias);
+    if (requiredAliases.some((alias) => !alias)) return null;
+
+    const cycleEvents = events.filter((event) => event?.context?.learningCycleId === aliases.cycle);
+    if (!cycleEvents.length || !cycleEvents.every(historyEventBoundaryValid)) return null;
+    const types = cycleEvents.map((event) => event.eventType);
+    const checkInIndex = types.indexOf("check_in.committed");
+    const retestIndex = types.indexOf("retest.completed");
+    const completedIndex = types.indexOf("learning_cycle.completed");
+    if (
+      types[0] !== "learning_cycle.started" ||
+      types[1] !== "recommendation.decided" ||
+      checkInIndex < 3 ||
+      retestIndex !== checkInIndex + 1 ||
+      types.slice(2, checkInIndex).some((type) => type !== "practice_attempt.finalized") ||
+      (record.status === "completed"
+        ? completedIndex !== retestIndex + 1 || completedIndex !== types.length - 1
+        : completedIndex !== -1 || retestIndex !== types.length - 1)
+    ) return null;
+
+    const startedEvent = cycleEvents[0];
+    const recommendationEvent = cycleEvents[1];
+    const practiceEvent = cycleEvents.find((event) => event.context?.practiceReceiptId === aliases.practiceReceipt);
+    const checkInEvent = cycleEvents[checkInIndex];
+    const retestEvent = cycleEvents[retestIndex];
+    const completedEvent = record.status === "completed" ? cycleEvents[completedIndex] : null;
+    if (
+      startedEvent.context.diagnosticSessionId !== aliases.diagnostic ||
+      startedEvent.attributes.taskSetVersion !== DIAGNOSTIC_TASK_SET_VERSION ||
+      startedEvent.attributes.taskSetDigest !== DIAGNOSTIC_TASK_SET_DIGEST ||
+      startedEvent.occurredAt !== record.createdAt ||
+      recommendationEvent.context.diagnosticSessionId !== aliases.diagnostic ||
+      recommendationEvent.context.planId !== aliases.plan ||
+      recommendationEvent.context.recommendationId !== aliases.recommendation ||
+      recommendationEvent.context.bindingId !== aliases.binding ||
+      recommendationEvent.attributes.decision !== recommendation.status ||
+      recommendationEvent.occurredAt !== recommendation.createdAt ||
+      !practiceEvent ||
+      practiceEvent.context.diagnosticSessionId !== aliases.diagnostic ||
+      practiceEvent.context.planId !== aliases.plan ||
+      practiceEvent.context.recommendationId !== aliases.recommendation ||
+      practiceEvent.context.bindingId !== aliases.binding ||
+      practiceEvent.context.taskId !== aliases.task ||
+      practiceEvent.context.attemptId !== aliases.practiceAttempt ||
+      practiceEvent.attributes.skill !== diagnostic.prioritySkill ||
+      practiceEvent.occurredAt !== checkIn.practiceReceipt.completedAt ||
+      checkInEvent.context.diagnosticSessionId !== aliases.diagnostic ||
+      checkInEvent.context.planId !== aliases.plan ||
+      checkInEvent.context.recommendationId !== aliases.recommendation ||
+      checkInEvent.context.bindingId !== aliases.binding ||
+      checkInEvent.context.taskId !== aliases.task ||
+      checkInEvent.context.practiceReceiptId !== aliases.practiceReceipt ||
+      checkInEvent.context.checkInId !== aliases.checkIn ||
+      checkInEvent.occurredAt !== checkIn.savedAt ||
+      retestEvent.context.diagnosticSessionId !== aliases.diagnostic ||
+      retestEvent.context.planId !== aliases.plan ||
+      retestEvent.context.recommendationId !== aliases.recommendation ||
+      retestEvent.context.bindingId !== aliases.binding ||
+      retestEvent.context.checkInId !== aliases.checkIn ||
+      retestEvent.context.retestId !== aliases.retest ||
+      retestEvent.context.baselinePracticeReceiptId !== aliases.practiceReceipt ||
+      retestEvent.attributes.skill !== diagnostic.prioritySkill ||
+      retestEvent.attributes.humanConfirmationStatus !== retest.humanConfirmationStatus ||
+      retestEvent.occurredAt !== retest.completedAt
+    ) return null;
+    if (record.status === "completed" && (
+      completedEvent.context.diagnosticSessionId !== aliases.diagnostic ||
+      completedEvent.context.planId !== aliases.plan ||
+      completedEvent.context.retestId !== aliases.retest ||
+      completedEvent.context.updatedPlanId !== aliases.updatedPlan ||
+      completedEvent.attributes.nextFocusSkill !== planUpdate.focusSkill ||
+      completedEvent.attributes.humanConfirmationStatus !== planUpdate.humanConfirmationStatus ||
+      completedEvent.occurredAt !== record.closedAt
+    )) return null;
+    return { eventCount: cycleEvents.length };
+  };
+
+  const projectValidatedCycleHistoryRecord = (candidateState, record) => {
+    if (
+      !exactHistoryKeys(record, cycleHistoryTopLevelKeys) ||
+      historyContainsForbiddenEnvelope(record) ||
+      record.protocolVersion !== PROTOCOL_VERSION ||
+      !CYCLE_HISTORY_TERMINAL_STATUSES.has(record.status) ||
+      CYCLE_HISTORY_ID_FIELDS.some((field) => !historyIdValid(record[field])) ||
+      new Set(CYCLE_HISTORY_ID_FIELDS.map((field) => record[field])).size !== CYCLE_HISTORY_ID_FIELDS.length
+    ) return null;
+
+    const diagnostic = record.diagnostic;
+    const recommendation = record.recommendation;
+    const checkIn = record.checkIn;
+    const review = record.review;
+    const peerHelp = record.peerHelp;
+    const retest = record.retest;
+    const planUpdate = record.planUpdate;
+    const basePlan = uniquePlanForHistory(candidateState, record.basePlanId);
+    const updatedPlan = uniquePlanForHistory(candidateState, record.updatedPlanId);
+    const linkedPracticeReceipt = checkIn?.practiceReceipt;
+    const storedPracticeReceipt = candidateState?.practiceReceipts?.[checkIn?.taskCompletionReceiptId];
+    const linkedPracticeTask = planTaskById(basePlan, checkIn?.linkedTaskId);
+    const linkedTaskProgress = candidateState?.taskProgress?.[checkIn?.linkedTaskId];
+    const retestCatalog = RETEST_TASK_CATALOG[retest?.skill];
+    const derivedRetestOutcome = deriveRetestOutcome(retest?.skill, retest?.evidence);
+
+    if (
+      !isRecord(diagnostic) ||
+      diagnostic.protocolVersion !== PROTOCOL_VERSION ||
+      diagnostic.diagnosticProtocolVersion !== DIAGNOSTIC_PROTOCOL_VERSION ||
+      diagnostic.taskSetVersion !== DIAGNOSTIC_TASK_SET_VERSION ||
+      diagnostic.taskSetDigest !== DIAGNOSTIC_TASK_SET_DIGEST ||
+      diagnostic.cycleId !== record.cycleId ||
+      diagnostic.diagnosticSessionId !== record.diagnosticSessionId ||
+      diagnostic.status !== "completed" ||
+      diagnostic.adultConfirmed !== true ||
+      diagnostic.devicePrecheck?.storageStatus !== "available" ||
+      diagnosticEvidenceCollectionValid(diagnostic, { requireAllTerminal: true }) !== true ||
+      !VALID_SKILLS.has(diagnostic.prioritySkill) ||
+      diagnostic.prioritySkill === "Balanced" ||
+      diagnostic.learnerConfirmedPriority !== true ||
+      diagnostic.automatedScoreProduced !== false ||
+      diagnostic.formalDiagnosisProduced !== false ||
+      !isRecord(basePlan) ||
+      !isRecord(updatedPlan) ||
+      basePlan.planId !== record.basePlanId ||
+      basePlan.focusSkill !== diagnostic.prioritySkill ||
+      basePlan.provenance?.cycleId !== record.cycleId ||
+      basePlan.provenance?.diagnosticSessionId !== record.diagnosticSessionId ||
+      basePlan.provenance?.taskSetVersion !== DIAGNOSTIC_TASK_SET_VERSION ||
+      basePlan.provenance?.taskSetDigest !== DIAGNOSTIC_TASK_SET_DIGEST ||
+      !VALID_SKILLS.has(updatedPlan.focusSkill) ||
+      updatedPlan.provenance?.cycleId !== record.cycleId ||
+      updatedPlan.provenance?.diagnosticSessionId !== record.diagnosticSessionId ||
+      updatedPlan.provenance?.retestId !== record.retestId ||
+      updatedPlan.provenance?.supersedesPlanId !== record.basePlanId ||
+      updatedPlan.provenance?.taskSetVersion !== DIAGNOSTIC_TASK_SET_VERSION ||
+      updatedPlan.provenance?.taskSetDigest !== DIAGNOSTIC_TASK_SET_DIGEST
+    ) return null;
+
+    if (
+      !isRecord(recommendation) ||
+      recommendation.cycleId !== record.cycleId ||
+      recommendation.diagnosticSessionId !== record.diagnosticSessionId ||
+      recommendation.planId !== record.basePlanId ||
+      recommendation.recommendationId !== record.recommendationId ||
+      !["accepted", "skipped"].includes(recommendation.status) ||
+      recommendation.primary?.skill !== diagnostic.prioritySkill ||
+      !planTaskById(basePlan, recommendation.primary?.taskId) ||
+      !recommendationBindingMatches({ binding: recommendation.evidenceBinding, cycle: record, diagnostic, plan: basePlan, primary: recommendation.primary })
+    ) return null;
+
+    if (
+      !isRecord(checkIn) ||
+      checkIn.status !== "saved" ||
+      checkIn.cycleId !== record.cycleId ||
+      checkIn.diagnosticSessionId !== record.diagnosticSessionId ||
+      checkIn.planId !== record.basePlanId ||
+      checkIn.recommendationId !== record.recommendationId ||
+      checkIn.checkInId !== record.checkInId ||
+      checkIn.evidenceClass !== "practice_receipt" ||
+      checkIn.practiceAttemptId !== linkedPracticeReceipt?.practiceAttemptId ||
+      checkIn.taskCompletionReceiptId !== linkedPracticeReceipt?.completionReceiptId ||
+      linkedTaskProgress?.completionClass !== "practice_receipt" ||
+      linkedTaskProgress?.practiceReceiptId !== linkedPracticeReceipt?.completionReceiptId ||
+      !isRecord(storedPracticeReceipt) ||
+      JSON.stringify(storedPracticeReceipt) !== JSON.stringify(linkedPracticeReceipt) ||
+      !hasValidPracticeReceiptShape(linkedPracticeReceipt, checkIn.taskCompletionReceiptId) ||
+      !practiceReceiptMatches({ receipt: linkedPracticeReceipt, cycle: record, diagnostic, plan: basePlan, recommendation, task: linkedPracticeTask })
+    ) return null;
+
+    if (
+      !isRecord(review) ||
+      review.cycleId !== record.cycleId ||
+      review.reviewId !== record.reviewId ||
+      review.checkInId !== record.checkInId ||
+      review.learnerConfirmed !== true ||
+      checkIn.reviewId !== record.reviewId ||
+      checkIn.learnerConfirmedReview !== true ||
+      !isRecord(peerHelp) ||
+      peerHelp.cycleId !== record.cycleId ||
+      peerHelp.peerHelpId !== record.peerHelpId ||
+      peerHelp.planId !== record.basePlanId ||
+      peerHelp.reviewId !== record.reviewId ||
+      !VALID_PEER_HELP_STATES.has(peerHelp.status) ||
+      peerHelp.realCommunityUsed !== false
+    ) return null;
+
+    if (
+      !isRecord(retest) ||
+      retest.status !== "completed" ||
+      retest.cycleId !== record.cycleId ||
+      retest.diagnosticSessionId !== record.diagnosticSessionId ||
+      retest.planId !== record.basePlanId ||
+      retest.recommendationId !== record.recommendationId ||
+      retest.checkInId !== record.checkInId ||
+      retest.reviewId !== record.reviewId ||
+      retest.peerHelpId !== record.peerHelpId ||
+      retest.retestId !== record.retestId ||
+      retest.skill !== diagnostic.prioritySkill ||
+      retest.skill !== linkedPracticeReceipt.skill ||
+      retest.baselineTaskId !== linkedPracticeTask?.taskId ||
+      retest.baselinePracticeReceiptId !== linkedPracticeReceipt.completionReceiptId ||
+      retest.parallelTaskId !== retestCatalog?.taskId ||
+      retest.taskVersion !== retestCatalog?.taskVersion ||
+      retest.parallelFormPairId !== retestCatalog?.parallelFormPairId ||
+      retest.parallelRetest !== true ||
+      retest.comparability?.targetSkill !== diagnostic.prioritySkill ||
+      retest.comparability?.sameSkill !== true ||
+      retest.comparability?.sameAsDiagnosticPriority !== true ||
+      retest.comparability?.sameAsPlanTask !== true ||
+      retest.comparability?.sameAsPracticeReceipt !== true ||
+      retest.comparability?.newOriginalPrompt !== true ||
+      retest.comparability?.constructAlignment !== retestCatalog?.constructAlignment ||
+      retest.comparability?.teacherReviewed !== false ||
+      retest.comparability?.measurementReviewed !== false ||
+      retest.comparability?.officialEquivalenceClaimed !== false ||
+      retest.comparability?.comparisonBoundary !== "same_skill_only_no_calibrated_construct_or_difficulty_equivalence" ||
+      !derivedRetestOutcome ||
+      retest.evidence?.resultType !== derivedRetestOutcome.resultType ||
+      retest.evidenceStatus !== derivedRetestOutcome.evidenceStatus ||
+      retest.evidenceSufficiency !== derivedRetestOutcome.evidenceSufficiency ||
+      retest.humanConfirmationStatus !== derivedRetestOutcome.humanConfirmationStatus ||
+      retest.automatedScoreProduced !== false ||
+      retest.growthClaimProduced !== false
+    ) return null;
+
+    const pendingHumanReview = record.status === "provisional_pending_human_review";
+    if (
+      !isRecord(planUpdate) ||
+      planUpdate.cycleId !== record.cycleId ||
+      planUpdate.retestId !== record.retestId ||
+      planUpdate.supersedesPlanId !== record.basePlanId ||
+      planUpdate.updatedPlanId !== record.updatedPlanId ||
+      planUpdate.focusSkill !== updatedPlan.focusSkill ||
+      planUpdate.learnerConfirmed !== true ||
+      planUpdate.automatedAbilityDecision !== false ||
+      (pendingHumanReview
+        ? derivedRetestOutcome.humanReviewRequired !== true ||
+          planUpdate.confirmationClass !== "provisional_pending_human_review" ||
+          planUpdate.humanConfirmationStatus !== "required_not_completed"
+        : derivedRetestOutcome.humanReviewRequired !== false ||
+          planUpdate.confirmationClass !== "learner_confirmed_gate_a" ||
+          planUpdate.humanConfirmationStatus !== "not_required_for_gate_a_flow") ||
+      !historyMilestonesValid({ record, diagnostic, basePlan, recommendation, checkIn, review, peerHelp, retest, planUpdate, updatedPlan })
+    ) return null;
+
+    const eventChain = historyEventChainProjection({ candidateState, record, diagnostic, recommendation, checkIn, retest, planUpdate });
+    if (!eventChain) return null;
+    const terminalAt = pendingHumanReview ? record.provisionalAt : record.closedAt;
+    return {
+      cycleId: record.cycleId,
+      diagnosticSessionId: record.diagnosticSessionId,
+      basePlanId: record.basePlanId,
+      recommendationId: record.recommendationId,
+      checkInId: record.checkInId,
+      reviewId: record.reviewId,
+      peerHelpId: record.peerHelpId,
+      retestId: record.retestId,
+      updatedPlanId: record.updatedPlanId,
+      taskSetVersion: diagnostic.taskSetVersion,
+      baseFocusSkill: basePlan.focusSkill,
+      updatedFocusSkill: updatedPlan.focusSkill,
+      terminalAt,
+      status: pendingHumanReview ? "pending_qualified_human_review" : "completed_local_cycle",
+      eventCount: eventChain.eventCount,
+    };
+  };
+
+  const buildCycleHistoryProjection = (candidateState, ledgerStatus) => {
+    const history = Array.isArray(candidateState?.journey?.history) ? candidateState.journey.history : null;
+    if (!history) {
+      return { items: [], sourceCount: 0, validCount: 0, invalidCount: 1, currentExcludedCount: 0, hiddenValidCount: 0 };
+    }
+    if (!ledgerStatus?.ok) {
+      return { items: [], sourceCount: history.length, validCount: 0, invalidCount: history.length, currentExcludedCount: 0, hiddenValidCount: 0 };
+    }
+    const cycleIdCounts = new Map();
+    history.forEach((record) => {
+      const cycleId = historyIdValid(record?.cycleId) ? record.cycleId : null;
+      if (cycleId) cycleIdCounts.set(cycleId, (cycleIdCounts.get(cycleId) || 0) + 1);
+    });
+    const activeCycleId = historyIdValid(candidateState?.journey?.activeCycle?.cycleId)
+      ? candidateState.journey.activeCycle.cycleId
+      : null;
+    const validated = [];
+    let invalidCount = 0;
+    let currentExcludedCount = 0;
+    history.forEach((record) => {
+      if (!historyIdValid(record?.cycleId) || cycleIdCounts.get(record.cycleId) !== 1) {
+        invalidCount += 1;
+        return;
+      }
+      const projected = projectValidatedCycleHistoryRecord(candidateState, record);
+      if (!projected) {
+        invalidCount += 1;
+        return;
+      }
+      if (record.cycleId === activeCycleId) {
+        currentExcludedCount += 1;
+        return;
+      }
+      validated.push(projected);
+    });
+    validated.sort((left, right) => right.terminalAt.localeCompare(left.terminalAt));
+    return {
+      items: validated.slice(0, CYCLE_HISTORY_LIMIT),
+      sourceCount: history.length,
+      validCount: validated.length,
+      invalidCount,
+      currentExcludedCount,
+      hiddenValidCount: Math.max(0, validated.length - CYCLE_HISTORY_LIMIT),
+    };
+  };
+
   const diagnosticStatusLabels = {
     completed: "已留证",
     skipped: "已跳过",
@@ -3380,6 +3889,108 @@
     });
   };
 
+  const formatCycleHistoryTimestamp = (value) =>
+    exactUtcTimestamp(value) ? `${value.slice(0, 10)} · ${value.slice(11, 19)} UTC` : "时间未通过核对";
+  const appendCycleHistoryFact = (list, term, value, { code = false } = {}) => {
+    const row = document.createElement("div");
+    const name = document.createElement("dt");
+    const detail = document.createElement("dd");
+    name.textContent = term;
+    const content = code ? document.createElement("code") : document.createElement("span");
+    content.textContent = value;
+    detail.append(content);
+    row.append(name, detail);
+    list.append(row);
+  };
+  const renderCycleHistory = () => {
+    const root = document.querySelector("[data-cycle-history]");
+    const list = root?.querySelector("[data-cycle-history-list]");
+    const empty = root?.querySelector("[data-cycle-history-empty]");
+    const invalid = root?.querySelector("[data-cycle-history-invalid]");
+    const summary = root?.querySelector("[data-cycle-history-summary]");
+    if (!root || !list || !empty || !invalid || !summary) return;
+
+    const projection = buildCycleHistoryProjection(state, learningLedgerStatus);
+    root.dataset.cycleHistoryState = projection.items.length ? "ready" : projection.invalidCount ? "invalid" : "empty";
+    clearChildren(list);
+    list.hidden = projection.items.length === 0;
+    empty.hidden = projection.items.length > 0;
+    invalid.hidden = projection.invalidCount === 0;
+    invalid.textContent = projection.invalidCount
+      ? `${projection.invalidCount} 条本机历史记录未通过完整性、重复或隐私边界核对，已失败关闭且不显示内容。`
+      : "";
+    const invalidSummary = projection.invalidCount ? `；${projection.invalidCount} 条无效记录未显示` : "";
+
+    if (projection.items.length) {
+      summary.textContent = `显示最近 ${projection.items.length} 轮已核对记录${projection.hiddenValidCount ? `；另有 ${projection.hiddenValidCount} 轮较早记录未展开` : ""}${invalidSummary}`;
+    } else if (projection.currentExcludedCount) {
+      summary.textContent = `当前轮次只在上方本轮回执中显示，历史区不重复列出${invalidSummary}`;
+    } else if (projection.invalidCount) {
+      summary.textContent = `当前没有可安全显示的历史轮次；${projection.invalidCount} 条无效记录未显示`;
+    } else {
+      summary.textContent = "尚无已完成或待具备资格人员复核的历史轮次";
+    }
+    empty.textContent = projection.currentExcludedCount
+      ? "当前 cycle_id 已在上方“本轮证据链”中显示；开始新一轮后，上一轮才进入这里的历史对照。"
+      : projection.invalidCount
+        ? "历史原始内容不会作为降级回退显示。请先在“我的本机数据”导出备份或清除损坏记录。"
+        : "完成一轮 Gate A 本机闭环后，这里会显示经过重新核对的计划版本与脱敏 ID 链。";
+
+    projection.items.forEach((item, index) => {
+      const entry = document.createElement("li");
+      const article = document.createElement("article");
+      const header = document.createElement("header");
+      const headingGroup = document.createElement("div");
+      const overline = document.createElement("span");
+      const heading = document.createElement("h3");
+      const timestamp = document.createElement("time");
+      const badge = document.createElement("strong");
+      const comparison = document.createElement("dl");
+      const ids = document.createElement("dl");
+      const boundary = document.createElement("p");
+      const headingId = `cycle-history-entry-${index + 1}`;
+
+      article.setAttribute("aria-labelledby", headingId);
+      overline.textContent = `HISTORICAL CYCLE ${String(index + 1).padStart(2, "0")}`;
+      heading.id = headingId;
+      heading.textContent = `${skillLabels[item.baseFocusSkill] || item.baseFocusSkill} → ${skillLabels[item.updatedFocusSkill] || item.updatedFocusSkill}`;
+      timestamp.dateTime = item.terminalAt;
+      timestamp.textContent = formatCycleHistoryTimestamp(item.terminalAt);
+      badge.dataset.state = item.status;
+      badge.textContent = item.status === "completed_local_cycle"
+        ? "本机闭环已完成"
+        : "待具备资格人员复核";
+      headingGroup.append(overline, heading, timestamp);
+      header.append(headingGroup, badge);
+
+      comparison.className = "cycle-history-plan-comparison";
+      appendCycleHistoryFact(comparison, "基础计划重点", skillLabels[item.baseFocusSkill] || item.baseFocusSkill);
+      appendCycleHistoryFact(comparison, "更新计划重点", skillLabels[item.updatedFocusSkill] || item.updatedFocusSkill);
+      appendCycleHistoryFact(comparison, "任务集版本", item.taskSetVersion, { code: true });
+      appendCycleHistoryFact(comparison, "事件链", `${item.eventCount} 条本机事件已核对`);
+
+      ids.className = "cycle-history-id-chain";
+      [
+        ["cycle_id", item.cycleId],
+        ["diagnostic_session_id", item.diagnosticSessionId],
+        ["base_plan_id", item.basePlanId],
+        ["recommendation_id", item.recommendationId],
+        ["check_in_id", item.checkInId],
+        ["review_id", item.reviewId],
+        ["peer_help_id", item.peerHelpId],
+        ["retest_id", item.retestId],
+        ["updated_plan_id", item.updatedPlanId],
+      ].forEach(([term, value]) => appendCycleHistoryFact(ids, term, value, { code: true }));
+
+      boundary.textContent = item.status === "completed_local_cycle"
+        ? "这表示本机流程与事件回链完成；不表示正式诊断、能力增长、教师复核或防篡改凭证。"
+        : "流程节点已经记录，但资格人员复核尚未完成；临时更新计划不得显示成已完成结论。";
+      article.append(header, comparison, ids, boundary);
+      entry.append(article);
+      list.append(entry);
+    });
+  };
+
   const gate0PublicKeys = Object.freeze([
     "defaultDisposition",
     "formalGate0Pass",
@@ -3534,6 +4145,7 @@
       link.textContent = next ? "继续下一步 →" : "查看更新后的计划 →";
     }
     renderCycleEvidenceLedger(chain);
+    renderCycleHistory();
   };
 
   void loadGate0GovernanceStatus();

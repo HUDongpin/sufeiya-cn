@@ -11,6 +11,22 @@ npm run dev
 
 Next.js 本地开发地址默认为 `http://localhost:3000`。
 
+### Clerk Development smoke E2E
+
+`npm run test:e2e:clerk-dev` 使用 project-based Clerk setup 与单个 Chromium worker，验证未登录保护、真实 Clerk session 下的 `/workspace` 和 `/teaching-review-demo`，以及登出后的重新保护。首次运行前如本机尚无对应浏览器，可执行 `npx playwright install chromium`。
+
+本机模式默认启动 `127.0.0.1:3210`。若 Next.js Node `proxy` 的本机 Clerk Development 握手在当前版本触发自代理循环，可对一个显式指定的 Vercel hosted target 运行同一套测试；显式目标只接受规范的 HTTPS `*.vercel.app` origin，且不会启动本机 web server。通用测试配置不把域名语法冒充 Preview 身份；形成 Preview 证据前还须用 Vercel deployment metadata 独立确认目标的 `target=preview` 与不可变 deployment ID：
+
+```bash
+SUFEIYA_CLERK_E2E_BASE_URL=https://your-new-preview.vercel.app npm run test:e2e:clerk-dev
+```
+
+若 hosted target 保留 Vercel Authentication，测试进程还可显式接收 `SUFEIYA_VERCEL_PROTECTION_BYPASS`。该值只允许在 hosted 模式使用，不写入仓库；测试先向被指定的精确 origin 发出一次 `maxRedirects: 0` 的禁止跟随重定向请求，以 Vercel 官方请求头换取安全 bypass cookie，随后浏览器导航只使用该 cookie，不把 bypass 请求头附加到页面请求或跨源重定向。Vercel 的访问保护本身保持开启。
+
+该测试只接受同一 Clerk Development 实例的 `pk_test_` / `sk_test_`；会解码 Publishable Key 的 Frontend API，并用 Secret Key 读取的实例类型和域名做在线匹配，setup 与主 smoke 在创建用户前都会独立核对，不能用 `--no-deps` 绕过。Clerk Backend API 同样固定为规范的 `https://api.clerk.com` 与 `v1`；自定义协议、主机、端口、路径、查询、片段、凭据或 API 版本都会在 SDK 请求前被拒绝。预置 Testing Token、Frontend API 或 testing debug 状态同样被拒绝，setup 必须从已核对的 Development 实例新取短期 token，并用当前运行标记、签发时间与 HMAC 交接给 smoke；测试期间 Clerk helper 的 log/warning/error 参数统一替换为固定脱敏消息。测试创建唯一 `+clerk_test` 合成用户，身份值只保存在进程内，不写入 storage state、trace、video 或 HAR，也不输出邮箱、密码、token、cookie 或 user ID。无论页面断言是成功、失败还是超时，拥有独立 teardown 超时预算的 `afterEach` 都会按精确 user ID 删除，并验证该 ID 与唯一合成 external ID 已不存在且实例用户总数回到运行前基线；若创建响应不确定，会先用该 external ID 恢复精确 user ID。清理失败会独立令测试失败，因此 smoke 与 cleanup 的脱敏失败事实可以同时保留。为了让全局人数基线有确定含义，运行期间不要并行创建或删除同一 Development 实例中的其他用户。
+
+证据边界：loopback 模式只证明本机 Next.js 生产构建；显式 hosted 模式只证明该次指定并另行核对 deployment metadata 的 Vercel target。两种模式都只使用所核对的 Clerk Development 实例；浏览器侧还会把目标实际加载的 Clerk Frontend API 与已核对的 Publishable Key 精确绑定，然后用 server-side ticket 形成真实 Development session，并验证该 session 对 `/workspace` 和 `/teaching-review-demo` 的访问。它不证明 `sufeiya.cn` 的 Production Clerk 配置与登录，不覆盖交互式密码、验证码或 MFA，不证明角色、教研资质或个案授权，不提供账户级本机数据隔离，也不构成 production release readiness。
+
 ## Product boundary
 
 每次修改页面源稿后，先运行 `npm run generate` 生成 HTML 页面，再运行 `npm run check` 完成旧页面结构、TypeScript、ESLint 与生产构建检查。`generate:next-content` 会把页面正文写入 `lib/legacy-content.generated.ts`，并同步浏览器运行时与音频到 `public/`。
@@ -24,7 +40,7 @@ Qwen 后端已按 2026-08-11 最新的 Alibaba Cloud 官方 DashScope/OpenAI 兼
 ## Page structure
 
 - `/`：精炼首页与四个页面入口；
-- `/workspace`：七阶段 Gate A 闭环进度、独立功能页入口、只投影中央校验器已确认 ID 的本轮证据链总览，以及脱敏的 29 项 P0 书面决定汇总；
+- `/workspace`：七阶段 Gate A 闭环进度、独立功能页入口、只投影中央校验器已确认 ID 的本轮证据链总览、最近最多 10 轮的本机计划版本历史，以及脱敏的 29 项 P0 书面决定汇总；
 - `/super-teacher`：有来源的 Gate A 学习解释、拒答边界、非 AI 退出与本机人工支持请求；
 - `/diagnostic`：18+、本机、无评分的六任务诊断证据包（2 Reading + 2 Listening + 90 秒 Speaking + 3 分钟 Writing）；
 - `/plan`：7 天学习计划生成器；
@@ -50,6 +66,7 @@ Qwen 后端已按 2026-08-11 最新的 Alibaba Cloud 官方 DashScope/OpenAI 兼
 
 - 通过同一 `cycle_id` 串联的 Gate A 演示闭环：六任务诊断证据包 → 计划 → 推荐 → 证据式打卡 → 学习者确认 → 自愿互助状态 → 平行微复测 → 更新计划；
 - 在工作台集中核对 `diagnostic_session_id → plan_id → recommendation_id → check_in_id → review_id → peer_help_id/status → retest_id → updated_plan_id`；未通过前序回链的节点不会提前显示，临时更新计划单独标记为等待具备资质的人工确认；
+- 在本轮回执之后查看最近最多 10 轮的本机历史与 `base_plan_id → updated_plan_id` 重点对照；历史按结束时间最新在前，同一 `cycle_id` 重复记录全部失败关闭，仍在上方显示的当前轮次不会重复列入历史。每一轮都重新核对完整域 ID 链、`gate_a_original_6_v1` 任务集与摘要、能力方向、计划来源、里程碑 UTC 时间顺序、匿名事件绑定和该轮事件片段；只有“本机闭环已完成”或明确“待具备资格人员复核”的记录可进入投影，二者不会合并计数或混用文案；
 - 在工作台查看同源、只读、无缓存的 Gate 0 脱敏汇总；接口异常、协议漂移、超时或字段不完整时按“未通过”处理，不公开 29 项问题文本、负责人、证据、控制映射或复审日期，也不把登录与功能实现计为批准；
 - 依次完成 2 项 Reading、2 项 Listening、90 秒 Speaking 与 3 分钟 Writing：客观题只封存首答，若本机持久化失败则完整回滚到提交前状态；听力文本替代、播放失败、中断、跳过等情况进入质量标记，最终由学习者确认一条下一步优先任务；
 - 纯前端 7 天计划生成器；
@@ -80,6 +97,8 @@ Listening 只有在静态音频触发完整播放结束，或设备语音合成�
 Logo 使用由原始附件精确抠图并进行 4× 重采样的 `2792 × 560` 真透明 PNG；圆形标志另存为 `512 × 512` 透明站点图标。
 
 学习闭环数据使用 `sufeiya_workspace_v1` 本机存储命名空间；所有 `workspace.js` 与 `journey.js` 页面共享同名的 `page-writer` Web Lock 长租约，同一时间只有一个标签页可写，第二个标签页在初始化控件前切换为只读。诊断预检与 Sofia智能老师上下文区都会在交互前显示浏览器安全写入锁能力；不支持 Web Locks 时不建立新的闭环或问答写入。Sofia智能老师的对话副本和未发送人工请求使用独立的 `sufeiya_super_teacher_v1` 命名空间；教研复核演示草稿使用 `sufeiya_teaching_review_demo_v1`，只读取与当前 `activeCycle` 的 protocol、状态及全部下游 ID 完整一致，且符合固定任务集、计划、推荐、回执、任务进度、打卡、复测和临时计划回链的唯一 provisional 本机快照。教研投影只显示冻结枚举、质量标记白名单与确定性推荐说明，不复制原始答案、开放作答、打卡自由文本或原始推荐文案；草稿保存使用独立 Web Lock、源快照 SHA-256、原始字节 compare-and-set、精确写后校验和可核验回滚，任何未知存储状态都会停止后续写入。Clerk 账户用于保护 `/workspace`、七步闭环、练习、专注、本机数据、`/teaching-review-demo` 与 `/account` 等规范 Next.js 路由；`/sign-in`、`/sign-up` 提供账户入口。缺少或无效密钥时，受保护页面关闭并显示安全配置提示，不会默认放行。Clerk 登录只证明账户访问，不证明教师/教研身份、专业资质、组织关系或个案授权；它也不会自动迁移、上传、绑定或按身份隔离现有的三个本机存储命名空间，不会提供跨设备同步。
+
+工作台历史使用 `buildCycleHistoryProjection(state, ledgerStatus)` 生成严格白名单投影。它不读取或写入其他存储命名空间、不调用 `localStorage.setItem`、不追加学习事件，也不发起网络请求；DOM 仅接收计划重点、固定任务集版本、已验证事件数量、UTC 终止时间和 9 个安全长度内的域 ID。原始诊断答案、Writing/Speaking 内容、打卡自由文本、昵称、考试日、账户/Clerk 标识和 Sofia 对话均不会进入投影。任一 ID/技能/任务集/计划来源/时间/匿名事件别名/事件隐私字段不一致，或历史中出现重复 `cycle_id`，该条就只增加脱敏的无效计数而不显示原始内容；全局事件账本校验失败时，全部历史失败关闭。此视图是未签名、本机、只读的流程核对，不是服务器防篡改凭证、正式诊断、学习增长证明或资格人员复核结果。
 
 Sofia智能老师只对已经在六任务诊断证据包中完成 18+ 本机确认、六项任务终态和学习者优先项确认的用户开放，并在每次页面加载后要求另行勾选发送说明；API 同样要求该成人确认字段。页面只构造同轮 `cycle_id` / `diagnostic_session_id`、任务清单摘要、优先能力、证据覆盖数量/置信度、优先项依据、计划、推荐和闭环状态等最小摘要，不接收客户端任务正文、首答、推荐理由或自由文本上下文，不发送姓名、写作答案、录音或打卡自由文本，也不把历史对话发送给模型。请求和响应都使用严格结构校验；银行卡号等敏感内容会在本机保存或发送前拦截，损坏、未知版本或跨标签页已变化的对话保持只读，直到学习者明确清除后重建。
 

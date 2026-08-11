@@ -1474,11 +1474,23 @@ check(
     !/(?:作文|首答|打卡自由文本|聊天内容)<\/code>/.test(cycleLedgerSection),
   "cycle receipt overview is accessible, complete, and explicitly excludes learner free text",
 );
+const cycleHistorySection = workspace.match(/<section class="cycle-history-section[\s\S]*?<\/section>/)?.[0] || "";
+check(
+  /aria-labelledby="cycle-history-title"/.test(cycleHistorySection) &&
+    /data-cycle-history-summary[^>]*aria-live="polite"/.test(cycleHistorySection) &&
+    /<ol class="cycle-history-list"[^>]*aria-label="已核对的 Gate A 本机轮次历史"/.test(cycleHistorySection) &&
+    /最近 10 轮/.test(cycleHistorySection) &&
+    /完成本机闭环与“待具备资格人员复核”是两个不同状态/.test(cycleHistorySection) &&
+    /姓名、考试日、作文与首答、打卡自由文本、Sofia 对话和账户标识不会进入历史视图/.test(cycleHistorySection),
+  "workspace cycle history is accessible, bounded, read-only, and explicit about privacy and review status",
+);
 const gate0Section = workspace.match(/<section class="gate0-section[\s\S]*?<\/section>/)?.[0] || "";
 check(
   workspace.indexOf('class="cycle-ledger-section') < workspace.indexOf('class="gate0-section') &&
+    workspace.indexOf('class="cycle-ledger-section') < workspace.indexOf('class="cycle-history-section') &&
+    workspace.indexOf('class="cycle-history-section') < workspace.indexOf('class="gate0-section') &&
     workspace.indexOf('class="gate0-section') < workspace.indexOf('class="workspace-launch section'),
-  "workspace places the Gate 0 governance summary after the learner receipt and before supporting tools",
+  "workspace places cycle history after the current receipt and Gate 0 before supporting tools",
 );
 check(
   /aria-labelledby="gate0-title"/.test(gate0Section) &&
@@ -1671,6 +1683,25 @@ check(
     /const chain = validateCycleEvidence\(\)[\s\S]*evaluateJourney\(chain\)[\s\S]*renderCycleEvidenceLedger\(chain\)/.test(journeyScript) &&
     /value\.textContent = entry\.value \|\| "尚未形成"/.test(journeyScript),
   "workspace receipt projection reuses the central validator and writes only safe text nodes",
+);
+check(
+  /const buildCycleHistoryProjection = \(candidateState, ledgerStatus\)/.test(journeyScript) &&
+    /validated\.sort\(\(left, right\) => right\.terminalAt\.localeCompare\(left\.terminalAt\)\)/.test(journeyScript) &&
+    /validated\.slice\(0, CYCLE_HISTORY_LIMIT\)/.test(journeyScript) &&
+    /cycleIdCounts\.get\(record\.cycleId\) !== 1/.test(journeyScript) &&
+    /record\.cycleId === activeCycleId/.test(journeyScript) &&
+    /renderCycleHistory\(\)/.test(journeyScript),
+  "workspace cycle history is newest-first, capped at ten, de-duplicated, and separated from the current receipt",
+);
+check(
+  !/\bfetch\s*\(|localStorage|setItem|persist\(|appendLearningEvent|appendDomainEvent/.test(
+    sourceSection(journeyScript, "const cycleHistoryTopLevelKeys", "const diagnosticStatusLabels"),
+  ) &&
+    /textContent = value/.test(journeyScript) &&
+    /overflow-wrap:\s*anywhere/.test(styles) &&
+    /word-break:\s*break-word/.test(styles) &&
+    /@media \(max-width:\s*620px\)[\s\S]*?\.cycle-history-plan-comparison,[\s\S]*?grid-template-columns:\s*1fr;/.test(styles),
+  "cycle history projection performs no writes or network calls and wraps long IDs on small screens",
 );
 check(/const PROTOCOL_VERSION = "gate_a_local_v1"/.test(journeyScript), "journey names one exact Gate A protocol version");
 check(/value\.journey\.protocolVersion !== PROTOCOL_VERSION[\s\S]*activeCycle\.protocolVersion !== PROTOCOL_VERSION/.test(journeyScript), "journey rejects missing, empty, or unknown stored protocol versions");
@@ -2041,7 +2072,12 @@ const workspaceCheckInLifecycleSource = sourceSection(
   "let draftTimer;",
   "const updateDataPage",
 );
-const journeyValidationSource = sourceSection(journeyScript, "const validateCycleEvidence", "const diagnosticStatusLabels");
+const journeyValidationSource = sourceSection(journeyScript, "const validateCycleEvidence", "const cycleHistoryTopLevelKeys");
+const journeyCycleHistoryProjectionSource = sourceSection(
+  journeyScript,
+  "const cycleHistoryTopLevelKeys",
+  "const diagnosticStatusLabels",
+);
 const journeyPracticeReceiptValidationSource = sourceSection(
   journeyScript,
   "const hasValidPracticeEvidencePayload",
@@ -2199,6 +2235,35 @@ const journeyEvidenceHarness = (() => {
             return validateCycleEvidence();
           },
         };
+      })()`,
+      { URLSearchParams },
+    );
+  } catch {
+    return null;
+  }
+})();
+
+const cycleHistoryProjectionHarness = (() => {
+  try {
+    return runInNewContext(
+      `(() => {
+        "use strict";
+        const PROTOCOL_VERSION = "gate_a_local_v1";
+        const DIAGNOSTIC_PROTOCOL_VERSION = "gate_a_diagnostic_evidence_v1";
+        const DIAGNOSTIC_TASK_SET_VERSION = "gate_a_original_6_v1";
+        const DIAGNOSTIC_TASK_SET_DIGEST = "c1b2922ca96677665690bf790281be2438a016bbbe0d9f85478685af3c8dfc2c";
+        const PRACTICE_RECEIPT_VERSION = "sufeiya_practice_receipt_v2";
+        const LEGACY_PRACTICE_RECEIPT_VERSION = "sufeiya_practice_receipt_v1";
+        ${journeyEvidenceCatalogSource}
+        const isRecord = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value);
+        ${journeyPracticeReceiptValidationSource}
+        ${journeyPracticeCatalogLookupSource}
+        ${journeyPlanTaskLookupSource}
+        ${journeyEvidenceDerivationSource}
+        ${journeyDiagnosticEvidenceValidationSource}
+        ${journeyPracticeReceiptMatchesSource}
+        ${journeyCycleHistoryProjectionSource}
+        return { buildCycleHistoryProjection };
       })()`,
       { URLSearchParams },
     );
@@ -2896,6 +2961,311 @@ const createJourneyEvidenceFixture = () => {
       history: [],
     },
   };
+};
+
+const createCycleHistoryProjectionFixture = ({ index = 1, provisional = false } = {}) => {
+  const token = `fixture-${index}`;
+  const state = JSON.parse(JSON.stringify(createJourneyEvidenceFixture()).replaceAll("fixture", token));
+  const cycle = state.journey.activeCycle;
+  const diagnostic = state.journey.diagnostic;
+  const basePlan = state.planHistory[0];
+  const updatedPlan = state.plan;
+  const recommendation = state.journey.recommendation;
+  const checkIn = state.checkIns[token];
+  const review = state.journey.review;
+  const peerHelp = state.journey.peerHelp;
+  const retest = state.journey.retest;
+  const planUpdate = state.journey.planUpdate;
+  const baseTask = basePlan.days[0].tasks[0];
+  const practiceCatalog = journeyEvidenceHarness.PRACTICE_ACTIVITY_CATALOG["reading-library-v1"];
+  const day = String(10 + index).padStart(2, "0");
+  const at = (clock) => `2026-08-${day}T${clock}.000Z`;
+  const uuid = (offset) => `00000000-0000-4${String(index).padStart(3, "0")}-8000-${String(index * 100 + offset).padStart(12, "0")}`;
+  const hash = (offset) => (index.toString(16) + offset.toString(16)).padStart(64, "0").slice(-64);
+  const practiceAttemptId = uuid(1);
+  const practiceReceiptId = uuid(2);
+
+  cycle.createdAt = at("00:00:00");
+  cycle.updatedAt = at("00:10:00");
+  cycle.closedAt = provisional ? null : at("00:10:00");
+  cycle.provisionalAt = provisional ? at("00:10:00") : null;
+  cycle.status = provisional ? "provisional_pending_human_review" : "completed";
+
+  diagnostic.createdAt = at("00:00:00");
+  diagnostic.completedAt = at("00:02:00");
+  diagnostic.updatedAt = diagnostic.completedAt;
+  diagnostic.taskEvidence = diagnostic.taskEvidence.map((evidence, evidenceIndex) => ({
+    ...evidence,
+    startedAt: at(`00:00:${String(10 + evidenceIndex).padStart(2, "0")}`),
+    completedAt: at("00:01:00"),
+    updatedAt: at("00:01:00"),
+  }));
+
+  baseTask.date = `2026-08-${day}`;
+  basePlan.createdAt = at("00:03:00");
+  basePlan.status = "superseded";
+  basePlan.supersededAt = at("00:10:00");
+  basePlan.supersededByRetestId = cycle.retestId;
+  basePlan.nickname = `PRIVATE-NAME-${index}`;
+  basePlan.examDate = `PRIVATE-EXAM-${index}`;
+  updatedPlan.createdAt = at("00:10:01");
+  updatedPlan.focusSkill = "Listening";
+
+  recommendation.evidenceBinding.createdAt = at("00:04:00");
+  recommendation.createdAt = at("00:04:01");
+  recommendation.updatedAt = recommendation.createdAt;
+
+  const practiceReceipt = {
+    protocolVersion: "sufeiya_practice_receipt_v2",
+    practiceAttemptId,
+    completionReceiptId: practiceReceiptId,
+    sealed: true,
+    ownerScope: "browser_local_not_account_bound",
+    integrityClass: "unsigned_local_receipt",
+    exerciseId: "reading-library-v1",
+    activityId: practiceCatalog.activityId,
+    activityVersion: practiceCatalog.activityVersion,
+    contentId: practiceCatalog.contentId,
+    contentHash: practiceCatalog.contentHash,
+    taskId: baseTask.taskId,
+    taskDate: baseTask.date,
+    planId: basePlan.planId,
+    cycleId: cycle.cycleId,
+    diagnosticSessionId: cycle.diagnosticSessionId,
+    recommendationId: cycle.recommendationId,
+    taskRef: {
+      planId: basePlan.planId,
+      taskId: baseTask.taskId,
+      taskDate: baseTask.date,
+      cycleId: cycle.cycleId,
+      diagnosticSessionId: cycle.diagnosticSessionId,
+    },
+    contentRef: {
+      exerciseId: "reading-library-v1",
+      contentId: practiceCatalog.contentId,
+      contentVersion: practiceCatalog.activityVersion,
+      contentHash: practiceCatalog.contentHash,
+    },
+    skill: "Reading",
+    route: practiceCatalog.route,
+    status: "completed",
+    completionSource: "guided_practice",
+    evidenceClass: "practice_receipt",
+    receiptEvidenceClass: practiceCatalog.receiptEvidenceClass,
+    evidenceType: practiceCatalog.evidenceType,
+    completionCondition: practiceCatalog.completionCondition,
+    evidenceStatus: "evidence_limited",
+    attemptCount: 1,
+    wordCount: null,
+    selfCheckCount: null,
+    audioPlayed: false,
+    audioCompleted: false,
+    audioRecorded: false,
+    qualityFlags: [],
+    evidence: {
+      firstResponse: practiceCatalog.correctValue,
+      finalResponse: practiceCatalog.correctValue,
+      attemptCount: 1,
+      resultType: "correct",
+    },
+    automatedScoreProduced: false,
+    formalDiagnosisProduced: false,
+    officialEquivalenceClaimed: false,
+    startedAt: at("00:04:30"),
+    completedAt: at("00:05:00"),
+  };
+  checkIn.practiceAttemptId = practiceAttemptId;
+  checkIn.taskCompletionReceiptId = practiceReceiptId;
+  checkIn.practiceReceipt = structuredClone(practiceReceipt);
+  checkIn.savedAt = at("00:06:00");
+  checkIn.updatedAt = at("00:07:00");
+  checkIn.reviewedAt = at("00:07:00");
+  state.practiceReceipts = { [practiceReceiptId]: structuredClone(practiceReceipt) };
+  state.taskProgress = {
+    [baseTask.taskId]: {
+      status: "completed",
+      completionClass: "practice_receipt",
+      practiceReceiptId,
+    },
+  };
+
+  review.confirmedAt = at("00:07:00");
+  peerHelp.createdAt = at("00:08:00");
+  peerHelp.updatedAt = at("00:08:00");
+  retest.baselinePracticeReceiptId = practiceReceiptId;
+  retest.completedAt = at("00:09:00");
+  if (provisional) {
+    retest.evidence.selectedAnswer = "a";
+    const derived = journeyEvidenceHarness.deriveRetestOutcome(retest.skill, retest.evidence);
+    retest.evidence.resultType = derived.resultType;
+    retest.evidenceStatus = derived.evidenceStatus;
+    retest.evidenceSufficiency = derived.evidenceSufficiency;
+    retest.humanConfirmationStatus = derived.humanConfirmationStatus;
+    planUpdate.confirmationClass = "provisional_pending_human_review";
+    planUpdate.humanConfirmationStatus = "required_not_completed";
+  }
+  planUpdate.focusSkill = updatedPlan.focusSkill;
+  planUpdate.automatedAbilityDecision = false;
+  planUpdate.createdAt = at("00:10:00");
+
+  const alias = {
+    cycle: uuid(10),
+    diagnostic: uuid(11),
+    plan: uuid(12),
+    recommendation: uuid(13),
+    binding: uuid(14),
+    task: uuid(15),
+    practiceAttempt: uuid(16),
+    practiceReceipt: uuid(17),
+    checkIn: uuid(18),
+    retest: uuid(19),
+    updatedPlan: uuid(20),
+  };
+  const privacy = {
+    classification: "pseudonymous_local_learning_metadata",
+    containsDirectIdentifier: false,
+    containsAccountIdentifier: false,
+    containsClerkIdentifier: false,
+    containsFreeText: false,
+    containsRawResponse: false,
+    containsAudio: false,
+    containsSofiaContent: false,
+  };
+  const governance = {
+    storageScope: "browser_local_only",
+    corruptionPolicy: "fail_closed",
+    networkDispatch: "disabled",
+    lrsDispatch: "disabled",
+    xapiDispatch: "disabled",
+    sofiaAccess: "forbidden",
+  };
+  const makeEvent = (offset, eventType, occurredAt, context, attributes) => ({
+    eventId: uuid(30 + offset),
+    eventHash: hash(30 + offset),
+    eventType,
+    occurredAt,
+    context,
+    attributes,
+    privacy: structuredClone(privacy),
+    governance: structuredClone(governance),
+  });
+  const events = [
+    makeEvent(0, "learning_cycle.started", cycle.createdAt, {
+      learningCycleId: alias.cycle,
+      diagnosticSessionId: alias.diagnostic,
+    }, {
+      taskSetVersion: diagnostic.taskSetVersion,
+      taskSetDigest: diagnostic.taskSetDigest,
+    }),
+    makeEvent(1, "recommendation.decided", recommendation.createdAt, {
+      learningCycleId: alias.cycle,
+      diagnosticSessionId: alias.diagnostic,
+      planId: alias.plan,
+      recommendationId: alias.recommendation,
+      bindingId: alias.binding,
+    }, { decision: recommendation.status }),
+    makeEvent(2, "practice_attempt.finalized", practiceReceipt.completedAt, {
+      learningCycleId: alias.cycle,
+      diagnosticSessionId: alias.diagnostic,
+      planId: alias.plan,
+      recommendationId: alias.recommendation,
+      bindingId: alias.binding,
+      taskId: alias.task,
+      attemptId: alias.practiceAttempt,
+      practiceReceiptId: alias.practiceReceipt,
+    }, { skill: diagnostic.prioritySkill }),
+    makeEvent(3, "check_in.committed", checkIn.savedAt, {
+      learningCycleId: alias.cycle,
+      diagnosticSessionId: alias.diagnostic,
+      planId: alias.plan,
+      recommendationId: alias.recommendation,
+      bindingId: alias.binding,
+      taskId: alias.task,
+      practiceReceiptId: alias.practiceReceipt,
+      checkInId: alias.checkIn,
+    }, {}),
+    makeEvent(4, "retest.completed", retest.completedAt, {
+      learningCycleId: alias.cycle,
+      diagnosticSessionId: alias.diagnostic,
+      planId: alias.plan,
+      recommendationId: alias.recommendation,
+      bindingId: alias.binding,
+      checkInId: alias.checkIn,
+      retestId: alias.retest,
+      baselinePracticeReceiptId: alias.practiceReceipt,
+    }, {
+      skill: diagnostic.prioritySkill,
+      humanConfirmationStatus: retest.humanConfirmationStatus,
+    }),
+  ];
+  if (!provisional) {
+    events.push(makeEvent(5, "learning_cycle.completed", cycle.closedAt, {
+      learningCycleId: alias.cycle,
+      diagnosticSessionId: alias.diagnostic,
+      planId: alias.plan,
+      retestId: alias.retest,
+      updatedPlanId: alias.updatedPlan,
+    }, {
+      nextFocusSkill: planUpdate.focusSkill,
+      humanConfirmationStatus: planUpdate.humanConfirmationStatus,
+    }));
+  }
+
+  state.learningEventBindings = {
+    records: {
+      cycle: { [cycle.cycleId]: alias.cycle },
+      diagnostic: { [cycle.diagnosticSessionId]: alias.diagnostic },
+      plan: { [cycle.basePlanId]: alias.plan },
+      recommendation: { [cycle.recommendationId]: alias.recommendation },
+      binding: { [recommendation.evidenceBinding.bindingId]: alias.binding },
+      task: { [baseTask.taskId]: alias.task },
+      practiceAttempt: { [practiceAttemptId]: alias.practiceAttempt },
+      practiceReceipt: { [practiceReceiptId]: alias.practiceReceipt },
+      checkIn: { [cycle.checkInId]: alias.checkIn },
+      retest: { [cycle.retestId]: alias.retest },
+      updatedPlan: { [cycle.updatedPlanId]: alias.updatedPlan },
+    },
+  };
+  state.learningEvents = events;
+  state.journey.history = [{
+    ...cycle,
+    diagnostic,
+    recommendation,
+    checkIn,
+    review,
+    peerHelp,
+    retest,
+    planUpdate,
+  }];
+  state.journey.activeCycle = null;
+  state.sofiaChat = `PRIVATE-SOFIA-${index}`;
+  return state;
+};
+
+const mergeCycleHistoryProjectionFixtures = (fixtures) => {
+  const merged = structuredClone(fixtures[0]);
+  merged.plan = null;
+  merged.planHistory = [];
+  merged.taskProgress = {};
+  merged.practiceReceipts = {};
+  merged.learningEvents = [];
+  merged.learningEventBindings = { records: {} };
+  merged.journey.activeCycle = null;
+  merged.journey.history = [];
+  for (const fixture of fixtures) {
+    merged.planHistory.push(fixture.plan, ...fixture.planHistory);
+    Object.assign(merged.taskProgress, fixture.taskProgress);
+    Object.assign(merged.practiceReceipts, fixture.practiceReceipts);
+    merged.learningEvents.push(...fixture.learningEvents);
+    merged.journey.history.push(...fixture.journey.history);
+    for (const [kind, records] of Object.entries(fixture.learningEventBindings.records)) {
+      merged.learningEventBindings.records[kind] = {
+        ...(merged.learningEventBindings.records[kind] || {}),
+        ...records,
+      };
+    }
+  }
+  return merged;
 };
 
 const createSkippedRecommendationPracticeReceipt = ({ state, task, practiceAttemptId, completionReceiptId }) => {
@@ -3719,6 +4089,120 @@ checkExecutable(
       rejectedProjection.rows[0]?.state === "current" &&
       rejectedProjection.rows[0]?.value === null &&
       rejectedProjection.rows.slice(1).every((row) => row.state === "locked" && row.value === null)
+    );
+  },
+);
+check(
+  Boolean(cycleHistoryProjectionHarness?.buildCycleHistoryProjection),
+  "cycle-history projection loads as an executable pure-function harness",
+);
+checkExecutable(
+  "cycle history exposes only allowlisted metadata and keeps completed versus qualified-human-review-pending distinct",
+  () => {
+    const complete = createCycleHistoryProjectionFixture({ index: 1 });
+    const provisional = createCycleHistoryProjectionFixture({ index: 2, provisional: true });
+    const completeProjection = cycleHistoryProjectionHarness.buildCycleHistoryProjection(complete, { ok: true });
+    const provisionalProjection = cycleHistoryProjectionHarness.buildCycleHistoryProjection(provisional, { ok: true });
+    const serialized = JSON.stringify({ completeProjection, provisionalProjection });
+    return (
+      completeProjection.items.length === 1 &&
+      completeProjection.items[0].status === "completed_local_cycle" &&
+      completeProjection.items[0].eventCount === 6 &&
+      provisionalProjection.items.length === 1 &&
+      provisionalProjection.items[0].status === "pending_qualified_human_review" &&
+      provisionalProjection.items[0].eventCount === 5 &&
+      [
+        "completed-task",
+        "evidence-note",
+        "Reading evidence",
+        "PRIVATE-NAME",
+        "PRIVATE-EXAM",
+        "PRIVATE-SOFIA",
+      ].every((marker) => !serialized.includes(marker))
+    );
+  },
+);
+checkExecutable(
+  "cycle history fails closed on forged IDs, skills, updated plans, timestamps, event privacy, event gaps, and overlong IDs",
+  () => {
+    const baseline = createCycleHistoryProjectionFixture({ index: 3 });
+    const candidates = [];
+
+    const forgedId = structuredClone(baseline);
+    forgedId.journey.history[0].checkInId = "check-in-forged";
+    candidates.push(forgedId);
+
+    const forgedSkill = structuredClone(baseline);
+    forgedSkill.journey.history[0].diagnostic.prioritySkill = "Listening";
+    candidates.push(forgedSkill);
+
+    const forgedUpdatedPlan = structuredClone(baseline);
+    forgedUpdatedPlan.plan.focusSkill = "Speaking";
+    candidates.push(forgedUpdatedPlan);
+
+    const forgedTime = structuredClone(baseline);
+    forgedTime.journey.history[0].closedAt = "2026-08-13T00:08:00.000Z";
+    candidates.push(forgedTime);
+
+    const privacyLeak = structuredClone(baseline);
+    privacyLeak.learningEvents[2].privacy.containsFreeText = true;
+    candidates.push(privacyLeak);
+
+    const privacyEnvelope = structuredClone(baseline);
+    privacyEnvelope.journey.history[0].sofiaChat = "private conversation";
+    candidates.push(privacyEnvelope);
+
+    const missingEvent = structuredClone(baseline);
+    missingEvent.learningEvents = missingEvent.learningEvents.filter((event) => event.eventType !== "retest.completed");
+    candidates.push(missingEvent);
+
+    const overlongId = structuredClone(baseline);
+    overlongId.journey.history[0].cycleId = "x".repeat(181);
+    candidates.push(overlongId);
+
+    return candidates.every((candidate) => {
+      const projection = cycleHistoryProjectionHarness.buildCycleHistoryProjection(candidate, { ok: true });
+      return projection.items.length === 0 && projection.invalidCount === 1;
+    });
+  },
+);
+checkExecutable(
+  "cycle history rejects duplicate cycle IDs, treats a corrupt global ledger as invalid, and never mixes the current receipt into history",
+  () => {
+    const duplicate = createCycleHistoryProjectionFixture({ index: 4 });
+    duplicate.journey.history.push(structuredClone(duplicate.journey.history[0]));
+    const duplicateProjection = cycleHistoryProjectionHarness.buildCycleHistoryProjection(duplicate, { ok: true });
+
+    const corruptLedger = createCycleHistoryProjectionFixture({ index: 5 });
+    const corruptProjection = cycleHistoryProjectionHarness.buildCycleHistoryProjection(corruptLedger, { ok: false });
+
+    const currentMix = createCycleHistoryProjectionFixture({ index: 6 });
+    currentMix.journey.activeCycle = { cycleId: currentMix.journey.history[0].cycleId };
+    const currentProjection = cycleHistoryProjectionHarness.buildCycleHistoryProjection(currentMix, { ok: true });
+    return (
+      duplicateProjection.items.length === 0 &&
+      duplicateProjection.invalidCount === 2 &&
+      corruptProjection.items.length === 0 &&
+      corruptProjection.invalidCount === 1 &&
+      currentProjection.items.length === 0 &&
+      currentProjection.invalidCount === 0 &&
+      currentProjection.currentExcludedCount === 1
+    );
+  },
+);
+checkExecutable(
+  "cycle history displays at most ten validated cycles in newest-first order",
+  () => {
+    const fixtures = Array.from({ length: 11 }, (_, index) => createCycleHistoryProjectionFixture({ index: index + 1 }));
+    const merged = mergeCycleHistoryProjectionFixtures(fixtures);
+    const projection = cycleHistoryProjectionHarness.buildCycleHistoryProjection(merged, { ok: true });
+    return (
+      projection.validCount === 11 &&
+      projection.items.length === 10 &&
+      projection.hiddenValidCount === 1 &&
+      projection.items[0].cycleId.endsWith("fixture-11") &&
+      projection.items.at(-1).cycleId.endsWith("fixture-2") &&
+      projection.items.every((item, index, items) => index === 0 || items[index - 1].terminalAt > item.terminalAt)
     );
   },
 );

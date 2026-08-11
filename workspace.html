@@ -170,6 +170,21 @@
         <p class="cycle-ledger-boundary">这份总览是当前浏览器中的未签名演示回执：可用于核对流程与回链，不是服务器签名、正式诊断、教师确认、学习增长证明或防篡改凭证。</p>
       </div>
     </section>
+    <section class="cycle-history-section section" aria-labelledby="cycle-history-title" data-cycle-history data-cycle-history-state="empty">
+      <div class="section-inner">
+        <div class="cycle-history-heading">
+          <div><p class="workspace-overline">LOCAL CYCLE HISTORY / LAST 10</p><h2 id="cycle-history-title">上一轮计划怎么变，<br />只看通过核对的版本。</h2></div>
+          <div>
+            <p>这里最多显示最近 10 轮。每轮都重新核对完整 ID 链、固定任务集、能力方向、时间顺序、计划前后版本与本机事件链；当前轮次不重复列入历史。</p>
+            <strong data-cycle-history-summary aria-live="polite">正在核对本机轮次历史</strong>
+          </div>
+        </div>
+        <ol class="cycle-history-list" data-cycle-history-list aria-label="已核对的 Gate A 本机轮次历史" hidden></ol>
+        <p class="cycle-history-empty" data-cycle-history-empty>完成一轮 Gate A 本机闭环后，这里会显示经过重新核对的计划版本与脱敏 ID 链。</p>
+        <p class="cycle-history-invalid" data-cycle-history-invalid hidden></p>
+        <p class="cycle-history-boundary">只读投影不会写入学习状态、追加事件或发送网络请求；姓名、考试日、作文与首答、打卡自由文本、Sofia 对话和账户标识不会进入历史视图。完成本机闭环与“待具备资格人员复核”是两个不同状态。</p>
+      </div>
+    </section>
     <section class="gate0-section section" aria-labelledby="gate0-title" data-gate0-summary data-gate0-state="loading">
       <div class="section-inner">
         <div class="gate0-heading">

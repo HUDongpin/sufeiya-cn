@@ -4932,6 +4932,288 @@ button:disabled {
   }
 }
 
+.cycle-history-section {
+  background:
+    linear-gradient(135deg, rgba(221, 232, 218, 0.36), transparent 54%),
+    var(--color-white);
+}
+
+.cycle-history-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(280px, 0.72fr);
+  align-items: end;
+  gap: clamp(32px, 7vw, 96px);
+}
+
+.cycle-history-heading h2 {
+  margin: 10px 0 0;
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: clamp(36px, 4.25vw, 60px);
+  font-weight: 600;
+  letter-spacing: -0.052em;
+  line-height: 1.24;
+}
+
+.cycle-history-heading > div:last-child > p {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 13px;
+  line-height: 1.9;
+}
+
+.cycle-history-heading > div:last-child > strong {
+  margin-top: 14px;
+  display: block;
+  color: var(--color-ink);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.cycle-history-list {
+  margin: clamp(38px, 6vw, 68px) 0 0;
+  padding: 0;
+  display: grid;
+  gap: 20px;
+  list-style: none;
+}
+
+.cycle-history-list > li,
+.cycle-history-list article {
+  min-width: 0;
+}
+
+.cycle-history-list article {
+  border: 1px solid rgba(16, 44, 41, 0.2);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: var(--shadow-soft);
+}
+
+.cycle-history-list article > header {
+  padding: clamp(24px, 4vw, 38px);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 24px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.cycle-history-list article > header > div,
+.cycle-history-list article > header h3 {
+  min-width: 0;
+}
+
+.cycle-history-list article > header span {
+  color: var(--color-accent-deep);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 0.12em;
+}
+
+.cycle-history-list article > header h3 {
+  margin: 8px 0 0;
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: clamp(24px, 3vw, 34px);
+  font-weight: 650;
+  letter-spacing: -0.035em;
+  line-height: 1.35;
+}
+
+.cycle-history-list article > header time {
+  margin-top: 8px;
+  display: block;
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.6;
+}
+
+.cycle-history-list article > header > strong {
+  min-height: 36px;
+  padding: 8px 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(16, 44, 41, 0.24);
+  border-radius: 999px;
+  background: var(--color-sage-deep);
+  color: var(--color-ink);
+  font-size: 10px;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.cycle-history-list article > header > strong[data-state="pending_qualified_human_review"] {
+  border-color: var(--color-accent-deep);
+  background: rgba(244, 183, 64, 0.15);
+}
+
+.cycle-history-plan-comparison,
+.cycle-history-id-chain {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  display: grid;
+}
+
+.cycle-history-plan-comparison {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-bottom: 1px solid var(--color-border);
+}
+
+.cycle-history-id-chain {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.cycle-history-plan-comparison > div,
+.cycle-history-id-chain > div {
+  min-width: 0;
+  padding: 18px clamp(18px, 3vw, 28px);
+  border-right: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.cycle-history-plan-comparison > div:last-child,
+.cycle-history-id-chain > div:nth-child(3n) {
+  border-right: 0;
+}
+
+.cycle-history-id-chain > div:nth-last-child(-n + 3) {
+  border-bottom: 0;
+}
+
+.cycle-history-plan-comparison dt,
+.cycle-history-id-chain dt,
+.cycle-history-plan-comparison dd,
+.cycle-history-id-chain dd {
+  min-width: 0;
+  margin: 0;
+}
+
+.cycle-history-plan-comparison dt,
+.cycle-history-id-chain dt {
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  line-height: 1.55;
+}
+
+.cycle-history-plan-comparison dd,
+.cycle-history-id-chain dd {
+  margin-top: 7px;
+  color: var(--color-ink);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.65;
+}
+
+.cycle-history-plan-comparison code,
+.cycle-history-id-chain code {
+  min-width: 0;
+  display: block;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
+  color: inherit;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.cycle-history-list article > p,
+.cycle-history-empty,
+.cycle-history-invalid,
+.cycle-history-boundary {
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.8;
+}
+
+.cycle-history-list article > p {
+  margin: 0;
+  padding: 20px clamp(18px, 3vw, 28px);
+  border-top: 1px solid var(--color-border);
+}
+
+.cycle-history-empty,
+.cycle-history-invalid {
+  margin: clamp(38px, 6vw, 68px) 0 0;
+  padding: 24px;
+  border: 1px solid var(--color-border);
+  background: var(--color-paper);
+}
+
+.cycle-history-invalid {
+  margin-top: 18px;
+  border-color: rgba(157, 92, 10, 0.36);
+  background: rgba(244, 183, 64, 0.12);
+  color: var(--color-ink);
+}
+
+.cycle-history-boundary {
+  margin: 22px 0 0;
+}
+
+@media (max-width: 900px) {
+  .cycle-history-heading {
+    grid-template-columns: 1fr;
+  }
+
+  .cycle-history-plan-comparison,
+  .cycle-history-id-chain {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .cycle-history-plan-comparison > div:nth-child(n),
+  .cycle-history-id-chain > div:nth-child(n) {
+    border-right: 1px solid var(--color-border);
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .cycle-history-plan-comparison > div:nth-child(2n),
+  .cycle-history-id-chain > div:nth-child(2n) {
+    border-right: 0;
+  }
+
+  .cycle-history-plan-comparison > div:nth-last-child(-n + 2),
+  .cycle-history-id-chain > div:last-child {
+    border-bottom: 0;
+  }
+}
+
+@media (max-width: 620px) {
+  .cycle-history-heading {
+    gap: 22px;
+  }
+
+  .cycle-history-list article > header {
+    grid-template-columns: 1fr;
+  }
+
+  .cycle-history-list article > header > strong {
+    justify-self: start;
+  }
+
+  .cycle-history-plan-comparison,
+  .cycle-history-id-chain {
+    grid-template-columns: 1fr;
+  }
+
+  .cycle-history-plan-comparison > div:nth-child(n),
+  .cycle-history-id-chain > div:nth-child(n) {
+    border-right: 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .cycle-history-plan-comparison > div:last-child,
+  .cycle-history-id-chain > div:last-child {
+    border-bottom: 0;
+  }
+}
+
 .gate0-section {
   background: var(--color-white);
 }
