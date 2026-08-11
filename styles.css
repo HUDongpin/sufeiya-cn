@@ -4932,6 +4932,233 @@ button:disabled {
   }
 }
 
+.gate0-section {
+  background: var(--color-white);
+}
+
+.gate0-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(280px, 0.72fr);
+  align-items: end;
+  gap: clamp(32px, 7vw, 96px);
+}
+
+.gate0-heading h2 {
+  margin: 10px 0 0;
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: clamp(36px, 4.25vw, 60px);
+  font-weight: 600;
+  letter-spacing: -0.052em;
+  line-height: 1.24;
+}
+
+.gate0-heading > p {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 14px;
+  line-height: 1.9;
+}
+
+.gate0-shell {
+  margin-top: clamp(40px, 6vw, 72px);
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(280px, 0.72fr);
+  border: 1px solid rgba(16, 44, 41, 0.2);
+  background: var(--color-paper);
+  box-shadow: var(--shadow-soft);
+}
+
+.gate0-status-card,
+.gate0-boundary-card {
+  min-width: 0;
+  padding: clamp(28px, 4vw, 44px);
+}
+
+.gate0-status-card {
+  min-height: 340px;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid rgba(16, 44, 41, 0.2);
+  box-shadow: inset 4px 0 0 var(--color-accent);
+}
+
+.gate0-status-card > span,
+.gate0-boundary-card > span {
+  color: var(--color-accent-deep);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.12em;
+}
+
+.gate0-status-card > strong {
+  margin-top: 16px;
+  display: block;
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: clamp(28px, 3.2vw, 42px);
+  font-weight: 650;
+  letter-spacing: -0.04em;
+  line-height: 1.28;
+}
+
+.gate0-status-card > p {
+  max-width: 62ch;
+  margin: 16px 0 0;
+  color: var(--color-muted);
+  font-size: 14px;
+  line-height: 1.85;
+}
+
+.gate0-meter {
+  margin-top: auto;
+  padding-top: 34px;
+}
+
+.gate0-meter > div {
+  margin-bottom: 12px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.gate0-meter > div > span {
+  color: var(--color-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.gate0-meter > div > strong {
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+.gate0-meter progress {
+  width: 100%;
+  height: 12px;
+  display: block;
+  overflow: hidden;
+  appearance: none;
+  border: 1px solid rgba(16, 44, 41, 0.24);
+  border-radius: 999px;
+  background: rgba(16, 44, 41, 0.08);
+}
+
+.gate0-meter progress::-webkit-progress-bar {
+  background: rgba(16, 44, 41, 0.08);
+}
+
+.gate0-meter progress::-webkit-progress-value {
+  background: var(--color-accent-deep);
+}
+
+.gate0-meter progress::-moz-progress-bar {
+  background: var(--color-accent-deep);
+}
+
+.gate0-boundary-card {
+  background: rgba(244, 183, 64, 0.1);
+}
+
+.gate0-boundary-card > strong {
+  margin-top: 14px;
+  display: block;
+  color: var(--color-ink);
+  font-size: 19px;
+  line-height: 1.45;
+}
+
+.gate0-boundary-card > p {
+  margin: 15px 0 0;
+  color: var(--color-ink-soft);
+  font-size: 14px;
+  line-height: 1.85;
+}
+
+.gate0-boundary-card ul {
+  margin: 24px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.gate0-boundary-card li {
+  position: relative;
+  padding: 12px 0 12px 18px;
+  border-top: 1px solid rgba(16, 44, 41, 0.16);
+  color: var(--color-ink);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.gate0-boundary-card li::before {
+  position: absolute;
+  top: 20px;
+  left: 0;
+  width: 6px;
+  height: 1px;
+  background: var(--color-accent-deep);
+  content: "";
+}
+
+.gate0-footnote {
+  margin: 22px 0 0;
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.8;
+}
+
+[data-gate0-state="decision-complete"] .gate0-status-card {
+  box-shadow: inset 4px 0 0 var(--color-sage-deep);
+}
+
+[data-gate0-state="unavailable"] .gate0-status-card {
+  box-shadow: inset 4px 0 0 var(--color-muted);
+}
+
+@media (max-width: 900px) {
+  .gate0-heading,
+  .gate0-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .gate0-status-card {
+    border-right: 0;
+    border-bottom: 1px solid rgba(16, 44, 41, 0.2);
+  }
+}
+
+@media (max-width: 620px) {
+  .gate0-heading {
+    gap: 22px;
+  }
+
+  .gate0-status-card,
+  .gate0-boundary-card {
+    padding: 26px 20px;
+  }
+
+  .gate0-heading > p,
+  .gate0-status-card > p,
+  .gate0-boundary-card > p,
+  .gate0-boundary-card li {
+    font-size: 15px;
+  }
+
+  .gate0-footnote {
+    font-size: 13px;
+  }
+
+  .gate0-meter > div {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+}
+
 .journey-tool-section {
   background: linear-gradient(180deg, var(--color-white), #fbfaf6);
 }

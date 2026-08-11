@@ -3,9 +3,11 @@ import {
   RELEASE_SURFACES,
   releaseGovernanceSummary,
 } from "@/lib/release-governance";
+import { P0_DECISION_PROTOCOL, summarizeP0DecisionLog } from "@/lib/p0-decision-log";
 
 export async function GET() {
   const summary = releaseGovernanceSummary();
+  const p0Summary = summarizeP0DecisionLog();
   const surfaces = Object.fromEntries(
     RELEASE_SURFACES.map((surface) => {
       const evaluation = summary[surface];
@@ -27,6 +29,16 @@ export async function GET() {
     defaultDisposition: RELEASE_DECISION_REGISTER.defaultDisposition,
     environmentPolicy: RELEASE_DECISION_REGISTER.environmentPolicy,
     mode: "sanitized_read_only_status",
+    p0Gate: {
+      protocolVersion: p0Summary.protocolVersion,
+      status: p0Summary.status,
+      total: p0Summary.total,
+      resolved: p0Summary.resolved,
+      unresolved: p0Summary.unresolved,
+      defaultDisposition: p0Summary.defaultDisposition,
+      formalGate0Pass: p0Summary.formalGate0Pass,
+      releaseAuthorization: p0Summary.releaseAuthorization,
+    },
     surfaces,
   }, {
     headers: {
@@ -34,6 +46,7 @@ export async function GET() {
       "X-Content-Type-Options": "nosniff",
       "X-Robots-Tag": "noindex, nofollow",
       "X-Sufeiya-Governance-Mode": "read-only-no-mutations",
+      "X-Sufeiya-P0-Protocol": P0_DECISION_PROTOCOL,
     },
   });
 }

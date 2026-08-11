@@ -7,6 +7,9 @@
   const DIAGNOSTIC_PROTOCOL_VERSION = "gate_a_diagnostic_evidence_v1";
   const DIAGNOSTIC_TASK_SET_VERSION = "gate_a_original_6_v1";
   const DIAGNOSTIC_TASK_SET_DIGEST = "c1b2922ca96677665690bf790281be2438a016bbbe0d9f85478685af3c8dfc2c";
+  const GATE0_STATUS_PATH = "/api/governance/status";
+  const GATE0_PROTOCOL_VERSION = "sufeiya_p0_decision_log_v1";
+  const GATE0_RELEASE_AUTHORIZATION = "separate_explicit_controls_required";
   const PRACTICE_RECEIPT_VERSION = "sufeiya_practice_receipt_v2";
   const LEGACY_PRACTICE_RECEIPT_VERSION = "sufeiya_practice_receipt_v1";
   const learningEventsRuntime = window.SufeiyaLearningEvents;
@@ -3377,6 +3380,126 @@
     });
   };
 
+  const gate0PublicKeys = Object.freeze([
+    "defaultDisposition",
+    "formalGate0Pass",
+    "protocolVersion",
+    "releaseAuthorization",
+    "resolved",
+    "status",
+    "total",
+    "unresolved",
+  ].sort());
+
+  const parseGate0PublicSummary = (candidate) => {
+    if (!isRecord(candidate)) return null;
+    const keys = Object.keys(candidate).sort();
+    if (JSON.stringify(keys) !== JSON.stringify(gate0PublicKeys)) return null;
+    if (
+      candidate.protocolVersion !== GATE0_PROTOCOL_VERSION ||
+      !["blocked", "decision_complete"].includes(candidate.status) ||
+      candidate.total !== 29 ||
+      !Number.isSafeInteger(candidate.resolved) ||
+      candidate.resolved < 0 ||
+      candidate.resolved > 29 ||
+      candidate.unresolved !== 29 - candidate.resolved ||
+      candidate.defaultDisposition !== "deny" ||
+      candidate.formalGate0Pass !== false ||
+      candidate.releaseAuthorization !== GATE0_RELEASE_AUTHORIZATION ||
+      (candidate.status === "decision_complete" && candidate.resolved !== 29)
+    ) return null;
+    return {
+      status: candidate.status,
+      resolved: candidate.resolved,
+      unresolved: candidate.unresolved,
+    };
+  };
+
+  const renderGate0Failure = () => {
+    const root = document.querySelector("[data-gate0-summary]");
+    if (!root) return;
+    root.dataset.gate0State = "unavailable";
+    const status = root.querySelector("[data-gate0-status]");
+    const copy = root.querySelector("[data-gate0-copy]");
+    const resolved = root.querySelector("[data-gate0-resolved]");
+    const total = root.querySelector("[data-gate0-total]");
+    const progress = root.querySelector("[data-gate0-progress]");
+    if (status) status.textContent = "暂时无法核对 Gate 0 注册表";
+    if (copy) copy.textContent = "为避免把未知状态显示成批准，当前按 Gate 0 未通过处理；学习闭环与未批准能力的边界不变。";
+    if (resolved) resolved.textContent = "—";
+    if (total) total.textContent = "29";
+    if (progress) {
+      progress.removeAttribute("value");
+      progress.setAttribute("aria-valuetext", "暂时无法核对，按未通过处理");
+      progress.textContent = "暂时无法核对";
+    }
+  };
+
+  const renderGate0Summary = (summary) => {
+    const root = document.querySelector("[data-gate0-summary]");
+    if (!root) return;
+    root.dataset.gate0State = summary.status === "decision_complete" ? "decision-complete" : "blocked";
+    const status = root.querySelector("[data-gate0-status]");
+    const copy = root.querySelector("[data-gate0-copy]");
+    const resolved = root.querySelector("[data-gate0-resolved]");
+    const total = root.querySelector("[data-gate0-total]");
+    const progress = root.querySelector("[data-gate0-progress]");
+    if (status) {
+      status.textContent = summary.status === "decision_complete"
+        ? "29 项 P0 已形成书面结论"
+        : "Gate 0 尚未通过";
+    }
+    if (copy) {
+      copy.textContent = summary.status === "decision_complete"
+        ? "逐项采用或拒绝结论已经齐备；这仍不代表 Gate 0 正式 PASS，也不会直接开放任何运行时功能。"
+        : `已形成 ${summary.resolved} 项逐项采用或拒绝结论；${summary.unresolved} 项仍未解决。未解决项保持默认不批准。`;
+    }
+    if (resolved) resolved.textContent = String(summary.resolved);
+    if (total) total.textContent = "29";
+    if (progress) {
+      progress.value = summary.resolved;
+      progress.setAttribute("value", String(summary.resolved));
+      progress.setAttribute("aria-valuetext", `${summary.resolved} / 29 项已形成逐项书面结论`);
+      progress.textContent = `${summary.resolved} / 29`;
+    }
+  };
+
+  const loadGate0GovernanceStatus = async () => {
+    if (!document.querySelector("[data-gate0-summary]")) return;
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 6000);
+    try {
+      const response = await fetch(GATE0_STATUS_PATH, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        credentials: "same-origin",
+        cache: "no-store",
+        redirect: "error",
+        referrerPolicy: "same-origin",
+        signal: controller.signal,
+      });
+      const responseUrl = new URL(response.url);
+      const contentType = response.headers.get("content-type") || "";
+      if (
+        !response.ok ||
+        responseUrl.origin !== window.location.origin ||
+        responseUrl.pathname !== GATE0_STATUS_PATH ||
+        !contentType.toLowerCase().startsWith("application/json")
+      ) throw new Error("invalid_gate0_response");
+      const raw = await response.text();
+      if (raw.length === 0 || raw.length > 20000) throw new Error("invalid_gate0_response_size");
+      const body = JSON.parse(raw);
+      if (!isRecord(body) || body.mode !== "sanitized_read_only_status") throw new Error("invalid_gate0_envelope");
+      const summary = parseGate0PublicSummary(body.p0Gate);
+      if (!summary) throw new Error("invalid_gate0_summary");
+      renderGate0Summary(summary);
+    } catch {
+      renderGate0Failure();
+    } finally {
+      window.clearTimeout(timeout);
+    }
+  };
+
   const renderJourneyDashboard = () => {
     if (!document.querySelector("[data-journey-list]")) return;
     const chain = validateCycleEvidence();
@@ -3413,6 +3536,7 @@
     renderCycleEvidenceLedger(chain);
   };
 
+  void loadGate0GovernanceStatus();
   const workspaceWriterLeaseAvailable = await acquireSharedWorkspaceWriterLease();
   if (!workspaceWriterLeaseAvailable) storageWritable = false;
   loadState();

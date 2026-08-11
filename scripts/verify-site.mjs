@@ -81,6 +81,24 @@ const checkExecutableAsync = async (message, assertion) => {
   }
 };
 
+const srgbLuminance = (rgb) => {
+  const channels = rgb.map((channel) => {
+    const value = channel / 255;
+    return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+};
+
+const contrastRatio = (foreground, background) => {
+  const foregroundLuminance = srgbLuminance(foreground);
+  const backgroundLuminance = srgbLuminance(background);
+  return (Math.max(foregroundLuminance, backgroundLuminance) + 0.05) /
+    (Math.min(foregroundLuminance, backgroundLuminance) + 0.05);
+};
+
+const compositeRgb = (foreground, background, alpha) =>
+  foreground.map((channel, index) => alpha * channel + (1 - alpha) * background[index]);
+
 const read = (path) => readFile(join(root, path), "utf8");
 const styles = await read("styles.css");
 const nextOverrides = await read("app/next-overrides.css");
@@ -119,6 +137,7 @@ const superTeacherResponder = await read("lib/super-teacher/responder.ts");
 const superTeacherModelRuntime = await read("lib/super-teacher/model-runtime.ts");
 const superTeacherVoiceRelease = await read("lib/super-teacher/voice-release.ts");
 const releaseGovernanceSource = await read("lib/release-governance.ts");
+const p0DecisionLogSource = await read("lib/p0-decision-log.ts");
 const releaseGovernanceStatusRoute = await read("app/api/governance/status/route.ts");
 const teachingReviewPage = await read("app/teaching-review-demo/page.tsx");
 const teachingReviewClient = await read("components/teaching-review-demo-client.tsx");
@@ -136,6 +155,8 @@ const learningEventExamples = JSON.parse(await read("data/learning-event-example
 const diagnosticTaskRegister = JSON.parse(await read("data/diagnostic-task-register.json"));
 const practiceTaskRegister = JSON.parse(await read("data/practice-task-register.json"));
 const releaseDecisionRegister = JSON.parse(await read("data/release-decision-register.v1.json"));
+const p0DecisionLog = JSON.parse(await read("data/p0-decision-log.v1.json"));
+const p0PublishedBaseline = JSON.parse(await read("data/p0-decision-log-published-baseline.v1.json"));
 const runtimePageSources = new Map(
   await Promise.all(pageFiles.map(async ([filename]) => [filename, await read(filename)])),
 );
@@ -1453,6 +1474,138 @@ check(
     !/(?:作文|首答|打卡自由文本|聊天内容)<\/code>/.test(cycleLedgerSection),
   "cycle receipt overview is accessible, complete, and explicitly excludes learner free text",
 );
+const gate0Section = workspace.match(/<section class="gate0-section[\s\S]*?<\/section>/)?.[0] || "";
+check(
+  workspace.indexOf('class="cycle-ledger-section') < workspace.indexOf('class="gate0-section') &&
+    workspace.indexOf('class="gate0-section') < workspace.indexOf('class="workspace-launch section'),
+  "workspace places the Gate 0 governance summary after the learner receipt and before supporting tools",
+);
+check(
+  /aria-labelledby="gate0-title"/.test(gate0Section) &&
+    /data-gate0-status[^>]*aria-live="polite"/.test(gate0Section) &&
+    /<progress data-gate0-progress max="29"[^>]*aria-label="已形成逐项书面结论"/.test(gate0Section) &&
+    /登录成功、页面可访问、模型或功能代码已经配置，都不属于批准证据/.test(gate0Section) &&
+    /完整 Decision Log 需要独立 staff RBAC 才能查看/.test(gate0Section),
+  "Gate 0 summary is accessible, fail-closed, and separates login, implementation, staff access, and approval",
+);
+check(
+  /\.gate0-boundary-card > p \{[\s\S]*?color: var\(--color-ink-soft\);/.test(styles) &&
+    contrastRatio([33, 68, 63], compositeRgb([244, 183, 64], [248, 245, 237], 0.1)) >= 4.5,
+  "Gate 0 boundary copy maintains WCAG AA text contrast on its composited card background",
+);
+check(
+  /const GATE0_STATUS_PATH = "\/api\/governance\/status"/.test(journeyScript) &&
+    /credentials: "same-origin"[\s\S]*cache: "no-store"[\s\S]*redirect: "error"/.test(journeyScript) &&
+    /responseUrl\.origin !== window\.location\.origin[\s\S]*responseUrl\.pathname !== GATE0_STATUS_PATH/.test(journeyScript) &&
+    /raw\.length === 0 \|\| raw\.length > 20000/.test(journeyScript) &&
+    /parseGate0PublicSummary\(body\.p0Gate\)/.test(journeyScript) &&
+    /status\.textContent = "暂时无法核对 Gate 0 注册表"/.test(journeyScript) &&
+    /formalGate0Pass !== false/.test(journeyScript),
+  "workspace fetches only the bounded same-origin sanitized Gate 0 summary and fails closed on invalid data",
+);
+const gate0RuntimeSource = sourceSection(
+  journeyScript,
+  "const gate0PublicKeys",
+  "const renderJourneyDashboard",
+);
+await checkExecutableAsync(
+  "Gate 0 client renders a valid zero-of-29 response and treats protocol drift as unavailable rather than approved",
+  async () => {
+    const runGate0Fixture = async (p0Gate) => {
+      const elements = Object.fromEntries(
+        [
+          "[data-gate0-status]",
+          "[data-gate0-copy]",
+          "[data-gate0-resolved]",
+          "[data-gate0-total]",
+          "[data-gate0-progress]",
+        ].map((selector) => [selector, {
+          textContent: "",
+          value: undefined,
+          attributes: {},
+          setAttribute(name, value) { this.attributes[name] = String(value); },
+          removeAttribute(name) { delete this.attributes[name]; },
+        }]),
+      );
+      const root = {
+        dataset: {},
+        querySelector(selector) { return elements[selector] || null; },
+      };
+      let requestOptions = null;
+      const context = {
+        URL,
+        JSON,
+        Number,
+        Object,
+        String,
+        Error,
+        AbortController: class {
+          constructor() { this.signal = {}; }
+          abort() {}
+        },
+        document: {
+          querySelector(selector) { return selector === "[data-gate0-summary]" ? root : null; },
+        },
+        window: {
+          location: { origin: "https://sufeiya.cn" },
+          setTimeout() { return 1; },
+          clearTimeout() {},
+        },
+        fetch: async (_path, options) => {
+          requestOptions = options;
+          return {
+            ok: true,
+            url: "https://sufeiya.cn/api/governance/status",
+            headers: { get: () => "application/json; charset=utf-8" },
+            text: async () => JSON.stringify({ mode: "sanitized_read_only_status", p0Gate }),
+          };
+        },
+      };
+      await runInNewContext(`
+        (async () => {
+          const GATE0_STATUS_PATH = "/api/governance/status";
+          const GATE0_PROTOCOL_VERSION = "sufeiya_p0_decision_log_v1";
+          const GATE0_RELEASE_AUTHORIZATION = "separate_explicit_controls_required";
+          const isRecord = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value);
+          ${gate0RuntimeSource}
+          await loadGate0GovernanceStatus();
+        })()
+      `, context);
+      return { root, elements, requestOptions };
+    };
+
+    const valid = await runGate0Fixture({
+      protocolVersion: "sufeiya_p0_decision_log_v1",
+      status: "blocked",
+      total: 29,
+      resolved: 0,
+      unresolved: 29,
+      defaultDisposition: "deny",
+      formalGate0Pass: false,
+      releaseAuthorization: "separate_explicit_controls_required",
+    });
+    const drifted = await runGate0Fixture({
+      protocolVersion: "unknown_protocol",
+      status: "decision_complete",
+      total: 29,
+      resolved: 29,
+      unresolved: 0,
+      defaultDisposition: "deny",
+      formalGate0Pass: true,
+      releaseAuthorization: "opens_everything",
+    });
+
+    return valid.root.dataset.gate0State === "blocked" &&
+      valid.elements["[data-gate0-status]"].textContent === "Gate 0 尚未通过" &&
+      valid.elements["[data-gate0-resolved]"].textContent === "0" &&
+      valid.elements["[data-gate0-progress]"].value === 0 &&
+      valid.requestOptions?.method === "GET" &&
+      !("body" in valid.requestOptions) &&
+      drifted.root.dataset.gate0State === "unavailable" &&
+      drifted.elements["[data-gate0-resolved]"].textContent === "—" &&
+      drifted.elements["[data-gate0-status]"].textContent === "暂时无法核对 Gate 0 注册表";
+  },
+);
 
 const practice = await read("practice.html");
 const practiceTargets = [...practice.matchAll(/class="practice-launch-grid"[\s\S]*?<\/div>/g)]
@@ -1859,13 +2012,20 @@ check(
     ),
   "Next shell preserves the responsive header grid without forcing horizontal overflow",
 );
+const gate0StatusFetchSource = sourceSection(
+  journeyScript,
+  "const loadGate0GovernanceStatus",
+  "const renderJourneyDashboard",
+);
 check(
   /数据只保存在当前浏览器，不上传/.test(diagnosticPage) &&
     /不请求麦克风，也不上传自由文本/.test(diagnosticPage) &&
     /microphoneMode:\s*"not_requested"/.test(journeyScript) &&
-    !/\bfetch\s*\(/.test(journeyScript) &&
+    (journeyScript.match(/\bfetch\s*\(/g) || []).length === 1 &&
+    /fetch\(GATE0_STATUS_PATH,[\s\S]*method: "GET"/.test(gate0StatusFetchSource) &&
+    !/\bbody\s*:|localStorage|STORAGE_KEY|state\./.test(gate0StatusFetchSource) &&
     !/getUserMedia|MediaRecorder/.test(journeyScript),
-  "diagnostic evidence stays local with no upload, microphone request, recording, or scoring path",
+  "diagnostic evidence stays local while the sole GET fetch carries no learner state and reads only governance status",
 );
 
 const completedDiagnosticCycleSource = sourceSection(workspaceScript, "const completedDiagnosticCycle", "const completedPlanChain");
@@ -3985,6 +4145,68 @@ check(
   "Super Teacher lets providers only order exact server-approved claim IDs",
 );
 check(/manualAnswer[\s\S]*tryModelAnswer[\s\S]*fallback/.test(superTeacherResponder), "Super Teacher has a deterministic grounded fallback");
+const p0SectionCounts = Object.fromEntries(
+  ["A", "B", "C", "D", "E", "F"].map((section) => [
+    section,
+    p0DecisionLog.items.filter((item) => item.section === section).length,
+  ]),
+);
+check(
+  p0DecisionLog.protocolVersion === "sufeiya_p0_decision_log_v1" &&
+    p0DecisionLog.ledgerRevision === 1 &&
+    p0DecisionLog.previousLedgerSha256 === null &&
+    p0DecisionLog.ledgerContentSha256 === "0cbccd9dd8c7d149dd2d2d7a23b219d1bd8ca19d200d73ade2e50b1038c1886f" &&
+    p0DecisionLog.defaultDisposition === "deny" &&
+    p0DecisionLog.authorityPolicy === "decision_log_never_authorizes_release_surfaces" &&
+    p0DecisionLog.guardrailTextPolicy === "conservative_source_paraphrase_never_a_meeting_outcome" &&
+    p0DecisionLog.ownerDecisionArtifactPolicy === "unique_artifact_per_item_role_event_until_signed_batch_manifest_v1" &&
+    p0DecisionLog.historyPolicy === "hash_chained_events_with_published_baseline" &&
+    p0DecisionLog.canonicalDefinitionSetSha256 === "aa8541908240f7ed44abf20b25ddf8a2d917f13f94d103f50288323f541c8bfd" &&
+    p0DecisionLog.decisionRolePolicySha256 === "a058cac9e9abd6e6615fa3bcae4f3cdaa3367c2e68532073bedb2eeb925ea1f6" &&
+    p0DecisionLog.sourcePlan.contentSha256 === "6ad237bf7433134961c2b4f9de4cb0f055391b9179e6b4632c269cdd84809169" &&
+    p0DecisionLog.sourcePlan.expectedItemCount === 29 &&
+    p0DecisionLog.items.length === 29 &&
+    new Set(p0DecisionLog.items.map((item) => item.id)).size === 29 &&
+    JSON.stringify(p0DecisionLog.items.map((item) => item.order)) === JSON.stringify(Array.from({ length: 29 }, (_, index) => index + 1)) &&
+    p0DecisionLog.items[5]?.question === "声音/数字人" &&
+    p0DecisionLog.items[8]?.question === "学生评论/案例（部分已确认）" &&
+    p0DecisionLog.items[27]?.question === "Gate A / Gate B 与参考评分" &&
+    p0DecisionLog.items.every((item) => typeof item.operationalGuardrail === "string" && /^[a-f0-9]{64}$/.test(item.definitionSha256)) &&
+    JSON.stringify(p0SectionCounts) === JSON.stringify({ A: 4, B: 6, C: 4, D: 6, E: 4, F: 5 }) &&
+    p0DecisionLog.items.every((item) => Array.isArray(item.decisionHistory) && item.decisionHistory.length === 0),
+  "Appendix A has a separate fixed 29-item P0 log whose open decisions default to deny and carry no release authority",
+);
+check(
+  p0PublishedBaseline.protocolVersion === "sufeiya_p0_published_baseline_v1" &&
+    p0PublishedBaseline.sourceLedgerRevision === p0DecisionLog.ledgerRevision &&
+    p0PublishedBaseline.sourceLedgerContentSha256 === p0DecisionLog.ledgerContentSha256 &&
+    p0PublishedBaseline.canonicalDefinitionSetSha256 === p0DecisionLog.canonicalDefinitionSetSha256 &&
+    p0PublishedBaseline.decisionRolePolicySha256 === p0DecisionLog.decisionRolePolicySha256 &&
+    p0PublishedBaseline.baselineContentSha256 === "92eb7712ec9e310cc1cf1dc0f76a28cb89195a6585e99d699b7a593bf06a9616" &&
+    p0PublishedBaseline.evidenceFingerprints.length === 0 &&
+    p0PublishedBaseline.itemHistoryHeads.length === 29 &&
+    p0PublishedBaseline.itemHistoryHeads.every((head, index) =>
+      head.itemId === p0DecisionLog.items[index]?.id && head.eventSha256s.length === 0
+    ),
+  "published P0 baseline seals the current evidence and decision-history prefixes",
+);
+check(
+  /p0DecisionLogSchema[\s\S]*items:\s*z\.array\(p0ItemSchema\)\.length\(29\)/.test(p0DecisionLogSource) &&
+    /P0 item does not match Appendix A/.test(p0DecisionLogSource) &&
+    /unknown runtime control/.test(p0DecisionLogSource) &&
+    /P0 canonical definition set digest mismatch/.test(p0DecisionLogSource) &&
+    /P0 decision-role policy digest mismatch/.test(p0DecisionLogSource) &&
+    /owner-decision evidence is not bound to the exact P0 event/.test(p0DecisionLogSource) &&
+    /owner-decision artifact reuse is forbidden without a signed batch manifest/.test(p0DecisionLogSource) &&
+    /lacks item-specific approval evidence/.test(p0DecisionLogSource) &&
+    /does not hash-link the immediately prior event/.test(p0DecisionLogSource) &&
+    /validateP0DecisionLogAgainstPublishedBaseline/.test(p0DecisionLogSource) &&
+    /strict RFC 3339 timestamp with an explicit zone/.test(p0DecisionLogSource) &&
+    /function deepFreeze[\s\S]*Object\.freeze/.test(p0DecisionLogSource) &&
+    /formalGate0Pass:\s*false/.test(p0DecisionLogSource) &&
+    /separate_explicit_controls_required/.test(p0DecisionLogSource),
+  "P0 parser freezes the canonical log and rejects drift, dangling controls, weak evidence, and broken append history",
+);
 check(
   releaseDecisionRegister.protocolVersion === "sufeiya_release_decisions_v1" &&
     releaseDecisionRegister.defaultDisposition === "deny" &&
@@ -4023,6 +4245,8 @@ check(
     /sanitized_read_only_status/.test(releaseGovernanceStatusRoute) &&
     /private, no-store/.test(releaseGovernanceStatusRoute) &&
     /read-only-no-mutations/.test(releaseGovernanceStatusRoute) &&
+    /p0Gate:\s*\{[\s\S]*resolved: p0Summary\.resolved[\s\S]*formalGate0Pass: p0Summary\.formalGate0Pass/.test(releaseGovernanceStatusRoute) &&
+    /X-Sufeiya-P0-Protocol/.test(releaseGovernanceStatusRoute) &&
     !/evidenceCatalog|decisionOwner|contentSha256|locator/.test(releaseGovernanceStatusRoute),
   "governance status API is GET-only, no-store, sanitized, and exposes no mutation surface",
 );
