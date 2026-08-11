@@ -1,9 +1,10 @@
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const read = (path) => readFile(join(root, path), "utf8");
+const nextStaticRoot = resolve(root, ".next/static");
 
 const appNotFoundHtmlPath = ".next/server/app/_not-found.html";
 const pagesNotFoundHtmlPath = ".next/server/pages/404.html";
@@ -52,14 +53,34 @@ for (const [path, html] of [
 assertNoForbiddenContent(clientReferenceManifest, clientReferenceManifestPath);
 assertNoForbiddenContent(buildManifest, buildManifestPath);
 
-if (
-  !clientReferenceManifest.includes('globalThis.__RSC_MANIFEST["/_not-found/page"]') ||
-  !clientReferenceManifest.includes('"clientModules":{') ||
-  !clientReferenceManifest.includes('"[project]/app/not-found"')
-) {
+const clientManifestAssignment = 'globalThis.__RSC_MANIFEST["/_not-found/page"] = ';
+const clientManifestAssignmentIndex = clientReferenceManifest.indexOf(clientManifestAssignment);
+if (clientManifestAssignmentIndex === -1) {
   throw new Error(
-    `${clientReferenceManifestPath} is missing the expected anonymous 404 route structure.`,
+    `${clientReferenceManifestPath} is missing the expected anonymous 404 route assignment.`,
   );
+}
+
+const clientManifestJson = clientReferenceManifest
+  .slice(clientManifestAssignmentIndex + clientManifestAssignment.length)
+  .trim();
+if (!clientManifestJson.endsWith(";")) {
+  throw new Error(`${clientReferenceManifestPath} has an incomplete route assignment.`);
+}
+
+const parsedClientManifest = JSON.parse(clientManifestJson.slice(0, -1));
+if (
+  !parsedClientManifest.clientModules ||
+  Array.isArray(parsedClientManifest.clientModules) ||
+  typeof parsedClientManifest.clientModules !== "object" ||
+  Object.keys(parsedClientManifest.clientModules).length === 0 ||
+  !parsedClientManifest.entryJSFiles ||
+  Array.isArray(parsedClientManifest.entryJSFiles) ||
+  typeof parsedClientManifest.entryJSFiles !== "object" ||
+  !Array.isArray(parsedClientManifest.entryJSFiles["[project]/app/not-found"]) ||
+  parsedClientManifest.entryJSFiles["[project]/app/not-found"].length === 0
+) {
+  throw new Error(`${clientReferenceManifestPath} is missing the anonymous 404 client graph.`);
 }
 
 const parsedBuildManifest = JSON.parse(buildManifest);
@@ -70,69 +91,216 @@ if (
   throw new Error(`${buildManifestPath} is missing the expected root client runtime list.`);
 }
 
-const allowedPublicScripts = new Set(["/learning-events.js", "/script.js"]);
-const nextChunkPattern = /^\/_next\/static\/(?:immutable\/)?chunks\/[A-Za-z0-9._-]+\.js$/;
+const executablePaths = new Set();
+const allowedPublicScripts = new Map([
+  ["/learning-events.js", "public/learning-events.js"],
+  ["/script.js", "public/script.js"],
+]);
+const htmlNextChunkPattern =
+  /^\/_next\/static\/(?:immutable\/)?chunks\/[A-Za-z0-9._-]+\.js$/;
+const manifestStaticScriptPattern =
+  /^(?:\/_next\/)?static\/(?:immutable\/)?chunks\/[A-Za-z0-9._-]+\.js$/;
 
-const extractScriptResources = (html) => {
-  const resources = [];
-
-  for (const match of html.matchAll(
-    /<script\b[^>]*\bsrc=(?:"([^"]+)"|'([^']+)'|([^\s>]+))/gi,
-  )) {
-    resources.push(match[1] ?? match[2] ?? match[3]);
+const addManifestScript = (resource, label) => {
+  if (typeof resource !== "string" || !manifestStaticScriptPattern.test(resource)) {
+    throw new Error(`${label} contains an unapproved or non-local script resource: ${resource}`);
   }
-
-  for (const tagMatch of html.matchAll(/<link\b[^>]*>/gi)) {
-    const tag = tagMatch[0];
-    if (!/\brel=(?:"preload"|'preload'|preload)(?:\s|\/?>)/i.test(tag)) continue;
-    if (!/\bas=(?:"script"|'script'|script)(?:\s|\/?>)/i.test(tag)) continue;
-    const hrefMatch = tag.match(/\bhref=(?:"([^"]+)"|'([^']+)'|([^\s>]+))/i);
-    if (hrefMatch) resources.push(hrefMatch[1] ?? hrefMatch[2] ?? hrefMatch[3]);
+  const relativePath = resource.replace(/^\/_next\//, "");
+  if (relativePath.split("/").some((segment) => segment === "." || segment === "..")) {
+    throw new Error(`${label} contains a non-canonical script resource: ${resource}`);
   }
-
-  return resources;
+  const absolutePath = resolve(root, ".next", relativePath);
+  if (!absolutePath.startsWith(`${nextStaticRoot}${sep}`)) {
+    throw new Error(`${label} contains a script resource outside .next/static: ${resource}`);
+  }
+  executablePaths.add(`.next/${relativePath}`);
 };
 
-const chunkPaths = new Set();
+const addHtmlScript = (resource, label) => {
+  if (typeof resource !== "string" || resource.length === 0) {
+    throw new Error(`${label} contains an empty script resource.`);
+  }
+  if (allowedPublicScripts.has(resource)) {
+    executablePaths.add(allowedPublicScripts.get(resource));
+    return;
+  }
+  if (!htmlNextChunkPattern.test(resource)) {
+    throw new Error(`${label} contains an unapproved or non-local script resource: ${resource}`);
+  }
+  executablePaths.add(`.next/${resource.replace(/^\/_next\//, "")}`);
+};
+
+const extractStartTags = (html, tagName) => {
+  const tags = [];
+  const startPattern = new RegExp(`<${tagName}\\b`, "gi");
+  let startMatch;
+
+  while ((startMatch = startPattern.exec(html)) !== null) {
+    let quote = null;
+    let end = startPattern.lastIndex;
+    for (; end < html.length; end += 1) {
+      const character = html[end];
+      if (quote) {
+        if (character === quote) quote = null;
+      } else if (character === '"' || character === "'") {
+        quote = character;
+      } else if (character === ">") {
+        break;
+      }
+    }
+    if (end === html.length || quote) {
+      throw new Error(`HTML contains an unterminated <${tagName}> start tag.`);
+    }
+    tags.push(html.slice(startMatch.index, end + 1));
+    startPattern.lastIndex = end + 1;
+  }
+
+  return tags;
+};
+
+const parseTagAttributes = (tag, tagName) => {
+  const attributes = new Map();
+  let index = tagName.length + 1;
+  const end = tag.length - 1;
+  const isSpace = (character) => /[\t\n\f\r ]/.test(character);
+
+  while (index < end) {
+    while (index < end && isSpace(tag[index])) index += 1;
+    if (index >= end || (tag[index] === "/" && tag.slice(index + 1, end).trim() === "")) break;
+
+    const nameStart = index;
+    while (index < end && !isSpace(tag[index]) && !/[=\/>]/.test(tag[index])) index += 1;
+    if (index === nameStart) {
+      throw new Error(`HTML contains an invalid <${tagName}> attribute.`);
+    }
+    const name = tag.slice(nameStart, index).toLowerCase();
+    if (attributes.has(name)) {
+      throw new Error(`HTML contains a duplicate ${name} attribute on <${tagName}>.`);
+    }
+
+    while (index < end && isSpace(tag[index])) index += 1;
+    let value = null;
+    if (tag[index] === "=") {
+      index += 1;
+      while (index < end && isSpace(tag[index])) index += 1;
+      if (index >= end) {
+        throw new Error(`HTML contains an empty ${name} assignment on <${tagName}>.`);
+      }
+      if (tag[index] === '"' || tag[index] === "'") {
+        const quote = tag[index];
+        index += 1;
+        const valueStart = index;
+        while (index < end && tag[index] !== quote) index += 1;
+        if (index >= end) {
+          throw new Error(`HTML contains an unterminated ${name} value on <${tagName}>.`);
+        }
+        value = tag.slice(valueStart, index);
+        index += 1;
+      } else {
+        const valueStart = index;
+        while (index < end && !isSpace(tag[index]) && tag[index] !== ">") index += 1;
+        value = tag.slice(valueStart, index);
+      }
+    }
+    attributes.set(name, value);
+  }
+
+  return attributes;
+};
+
 for (const [path, html] of [
   [appNotFoundHtmlPath, appNotFoundHtml],
   [pagesNotFoundHtmlPath, pagesNotFoundHtml],
 ]) {
-  const scriptResources = extractScriptResources(html);
-  if (scriptResources.length === 0) {
+  const scriptTags = extractStartTags(html, "script");
+  if (scriptTags.length === 0) {
     throw new Error(`${path} does not expose an inspectable client script list.`);
   }
-  for (const resource of scriptResources) {
-    if (!allowedPublicScripts.has(resource) && !nextChunkPattern.test(resource)) {
-      throw new Error(`${path} contains an unapproved or non-local script resource: ${resource}`);
-    }
-    if (nextChunkPattern.test(resource)) {
-      chunkPaths.add(`.next/${resource.replace(/^\/_next\//, "")}`);
+  for (const tag of scriptTags) {
+    const attributes = parseTagAttributes(tag, "script");
+    if (attributes.has("src")) addHtmlScript(attributes.get("src"), path);
+  }
+
+  for (const tag of extractStartTags(html, "link")) {
+    const attributes = parseTagAttributes(tag, "link");
+    const relTokens = (attributes.get("rel") ?? "").toLowerCase().split(/\s+/);
+    if (relTokens.includes("preload") && attributes.get("as")?.toLowerCase() === "script") {
+      if (!attributes.has("href")) {
+        throw new Error(`${path} contains a script preload without an href.`);
+      }
+      addHtmlScript(attributes.get("href"), path);
     }
   }
 }
 
-for (const artifact of [
-  appNotFoundHtml,
-  pagesNotFoundHtml,
-  clientReferenceManifest,
-  buildManifest,
-]) {
-  for (const match of artifact.matchAll(
-    /(?:\/_next\/)?(static\/(?:immutable\/)?chunks\/[A-Za-z0-9._-]+\.js)/g,
-  )) {
-    chunkPaths.add(`.next/${match[1]}`);
+for (const [moduleName, moduleEntry] of Object.entries(parsedClientManifest.clientModules)) {
+  if (!moduleEntry || typeof moduleEntry !== "object" || !Array.isArray(moduleEntry.chunks)) {
+    throw new Error(`${clientReferenceManifestPath} has invalid chunks for ${moduleName}.`);
+  }
+  for (const resource of moduleEntry.chunks) {
+    addManifestScript(resource, `${clientReferenceManifestPath}:${moduleName}`);
   }
 }
 
-if (chunkPaths.size === 0) {
+for (const [entryName, resources] of Object.entries(parsedClientManifest.entryJSFiles)) {
+  if (!Array.isArray(resources)) {
+    throw new Error(`${clientReferenceManifestPath} has an invalid entry for ${entryName}.`);
+  }
+  for (const resource of resources) {
+    addManifestScript(resource, `${clientReferenceManifestPath}:${entryName}`);
+  }
+}
+
+for (const field of ["devFiles", "ampDevFiles", "polyfillFiles", "lowPriorityFiles", "rootMainFiles"]) {
+  const resources = parsedBuildManifest[field];
+  if (!Array.isArray(resources)) {
+    throw new Error(`${buildManifestPath} is missing the ${field} script list.`);
+  }
+  for (const resource of resources) {
+    addManifestScript(resource, `${buildManifestPath}:${field}`);
+  }
+}
+
+if (
+  !parsedBuildManifest.pages ||
+  Array.isArray(parsedBuildManifest.pages) ||
+  typeof parsedBuildManifest.pages !== "object"
+) {
+  throw new Error(`${buildManifestPath} has an invalid pages script map.`);
+}
+for (const [pageName, resources] of Object.entries(parsedBuildManifest.pages)) {
+  if (!Array.isArray(resources)) {
+    throw new Error(`${buildManifestPath} has an invalid pages entry for ${pageName}.`);
+  }
+  for (const resource of resources) {
+    addManifestScript(resource, `${buildManifestPath}:pages:${pageName}`);
+  }
+}
+
+if (
+  !parsedBuildManifest.rootMainFilesTree ||
+  Array.isArray(parsedBuildManifest.rootMainFilesTree) ||
+  typeof parsedBuildManifest.rootMainFilesTree !== "object"
+) {
+  throw new Error(`${buildManifestPath} has an invalid route-specific root script map.`);
+}
+for (const [routeName, resources] of Object.entries(parsedBuildManifest.rootMainFilesTree)) {
+  if (!Array.isArray(resources)) {
+    throw new Error(`${buildManifestPath} has an invalid root script entry for ${routeName}.`);
+  }
+  for (const resource of resources) {
+    addManifestScript(resource, `${buildManifestPath}:rootMainFilesTree:${routeName}`);
+  }
+}
+
+if (executablePaths.size === 0) {
   throw new Error("The anonymous 404 build did not expose any inspectable client chunks.");
 }
 
-for (const chunkPath of chunkPaths) {
-  assertNoForbiddenContent(await read(chunkPath), chunkPath);
+for (const executablePath of executablePaths) {
+  assertNoForbiddenContent(await read(executablePath), executablePath);
 }
 
 process.stdout.write(
-  `PASS: anonymous 404 build excludes Clerk and Sofia client code across ${chunkPaths.size} referenced chunks.\n`,
+  `PASS: anonymous 404 build excludes Clerk and Sofia client code across ${executablePaths.size} referenced scripts.\n`,
 );
