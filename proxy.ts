@@ -1,7 +1,10 @@
 import { clerkMiddleware } from "@clerk/nextjs/server";
 import { type NextFetchEvent, type NextRequest, NextResponse } from "next/server";
 
-import { getClerkRuntimeState } from "@/lib/auth/clerk-config";
+import {
+  getClerkAuthorizedParties,
+  getClerkRuntimeState,
+} from "@/lib/auth/clerk-config";
 
 const unconfiguredContentSecurityPolicy = [
   "base-uri 'self'",
@@ -27,6 +30,7 @@ const configuredClerkProxy = clerkState.configured
         return response;
       },
       {
+        authorizedParties: getClerkAuthorizedParties(),
         signInUrl: "/sign-in",
         signUpUrl: "/sign-up",
         contentSecurityPolicy: {

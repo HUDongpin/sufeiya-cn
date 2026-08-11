@@ -1,7 +1,7 @@
-import { SignUp } from "@clerk/nextjs";
 import type { Metadata } from "next";
 
 import { AuthPage, ClerkUnavailablePanel } from "@/components/auth-page";
+import { ClerkWidgetFrame } from "@/components/clerk-widget-frame";
 import { getClerkRuntimeState } from "@/lib/auth/clerk-config";
 
 export const metadata: Metadata = {
@@ -16,13 +16,7 @@ export default function SignUpPage() {
   return (
     <AuthPage eyebrow="创建账户" title="建立你的学习入口。" lead="账户用于控制工作台与学习页面访问；浏览器里的学习记录仍保持本机存储，不会因注册自动绑定到身份。">
       {clerkState.configured ? (
-        <SignUp
-          routing="path"
-          path="/sign-up"
-          signInUrl="/sign-in"
-          fallbackRedirectUrl="/workspace"
-          appearance={{ elements: { rootBox: { width: "100%" } } }}
-        />
+        <ClerkWidgetFrame mode="sign-up" />
       ) : <ClerkUnavailablePanel reason={clerkState.reason} />}
     </AuthPage>
   );

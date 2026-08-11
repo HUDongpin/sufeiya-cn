@@ -1,7 +1,7 @@
-import { SignIn } from "@clerk/nextjs";
 import type { Metadata } from "next";
 
 import { AuthPage, ClerkUnavailablePanel } from "@/components/auth-page";
+import { ClerkWidgetFrame } from "@/components/clerk-widget-frame";
 import { getClerkRuntimeState } from "@/lib/auth/clerk-config";
 
 export const metadata: Metadata = {
@@ -16,13 +16,7 @@ export default function SignInPage() {
   return (
     <AuthPage eyebrow="安全登录" title="登录后继续学习。" lead="账户用于控制工作台与学习页面访问；浏览器里的学习记录仍保持本机存储，不会因登录自动绑定到身份。">
       {clerkState.configured ? (
-        <SignIn
-          routing="path"
-          path="/sign-in"
-          signUpUrl="/sign-up"
-          fallbackRedirectUrl="/workspace"
-          appearance={{ elements: { rootBox: { width: "100%" } } }}
-        />
+        <ClerkWidgetFrame mode="sign-in" />
       ) : <ClerkUnavailablePanel reason={clerkState.reason} />}
     </AuthPage>
   );

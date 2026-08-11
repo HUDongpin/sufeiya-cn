@@ -100,6 +100,7 @@ const dynamicLegacyPage = await read("app/[slug]/page.tsx");
 const legacyPageComponent = await read("components/legacy-page.tsx");
 const siteShell = await read("components/site-shell.tsx");
 const authPage = await read("components/auth-page.tsx");
+const clerkWidgetFrame = await read("components/clerk-widget-frame.tsx");
 const clerkAccountControls = await read("components/clerk-account-controls.tsx");
 const clerkConfig = await read("lib/auth/clerk-config.ts");
 const accountPage = await read("app/account/[[...account]]/page.tsx");
@@ -3775,10 +3776,21 @@ check(
   "account route fails closed, verifies a Clerk session, and renders the account profile",
 );
 check(
-  /<SignIn[\s\S]*routing="path"[\s\S]*fallbackRedirectUrl="\/workspace"/.test(signInPage) &&
-    /<SignUp[\s\S]*routing="path"[\s\S]*fallbackRedirectUrl="\/workspace"/.test(signUpPage) &&
+  /<ClerkWidgetFrame mode="sign-in" \/>/.test(signInPage) &&
+    /<ClerkWidgetFrame mode="sign-up" \/>/.test(signUpPage) &&
+    /<SignIn[\s\S]*routing="path"[\s\S]*fallbackRedirectUrl="\/workspace"[\s\S]*fallback=\{loadingPanel\}/.test(
+      clerkWidgetFrame,
+    ) &&
+    /<SignUp[\s\S]*routing="path"[\s\S]*fallbackRedirectUrl="\/workspace"[\s\S]*fallback=\{loadingPanel\}/.test(
+      clerkWidgetFrame,
+    ) &&
+    /<ClerkLoading>\{loadingPanel\}<\/ClerkLoading>/.test(clerkWidgetFrame) &&
+    /<ClerkFailed>[\s\S]*<ClerkConnectionPanel mode="failed" \/>[\s\S]*<\/ClerkFailed>/.test(
+      clerkWidgetFrame,
+    ) &&
+    /<ClerkLoaded>/.test(clerkWidgetFrame) &&
     /ClerkUnavailablePanel/.test(`${signInPage}\n${signUpPage}`),
-  "sign-in and sign-up use Clerk with workspace fallback and a safe unconfigured state",
+  "sign-in and sign-up use Clerk with continuous loading, failure, workspace fallback, and safe unconfigured states",
 );
 check(
   /<Show when="signed-out">[\s\S]*href="\/sign-in"/.test(clerkAccountControls) &&
@@ -3794,6 +3806,10 @@ check(
 );
 check(
   /clerkMiddleware/.test(proxyScript) &&
+    /authorizedParties: getClerkAuthorizedParties\(\)/.test(proxyScript) &&
+    /VERCEL_ENV !== "production"/.test(clerkConfig) &&
+    /"https:\/\/sufeiya\.cn"/.test(clerkConfig) &&
+    /"https:\/\/www\.sufeiya\.cn"/.test(clerkConfig) &&
     /signInUrl: "\/sign-in"/.test(proxyScript) &&
     /signUpUrl: "\/sign-up"/.test(proxyScript) &&
     /contentSecurityPolicy:[\s\S]*strict:\s*true/.test(proxyScript) &&
@@ -3801,7 +3817,7 @@ check(
     /"frame-ancestors": \["none"\]/.test(proxyScript) &&
     /"\/__clerk\/\(\.\*\)"/.test(proxyScript) &&
     !/frontendApiProxy/.test(proxyScript),
-  "proxy uses Clerk strict CSP and request context without an unverified Frontend API proxy",
+  "proxy uses Clerk strict CSP, production authorized parties, and request context without an unverified Frontend API proxy",
 );
 check(
   /X-Sufeiya-Account-Mode[\s\S]*clerk-access-local-learning-data/.test(proxyScript) &&

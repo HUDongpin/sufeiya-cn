@@ -21,6 +21,11 @@ export const CLERK_PROTECTED_PATHS = [
   "/account",
 ] as const;
 
+export const CLERK_PRODUCTION_AUTHORIZED_PARTIES = [
+  "https://sufeiya.cn",
+  "https://www.sufeiya.cn",
+] as const;
+
 type ClerkInstanceType = "development" | "production";
 
 export type ClerkRuntimeState = {
@@ -33,6 +38,7 @@ type ClerkEnvironment = {
   [key: string]: string | undefined;
   NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?: string;
   CLERK_SECRET_KEY?: string;
+  VERCEL_ENV?: string;
 };
 
 function publishableKeyType(value: string | undefined): ClerkInstanceType | null {
@@ -86,4 +92,9 @@ export function isClerkProtectedPathname(pathname: string) {
   return CLERK_PROTECTED_PATHS.some(
     (protectedPath) => pathname === protectedPath || pathname.startsWith(`${protectedPath}/`),
   );
+}
+
+export function getClerkAuthorizedParties(environment: ClerkEnvironment = process.env) {
+  if (environment.VERCEL_ENV !== "production") return undefined;
+  return [...CLERK_PRODUCTION_AUTHORIZED_PARTIES];
 }

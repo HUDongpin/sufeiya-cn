@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  CLERK_PRODUCTION_AUTHORIZED_PARTIES,
   CLERK_PROTECTED_PATHS,
+  getClerkAuthorizedParties,
   getClerkRuntimeState,
   isClerkProtectedPathname,
 } from "../lib/auth/clerk-config";
@@ -49,6 +51,18 @@ describe("Clerk runtime configuration", () => {
 });
 
 describe("Clerk route boundary", () => {
+  it("restricts authorized parties to canonical production origins only", () => {
+    assert.deepEqual(getClerkAuthorizedParties({ VERCEL_ENV: "production" }), [
+      "https://sufeiya.cn",
+      "https://www.sufeiya.cn",
+    ]);
+    assert.deepEqual(getClerkAuthorizedParties({ VERCEL_ENV: "production" }), [
+      ...CLERK_PRODUCTION_AUTHORIZED_PARTIES,
+    ]);
+    assert.equal(getClerkAuthorizedParties({ VERCEL_ENV: "preview" }), undefined);
+    assert.equal(getClerkAuthorizedParties({}), undefined);
+  });
+
   it("protects the account plus every canonical learner-data surface", () => {
     for (const path of CLERK_PROTECTED_PATHS) {
       assert.equal(isClerkProtectedPathname(path), true, path);
