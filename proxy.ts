@@ -4,10 +4,11 @@ import { type NextFetchEvent, type NextRequest, NextResponse } from "next/server
 import {
   getClerkAuthorizedParties,
   getClerkRuntimeState,
+  isConfiguredClerkMiddlewarePathname,
   isClerkProtectedPathname,
 } from "@/lib/auth/clerk-config";
 
-const unconfiguredContentSecurityPolicy = [
+const anonymousContentSecurityPolicy = [
   "base-uri 'self'",
   "connect-src 'self'",
   "default-src 'self'",
@@ -17,6 +18,7 @@ const unconfiguredContentSecurityPolicy = [
   "media-src 'self'",
   "object-src 'none'",
   "script-src 'self' 'unsafe-inline'",
+  "script-src-attr 'none'",
   "style-src 'self' 'unsafe-inline'",
   "worker-src 'self' blob:",
 ].join("; ");
@@ -56,14 +58,19 @@ const configuredClerkProxy = clerkState.configured
   : null;
 
 export default function proxy(request: NextRequest, event: NextFetchEvent) {
-  if (configuredClerkProxy) return configuredClerkProxy(request, event);
+  if (
+    configuredClerkProxy
+    && isConfiguredClerkMiddlewarePathname(request.nextUrl.pathname)
+  ) {
+    return configuredClerkProxy(request, event);
+  }
 
   if (isProtectedRoute(request)) {
     return new NextResponse("Account service unavailable.", {
       status: 503,
       headers: {
         "Cache-Control": "private, no-store, max-age=0",
-        "Content-Security-Policy": unconfiguredContentSecurityPolicy,
+        "Content-Security-Policy": anonymousContentSecurityPolicy,
         "Content-Type": "text/plain; charset=utf-8",
         "X-Content-Type-Options": "nosniff",
         "X-Robots-Tag": "noindex, nofollow",
@@ -73,14 +80,37 @@ export default function proxy(request: NextRequest, event: NextFetchEvent) {
   }
 
   const response = NextResponse.next();
-  response.headers.set("Content-Security-Policy", unconfiguredContentSecurityPolicy);
-  response.headers.set("X-Sufeiya-Account-Mode", "clerk-unconfigured");
+  response.headers.set("Content-Security-Policy", anonymousContentSecurityPolicy);
+  response.headers.set(
+    "X-Sufeiya-Account-Mode",
+    clerkState.configured ? "anonymous-no-clerk" : "clerk-unconfigured",
+  );
   return response;
 }
 
 export const config = {
   matcher: [
     "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest|mp3)).*)",
+    "/workspace/:path*",
+    "/diagnostic/:path*",
+    "/plan/:path*",
+    "/recommendations/:path*",
+    "/today/:path*",
+    "/practice/:path*",
+    "/practice-reading/:path*",
+    "/practice-listening/:path*",
+    "/practice-writing/:path*",
+    "/practice-speaking/:path*",
+    "/focus/:path*",
+    "/check-in/:path*",
+    "/review/:path*",
+    "/community/:path*",
+    "/retest/:path*",
+    "/my-data/:path*",
+    "/teaching-review-demo/:path*",
+    "/account/:path*",
+    "/sign-in/:path*",
+    "/sign-up/:path*",
     "/(api|trpc)(.*)",
     "/__clerk/(.*)",
   ],

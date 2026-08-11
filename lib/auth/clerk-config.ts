@@ -21,6 +21,17 @@ export const CLERK_PROTECTED_PATHS = [
   "/account",
 ] as const;
 
+export const CLERK_PUBLIC_RUNTIME_PATHS = [
+  "/",
+  "/learning-path",
+  "/platform",
+  "/resources",
+  "/about",
+  "/super-teacher",
+  "/sign-in",
+  "/sign-up",
+] as const;
+
 export const CLERK_PRODUCTION_AUTHORIZED_PARTIES = [
   "https://sufeiya.cn",
   "https://www.sufeiya.cn",
@@ -132,6 +143,20 @@ export function isClerkProtectedPathname(pathname: string) {
   return CLERK_PROTECTED_PATHS.some(
     (protectedPath) => pathname === protectedPath || pathname.startsWith(`${protectedPath}/`),
   );
+}
+
+export function isClerkRuntimePathname(pathname: string) {
+  if (isClerkProtectedPathname(pathname)) return true;
+  if (pathname === "/sign-in" || pathname.startsWith("/sign-in/")) return true;
+  if (pathname === "/sign-up" || pathname.startsWith("/sign-up/")) return true;
+  return CLERK_PUBLIC_RUNTIME_PATHS.some((runtimePath) => pathname === runtimePath);
+}
+
+export function isConfiguredClerkMiddlewarePathname(pathname: string) {
+  return isClerkRuntimePathname(pathname)
+    || pathname === "/api/super-teacher"
+    || pathname === "/__clerk"
+    || pathname.startsWith("/__clerk/");
 }
 
 export function getClerkAuthorizedParties(environment: ClerkEnvironment = process.env) {

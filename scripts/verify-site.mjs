@@ -1,5 +1,5 @@
 import { createHash, webcrypto } from "node:crypto";
-import { access, readFile, stat } from "node:fs/promises";
+import { access, readFile, readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runInNewContext } from "node:vm";
@@ -113,11 +113,36 @@ const resourcesScript = await read("resources.js");
 const notFound = await read("404.html");
 const sitemap = await read("sitemap.xml");
 const nextSitemap = await read("app/sitemap.ts");
+const nextConfig = await read("next.config.ts");
 const rootLayout = await read("app/layout.tsx");
 const notFoundRoute = await read("app/not-found.tsx");
 const dynamicLegacyPage = await read("app/[slug]/page.tsx");
+const routedLegacyPage = await read("components/routed-legacy-page.tsx");
+const explicitLegacyRouteSources = new Map(
+  await Promise.all(
+    pageFiles
+      .filter(([, key]) => key !== "home")
+      .map(async ([, key]) => [key, await read(`app/${key}/page.tsx`)]),
+  ),
+);
+const topLevelAppPageSegments = (
+  await Promise.all(
+    (await readdir(join(root, "app"), { withFileTypes: true }))
+      .filter((entry) => entry.isDirectory())
+      .map(async (entry) => {
+        try {
+          await access(join(root, "app", entry.name, "page.tsx"));
+          return entry.name;
+        } catch (error) {
+          if (error?.code === "ENOENT") return null;
+          throw error;
+        }
+      }),
+  )
+).filter(Boolean).sort();
 const legacyPageComponent = await read("components/legacy-page.tsx");
 const anonymousLegacyPage = await read("components/anonymous-legacy-page.tsx");
+const fullDocumentLink = await read("components/full-document-link.tsx");
 const siteShell = await read("components/site-shell.tsx");
 const siteFrame = await read("components/site-frame.tsx");
 const authPage = await read("components/auth-page.tsx");
@@ -155,6 +180,40 @@ const superTeacherContracts = await read("lib/super-teacher/contracts.ts");
 const superTeacherLocalContext = await read("lib/super-teacher/local-context.ts");
 const superTeacherPolicy = await read("lib/super-teacher/policy.ts");
 const legacyContent = await read("lib/legacy-content.generated.ts");
+const parseDeclaredStringArray = (source, declaration, label) => {
+  const match = source.match(
+    new RegExp(`(?:export\\s+)?const\\s+${declaration}\\s*=\\s*(\\[[\\s\\S]*?\\])(?:\\s+as\\s+const)?\\s*;`),
+  );
+  if (!match) throw new Error(`${label} is missing the ${declaration} declaration.`);
+  const parsed = JSON.parse(match[1].replace(/,\s*]/g, "]"));
+  if (
+    !Array.isArray(parsed) ||
+    parsed.some((entry) => typeof entry !== "string" || entry.length === 0) ||
+    new Set(parsed).size !== parsed.length
+  ) {
+    throw new Error(`${label} has an invalid ${declaration} declaration.`);
+  }
+  return parsed;
+};
+const explicitLegacyRouteSlugs = pageFiles
+  .filter(([, key]) => key !== "home")
+  .map(([, key]) => key);
+const generatedLegacyRouteSlugs = parseDeclaredStringArray(
+  legacyContent,
+  "publicRouteSlugs",
+  "lib/legacy-content.generated.ts",
+);
+const configuredCleanRoutes = parseDeclaredStringArray(nextConfig, "cleanRoutes", "next.config.ts");
+const configuredProtectedPaths = parseDeclaredStringArray(
+  clerkConfig,
+  "CLERK_PROTECTED_PATHS",
+  "lib/auth/clerk-config.ts",
+);
+const configuredClerkPublicRuntimePaths = parseDeclaredStringArray(
+  clerkConfig,
+  "CLERK_PUBLIC_RUNTIME_PATHS",
+  "lib/auth/clerk-config.ts",
+);
 const diagnosticPage = await read("diagnostic.html");
 const myDataPage = await read("my-data.html");
 const learningEventSchema = JSON.parse(await read("data/learning-event.schema.v2.json"));
@@ -4735,10 +4794,11 @@ check(
 );
 check(
   protectedLearnerPaths.every((path) => clerkConfig.includes(`"${path}"`)) &&
-    /pathname === protectedPath \|\| pathname\.startsWith\(`\$\{protectedPath\}\/`\)/.test(clerkConfig) &&
-    !clerkConfig.includes('"/super-teacher"') &&
-    !clerkConfig.includes('"/api/super-teacher"'),
-  "Clerk classifier covers learner/account roots and subroutes while the Sofia surface remains public",
+    /export function isClerkProtectedPathname\(pathname: string\)/.test(clerkConfig) &&
+    /pathname === protectedPath \|\| pathname\.startsWith\(`\$\{protectedPath\}\/`\)/.test(
+      clerkConfig,
+    ),
+  "Clerk protected classifier covers learner and account roots plus all subroutes",
 );
 check(
   /if \(!clerkState\.configured\)/.test(teachingReviewPage) &&
@@ -4804,11 +4864,108 @@ check(
   "teaching-review client has zero network dispatch, never writes the learner namespace, compare-locks bytes, and fails closed on rollback uncertainty",
 );
 check(
-  /isClerkProtectedPathname\(pathname\)/.test(dynamicLegacyPage) &&
-    /if \(!clerkState\.configured\)/.test(dynamicLegacyPage) &&
-    /const \{ userId, redirectToSignIn \} = await auth\(\)/.test(dynamicLegacyPage) &&
-    /if \(!userId\) return redirectToSignIn\(\{ returnBackUrl: pathname \}\)/.test(dynamicLegacyPage),
-  "canonical learner routes fail closed on missing Clerk configuration and enforce resource-level auth",
+  /isClerkProtectedPathname\(pathname\)/.test(routedLegacyPage) &&
+    /const metadata = metadataForPage\(pageKey\)/.test(routedLegacyPage) &&
+    /isClerkProtectedPathname\(pathnameForPage\(pageKey\)\)/.test(routedLegacyPage) &&
+    /robots: \{ index: false, follow: false \}/.test(routedLegacyPage) &&
+    /if \(!clerkState\.configured\)/.test(routedLegacyPage) &&
+    /const \{ userId, redirectToSignIn \} = await auth\(\)/.test(routedLegacyPage) &&
+    /if \(!userId\) return redirectToSignIn\(\{ returnBackUrl: pathname \}\)/.test(
+      routedLegacyPage,
+    ) &&
+    explicitLegacyRouteSources.size === pageFiles.length - 1 &&
+    [...explicitLegacyRouteSources].every(
+      ([key, source]) =>
+        source ===
+        `import { RoutedLegacyPage, metadataForRoutedPage } from "@/components/routed-legacy-page";\n\n` +
+          `export const metadata = metadataForRoutedPage("${key}");\n\n` +
+          `export default function Page() {\n  return <RoutedLegacyPage pageKey="${key}" />;\n}\n`,
+    ),
+  "explicit canonical learner routes share fail-closed Clerk resource auth and route metadata",
+);
+check(
+  dynamicLegacyPage ===
+    `import type { Metadata } from "next";\n` +
+      `import { notFound } from "next/navigation";\n\n` +
+      `export const metadata: Metadata = {\n` +
+      `  title: "页面没有找到｜苏肥鸭多邻国",\n` +
+      `  robots: { index: false, follow: false },\n` +
+      `};\n\n` +
+      `export default function AnonymousCatchAllPage() {\n  notFound();\n}\n` &&
+    !/@clerk|AuthPage|LegacyPage|RoutedLegacyPage|SiteShell|SofiaAccessBoundary/.test(
+      dynamicLegacyPage,
+    ),
+  "unknown single-segment routes use a server-only catch-all before any Clerk or Sofia client graph",
+);
+check(
+  JSON.stringify([...generatedLegacyRouteSlugs].sort()) ===
+    JSON.stringify([...explicitLegacyRouteSlugs].sort()) &&
+    explicitLegacyRouteSlugs.every((key) =>
+      legacyContent.includes(
+        `  "${key}": {\n    "key": "${key}",\n    "file": "${key}.html",\n    "path": "/${key}",`,
+      ),
+    ),
+  "generated legacy route denominator and canonical paths match all 20 explicit route wrappers",
+);
+check(
+  JSON.stringify([...configuredCleanRoutes].sort()) ===
+    JSON.stringify([...explicitLegacyRouteSlugs, "super-teacher"].sort()),
+  "clean-route redirects equal the 20 explicit legacy routes plus super-teacher",
+);
+check(
+  JSON.stringify([...configuredProtectedPaths].sort()) ===
+    JSON.stringify([...protectedLearnerPaths].sort()) &&
+    JSON.stringify(
+      explicitLegacyRouteSlugs
+        .filter((slug) => !configuredProtectedPaths.includes(`/${slug}`))
+        .sort(),
+    ) === JSON.stringify(["about", "learning-path", "platform", "resources"]),
+  "Clerk path classifier covers exactly 16 protected legacy routes plus account and teaching review",
+);
+check(
+  JSON.stringify([...configuredClerkPublicRuntimePaths].sort()) ===
+    JSON.stringify([
+      "/",
+      "/about",
+      "/learning-path",
+      "/platform",
+      "/resources",
+      "/sign-in",
+      "/sign-up",
+      "/super-teacher",
+    ]) &&
+    /export function isClerkRuntimePathname\(pathname: string\)/.test(clerkConfig) &&
+    /pathname === "\/sign-in" \|\| pathname\.startsWith\("\/sign-in\/"\)/.test(
+      clerkConfig,
+    ) &&
+    /pathname === "\/sign-up" \|\| pathname\.startsWith\("\/sign-up\/"\)/.test(
+      clerkConfig,
+    ) &&
+    /pathname === "\/api\/super-teacher"/.test(clerkConfig) &&
+    /pathname === "\/__clerk"[\s\S]*pathname\.startsWith\("\/__clerk\/"\)/.test(
+      clerkConfig,
+    ),
+  "Clerk runtime allowlist covers exact public UI, protected prefixes, auth catch-alls, the Sofia API, and Clerk FAPI proxy",
+);
+check(
+  configuredProtectedPaths.every((path) => proxyScript.includes(`"${path}/:path*"`)) &&
+    proxyScript.includes('"/sign-in/:path*"') &&
+    proxyScript.includes('"/sign-up/:path*"') &&
+    proxyScript.includes('"/(api|trpc)(.*)"') &&
+    proxyScript.includes('"/__clerk/(.*)"'),
+  "outer proxy matcher cannot bypass protected or Clerk catch-all paths through file-like child segments",
+);
+check(
+  JSON.stringify(topLevelAppPageSegments) ===
+    JSON.stringify(
+      [
+        "[slug]",
+        ...explicitLegacyRouteSlugs,
+        "super-teacher",
+        "teaching-review-demo",
+      ].sort(),
+    ),
+  "top-level App Router page allowlist contains no undeclared explicit route",
 );
 check(
   /if \(!clerkState\.configured\)/.test(accountPage) &&
@@ -4857,11 +5014,29 @@ check(
     /signInUrl: "\/sign-in"/.test(proxyScript) &&
     /signUpUrl: "\/sign-up"/.test(proxyScript) &&
     /contentSecurityPolicy:[\s\S]*strict:\s*true/.test(proxyScript) &&
+    /configuredClerkProxy[\s\S]*isConfiguredClerkMiddlewarePathname\(request\.nextUrl\.pathname\)/.test(
+      proxyScript,
+    ) &&
     /"script-src-attr": \["none"\]/.test(proxyScript) &&
     /"frame-ancestors": \["none"\]/.test(proxyScript) &&
     /"\/__clerk\/\(\.\*\)"/.test(proxyScript) &&
     !/frontendApiProxy/.test(proxyScript),
   "proxy centrally protects learner routes and uses Clerk strict CSP, environment-bound instances, and production authorized parties",
+);
+check(
+  /const anonymousContentSecurityPolicy = \[[\s\S]*"script-src 'self' 'unsafe-inline'"/.test(
+    proxyScript,
+  ) &&
+    /const anonymousContentSecurityPolicy = \[[\s\S]*"script-src-attr 'none'"/.test(
+      proxyScript,
+    ) &&
+    /clerkState\.configured \? "anonymous-no-clerk" : "clerk-unconfigured"/.test(
+      proxyScript,
+    ) &&
+    !/anonymousContentSecurityPolicy[\s\S]{0,500}nonce-|anonymousContentSecurityPolicy[\s\S]{0,500}strict-dynamic/.test(
+      proxyScript,
+    ),
+  "unknown routes bypass Clerk nonce middleware and retain a nonce-free anonymous CSP for static 404 hydration",
 );
 check(
   /X-Sufeiya-Account-Mode[\s\S]*clerk-access-local-learning-data/.test(proxyScript) &&
@@ -5225,10 +5400,38 @@ check(
   ) &&
     /return <AnonymousNotFoundPage \/>/.test(notFoundRoute) &&
     !/LegacyPage|SiteShell|@clerk|ClerkAccountControls|SofiaAccessBoundary/.test(notFoundRoute) &&
+    /import \{ FullDocumentLink \} from "@\/components\/full-document-link"/.test(
+      anonymousLegacyPage,
+    ) &&
     /import \{ SiteFrame \} from "@\/components\/site-frame"/.test(anonymousLegacyPage) &&
     /pageKey=\{page\.nav as NavigationKey\}/.test(anonymousLegacyPage) &&
-    /href="\/sign-in"/.test(anonymousLegacyPage) &&
-    /href="\/sign-up"/.test(anonymousLegacyPage) &&
+    /Full-document links are intentional/.test(anonymousLegacyPage) &&
+    /Full-document links are intentional/.test(siteFrame) &&
+    /<FullDocumentLink className="auth-link" href="\/sign-in">登录<\/FullDocumentLink>/.test(
+      anonymousLegacyPage,
+    ) &&
+    /<FullDocumentLink className="auth-link auth-link-primary" href="\/sign-up">注册<\/FullDocumentLink>/.test(
+      anonymousLegacyPage,
+    ) &&
+    /import \{ FullDocumentLink \} from "@\/components\/full-document-link"/.test(
+      siteFrame,
+    ) &&
+    /<FullDocumentLink[\s\S]*href=\{item\.href\}/.test(siteFrame) &&
+    /<FullDocumentLink[\s\S]*href="\/workspace"/.test(siteFrame) &&
+    /<FullDocumentLink[\s\S]*href="\/super-teacher"/.test(siteFrame) &&
+    /<FullDocumentLink href="\/sign-in">安全登录<\/FullDocumentLink>/.test(siteFrame) &&
+    /^"use client";/m.test(fullDocumentLink) &&
+    /data-full-document-navigation="true"/.test(fullDocumentLink) &&
+    /data-full-document-navigation-ready="false"/.test(fullDocumentLink) &&
+    /setAttribute\("data-full-document-navigation-ready", "true"\)/.test(
+      fullDocumentLink,
+    ) &&
+    /target="_top"/.test(fullDocumentLink) &&
+    /onClickCapture=\{navigateOutsideTheAppRouter\}/.test(fullDocumentLink) &&
+    /event\.preventDefault\(\)/.test(fullDocumentLink) &&
+    /event\.stopPropagation\(\)/.test(fullDocumentLink) &&
+    /window\.location\.assign\(event\.currentTarget\.href\)/.test(fullDocumentLink) &&
+    !/next\/link|<Link\b/.test(`${anonymousLegacyPage}\n${siteFrame}`) &&
     !/SiteShell|@clerk|ClerkAccountControls|SofiaAccessBoundary|getClerkRuntimeState/.test(
       anonymousLegacyPage,
     ) &&
@@ -5236,7 +5439,7 @@ check(
     /Exclude<LegacyPageKey, "not-found">/.test(legacyPageComponent) &&
     !/authAware/.test(`${legacyPageComponent}\n${siteShell}`) &&
     /if \(!clerkState\.configured\) return shell/.test(siteShell),
-  "404 uses a separate anonymous module graph with direct account links and no Clerk or Sofia runtime imports",
+  "404 uses a separate anonymous module graph with full-document account handoffs and no Clerk or Sofia runtime imports",
 );
 
 const faviconStats = await stat(join(root, "app/favicon.ico"));

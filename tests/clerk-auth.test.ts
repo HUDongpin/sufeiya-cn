@@ -2,11 +2,14 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  CLERK_PUBLIC_RUNTIME_PATHS,
   CLERK_PRODUCTION_AUTHORIZED_PARTIES,
   CLERK_PROTECTED_PATHS,
   getClerkAuthorizedParties,
   getClerkRuntimeState,
   hasApplicationJsonContentType,
+  isClerkRuntimePathname,
+  isConfiguredClerkMiddlewarePathname,
   isClerkProtectedPathname,
   isSameOriginBrowserRequest,
 } from "../lib/auth/clerk-config";
@@ -162,6 +165,7 @@ describe("Clerk route boundary", () => {
     for (const path of [
       "/",
       "/about",
+      "/learning-path",
       "/platform",
       "/resources",
       "/super-teacher",
@@ -173,6 +177,50 @@ describe("Clerk route boundary", () => {
       "/workspace-preview",
     ]) {
       assert.equal(isClerkProtectedPathname(path), false, path);
+    }
+  });
+
+  it("runs Clerk middleware only for declared Clerk UI and server endpoints", () => {
+    for (const path of [...CLERK_PROTECTED_PATHS, ...CLERK_PUBLIC_RUNTIME_PATHS]) {
+      assert.equal(isClerkRuntimePathname(path), true, path);
+      assert.equal(isConfiguredClerkMiddlewarePathname(path), true, path);
+    }
+
+    for (const path of [
+      "/sign-in/factor-one",
+      "/sign-up/verify-email-address",
+      "/account/security",
+    ]) {
+      assert.equal(isClerkRuntimePathname(path), true, path);
+      assert.equal(isConfiguredClerkMiddlewarePathname(path), true, path);
+    }
+
+    for (const path of [
+      "/api/super-teacher",
+      "/__clerk",
+      "/__clerk/handshake",
+    ]) {
+      assert.equal(isConfiguredClerkMiddlewarePathname(path), true, path);
+    }
+
+    for (const path of [
+      "/definitely-missing-route",
+      "/definitely/missing-route",
+      "/missing-asset.js",
+      "/about/unknown-child",
+      "/super-teacher/unknown-child",
+      "/api",
+      "/api/governance/status",
+      "/api/super-teacher/voice/status",
+      "/api/unknown",
+      "/apiary",
+      "/trpc",
+      "/trpc/learner",
+      "/trpc-preview",
+      "/__clerkish",
+    ]) {
+      assert.equal(isClerkRuntimePathname(path), false, path);
+      assert.equal(isConfiguredClerkMiddlewarePathname(path), false, path);
     }
   });
 });

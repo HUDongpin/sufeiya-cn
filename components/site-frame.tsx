@@ -1,8 +1,8 @@
 /* Full-document links are intentional until the legacy per-page runtimes are migrated to React. */
-/* eslint-disable @next/next/no-html-link-for-pages */
 import Script from "next/script";
 import type { ReactNode } from "react";
 
+import { FullDocumentLink } from "@/components/full-document-link";
 import { navItems, type NavigationKey } from "@/lib/site";
 
 function ArrowIcon() {
@@ -30,15 +30,15 @@ function SiteHeader({
       <a className="skip-link" href="#main-content">跳到主要内容</a>
       <header className="site-header" data-header>
         <div className="header-inner">
-          <a className="brand" href="/" aria-label="苏肥鸭多邻国首页">
+          <FullDocumentLink className="brand" href="/" aria-label="苏肥鸭多邻国首页">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/assets/sufeiya-logo.png" width="2792" height="560" alt="苏肥鸭多邻国" />
-          </a>
+          </FullDocumentLink>
           <nav className="desktop-nav" aria-label="主导航">
             {navItems.map((item) => {
               const active = pageKey === item.key;
               return (
-                <a
+                <FullDocumentLink
                   key={item.key}
                   href={item.href}
                   data-page-link={item.key}
@@ -46,26 +46,26 @@ function SiteHeader({
                   aria-current={active ? "page" : undefined}
                 >
                   {item.label}
-                </a>
+                </FullDocumentLink>
               );
             })}
           </nav>
           <div className="header-actions">
-            <a
+            <FullDocumentLink
               className={`header-cta${pageKey === "workspace" ? " is-current" : ""}`}
               href="/workspace"
               aria-current={pageKey === "workspace" ? "page" : undefined}
             >
               <span>开始学习</span>
               <ArrowIcon />
-            </a>
-            <a
+            </FullDocumentLink>
+            <FullDocumentLink
               className={`auth-link${pageKey === "super-teacher" ? " is-current" : ""}`}
               href="/super-teacher"
               aria-current={pageKey === "super-teacher" ? "page" : undefined}
             >
               Sofia智能老师
-            </a>
+            </FullDocumentLink>
             {desktopAccountControls}
             <span className="local-mode-badge">{localModeLabel}</span>
           </div>
@@ -75,17 +75,17 @@ function SiteHeader({
         </div>
         <nav id="mobile-nav" className="mobile-nav" aria-label="移动端主导航" hidden>
           {navItems.map((item, index) => (
-            <a key={item.key} href={item.href} aria-current={pageKey === item.key ? "page" : undefined}>
+            <FullDocumentLink key={item.key} href={item.href} aria-current={pageKey === item.key ? "page" : undefined}>
               {item.label}<span>{String(index + 1).padStart(2, "0")}</span>
-            </a>
+            </FullDocumentLink>
           ))}
-          <a className="mobile-external" href="/workspace" aria-current={pageKey === "workspace" ? "page" : undefined}>
+          <FullDocumentLink className="mobile-external" href="/workspace" aria-current={pageKey === "workspace" ? "page" : undefined}>
             进入学习工作台
             <ArrowIcon />
-          </a>
-          <a href="/super-teacher" aria-current={pageKey === "super-teacher" ? "page" : undefined}>Sofia智能老师<span>Gate A</span></a>
-          <a href="/my-data">我的本机数据<span>本机</span></a>
-          <a href="/teaching-review-demo">教研复核演示<span>本机</span></a>
+          </FullDocumentLink>
+          <FullDocumentLink href="/super-teacher" aria-current={pageKey === "super-teacher" ? "page" : undefined}>Sofia智能老师<span>Gate A</span></FullDocumentLink>
+          <FullDocumentLink href="/my-data">我的本机数据<span>本机</span></FullDocumentLink>
+          <FullDocumentLink href="/teaching-review-demo">教研复核演示<span>本机</span></FullDocumentLink>
           {mobileAccountControls}
         </nav>
       </header>
@@ -97,32 +97,32 @@ function SiteFooter() {
   return (
     <footer className="site-footer">
       <div className="footer-main">
-        <a className="footer-brand" href="/" aria-label="返回首页">
+        <FullDocumentLink className="footer-brand" href="/" aria-label="返回首页">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/assets/sufeiya-logo.png" width="2792" height="560" alt="苏肥鸭多邻国" />
-        </a>
+        </FullDocumentLink>
         <div className="footer-nav">
           <div>
             <strong>页面</strong>
-            <a href="/workspace">开始学习</a>
-            <a href="/super-teacher">Sofia智能老师</a>
-            <a href="/my-data">我的本机数据</a>
-            <a href="/learning-path">学习路径</a>
-            <a href="/platform">平台功能</a>
-            <a href="/resources">学习资源</a>
+            <FullDocumentLink href="/workspace">开始学习</FullDocumentLink>
+            <FullDocumentLink href="/super-teacher">Sofia智能老师</FullDocumentLink>
+            <FullDocumentLink href="/my-data">我的本机数据</FullDocumentLink>
+            <FullDocumentLink href="/learning-path">学习路径</FullDocumentLink>
+            <FullDocumentLink href="/platform">平台功能</FullDocumentLink>
+            <FullDocumentLink href="/resources">学习资源</FullDocumentLink>
           </div>
           <div>
             <strong>数据与账户</strong>
-            <a href="/my-data">我的本机数据</a>
-            <a href="/teaching-review-demo">教研复核演示</a>
-            <a href="/sign-in">安全登录</a>
-            <a href="/account">账户管理</a>
+            <FullDocumentLink href="/my-data">我的本机数据</FullDocumentLink>
+            <FullDocumentLink href="/teaching-review-demo">教研复核演示</FullDocumentLink>
+            <FullDocumentLink href="/sign-in">安全登录</FullDocumentLink>
+            <FullDocumentLink href="/account">账户管理</FullDocumentLink>
             <small>登录不会自动上传或同步本机学习数据。</small>
           </div>
           <div>
             <strong>了解更多</strong>
-            <a href="/about">关于我们</a>
-            <a href="/about#faq">常见问题</a>
+            <FullDocumentLink href="/about">关于我们</FullDocumentLink>
+            <FullDocumentLink href="/about#faq">常见问题</FullDocumentLink>
             <a href="https://space.bilibili.com/448907095" target="_blank" rel="noopener noreferrer">
               Bilibili <span aria-hidden="true">↗</span>
               <span className="sr-only">（在新窗口打开）</span>

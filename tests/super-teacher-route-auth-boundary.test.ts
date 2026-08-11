@@ -1,12 +1,17 @@
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
 import { describe, it } from "node:test";
+import { unstable_doesMiddlewareMatch } from "next/experimental/testing/server";
 
-import { CLERK_PROTECTED_PATHS } from "../lib/auth/clerk-config";
+import {
+  CLERK_PROTECTED_PATHS,
+  CLERK_PUBLIC_RUNTIME_PATHS,
+} from "../lib/auth/clerk-config";
 
 const ENDPOINT = "https://sufeiya.cn/api/super-teacher";
 
 type ClerkTestGlobals = typeof globalThis & {
+  __sufeiyaClerkMiddlewareCount?: number;
   __sufeiyaClerkProtectCount?: number;
   __sufeiyaClerkRouteTestUserId?: string | null;
 };
@@ -34,6 +39,8 @@ registerHooks({
           });
           export const createRouteMatcher = (matcher) => matcher;
           export const clerkMiddleware = (handler) => async (request, event) => {
+            globalThis.__sufeiyaClerkMiddlewareCount =
+              (globalThis.__sufeiyaClerkMiddlewareCount ?? 0) + 1;
             const authHandler = async () => ({
               userId: globalThis.__sufeiyaClerkRouteTestUserId ?? null,
             });
@@ -160,11 +167,31 @@ describe("Clerk proxy integration", () => {
 
   it("invokes auth.protect for every protected page and leaves the JSON API to its route", async () => {
     await withClerkEnvironment({ configured: true }, async () => {
+      clerkTestGlobals.__sufeiyaClerkMiddlewareCount = 0;
       clerkTestGlobals.__sufeiyaClerkProtectCount = 0;
-      const [{ default: proxy }, { NextRequest }] = await Promise.all([
+      const [{ config, default: proxy }, { NextRequest }] = await Promise.all([
         importProxyForTest("configured"),
         import("next/server"),
       ]);
+
+      for (const path of [
+        ...CLERK_PROTECTED_PATHS,
+        "/sign-in/factor.js",
+        "/sign-up/verify.csv",
+      ]) {
+        assert.equal(unstable_doesMiddlewareMatch({
+          config,
+          url: `https://sufeiya.cn${path}`,
+        }), true, path);
+      }
+      assert.equal(unstable_doesMiddlewareMatch({
+        config,
+        url: "https://sufeiya.cn/__clerk/npm/@clerk/clerk-js.js",
+      }), true);
+      assert.equal(unstable_doesMiddlewareMatch({
+        config,
+        url: "https://sufeiya.cn/missing-asset.js",
+      }), false);
 
       for (const path of CLERK_PROTECTED_PATHS) {
         const response = await proxy(
@@ -175,6 +202,18 @@ describe("Clerk proxy integration", () => {
       }
       assert.equal(clerkTestGlobals.__sufeiyaClerkProtectCount, CLERK_PROTECTED_PATHS.length);
 
+      for (const path of [
+        ...CLERK_PUBLIC_RUNTIME_PATHS,
+        "/sign-in/factor-one",
+        "/sign-up/verify-email-address",
+      ]) {
+        const response = await proxy(
+          new NextRequest(`https://sufeiya.cn${path}`),
+          {} as never,
+        );
+        assert.equal(response.status, 200, path);
+      }
+
       const beforeApiRequest = clerkTestGlobals.__sufeiyaClerkProtectCount;
       const apiResponse = await proxy(
         new NextRequest(ENDPOINT),
@@ -182,6 +221,37 @@ describe("Clerk proxy integration", () => {
       );
       assert.equal(apiResponse.status, 200);
       assert.equal(clerkTestGlobals.__sufeiyaClerkProtectCount, beforeApiRequest);
+
+      const clerkProxyResponse = await proxy(
+        new NextRequest("https://sufeiya.cn/__clerk/handshake"),
+        {} as never,
+      );
+      assert.equal(clerkProxyResponse.status, 200);
+      const middlewareCountBeforeAnonymous = clerkTestGlobals.__sufeiyaClerkMiddlewareCount;
+
+      for (const pathname of [
+        "/definitely-missing-route",
+        "/definitely/missing-route",
+      ]) {
+        const anonymousResponse = await proxy(
+          new NextRequest(`https://sufeiya.cn${pathname}`),
+          {} as never,
+        );
+        assert.equal(anonymousResponse.status, 200, pathname);
+        assert.equal(
+          anonymousResponse.headers.get("x-sufeiya-account-mode"),
+          "anonymous-no-clerk",
+          pathname,
+        );
+        const contentSecurityPolicy = anonymousResponse.headers.get("content-security-policy");
+        assert.match(contentSecurityPolicy ?? "", /script-src 'self' 'unsafe-inline'/);
+        assert.doesNotMatch(contentSecurityPolicy ?? "", /nonce-|strict-dynamic|clerk/i);
+      }
+      assert.equal(clerkTestGlobals.__sufeiyaClerkProtectCount, beforeApiRequest);
+      assert.equal(
+        clerkTestGlobals.__sufeiyaClerkMiddlewareCount,
+        middlewareCountBeforeAnonymous,
+      );
     });
   });
 });
