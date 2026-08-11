@@ -65,7 +65,7 @@ describe("sanitized release-governance status route", () => {
       releaseAuthorization: "separate_explicit_controls_required",
     });
     assert.deepEqual(body.sourceGovernance, {
-      protocolVersion: "sufeiya_content_governance_v1",
+      protocolVersion: "sufeiya_content_governance_v2",
       status: "none_admitted",
       defaultDisposition: "deny",
       trackedRecords: 15,

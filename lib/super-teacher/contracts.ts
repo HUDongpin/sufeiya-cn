@@ -1,12 +1,89 @@
 import { z } from "zod";
 
 export const SUPER_TEACHER_PROTOCOL = "sufeiya_super_teacher_v1" as const;
+export const SUPER_TEACHER_STATUS_PROTOCOL = "sufeiya_super_teacher_status_v2" as const;
 
 export const skillSchema = z.enum(["Reading", "Listening", "Writing", "Speaking", "Balanced"]);
 
 const compactText = (maximum: number) => z.string().trim().min(1).max(maximum);
 const localId = z.string().trim().regex(/^[a-z][a-z0-9_-]{2,119}$/i);
 const taskSetDigestSchema = z.literal("c1b2922ca96677665690bf790281be2438a016bbbe0d9f85478685af3c8dfc2c");
+
+const releaseReasonCodeSchema = z.enum([
+  "allowed_for_declared_scope",
+  "decision_not_approved",
+  "implementation_not_ready",
+  "register_review_not_current",
+  "register_review_expired",
+  "review_not_current",
+  "review_expired",
+  "binding_mismatch",
+]);
+
+export const superTeacherStatusResponseSchema = z.object({
+  protocolVersion: z.literal(SUPER_TEACHER_STATUS_PROTOCOL),
+  interactionProtocolVersion: z.literal(SUPER_TEACHER_PROTOCOL),
+  status: z.literal("gate_a_limited"),
+  answerMode: z.enum(["grounded_ai_with_manual_fallback", "manual_grounded_fallback"]),
+  modelGenerationEnabled: z.boolean(),
+  modelConfigurationPresent: z.boolean(),
+  modelProvider: z.enum(["gateway", "dashscope"]).nullable(),
+  model: z.string().trim().min(1).max(160).nullable(),
+  modelRegion: z.enum(["beijing", "singapore"]).nullable(),
+  releaseGovernance: z.object({
+    protocolVersion: z.literal("sufeiya_release_decisions_v1"),
+    status: z.enum(["approved", "blocked"]),
+    reasonCode: releaseReasonCodeSchema,
+    blockedDecisionIds: z.array(z.string().regex(/^[a-z][a-z0-9_]{2,79}$/)).max(100),
+    blockedBindingIds: z.array(z.string().regex(/^[a-z][a-z0-9_.]{2,159}$/)).max(100),
+  }).strict(),
+  teacherSurfaceAccess: z.literal("public"),
+  modelSubmitAccess: z.literal("clerk_authenticated"),
+  learningPageAccess: z.literal("clerk_protected"),
+  learningDataStorage: z.literal("browser_local_not_account_bound"),
+  sourceBoundary: z.object({
+    gateAStaticClaimSources: z.number().int().min(0).max(1_000),
+    linkOnlyResources: z.number().int().min(0).max(1_000),
+    detOfficialSourcesAdmitted: z.literal(0),
+    archivedKnowledgeChunksAdmitted: z.literal(0),
+  }).strict(),
+}).strict().superRefine((status, context) => {
+  const configurationFieldsPresent = Boolean(status.modelProvider && status.model);
+  if (status.modelConfigurationPresent !== configurationFieldsPresent) {
+    context.addIssue({
+      code: "custom",
+      message: "model configuration status does not match the disclosed provider and model",
+      path: ["modelConfigurationPresent"],
+    });
+  }
+  if (status.modelProvider === "dashscope" && !status.modelRegion) {
+    context.addIssue({
+      code: "custom",
+      message: "DashScope status requires its configured region",
+      path: ["modelRegion"],
+    });
+  }
+  if (status.modelProvider !== "dashscope" && status.modelRegion) {
+    context.addIssue({
+      code: "custom",
+      message: "only DashScope status may disclose a model region",
+      path: ["modelRegion"],
+    });
+  }
+  if (
+    status.modelGenerationEnabled !== (status.releaseGovernance.status === "approved") ||
+    status.modelGenerationEnabled !== (status.answerMode === "grounded_ai_with_manual_fallback") ||
+    (status.modelGenerationEnabled && !status.modelConfigurationPresent)
+  ) {
+    context.addIssue({
+      code: "custom",
+      message: "model generation, answer mode, configuration, and release governance are inconsistent",
+      path: ["modelGenerationEnabled"],
+    });
+  }
+});
+
+export type SuperTeacherStatusResponse = z.infer<typeof superTeacherStatusResponseSchema>;
 
 const learnerPlanSchema = z
   .object({

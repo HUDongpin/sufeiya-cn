@@ -10,7 +10,7 @@
   const GATE0_STATUS_PATH = "/api/governance/status";
   const GATE0_PROTOCOL_VERSION = "sufeiya_p0_decision_log_v1";
   const GATE0_RELEASE_AUTHORIZATION = "separate_explicit_controls_required";
-  const SOURCE_GOVERNANCE_PROTOCOL_VERSION = "sufeiya_content_governance_v1";
+  const SOURCE_GOVERNANCE_PROTOCOL_VERSION = "sufeiya_content_governance_v2";
   const PRACTICE_RECEIPT_VERSION = "sufeiya_practice_receipt_v2";
   const LEGACY_PRACTICE_RECEIPT_VERSION = "sufeiya_practice_receipt_v1";
   const learningEventsRuntime = window.SufeiyaLearningEvents;
@@ -4177,7 +4177,7 @@
     }
     if (copy) {
       copy.textContent = summary.ragEligible === 0
-        ? "10 条 Gate A 静态解释来源与 5 条仅链接目录都已逐条登记，但没有任何一条同时通过五项 RAG 准入条件。"
+        ? "10 条 Gate A 静态解释来源与 5 条仅链接目录都已逐条登记，但没有任何一条通过完整的结构、证据、决定与安全准入合同。"
         : `已有 ${summary.ragEligible} 条通过逐项准入；这仍不代表外部模型、供应商数据流或生产发布已经批准。`;
     }
     const setSourceText = (selector, value) => {

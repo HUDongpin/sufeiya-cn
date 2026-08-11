@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 
 import { z } from "zod";
 
-import contentGovernanceRegisterJson from "@/data/content-governance.v1.json";
+import contentGovernanceRegisterJson from "@/data/content-governance.v2.json";
 import sourceRegisterJson from "@/data/super-teacher-source-register.json";
 import {
   BLOCKING_SAFETY_FLAGS,
@@ -318,10 +318,20 @@ export function admittedSourceCounts() {
   };
 }
 
+export function superTeacherSourceBoundary() {
+  const counts = admittedSourceCounts();
+  return {
+    gateAStaticClaimSources: counts.claimSources,
+    linkOnlyResources: counts.linkOnlyResources,
+    detOfficialSourcesAdmitted: counts.detOfficialSources,
+    archivedKnowledgeChunksAdmitted: counts.archivedKnowledgeChunks,
+  };
+}
+
 export function sourceGovernanceSummary() {
   const evaluations = CONTENT_GOVERNANCE_REGISTER.records.map((record) => ({
     record,
-    evaluation: evaluateRagAdmission(record),
+    evaluation: evaluateRagAdmission(record, CONTENT_GOVERNANCE_REGISTER.evidenceCatalog),
   }));
   const trackedRecords = evaluations.length;
   const ragEligible = evaluations.filter(({ evaluation }) => evaluation.admitted).length;

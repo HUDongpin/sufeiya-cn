@@ -1,0 +1,1691 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; connect-src 'none'; font-src 'none'; frame-src 'none'; media-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; worker-src 'none'">
+  <title>Sufeiya Gate 0 P0 决策会议准备包｜草稿，不是批准</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --paper: #f5f1e8;
+      --paper-raised: #fffdf8;
+      --ink: #102f35;
+      --ink-muted: #4d6062;
+      --navy: #082f36;
+      --navy-soft: #174852;
+      --gold: #c98c1b;
+      --gold-soft: #f2d89d;
+      --border: #c9c2b4;
+      --danger: #9a2f26;
+      --danger-bg: #fff0eb;
+      --success: #1f684c;
+      --focus: #087a91;
+      --shadow: 0 14px 36px rgba(8, 47, 54, 0.1);
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 22px;
+      --content: 1180px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --paper: #10191b;
+        --paper-raised: #182326;
+        --ink: #f4f0e6;
+        --ink-muted: #bdc9c8;
+        --navy: #d2ebea;
+        --navy-soft: #aed3d3;
+        --gold: #f2c15c;
+        --gold-soft: #5d4720;
+        --border: #48595a;
+        --danger: #ffb4aa;
+        --danger-bg: #40231f;
+        --success: #8bd5b5;
+        --focus: #69d5e6;
+        --shadow: 0 14px 36px rgba(0, 0, 0, 0.28);
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      min-width: 320px;
+      min-height: 100dvh;
+      overflow-wrap: anywhere;
+      background:
+        linear-gradient(180deg, color-mix(in srgb, var(--gold-soft) 26%, transparent), transparent 22rem),
+        var(--paper);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      font-size: 16px;
+      line-height: 1.65;
+    }
+
+    button,
+    input,
+    select,
+    textarea {
+      font: inherit;
+    }
+
+    button,
+    select,
+    input[type="date"],
+    input[type="text"] {
+      min-height: 46px;
+    }
+
+    button,
+    .file-action,
+    summary,
+    select,
+    input[type="checkbox"] {
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+
+    :focus-visible {
+      outline: 3px solid var(--focus);
+      outline-offset: 3px;
+    }
+
+    .skip-link {
+      position: fixed;
+      z-index: 1000;
+      top: 8px;
+      left: 8px;
+      transform: translateY(-160%);
+      padding: 10px 14px;
+      border-radius: var(--radius-sm);
+      background: var(--paper-raised);
+      color: var(--ink);
+    }
+
+    .skip-link:focus {
+      transform: translateY(0);
+    }
+
+    .shell {
+      width: min(calc(100% - 32px), var(--content));
+      min-width: 0;
+      margin-inline: auto;
+    }
+
+    .masthead {
+      padding: 48px 0 28px;
+    }
+
+    .eyebrow {
+      margin: 0 0 8px;
+      color: var(--gold);
+      font-size: 0.82rem;
+      font-weight: 750;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin-top: 0;
+    }
+
+    h1 {
+      max-width: 22ch;
+      margin-bottom: 12px;
+      font-family: "Songti SC", "STSong", "SimSun", serif;
+      font-size: clamp(2rem, 5vw, 4.4rem);
+      line-height: 1.08;
+      letter-spacing: -0.025em;
+    }
+
+    .lede {
+      max-width: 70ch;
+      margin-bottom: 18px;
+      color: var(--ink-muted);
+      font-size: 1.05rem;
+    }
+
+    .status-row,
+    .toolbar,
+    .meta-row,
+    .summary-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .chip,
+    .meta-pill,
+    .state-badge {
+      display: inline-flex;
+      min-height: 30px;
+      align-items: center;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 3px 11px;
+      background: var(--paper-raised);
+      color: var(--ink);
+      font-size: 0.82rem;
+      font-weight: 700;
+    }
+
+    .chip-danger {
+      border-color: color-mix(in srgb, var(--danger) 55%, var(--border));
+      background: var(--danger-bg);
+      color: var(--danger);
+    }
+
+    .boundary {
+      margin-bottom: 24px;
+      border: 2px solid var(--danger);
+      border-radius: var(--radius-lg);
+      padding: 22px;
+      background: var(--danger-bg);
+      box-shadow: var(--shadow);
+    }
+
+    .boundary h2 {
+      margin-bottom: 8px;
+      font-size: 1.2rem;
+    }
+
+    .boundary p:last-child {
+      margin-bottom: 0;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      margin-bottom: 24px;
+    }
+
+    .metric {
+      min-height: 116px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 18px;
+      background: var(--paper-raised);
+    }
+
+    .metric strong {
+      display: block;
+      font-size: clamp(1.55rem, 4vw, 2.25rem);
+      font-variant-numeric: tabular-nums;
+      line-height: 1.2;
+    }
+
+    .metric span {
+      color: var(--ink-muted);
+      font-size: 0.88rem;
+    }
+
+    .control-panel {
+      position: sticky;
+      z-index: 20;
+      top: 0;
+      margin-bottom: 24px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 14px;
+      background: color-mix(in srgb, var(--paper-raised) 94%, transparent);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(12px);
+    }
+
+    .toolbar {
+      align-items: end;
+    }
+
+    .toolbar-group {
+      display: grid;
+      gap: 4px;
+    }
+
+    .toolbar-label {
+      color: var(--ink-muted);
+      font-size: 0.78rem;
+      font-weight: 700;
+    }
+
+    button,
+    .file-action {
+      display: inline-flex;
+      min-height: 46px;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--navy);
+      border-radius: var(--radius-sm);
+      padding: 10px 16px;
+      background: var(--paper-raised);
+      color: var(--navy);
+      font-weight: 750;
+      text-decoration: none;
+    }
+
+    button:hover,
+    .file-action:hover {
+      background: color-mix(in srgb, var(--gold-soft) 44%, var(--paper-raised));
+    }
+
+    button:active,
+    .file-action:active {
+      opacity: 0.78;
+    }
+
+    button.primary {
+      border-color: var(--navy);
+      background: var(--navy);
+      color: var(--paper);
+    }
+
+    button.danger {
+      border-color: var(--danger);
+      color: var(--danger);
+    }
+
+    button:disabled,
+    input:disabled,
+    select:disabled,
+    textarea:disabled {
+      cursor: not-allowed;
+      opacity: 0.48;
+    }
+
+    .file-input {
+      position: absolute;
+      width: 1px !important;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      clip-path: inset(50%);
+    }
+
+    .filter {
+      min-width: 180px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 8px 36px 8px 12px;
+      background: var(--paper-raised);
+      color: var(--ink);
+    }
+
+    .status-message {
+      min-height: 1.5em;
+      margin: 10px 0 0;
+      color: var(--ink-muted);
+      font-size: 0.9rem;
+    }
+
+    .error-summary {
+      margin: 0 0 24px;
+      border: 2px solid var(--danger);
+      border-radius: var(--radius-md);
+      padding: 18px;
+      background: var(--danger-bg);
+      color: var(--danger);
+    }
+
+    .error-summary ul {
+      margin-bottom: 0;
+    }
+
+    .section-heading {
+      margin: 38px 0 14px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid var(--gold);
+      font-family: "Songti SC", "STSong", "SimSun", serif;
+      font-size: 1.45rem;
+    }
+
+    .decision-card {
+      margin-bottom: 16px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--paper-raised);
+      box-shadow: 0 6px 18px rgba(8, 47, 54, 0.06);
+    }
+
+    .decision-card > summary {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 16px;
+      align-items: center;
+      min-height: 72px;
+      padding: 16px 18px;
+      list-style: none;
+    }
+
+    .decision-card > summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .decision-card > summary::before {
+      content: "";
+      grid-column: 2;
+      grid-row: 1;
+      width: 9px;
+      height: 9px;
+      border-right: 2px solid currentColor;
+      border-bottom: 2px solid currentColor;
+      transform: rotate(45deg);
+    }
+
+    .decision-card[open] > summary::before {
+      transform: rotate(225deg);
+    }
+
+    .summary-copy {
+      grid-column: 1;
+      grid-row: 1;
+      min-width: 0;
+    }
+
+    .summary-copy strong {
+      display: block;
+      margin-bottom: 3px;
+      font-size: 1rem;
+      overflow-wrap: anywhere;
+    }
+
+    .summary-copy span {
+      color: var(--ink-muted);
+      font-size: 0.86rem;
+    }
+
+    .card-body {
+      padding: 0 18px 22px;
+      border-top: 1px solid var(--border);
+    }
+
+    .question {
+      max-width: 74ch;
+      margin: 20px 0 12px;
+      font-family: "Songti SC", "STSong", "SimSun", serif;
+      font-size: 1.18rem;
+      font-weight: 700;
+    }
+
+    .source-note,
+    .guardrail,
+    .suggestion {
+      margin: 14px 0;
+      border-left: 4px solid var(--gold);
+      padding: 12px 14px;
+      background: color-mix(in srgb, var(--gold-soft) 24%, var(--paper-raised));
+      overflow-wrap: anywhere;
+    }
+
+    .guardrail {
+      border-left-color: var(--navy-soft);
+    }
+
+    .source-note strong,
+    .guardrail strong,
+    .suggestion strong {
+      display: block;
+      margin-bottom: 3px;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+      margin-top: 22px;
+    }
+
+    .field {
+      display: grid;
+      gap: 6px;
+      align-content: start;
+    }
+
+    .field.full {
+      grid-column: 1 / -1;
+    }
+
+    .field label,
+    fieldset legend {
+      font-weight: 750;
+    }
+
+    .helper,
+    .field-error {
+      margin: 0;
+      color: var(--ink-muted);
+      font-size: 0.82rem;
+    }
+
+    .field-error {
+      color: var(--danger);
+    }
+
+    input[type="text"],
+    input[type="date"],
+    select,
+    textarea {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 10px 12px;
+      background: var(--paper);
+      color: var(--ink);
+    }
+
+    textarea {
+      min-height: 112px;
+      resize: vertical;
+    }
+
+    fieldset {
+      min-width: 0;
+      margin: 0;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 14px;
+    }
+
+    .role-evidence-grid,
+    .checkbox-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .checkbox {
+      display: flex;
+      min-height: 44px;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .checkbox input {
+      width: 20px;
+      height: 20px;
+      flex: 0 0 auto;
+    }
+
+    .supplemental {
+      grid-column: 1 / -1;
+      border: 1px dashed var(--border);
+      border-radius: var(--radius-sm);
+      padding: 12px;
+    }
+
+    .supplemental > summary {
+      min-height: 44px;
+      padding: 8px 0;
+      font-weight: 750;
+    }
+
+    .readonly-banner {
+      margin: 12px 0 0;
+      border: 1px solid var(--danger);
+      border-radius: var(--radius-sm);
+      padding: 10px 12px;
+      background: var(--danger-bg);
+      color: var(--danger);
+      font-weight: 700;
+    }
+
+    footer {
+      margin-top: 48px;
+      padding: 28px 0 52px;
+      border-top: 1px solid var(--border);
+      color: var(--ink-muted);
+      font-size: 0.9rem;
+    }
+
+    #digest-display {
+      min-width: 0;
+      word-break: break-all;
+    }
+
+    code {
+      overflow-wrap: anywhere;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.86em;
+    }
+
+    [hidden] {
+      display: none !important;
+    }
+
+    @media (max-width: 760px) {
+      .shell {
+        width: min(calc(100% - 24px), var(--content));
+      }
+
+      .masthead {
+        padding-top: 30px;
+      }
+
+      .summary-grid,
+      .form-grid,
+      .role-evidence-grid,
+      .checkbox-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .control-panel {
+        position: static;
+      }
+
+      .toolbar > *,
+      .toolbar-group,
+      .toolbar button,
+      .file-action,
+      .filter {
+        width: 100%;
+      }
+
+      .metric {
+        min-height: 94px;
+      }
+
+      .decision-card > summary {
+        min-height: 78px;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html {
+        scroll-behavior: auto;
+      }
+
+      *,
+      *::before,
+      *::after {
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+      }
+    }
+
+    @media print {
+      :root {
+        color-scheme: light;
+      }
+
+      body {
+        background: #fff;
+        color: #111;
+        font-size: 11pt;
+      }
+
+      .shell {
+        width: 100%;
+      }
+
+      .control-panel,
+      .skip-link,
+      .error-summary {
+        display: none !important;
+      }
+
+      .boundary,
+      .metric,
+      .decision-card {
+        box-shadow: none;
+      }
+
+      .decision-card {
+        break-inside: avoid;
+      }
+
+      .decision-card > summary::before {
+        display: none;
+      }
+
+      .decision-card .card-body {
+        display: block !important;
+      }
+
+      input,
+      select,
+      textarea {
+        border-color: #777 !important;
+        background: #fff !important;
+        color: #111 !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到主要内容</a>
+
+  <header class="masthead shell">
+    <p class="eyebrow">Sufeiya governance · Gate 0</p>
+    <h1>P0 决策会议准备包</h1>
+    <p class="lede">供项目 owner 与相关责任角色逐项准备 29 个 P0 讨论材料。所有内容仅在本页内存中编辑；页面不会联网，也不会自动保存到浏览器或服务器。</p>
+    <div class="status-row" aria-label="权限边界">
+      <span class="chip chip-danger">草稿，不是批准</span>
+      <span class="chip">0 项正式决定</span>
+      <span class="chip">无正式 Gate 0 权限</span>
+      <span class="chip">无发布权限</span>
+    </div>
+  </header>
+
+  <main id="main-content" class="shell" tabindex="-1">
+    <section class="boundary" aria-labelledby="boundary-title">
+      <h2 id="boundary-title">永久边界：填写完整不等于形成决定</h2>
+      <p>方案中的“默认建议”只是会议讨论起点，不是 owner 结论。Clerk 登录、文件导出、SHA-256 内容摘要或本页显示的“草稿字段完整”，都不能证明 staff 身份、专家资格、签字、批准、正式 Gate 0 通过或任何功能发布授权。</p>
+      <p><strong>证据只填写 <code>prep_ev_...</code> 形式的不透明候选 ID。</strong>请勿填写文件路径、网址、姓名、Clerk ID、联系方式、密钥、token、真实学生数据或证据正文。</p>
+      <div id="readonly-banner" class="readonly-banner" hidden></div>
+    </section>
+
+    <section class="summary-grid" aria-label="会议草稿进度">
+      <article class="metric">
+        <strong id="metric-empty">29</strong>
+        <span>尚未填写</span>
+      </article>
+      <article class="metric">
+        <strong id="metric-drafting">0</strong>
+        <span>正在准备</span>
+      </article>
+      <article class="metric">
+        <strong id="metric-complete">0</strong>
+        <span>草稿字段完整</span>
+      </article>
+      <article class="metric">
+        <strong id="metric-formal">0 / 29</strong>
+        <span>正式决定，固定不由本工具改变</span>
+      </article>
+    </section>
+
+    <section class="control-panel" aria-label="准备包操作">
+      <div class="toolbar">
+        <div class="toolbar-group">
+          <label class="toolbar-label" for="section-filter">显示分区</label>
+          <select id="section-filter" class="filter">
+            <option value="all">全部 A–F</option>
+            <option value="A">A 产品定位与成人试点</option>
+            <option value="B">B 品牌、内容与权利</option>
+            <option value="C">C 诊断、推荐与测评</option>
+            <option value="D">D 打卡营、社区与同伴导师</option>
+            <option value="E">E 智能体、人力与运营</option>
+            <option value="F">F 隐私、部署与停机</option>
+          </select>
+        </div>
+        <label class="file-action" for="import-file">导入本工具 JSON</label>
+        <input id="import-file" class="file-input" type="file" accept="application/json,.json">
+        <button id="export-button" class="primary" type="button">导出草稿 JSON</button>
+        <button id="print-button" type="button">打印会议稿</button>
+        <button id="reset-button" class="danger" type="button">清空本页草稿</button>
+      </div>
+      <p id="status-message" class="status-message" aria-live="polite">内存编辑模式：尚未写入任何服务器或浏览器持久存储。</p>
+    </section>
+
+    <section id="error-summary" class="error-summary" role="alert" tabindex="-1" hidden>
+      <h2>导出前需要修正</h2>
+      <ul id="error-list"></ul>
+    </section>
+
+    <div id="decision-list"></div>
+
+    <noscript>
+      <section class="error-summary">
+        <h2>需要启用 JavaScript</h2>
+        <p>本离线文件使用本地 JavaScript 生成表单和 SHA-256 内容完整性摘要；不会发出网络请求。</p>
+      </section>
+    </noscript>
+  </main>
+
+  <footer class="shell">
+    <p>来源：已批准讨论稿附录 A，第 17–19 页；精确 29 项，A–F 六个分区。文件协议 <code>sufeiya_p0_decision_preparation_v1</code>。</p>
+    <p>内容摘要算法：SHA-256。它只能帮助发现文件内容变化，不是数字签名、身份认证、角色证明或批准凭证。</p>
+    <p id="digest-display">当前初始摘要：尚未重新导出。</p>
+  </footer>
+
+  <script>
+    (function () {
+      "use strict";
+
+      var initialPack = __P0_INITIAL_PACK_JSON__;
+      var sectionTitles = {
+        A: "A · 产品定位与成人试点",
+        B: "B · 品牌、内容与现有 AI 权利",
+        C: "C · 诊断、推荐与测评",
+        D: "D · 打卡营、社区与同伴导师",
+        E: "E · 智能体、人力与运营",
+        F: "F · 隐私、主体、部署与 Gate",
+      };
+      var roleLabels = {
+        project_owner: "项目 owner",
+        product_research_owner: "产品与研究负责人",
+        teaching_content_owner: "教研与内容负责人",
+        measurement_review_owner: "测量复核负责人",
+        engineering_ai_owner: "工程与 AI 负责人",
+        community_operations_owner: "社区运营负责人",
+        privacy_security_compliance_owner: "隐私、安全与合规负责人",
+        safety_operations_owner: "安全运营负责人",
+        legal_contract_owner: "法律与合同负责人",
+      };
+      var surfaceLabels = {
+        local_teaching_review_demo: "本机教研复核演示",
+        sofia_external_text_model: "Sofia 外部文本模型",
+        sofia_voice_output: "Sofia 语音输出",
+        sofia_microphone_input: "Sofia 麦克风输入",
+        real_community: "真实社区",
+        real_human_queue: "真实人工队列",
+        staff_admin_write: "员工管理写入",
+        real_incentives: "真实激励",
+      };
+      var dispositions = [
+        ["undecided", "尚未提出"],
+        ["propose_adopt", "建议采用"],
+        ["propose_reject", "建议拒绝"],
+        ["propose_defer", "建议延期"],
+      ];
+      var draftKeys = [
+        "preparationState",
+        "proposedDisposition",
+        "decisionSummaryDraft",
+        "proposedPrimaryResponsibleRole",
+        "proposedBackupResponsibleRole",
+        "roleReviewSlots",
+        "additionalEvidenceReferenceIds",
+        "implementationImpactDraft",
+        "implementationDueDateDraft",
+        "reviewConditionDraft",
+        "reviewDueDateDraft",
+        "proposedPermittedImpactSurfaceIds",
+        "meetingNotesDraft",
+      ];
+      var topKeys = [
+        "protocolVersion", "packId", "revision", "status", "calendarTimeZone",
+        "generatedAt", "updatedAt", "integrityBoundary", "authorityBoundary",
+        "base", "items", "summary", "contentSha256",
+      ];
+      var integrityBoundaryKeys = ["algorithm", "authority"];
+      var authorityBoundaryKeys = [
+        "formalAuthority", "staffIdentityVerified", "reviewerQualificationVerified",
+        "canonicalLedgerWrite", "releaseAuthorization", "formalGate0Pass",
+      ];
+      var baseKeys = [
+        "sourcePlanSha256", "canonicalDefinitionSetSha256", "decisionRolePolicySha256",
+        "ledgerRevision", "ledgerContentSha256",
+      ];
+      var itemKeys = ["agenda", "draft"];
+      var agendaKeys = [
+        "itemId", "order", "section", "question", "defaultSuggestion",
+        "defaultSuggestionAuthority", "operationalGuardrail", "sourcePages",
+        "itemDefinitionSha256", "requiredRoles",
+      ];
+      var summaryKeys = ["total", "empty", "drafting", "draftFieldsComplete", "formalResolved"];
+      var roleSlotKeys = ["role", "candidateEvidenceReferenceId", "verificationState"];
+      var p0IdPattern = /^p0_[a-f][0-9]{2}_[a-z0-9_]{3,64}$/;
+      var evidencePattern = /^prep_ev_[a-z0-9][a-z0-9_-]{0,111}$/;
+      var shaPattern = /^[a-f0-9]{64}$/;
+      var uuidPattern = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$/i;
+      var strictTimestampPattern = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?(Z|[+-]\d{2}:\d{2})$/;
+      var unsafeControlPattern = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/;
+      var allSurfaces = Object.keys(surfaceLabels);
+      var allRoles = Object.keys(roleLabels);
+      var allSections = Object.keys(sectionTitles);
+      var state = {
+        pack: clone(initialPack),
+        readOnly: false,
+        staleReasons: [],
+        dirty: false,
+      };
+
+      var list = document.getElementById("decision-list");
+      var filter = document.getElementById("section-filter");
+      var exportButton = document.getElementById("export-button");
+      var importFile = document.getElementById("import-file");
+      var printButton = document.getElementById("print-button");
+      var resetButton = document.getElementById("reset-button");
+      var statusMessage = document.getElementById("status-message");
+      var errorSummary = document.getElementById("error-summary");
+      var errorList = document.getElementById("error-list");
+      var readonlyBanner = document.getElementById("readonly-banner");
+      var digestDisplay = document.getElementById("digest-display");
+
+      function clone(value) {
+        return JSON.parse(JSON.stringify(value));
+      }
+
+      function exactKeys(value, expected) {
+        if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+        var actual = Object.keys(value).sort();
+        var wanted = expected.slice().sort();
+        return JSON.stringify(actual) === JSON.stringify(wanted);
+      }
+
+      function canonicalize(value) {
+        if (Array.isArray(value)) return value.map(canonicalize);
+        if (value && typeof value === "object") {
+          var result = {};
+          Object.keys(value).sort().forEach(function (key) {
+            result[key] = canonicalize(value[key]);
+          });
+          return result;
+        }
+        return value;
+      }
+
+      function canonicalJson(value) {
+        return JSON.stringify(canonicalize(value));
+      }
+
+      async function sha256(value) {
+        if (!window.crypto || !window.crypto.subtle || !window.TextEncoder) {
+          throw new Error("当前浏览器缺少 WebCrypto，已停止导出；请使用最新版 Chrome、Edge 或 Safari。");
+        }
+        var bytes = new TextEncoder().encode(canonicalJson(value));
+        var digest = await window.crypto.subtle.digest("SHA-256", bytes);
+        return Array.from(new Uint8Array(digest)).map(function (byte) {
+          return byte.toString(16).padStart(2, "0");
+        }).join("");
+      }
+
+      function withoutDigest(pack) {
+        var content = clone(pack);
+        delete content.contentSha256;
+        return content;
+      }
+
+      function currentTaipeiDate(timestamp) {
+        var parts = new Intl.DateTimeFormat("en-CA", {
+          timeZone: "Asia/Taipei",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        }).formatToParts(new Date(timestamp));
+        var map = {};
+        parts.forEach(function (part) {
+          map[part.type] = part.value;
+        });
+        return map.year + "-" + map.month + "-" + map.day;
+      }
+
+      function todayTaipei() {
+        return currentTaipeiDate(new Date().toISOString());
+      }
+
+      function realDate(value) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+        var parsed = Date.parse(value + "T00:00:00Z");
+        return Number.isFinite(parsed) && new Date(parsed).toISOString().slice(0, 10) === value;
+      }
+
+      function strictRfc3339(value) {
+        if (typeof value !== "string") return false;
+        var match = value.match(strictTimestampPattern);
+        if (!match) return false;
+        var year = Number(match[1]);
+        var month = Number(match[2]);
+        var day = Number(match[3]);
+        var hour = Number(match[4]);
+        var minute = Number(match[5]);
+        var second = Number(match[6]);
+        var zone = match[8];
+        var leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+        var daysInMonth = [31, leapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+        if (
+          month < 1 || month > 12 || day < 1 || day > (daysInMonth[month - 1] || 0) ||
+          hour > 23 || minute > 59 || second > 59
+        ) return false;
+        if (zone !== "Z") {
+          if (zone === "-00:00") return false;
+          var offsetHours = Number(zone.slice(1, 3));
+          var offsetMinutes = Number(zone.slice(4, 6));
+          if (offsetHours > 14 || offsetMinutes > 59 || (offsetHours === 14 && offsetMinutes !== 0)) {
+            return false;
+          }
+        }
+        return Number.isFinite(Date.parse(value));
+      }
+
+      function integerInRange(value, minimum, maximum) {
+        return Number.isSafeInteger(value) && value >= minimum && value <= maximum;
+      }
+
+      function stringInRange(value, minimum, maximum) {
+        return typeof value === "string" && value.length >= minimum && value.length <= maximum;
+      }
+
+      function roleSlotsMatch(item) {
+        return JSON.stringify(item.draft.roleReviewSlots.map(function (slot) {
+          return slot.role;
+        })) === JSON.stringify(item.agenda.requiredRoles);
+      }
+
+      function deriveState(item, earliestDate) {
+        var draft = item.draft;
+        var empty =
+          draft.proposedDisposition === "undecided" &&
+          draft.decisionSummaryDraft.length === 0 &&
+          draft.proposedPrimaryResponsibleRole === null &&
+          draft.proposedBackupResponsibleRole === null &&
+          draft.roleReviewSlots.every(function (slot) { return slot.candidateEvidenceReferenceId === null; }) &&
+          draft.additionalEvidenceReferenceIds.length === 0 &&
+          draft.implementationImpactDraft.length === 0 &&
+          draft.implementationDueDateDraft === null &&
+          draft.reviewConditionDraft.length === 0 &&
+          draft.reviewDueDateDraft === null &&
+          draft.proposedPermittedImpactSurfaceIds.length === 0 &&
+          draft.meetingNotesDraft.length === 0;
+        if (empty) return "empty";
+
+        var fieldsComplete =
+          draft.proposedDisposition !== "undecided" &&
+          draft.decisionSummaryDraft.trim().length >= 20 &&
+          draft.proposedPrimaryResponsibleRole !== null &&
+          draft.proposedBackupResponsibleRole !== null &&
+          draft.proposedPrimaryResponsibleRole !== draft.proposedBackupResponsibleRole &&
+          item.agenda.requiredRoles.indexOf(draft.proposedPrimaryResponsibleRole) >= 0 &&
+          item.agenda.requiredRoles.indexOf(draft.proposedBackupResponsibleRole) >= 0 &&
+          roleSlotsMatch(item) &&
+          draft.roleReviewSlots.every(function (slot) { return slot.candidateEvidenceReferenceId !== null; }) &&
+          draft.roleReviewSlots.length + draft.additionalEvidenceReferenceIds.length <= 12 &&
+          draft.implementationImpactDraft.trim().length >= 20 &&
+          draft.implementationDueDateDraft !== null &&
+          draft.implementationDueDateDraft >= earliestDate &&
+          draft.reviewConditionDraft.trim().length >= 20 &&
+          draft.reviewDueDateDraft !== null &&
+          draft.implementationDueDateDraft < draft.reviewDueDateDraft;
+        return fieldsComplete ? "draft_fields_complete" : "drafting";
+      }
+
+      function summaryFor(items, earliestDate) {
+        var states = items.map(function (item) { return deriveState(item, earliestDate); });
+        return {
+          total: 29,
+          empty: states.filter(function (value) { return value === "empty"; }).length,
+          drafting: states.filter(function (value) { return value === "drafting"; }).length,
+          draftFieldsComplete: states.filter(function (value) { return value === "draft_fields_complete"; }).length,
+          formalResolved: 0,
+        };
+      }
+
+      function textValid(value, maximum) {
+        return typeof value === "string" && value.length <= maximum && !unsafeControlPattern.test(value);
+      }
+
+      function unique(values) {
+        return new Set(values).size === values.length;
+      }
+
+      function structuralErrors(pack) {
+        var errors = [];
+        if (!exactKeys(pack, topKeys)) {
+          return ["顶层字段与准备包协议不一致。"];
+        }
+        if (pack.protocolVersion !== "sufeiya_p0_decision_preparation_v1") errors.push("协议版本不匹配。");
+        if (typeof pack.packId !== "string" || !uuidPattern.test(pack.packId)) errors.push("packId 不是有效 UUID。");
+        if (!Number.isSafeInteger(pack.revision) || pack.revision < 1) errors.push("revision 无效。");
+        if (pack.status !== "draft_not_authoritative") errors.push("草稿状态被改写。");
+        if (pack.calendarTimeZone !== "Asia/Taipei") errors.push("会议日历时区被改写。");
+        if (!exactKeys(pack.integrityBoundary, integrityBoundaryKeys) ||
+            canonicalJson(pack.integrityBoundary) !== canonicalJson(initialPack.integrityBoundary)) {
+          errors.push("完整性边界被改写；SHA-256 只能证明内容自一致。");
+        }
+        if (!exactKeys(pack.authorityBoundary, authorityBoundaryKeys) ||
+            canonicalJson(pack.authorityBoundary) !== canonicalJson(initialPack.authorityBoundary)) {
+          errors.push("权限边界被改写；所有正式权限必须为 false。");
+        }
+        if (!exactKeys(pack.base, baseKeys) ||
+            typeof pack.base.sourcePlanSha256 !== "string" || !shaPattern.test(pack.base.sourcePlanSha256) ||
+            typeof pack.base.canonicalDefinitionSetSha256 !== "string" || !shaPattern.test(pack.base.canonicalDefinitionSetSha256) ||
+            typeof pack.base.decisionRolePolicySha256 !== "string" || !shaPattern.test(pack.base.decisionRolePolicySha256) ||
+            !integerInRange(pack.base.ledgerRevision, 1, Number.MAX_SAFE_INTEGER) ||
+            typeof pack.base.ledgerContentSha256 !== "string" || !shaPattern.test(pack.base.ledgerContentSha256)) {
+          errors.push("canonical 基线字段无效。");
+        }
+        var timestampsValid = strictRfc3339(pack.generatedAt) && strictRfc3339(pack.updatedAt);
+        if (!timestampsValid) {
+          errors.push("生成或更新时间必须是带显式时区的严格 RFC3339 时间戳。");
+        } else {
+          if (Date.parse(pack.updatedAt) < Date.parse(pack.generatedAt)) {
+            errors.push("更新时间早于生成时间。");
+          }
+          var maximumAcceptedTime = Date.now() + 5 * 60 * 1000;
+          if (Date.parse(pack.generatedAt) > maximumAcceptedTime || Date.parse(pack.updatedAt) > maximumAcceptedTime) {
+            errors.push("生成或更新时间超过允许的五分钟时钟偏差。");
+          }
+        }
+        if (!Array.isArray(pack.items) || pack.items.length !== 29) {
+          errors.push("准备包必须精确包含 29 项。");
+          return errors;
+        }
+
+        var allEvidence = [];
+        pack.items.forEach(function (item, index) {
+          var itemErrorStart = errors.length;
+          if (!exactKeys(item, itemKeys)) {
+            errors.push("第 " + (index + 1) + " 项只允许 agenda 与 draft 字段。");
+            return;
+          }
+          var agenda = item.agenda;
+          if (!exactKeys(agenda, agendaKeys) ||
+              typeof agenda.itemId !== "string" || !p0IdPattern.test(agenda.itemId) ||
+              !integerInRange(agenda.order, 1, 29) ||
+              typeof agenda.section !== "string" || allSections.indexOf(agenda.section) < 0 ||
+              !stringInRange(agenda.question, 1, 240) ||
+              !stringInRange(agenda.defaultSuggestion, 1, 2400) ||
+              agenda.defaultSuggestionAuthority !== "approved_plan_default_suggestion_not_a_meeting_outcome" ||
+              !stringInRange(agenda.operationalGuardrail, 1, 1200) ||
+              !Array.isArray(agenda.sourcePages) || agenda.sourcePages.length < 1 || agenda.sourcePages.length > 2 ||
+              agenda.sourcePages.some(function (page) { return !integerInRange(page, 17, 19); }) ||
+              typeof agenda.itemDefinitionSha256 !== "string" || !shaPattern.test(agenda.itemDefinitionSha256) ||
+              !Array.isArray(agenda.requiredRoles) || agenda.requiredRoles.length < 2 ||
+              agenda.requiredRoles.length > allRoles.length ||
+              agenda.requiredRoles.some(function (role) { return typeof role !== "string" || allRoles.indexOf(role) < 0; })) {
+            errors.push("第 " + (index + 1) + " 项 agenda 不符合准备包协议。");
+            return;
+          }
+          var draft = item.draft;
+          if (!exactKeys(draft, draftKeys)) {
+            errors.push(agenda.itemId + " 的草稿字段不完整或含未知字段。");
+            return;
+          }
+          if (!["empty", "drafting", "draft_fields_complete"].includes(draft.preparationState)) {
+            errors.push(item.agenda.itemId + " 的草稿状态无效。");
+          }
+          if (!dispositions.some(function (entry) { return entry[0] === draft.proposedDisposition; })) {
+            errors.push(item.agenda.itemId + " 的拟议处理值无效。");
+          }
+          if (!textValid(draft.decisionSummaryDraft, 800) ||
+              !textValid(draft.implementationImpactDraft, 800) ||
+              !textValid(draft.reviewConditionDraft, 800) ||
+              !textValid(draft.meetingNotesDraft, 3000)) {
+            errors.push(item.agenda.itemId + " 含超长文字或禁止的控制字符。");
+          }
+          [draft.proposedPrimaryResponsibleRole, draft.proposedBackupResponsibleRole].forEach(function (role) {
+            if (role !== null && (typeof role !== "string" || allRoles.indexOf(role) < 0)) {
+              errors.push(agenda.itemId + " 含无效的主备责任角色。");
+            }
+          });
+          if (!Array.isArray(draft.roleReviewSlots) ||
+              draft.roleReviewSlots.length < 2 || draft.roleReviewSlots.length > allRoles.length ||
+              draft.roleReviewSlots.length !== agenda.requiredRoles.length) {
+            errors.push(agenda.itemId + " 的角色证据槽位数量不符。");
+          } else {
+            draft.roleReviewSlots.forEach(function (slot, slotIndex) {
+              if (!exactKeys(slot, roleSlotKeys) ||
+                  typeof slot.role !== "string" || allRoles.indexOf(slot.role) < 0 ||
+                  slot.role !== agenda.requiredRoles[slotIndex] ||
+                  slot.verificationState !== "awaiting_role_material") {
+                errors.push(agenda.itemId + " 的角色证据槽位发生漂移。");
+                return;
+              }
+              if (slot.candidateEvidenceReferenceId !== null) {
+                if (typeof slot.candidateEvidenceReferenceId !== "string" ||
+                    !evidencePattern.test(slot.candidateEvidenceReferenceId)) {
+                  errors.push(agenda.itemId + " 的候选证据 ID 必须使用 prep_ev_ 前缀。");
+                }
+                if (typeof slot.candidateEvidenceReferenceId === "string") {
+                  allEvidence.push(slot.candidateEvidenceReferenceId);
+                }
+              }
+            });
+          }
+          if (!Array.isArray(draft.additionalEvidenceReferenceIds) ||
+              draft.additionalEvidenceReferenceIds.length > 12) {
+            errors.push(agenda.itemId + " 的补充候选证据数量无效。");
+          } else {
+            draft.additionalEvidenceReferenceIds.forEach(function (reference) {
+              if (typeof reference !== "string" || !evidencePattern.test(reference)) {
+                errors.push(agenda.itemId + " 的补充候选证据 ID 必须使用 prep_ev_ 前缀。");
+              }
+              if (typeof reference === "string") {
+                allEvidence.push(reference);
+              }
+            });
+          }
+          if (draft.implementationDueDateDraft !== null && !realDate(draft.implementationDueDateDraft)) {
+            errors.push(agenda.itemId + " 的实施截止日期不是有效日历日期。");
+          }
+          if (draft.reviewDueDateDraft !== null && !realDate(draft.reviewDueDateDraft)) {
+            errors.push(agenda.itemId + " 的复审日期不是有效日历日期。");
+          }
+          if (!Array.isArray(draft.proposedPermittedImpactSurfaceIds) ||
+              draft.proposedPermittedImpactSurfaceIds.length > allSurfaces.length ||
+              draft.proposedPermittedImpactSurfaceIds.some(function (surface) {
+                return typeof surface !== "string" || allSurfaces.indexOf(surface) < 0;
+              })) {
+            errors.push(agenda.itemId + " 的拟议影响范围无效。");
+          }
+          if (timestampsValid && errors.length === itemErrorStart &&
+              draft.preparationState !== deriveState(item, currentTaipeiDate(pack.updatedAt))) {
+            errors.push(agenda.itemId + " 的派生草稿状态不一致。");
+          }
+        });
+        if (!unique(allEvidence)) errors.push("候选证据 ID 在准备包内被重复使用。");
+        if (!exactKeys(pack.summary, summaryKeys) || pack.summary.total !== 29 || pack.summary.formalResolved !== 0 ||
+            !integerInRange(pack.summary.empty, 0, 29) ||
+            !integerInRange(pack.summary.drafting, 0, 29) ||
+            !integerInRange(pack.summary.draftFieldsComplete, 0, 29)) {
+          errors.push("草稿汇总字段不符合准备包协议。");
+        } else if (timestampsValid && errors.length === 0 &&
+                   canonicalJson(pack.summary) !== canonicalJson(summaryFor(pack.items, currentTaipeiDate(pack.updatedAt)))) {
+          errors.push("草稿汇总与逐项状态不一致。");
+        }
+        if (typeof pack.contentSha256 !== "string" || !shaPattern.test(pack.contentSha256)) {
+          errors.push("contentSha256 格式无效。");
+        }
+        return errors;
+      }
+
+      function currentBindingDriftReasons(pack) {
+        var reasons = [];
+        var baseReasonByKey = {
+          sourcePlanSha256: "source_plan_sha256",
+          canonicalDefinitionSetSha256: "canonical_definition_set_sha256",
+          decisionRolePolicySha256: "decision_role_policy_sha256",
+          ledgerRevision: "ledger_revision",
+          ledgerContentSha256: "ledger_content_sha256",
+        };
+        baseKeys.forEach(function (key) {
+          if (pack.base[key] !== initialPack.base[key]) reasons.push(baseReasonByKey[key]);
+        });
+        pack.items.forEach(function (item, index) {
+          var currentItem = initialPack.items[index];
+          if (!currentItem || canonicalJson(item.agenda) !== canonicalJson(currentItem.agenda)) {
+            reasons.push("item_" + (index + 1) + "_agenda");
+          }
+        });
+        return reasons;
+      }
+
+      async function validateImportedPack(pack) {
+        var errors = structuralErrors(pack);
+        if (errors.length) return { errors: errors, staleReasons: [] };
+        var expectedDigest = await sha256(withoutDigest(pack));
+        if (expectedDigest !== pack.contentSha256) {
+          return { errors: ["SHA-256 内容摘要不匹配，文件可能被修改或损坏。"], staleReasons: [] };
+        }
+        return { errors: [], staleReasons: currentBindingDriftReasons(pack) };
+      }
+
+      function create(tagName, className, text) {
+        var node = document.createElement(tagName);
+        if (className) node.className = className;
+        if (text !== undefined) node.textContent = text;
+        return node;
+      }
+
+      function stateLabel(value) {
+        if (value === "empty") return "尚未填写";
+        if (value === "draft_fields_complete") return "草稿字段完整";
+        return "正在准备";
+      }
+
+      function setStatus(message) {
+        statusMessage.textContent = message;
+      }
+
+      function markDirty() {
+        state.dirty = true;
+        setStatus("仅内存中有未导出的修改；关闭页面会丢失。");
+      }
+
+      function setDisabled(container, disabled) {
+        container.querySelectorAll("input, select, textarea").forEach(function (control) {
+          control.disabled = disabled;
+        });
+      }
+
+      function labeledField(labelText, control, helperText, full) {
+        var field = create("div", "field" + (full ? " full" : ""));
+        var label = create("label", "", labelText);
+        label.htmlFor = control.id;
+        field.appendChild(label);
+        field.appendChild(control);
+        if (helperText) field.appendChild(create("p", "helper", helperText));
+        return field;
+      }
+
+      function textAreaFor(id, value, maximum, onChange, rows) {
+        var control = document.createElement("textarea");
+        control.id = id;
+        control.value = value;
+        control.maxLength = maximum;
+        control.rows = rows || 4;
+        control.addEventListener("input", function () {
+          onChange(control.value);
+          markDirty();
+          refreshProgress();
+        });
+        return control;
+      }
+
+      function selectFor(id, options, value, onChange) {
+        var control = document.createElement("select");
+        control.id = id;
+        options.forEach(function (entry) {
+          var option = document.createElement("option");
+          option.value = entry[0];
+          option.textContent = entry[1];
+          control.appendChild(option);
+        });
+        control.value = value === null ? "" : value;
+        control.addEventListener("change", function () {
+          onChange(control.value || null);
+          markDirty();
+          refreshProgress();
+        });
+        return control;
+      }
+
+      function render() {
+        list.replaceChildren();
+        var currentSection = null;
+        state.pack.items.forEach(function (item, index) {
+          if (item.agenda.section !== currentSection) {
+            currentSection = item.agenda.section;
+            var heading = create("h2", "section-heading", sectionTitles[currentSection]);
+            heading.dataset.sectionHeading = currentSection;
+            list.appendChild(heading);
+          }
+
+          var card = create("details", "decision-card");
+          card.dataset.section = item.agenda.section;
+          card.dataset.itemId = item.agenda.itemId;
+          var summary = document.createElement("summary");
+          var summaryCopy = create("div", "summary-copy");
+          summaryCopy.appendChild(create("strong", "", String(item.agenda.order).padStart(2, "0") + " · " + item.agenda.itemId));
+          summaryCopy.appendChild(create("span", "question-preview", item.agenda.question));
+          summary.appendChild(summaryCopy);
+          summary.appendChild(create("span", "state-badge", stateLabel(item.draft.preparationState)));
+          card.appendChild(summary);
+
+          var body = create("div", "card-body");
+          body.appendChild(create("p", "question", item.agenda.question));
+          var meta = create("div", "meta-row");
+          meta.appendChild(create("span", "meta-pill", "批准稿第 " + item.agenda.sourcePages.join("、") + " 页"));
+          meta.appendChild(create("span", "meta-pill", item.agenda.requiredRoles.length + " 个必需责任角色"));
+          meta.appendChild(create("span", "meta-pill", "定义 " + item.agenda.itemDefinitionSha256.slice(0, 12) + "…"));
+          body.appendChild(meta);
+
+          var suggestion = create("div", "suggestion");
+          suggestion.appendChild(create("strong", "", "批准稿默认建议｜不是会议结论"));
+          suggestion.appendChild(create("span", "", item.agenda.defaultSuggestion));
+          body.appendChild(suggestion);
+
+          var guardrail = create("div", "guardrail");
+          guardrail.appendChild(create("strong", "", "当前工程护栏"));
+          guardrail.appendChild(create("span", "", item.agenda.operationalGuardrail));
+          body.appendChild(guardrail);
+
+          var form = create("div", "form-grid");
+          var baseId = "item-" + index;
+
+          var disposition = selectFor(
+            baseId + "-disposition",
+            dispositions,
+            item.draft.proposedDisposition,
+            function (value) { item.draft.proposedDisposition = value || "undecided"; },
+          );
+          form.appendChild(labeledField("拟议处理（不是正式 outcome）", disposition, "使用“建议采用 / 拒绝 / 延期”；导出不会写入正式账本。"));
+
+          var roleOptions = [["", "请选择 required role"]].concat(item.agenda.requiredRoles.map(function (role) {
+            return [role, roleLabels[role] || role];
+          }));
+          var primary = selectFor(
+            baseId + "-primary",
+            roleOptions,
+            item.draft.proposedPrimaryResponsibleRole,
+            function (value) { item.draft.proposedPrimaryResponsibleRole = value; },
+          );
+          form.appendChild(labeledField("拟议主责任角色", primary, "仅为会议安排，不证明该角色已经确认。"));
+
+          var backup = selectFor(
+            baseId + "-backup",
+            roleOptions,
+            item.draft.proposedBackupResponsibleRole,
+            function (value) { item.draft.proposedBackupResponsibleRole = value; },
+          );
+          form.appendChild(labeledField("拟议备责任角色", backup, "必须与主责任角色不同，且属于该项 required roles。"));
+
+          var summaryDraft = textAreaFor(
+            baseId + "-summary",
+            item.draft.decisionSummaryDraft,
+            800,
+            function (value) { item.draft.decisionSummaryDraft = value; },
+            4,
+          );
+          form.appendChild(labeledField("会议结论摘要草稿", summaryDraft, "字段完整至少 20 个字符；最多 800 个字符。仍需 owner 与必需角色书面确认。", true));
+
+          var evidenceFieldset = document.createElement("fieldset");
+          evidenceFieldset.className = "field full";
+          evidenceFieldset.appendChild(create("legend", "", "逐角色候选证据 ID"));
+          evidenceFieldset.appendChild(create("p", "helper", "每个 required role 使用独立的 prep_ev_… ID；正式导入会重新验证并分配正式证据 ID。"));
+          var evidenceGrid = create("div", "role-evidence-grid");
+          item.draft.roleReviewSlots.forEach(function (slot, slotIndex) {
+            var field = create("div", "field");
+            var control = document.createElement("input");
+            control.type = "text";
+            control.id = baseId + "-evidence-" + slotIndex;
+            control.maxLength = 120;
+            control.placeholder = "prep_ev_" + item.agenda.itemId.slice(3) + "_" + slot.role + "_01";
+            control.value = slot.candidateEvidenceReferenceId || "";
+            var error = create("p", "field-error");
+            error.id = control.id + "-error";
+            error.hidden = true;
+            control.setAttribute("aria-describedby", error.id);
+            control.addEventListener("input", function () {
+              slot.candidateEvidenceReferenceId = control.value.trim() || null;
+              markDirty();
+              refreshProgress();
+            });
+            control.addEventListener("blur", function () {
+              var invalid = control.value.trim() && !evidencePattern.test(control.value.trim());
+              error.hidden = !invalid;
+              error.textContent = invalid ? "仅允许 prep_ev_ 开头的小写字母、数字、连字符和下划线。" : "";
+              control.setAttribute("aria-invalid", invalid ? "true" : "false");
+            });
+            var label = create("label", "", roleLabels[slot.role] || slot.role);
+            label.htmlFor = control.id;
+            field.appendChild(label);
+            field.appendChild(control);
+            field.appendChild(error);
+            evidenceGrid.appendChild(field);
+          });
+          evidenceFieldset.appendChild(evidenceGrid);
+          form.appendChild(evidenceFieldset);
+
+          var additional = textAreaFor(
+            baseId + "-additional-evidence",
+            item.draft.additionalEvidenceReferenceIds.join("\n"),
+            1500,
+            function (value) {
+              item.draft.additionalEvidenceReferenceIds = value
+                .split(/[\s,]+/)
+                .map(function (entry) { return entry.trim(); })
+                .filter(Boolean);
+            },
+            3,
+          );
+          form.appendChild(labeledField(
+            "补充候选证据 ID（可选）",
+            additional,
+            "每行一个 prep_ev_… ID。角色证据与补充证据合计超过 12 个时，只会保持“正在准备”。",
+            true,
+          ));
+
+          var impact = textAreaFor(
+            baseId + "-impact",
+            item.draft.implementationImpactDraft,
+            800,
+            function (value) { item.draft.implementationImpactDraft = value; },
+            4,
+          );
+          form.appendChild(labeledField("实现影响草稿", impact, "至少 20 个字符、最多 800 个字符；不得把拟议影响写成已发布事实。", true));
+
+          var implementationDue = document.createElement("input");
+          implementationDue.type = "date";
+          implementationDue.id = baseId + "-implementation-due";
+          implementationDue.min = todayTaipei();
+          implementationDue.value = item.draft.implementationDueDateDraft || "";
+          implementationDue.addEventListener("change", function () {
+            item.draft.implementationDueDateDraft = implementationDue.value || null;
+            markDirty();
+            refreshProgress();
+          });
+          form.appendChild(labeledField("实施截止日期草稿", implementationDue, "按 Asia/Taipei 日历解释；不得早于当前编辑日期。"));
+
+          var reviewDue = document.createElement("input");
+          reviewDue.type = "date";
+          reviewDue.id = baseId + "-review-due";
+          reviewDue.value = item.draft.reviewDueDateDraft || "";
+          reviewDue.addEventListener("change", function () {
+            item.draft.reviewDueDateDraft = reviewDue.value || null;
+            markDirty();
+            refreshProgress();
+          });
+          form.appendChild(labeledField("复审日期草稿", reviewDue, "必须晚于实施截止日期。"));
+
+          var reviewCondition = textAreaFor(
+            baseId + "-review-condition",
+            item.draft.reviewConditionDraft,
+            800,
+            function (value) { item.draft.reviewConditionDraft = value; },
+            3,
+          );
+          form.appendChild(labeledField("复审条件草稿", reviewCondition, "至少 20 个字符、最多 800 个字符；说明何时、由谁、依据什么复审。", true));
+
+          var supplemental = create("details", "supplemental");
+          supplemental.appendChild(create("summary", "", "拟议影响范围（可选；不授予发布权限）"));
+          supplemental.appendChild(create("p", "helper", "勾选只表示会议需要讨论的潜在影响面。正式 release register 仍保持独立，且不会被本文件改变。"));
+          var checkboxGrid = create("div", "checkbox-grid");
+          allSurfaces.forEach(function (surface) {
+            var wrapper = create("label", "checkbox");
+            var checkbox = document.createElement("input");
+            checkbox.type = "checkbox";
+            checkbox.value = surface;
+            checkbox.checked = item.draft.proposedPermittedImpactSurfaceIds.indexOf(surface) >= 0;
+            checkbox.addEventListener("change", function () {
+              var selected = new Set(item.draft.proposedPermittedImpactSurfaceIds);
+              if (checkbox.checked) selected.add(surface);
+              else selected.delete(surface);
+              item.draft.proposedPermittedImpactSurfaceIds = allSurfaces.filter(function (entry) {
+                return selected.has(entry);
+              });
+              markDirty();
+              refreshProgress();
+            });
+            wrapper.appendChild(checkbox);
+            wrapper.appendChild(create("span", "", surfaceLabels[surface]));
+            checkboxGrid.appendChild(wrapper);
+          });
+          supplemental.appendChild(checkboxGrid);
+          form.appendChild(supplemental);
+
+          var notes = textAreaFor(
+            baseId + "-notes",
+            item.draft.meetingNotesDraft,
+            3000,
+            function (value) { item.draft.meetingNotesDraft = value; },
+            5,
+          );
+          form.appendChild(labeledField(
+            "会议备注草稿（可选）",
+            notes,
+            "最多 3,000 个字符。不要填写姓名、联系方式、文件路径、网址、密钥或真实学生数据。",
+            true,
+          ));
+
+          body.appendChild(form);
+          card.appendChild(body);
+          setDisabled(card, state.readOnly);
+          list.appendChild(card);
+        });
+        applyFilter();
+        refreshProgress();
+        updateReadOnlyState();
+      }
+
+      function refreshProgress() {
+        var earliest = todayTaipei();
+        state.pack.items.forEach(function (item) {
+          item.draft.preparationState = deriveState(item, earliest);
+          var card = list.querySelector('[data-item-id="' + item.agenda.itemId + '"]');
+          if (card) {
+            var badge = card.querySelector(".state-badge");
+            if (badge) badge.textContent = stateLabel(item.draft.preparationState);
+          }
+        });
+        state.pack.summary = summaryFor(state.pack.items, earliest);
+        document.getElementById("metric-empty").textContent = String(state.pack.summary.empty);
+        document.getElementById("metric-drafting").textContent = String(state.pack.summary.drafting);
+        document.getElementById("metric-complete").textContent = String(state.pack.summary.draftFieldsComplete);
+        document.getElementById("metric-formal").textContent = "0 / 29";
+      }
+
+      function applyFilter() {
+        var selected = filter.value;
+        list.querySelectorAll("[data-section]").forEach(function (card) {
+          card.hidden = selected !== "all" && card.dataset.section !== selected;
+        });
+        list.querySelectorAll("[data-section-heading]").forEach(function (heading) {
+          heading.hidden = selected !== "all" && heading.dataset.sectionHeading !== selected;
+        });
+      }
+
+      function updateReadOnlyState() {
+        exportButton.disabled = state.readOnly;
+        if (state.readOnly) {
+          readonlyBanner.hidden = false;
+          readonlyBanner.textContent = "已导入的草稿完整性有效，但 canonical 基线已过期（" +
+            state.staleReasons.join("、") +
+            "）。本页仅供只读检查，禁止编辑和重新导出。";
+        } else {
+          readonlyBanner.hidden = true;
+          readonlyBanner.textContent = "";
+        }
+      }
+
+      function showErrors(errors) {
+        errorList.replaceChildren();
+        errors.forEach(function (message) {
+          errorList.appendChild(create("li", "", message));
+        });
+        errorSummary.hidden = errors.length === 0;
+        if (errors.length > 0) {
+          errorSummary.focus();
+          errorSummary.scrollIntoView({ block: "center" });
+        }
+      }
+
+      async function exportPack() {
+        if (state.readOnly) {
+          showErrors(["过期基线草稿只能只读检查，不能重新导出。"]);
+          return;
+        }
+        refreshProgress();
+        var now = new Date().toISOString();
+        if (Date.parse(now) <= Date.parse(state.pack.updatedAt)) {
+          showErrors(["本机时间没有晚于当前 revision 的更新时间；请校准系统时钟后再导出。"]);
+          return;
+        }
+        var candidate = clone(state.pack);
+        candidate.revision += 1;
+        candidate.updatedAt = now;
+        var earliest = currentTaipeiDate(now);
+        candidate.items.forEach(function (item) {
+          item.draft.preparationState = deriveState(item, earliest);
+        });
+        candidate.summary = summaryFor(candidate.items, earliest);
+        candidate.contentSha256 = "0".repeat(64);
+        candidate.contentSha256 = await sha256(withoutDigest(candidate));
+        var errors = structuralErrors(candidate);
+        if (errors.length) {
+          showErrors(errors);
+          setStatus("导出已停止；请按错误摘要修正字段。");
+          return;
+        }
+        var verifiedDigest = await sha256(withoutDigest(candidate));
+        if (verifiedDigest !== candidate.contentSha256) {
+          showErrors(["导出前 SHA-256 复核失败，已停止下载。"]);
+          return;
+        }
+        showErrors([]);
+        state.pack = candidate;
+        state.dirty = false;
+        var filename = "Sufeiya_Gate0_P0_DRAFT_NOT_APPROVAL_" + currentTaipeiDate(now) + ".json";
+        var blob = new Blob([JSON.stringify(candidate, null, 2) + "\n"], { type: "application/json" });
+        var objectUrl = URL.createObjectURL(blob);
+        var link = document.createElement("a");
+        link.href = objectUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.setTimeout(function () { URL.revokeObjectURL(objectUrl); }, 1000);
+        digestDisplay.textContent = "最近导出的内容完整性摘要：" + candidate.contentSha256 +
+          "（不是签名或批准凭证）";
+        setStatus("已下载非权威草稿 JSON；正式 P0 仍为 0 / 29。");
+        render();
+      }
+
+      async function importPack(file) {
+        if (!file) return;
+        if (file.size > 2 * 1024 * 1024) {
+          showErrors(["文件超过 2 MiB 上限，已拒绝读取。"]);
+          importFile.value = "";
+          return;
+        }
+        try {
+          var text = await file.text();
+          var candidate = JSON.parse(text);
+          var result = await validateImportedPack(candidate);
+          if (result.errors.length) {
+            showErrors(result.errors);
+            setStatus("导入失败；当前内存草稿未被覆盖。");
+            return;
+          }
+          state.pack = clone(candidate);
+          state.readOnly = result.staleReasons.length > 0;
+          state.staleReasons = result.staleReasons;
+          state.dirty = false;
+          showErrors([]);
+          digestDisplay.textContent = "已导入的内容完整性摘要：" + candidate.contentSha256 +
+            "（不是签名或批准凭证）";
+          setStatus(state.readOnly
+            ? "已导入完整但过期的草稿；当前为只读。"
+            : "已导入当前基线草稿；仍仅在内存中编辑。");
+          render();
+        } catch (error) {
+          showErrors([error instanceof Error ? error.message : "无法解析导入文件。"]);
+          setStatus("导入失败；当前内存草稿未被覆盖。");
+        } finally {
+          importFile.value = "";
+        }
+      }
+
+      function resetPack() {
+        var confirmed = window.confirm("清空本页内存草稿并恢复 29 项空白状态？已下载的文件不会被删除。");
+        if (!confirmed) return;
+        state.pack = clone(initialPack);
+        state.readOnly = false;
+        state.staleReasons = [];
+        state.dirty = false;
+        showErrors([]);
+        digestDisplay.textContent = "当前初始摘要：尚未重新导出。";
+        setStatus("已清空本页内存草稿；正式 P0 状态未发生变化。");
+        render();
+      }
+
+      filter.addEventListener("change", applyFilter);
+      exportButton.addEventListener("click", function () {
+        exportPack().catch(function (error) {
+          showErrors([error instanceof Error ? error.message : "导出失败。"]);
+          setStatus("导出失败；未写入服务器。");
+        });
+      });
+      importFile.addEventListener("change", function () {
+        importPack(importFile.files && importFile.files[0]);
+      });
+      printButton.addEventListener("click", function () {
+        state.pack.items.forEach(function (item) {
+          var card = list.querySelector('[data-item-id="' + item.agenda.itemId + '"]');
+          if (card) card.open = true;
+        });
+        window.print();
+      });
+      resetButton.addEventListener("click", resetPack);
+      window.addEventListener("beforeunload", function (event) {
+        if (!state.dirty) return;
+        event.preventDefault();
+        event.returnValue = "";
+      });
+
+      render();
+    }());
+  </script>
+</body>
+</html>

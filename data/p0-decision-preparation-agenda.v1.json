@@ -1,0 +1,125 @@
+{
+  "protocolVersion": "sufeiya_p0_decision_preparation_agenda_v1",
+  "sourcePlanSha256": "6ad237bf7433134961c2b4f9de4cb0f055391b9179e6b4632c269cdd84809169",
+  "sourceAppendix": "A",
+  "sourcePages": [17, 18, 19],
+  "suggestionAuthority": "approved_plan_default_suggestion_not_a_meeting_outcome",
+  "items": [
+    {
+      "itemId": "p0_a01_product_promise_success_metric",
+      "defaultSuggestion": "以练习证据生成非官方学习诊断、计划和推荐，通过打卡、学生确认复盘、可选互助与微复测/再诊断推动执行；以全体同意评估且完成诊断的成人为分母，另报退出/拒绝/证据不足。"
+    },
+    {
+      "itemId": "p0_a02_det_score_display",
+      "defaultSuggestion": "否。只显示任务证据、模式、优先项、证据充分/不足、置信原因和下一条最佳任务。"
+    },
+    {
+      "itemId": "p0_a03_launch_user_cohort",
+      "defaultSuggestion": "18 岁以上、有明确考试目标的中文用户；一个可关闭的成人邀请制 7 天小组。"
+    },
+    {
+      "itemId": "p0_a04_brand_scale_claims",
+      "defaultSuggestion": "“近百位”“十余年/3000+”等先作为待核验自述；确认口径、时间范围、去重与后台证据前不用于首页宣传。"
+    },
+    {
+      "itemId": "p0_b01_teacher_persona_boundary",
+      "defaultSuggestion": "允许称呼、解释节奏和教学框架；禁止冒充真人、声称官方身份或代替真人承诺。"
+    },
+    {
+      "itemId": "p0_b02_voice_digital_human",
+      "defaultSuggestion": "MVP 不做声音克隆或数字人；未来需单独书面授权与 AI 标识评审。"
+    },
+    {
+      "itemId": "p0_b03_content_transcript_rag_rights",
+      "defaultSuggestion": "当前 RAG 未就绪；先以链接/嵌入为主。仅逐条完成完整文本/转写、权利、当前考试版本、教师审核和 RAG 准入的冻结种子资料可检索；转写、切片、缓存和 RAG 分别列明授权范围与撤回机制。"
+    },
+    {
+      "itemId": "p0_b04_exam_integrity_quarantine",
+      "defaultSuggestion": "真题、机经、考试回忆、原题、题库默认 safety_flags=[exam_integrity_review] 且 rag_eligibility=quarantined（展示标签：QUARANTINED_EXAM_INTEGRITY_REVIEW）；须书面教师+合规证据并确认允许用途后才讨论特别审查路线。"
+    },
+    {
+      "itemId": "p0_b05_student_case_rights",
+      "defaultSuggestion": "项目方 owner statement 仅允许 internal_annotation_and_evaluation 与 rag_retrieval；逐案例台账、可撤回/删除、未成年人/监护人、审核及 rights_status.rag/republish=allowed 前不得放行（当前 rag_eligibility=blocked）。不自动授权可识别公开展示、第三方供应商训练、模型微调、跨境或不可撤回使用。"
+    },
+    {
+      "itemId": "p0_b06_existing_custom_ai_audit",
+      "defaultSuggestion": "先审计账户、平台条款、提示、知识文件、日志与数据权利，再决定保留、迁移、内部化或退役。"
+    },
+    {
+      "itemId": "p0_c01_diagnostic_scope_item_approval",
+      "defaultSuggestion": "15–20 分钟、约 20–30 任务和 5 分钟超短筛查仅作可用性假设；先覆盖四项与高频错误；题目由教研所有者和测评专家双签。"
+    },
+    {
+      "itemId": "p0_c02_rubric_insufficient_evidence",
+      "defaultSuggestion": "不向学生显示内部指数/能力带；音频差、作答不足、异常粘贴、离题或覆盖不足时显示“证据不足”，开放题结论在验证前由合格人工确认。"
+    },
+    {
+      "itemId": "p0_c03_recommendation_count_sources",
+      "defaultSuggestion": "1 个主任务 + 至多 2 个可选补充；仅对已获授权、教师审核且有可核验时间码的片段显示时间点，否则保留完整来源入口或人工替代。"
+    },
+    {
+      "itemId": "p0_c04_certified_scores_research",
+      "defaultSuggestion": "优先手工录入并确认；研究用途单独、可撤回、非捆绑同意；在校准前不向用户显示映射分。"
+    },
+    {
+      "itemId": "p0_d01_peer_mentor_qualification",
+      "defaultSuggestion": "最小必要核验；先作为经验分享者，完成培训、协议、情境测验和监督后才升级同伴导师。"
+    },
+    {
+      "itemId": "p0_d02_visibility_direct_messages",
+      "defaultSuggestion": "打卡默认自己和带班者可见，学生逐次选择小组最小摘要；MVP 禁止陌生人私信和外部导流。"
+    },
+    {
+      "itemId": "p0_d03_moderation_reporting_escalation",
+      "defaultSuggestion": "规则/分数/外链/联系方式/成绩截图先审；常驻举报、屏蔽、退出；真实值班人与超时升级路径必须指定。"
+    },
+    {
+      "itemId": "p0_d04_incentive_policy",
+      "defaultSuggestion": "MVP 先跑模拟账本；奖励有效完成、诚实复盘与合规，不奖励高分、人气、付费或在线时长。"
+    },
+    {
+      "itemId": "p0_d05_disqualification_exceptions_exit",
+      "defaultSuggestion": "异常只进人工复核；双人独立裁决、规则/证据摘要、申诉；请假、照护、时区、无障碍、退款和已获激励规则前置。"
+    },
+    {
+      "itemId": "p0_d06_mentor_conflicts_review",
+      "defaultSuggestion": "书面披露报酬、分成和外部业务；禁止私下收费/拉群/利用诊断弱点销售；首月抽检、每 6 个月复审。"
+    },
+    {
+      "itemId": "p0_e01_runtime_web_access",
+      "defaultSuggestion": "否。用户问答只检索版本化、人工审核、允许范围内的资料；后台更新走预批准来源与人工发布。"
+    },
+    {
+      "itemId": "p0_e02_source_priority_unknown_handling",
+      "defaultSuggestion": "官方当前资料 > 已审核苏肥鸭方法 > 经授权案例 > 其他网络；无资料时明确未知并给人工入口。"
+    },
+    {
+      "itemId": "p0_e03_memory_exam_request_boundary",
+      "defaultSuggestion": "只保留经同意的学习目标/进度，不做依赖型情感记忆；正在考试时拒绝实时作答。"
+    },
+    {
+      "itemId": "p0_e04_human_escalation_capacity",
+      "defaultSuggestion": "测评、教研、社区安全、隐私安全、退款/奖励各指定主/备负责人、服务时间、并发上限和超时升级；先用影子运行测到达量、平均/p95、升级和返工。"
+    },
+    {
+      "itemId": "p0_f01_legal_entity_deployment_suppliers",
+      "defaultSuggestion": "在域名、云服务、合同和收款前明确境内责任主体；优先可证明合规、境内处理、可删除可审计的模型/语音路径。"
+    },
+    {
+      "itemId": "p0_f02_audio_chat_training_retention",
+      "defaultSuggestion": "保留期仅为待确认初步默认值，须按目的、主体、访问、备份、删除证明与例外重新决定；默认不用于模型训练。学生评论/案例的 owner statement 不授权第三方供应商训练、模型微调、跨境或不可撤回使用。"
+    },
+    {
+      "itemId": "p0_f03_minors_policy",
+      "defaultSuggestion": "首轮不服务未成年人；未来需要独立产品、安全、监护和合规评审，不能直接复用成人规则。"
+    },
+    {
+      "itemId": "p0_f04_gate_a_gate_b_scoring_scope",
+      "defaultSuggestion": "Gate A 只做冻结种子资料+人工兜底的可点击演示、无真实学生数据；Gate B 才在数据/角色/测量/RAG/治理通过后考虑 30–50 名成人。10–15 双评锚定作答只用于训练/讨论，不证明自动评分或公平。"
+    },
+    {
+      "itemId": "p0_f05_serious_failure_shutdown",
+      "defaultSuggestion": "严重泄露、考试协助、持续无来源规则回答、明显分组偏差或删除失败时停止相应自动功能并进入复盘。"
+    }
+  ]
+}

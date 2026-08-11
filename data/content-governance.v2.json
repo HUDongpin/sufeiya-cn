@@ -1,12 +1,26 @@
 {
-  "protocolVersion": "sufeiya_content_governance_v1",
+  "protocolVersion": "sufeiya_content_governance_v2",
   "effectiveAt": "2026-08-11T00:00:00+08:00",
   "defaultDisposition": "deny",
   "admissionContract": {
+    "required_catalog_coverage_status": "complete",
+    "required_full_text_transcription_status": "reviewable_text_ready",
     "required_review_status": "teacher_reviewed",
+    "required_reviewed_by_role": "teaching_content_owner",
     "required_rag_rights_status": "allowed",
-    "accepted_exam_version_statuses": ["current", "not_applicable"],
+    "accepted_exam_version_statuses": [
+      "current",
+      "not_applicable"
+    ],
     "required_rag_eligibility": "allowed",
+    "required_bound_evidence": [
+      "catalog_coverage",
+      "full_text_transcription",
+      "teacher_review",
+      "rag_rights",
+      "exam_version",
+      "rag_eligibility"
+    ],
     "blocking_safety_flags": [
       "exam_integrity_review",
       "minor",
@@ -15,6 +29,7 @@
       "contact_or_health_risk"
     ]
   },
+  "evidenceCatalog": [],
   "records": [
     {
       "id": "sufeiya-diagnostic-boundary-v1",
@@ -22,9 +37,19 @@
       "record_payload_sha256": "dd12b8e07e4cf63bcda3afca96231d6caf4331b9b54d0870e94b423e7970db38",
       "source_class": "owner_confirmed_scope",
       "claim_verification_status": "owner_confirmed",
+      "catalog_coverage_status": "unassessed",
+      "full_text_transcription_status": "not_started",
       "review_status": "unreviewed",
       "reviewed_by_role": null,
       "reviewed_at": null,
+      "evidence_refs": {
+        "catalog_coverage": null,
+        "full_text_transcription": null,
+        "teacher_review": null,
+        "rag_rights": null,
+        "exam_version": null,
+        "rag_eligibility": null
+      },
       "rights_status": {
         "link": "allowed",
         "embed": "not_applicable",
@@ -45,9 +70,19 @@
       "record_payload_sha256": "5114183a5d92570bca3eaaa6a1e7a1537d6fbcb525f9bd9fc6221270761fec22",
       "source_class": "owner_confirmed_scope",
       "claim_verification_status": "owner_confirmed",
+      "catalog_coverage_status": "unassessed",
+      "full_text_transcription_status": "not_started",
       "review_status": "unreviewed",
       "reviewed_by_role": null,
       "reviewed_at": null,
+      "evidence_refs": {
+        "catalog_coverage": null,
+        "full_text_transcription": null,
+        "teacher_review": null,
+        "rag_rights": null,
+        "exam_version": null,
+        "rag_eligibility": null
+      },
       "rights_status": {
         "link": "allowed",
         "embed": "not_applicable",
@@ -68,9 +103,19 @@
       "record_payload_sha256": "3dc9b96b0adf6f467730034365ea8e54bb66d4ac8940ebf9ff7bd87b1ce5d7e2",
       "source_class": "owner_confirmed_scope",
       "claim_verification_status": "owner_confirmed",
+      "catalog_coverage_status": "unassessed",
+      "full_text_transcription_status": "not_started",
       "review_status": "unreviewed",
       "reviewed_by_role": null,
       "reviewed_at": null,
+      "evidence_refs": {
+        "catalog_coverage": null,
+        "full_text_transcription": null,
+        "teacher_review": null,
+        "rag_rights": null,
+        "exam_version": null,
+        "rag_eligibility": null
+      },
       "rights_status": {
         "link": "allowed",
         "embed": "not_applicable",
@@ -91,9 +136,19 @@
       "record_payload_sha256": "41974b0e552c0591dbf0e16ac1e4e51a4e607b649b613571b2e0d361c2c04db1",
       "source_class": "owner_confirmed_scope",
       "claim_verification_status": "owner_confirmed",
+      "catalog_coverage_status": "unassessed",
+      "full_text_transcription_status": "not_started",
       "review_status": "unreviewed",
       "reviewed_by_role": null,
       "reviewed_at": null,
+      "evidence_refs": {
+        "catalog_coverage": null,
+        "full_text_transcription": null,
+        "teacher_review": null,
+        "rag_rights": null,
+        "exam_version": null,
+        "rag_eligibility": null
+      },
       "rights_status": {
         "link": "allowed",
         "embed": "not_applicable",
@@ -114,9 +169,19 @@
       "record_payload_sha256": "7e6c15ac2bd7175b863464e4ebe39c6ba92124fe916fccd79bea8b3c3cb42c00",
       "source_class": "platform_direct",
       "claim_verification_status": "directly_observed",
+      "catalog_coverage_status": "unassessed",
+      "full_text_transcription_status": "not_started",
       "review_status": "unreviewed",
       "reviewed_by_role": null,
       "reviewed_at": null,
+      "evidence_refs": {
+        "catalog_coverage": null,
+        "full_text_transcription": null,
+        "teacher_review": null,
+        "rag_rights": null,
+        "exam_version": null,
+        "rag_eligibility": null
+      },
       "rights_status": {
         "link": "allowed",
         "embed": "not_applicable",
@@ -137,9 +202,19 @@
       "record_payload_sha256": "697f67e04eeac3469b0c8227340f5285b15dc2e3e3543be8faff75c8c43281cb",
       "source_class": "platform_direct",
       "claim_verification_status": "directly_observed",
+      "catalog_coverage_status": "unassessed",
+      "full_text_transcription_status": "not_started",
       "review_status": "unreviewed",
       "reviewed_by_role": null,
       "reviewed_at": null,
+      "evidence_refs": {
+        "catalog_coverage": null,
+        "full_text_transcription": null,
+        "teacher_review": null,
+        "rag_rights": null,
+        "exam_version": null,
+        "rag_eligibility": null
+      },
       "rights_status": {
         "link": "allowed",
         "embed": "not_applicable",
@@ -160,9 +235,19 @@
       "record_payload_sha256": "2c106e532d3059aab245f272315e57528a54753e1ff21bb751f2f43a1d21a048",
       "source_class": "platform_direct",
       "claim_verification_status": "directly_observed",
+      "catalog_coverage_status": "unassessed",
+      "full_text_transcription_status": "not_started",
       "review_status": "unreviewed",
       "reviewed_by_role": null,
       "reviewed_at": null,
+      "evidence_refs": {
+        "catalog_coverage": null,
+        "full_text_transcription": null,
+        "teacher_review": null,
+        "rag_rights": null,
+        "exam_version": null,
+        "rag_eligibility": null
+      },
       "rights_status": {
         "link": "allowed",
         "embed": "not_applicable",
@@ -183,9 +268,19 @@
       "record_payload_sha256": "8e8de60a90433f62fef8ab499697c65d6aaa31f036fbafd65ddef16839662ab6",
       "source_class": "platform_direct",
       "claim_verification_status": "directly_observed",
+      "catalog_coverage_status": "unassessed",
+      "full_text_transcription_status": "not_started",
       "review_status": "unreviewed",
       "reviewed_by_role": null,
       "reviewed_at": null,
+      "evidence_refs": {
+        "catalog_coverage": null,
+        "full_text_transcription": null,
+        "teacher_review": null,
+        "rag_rights": null,
+        "exam_version": null,
+        "rag_eligibility": null
+      },
       "rights_status": {
         "link": "allowed",
         "embed": "not_applicable",
@@ -206,9 +301,19 @@
       "record_payload_sha256": "563bd7690dae7a4c163ff1972d38663551359ac845e3d90a8d9dcf63cfba74d9",
       "source_class": "owner_confirmed_scope",
       "claim_verification_status": "owner_confirmed",
+      "catalog_coverage_status": "unassessed",
+      "full_text_transcription_status": "not_started",
       "review_status": "unreviewed",
       "reviewed_by_role": null,
       "reviewed_at": null,
+      "evidence_refs": {
+        "catalog_coverage": null,
+        "full_text_transcription": null,
+        "teacher_review": null,
+        "rag_rights": null,
+        "exam_version": null,
+        "rag_eligibility": null
+      },
       "rights_status": {
         "link": "allowed",
         "embed": "not_applicable",
@@ -229,9 +334,19 @@
       "record_payload_sha256": "ce1d991b830d7e39b5a1e2f09563945c779eac1d8622e033a76d4eaf6ce03fe7",
       "source_class": "owner_confirmed_scope",
       "claim_verification_status": "owner_confirmed",
+      "catalog_coverage_status": "unassessed",
+      "full_text_transcription_status": "not_started",
       "review_status": "unreviewed",
       "reviewed_by_role": null,
       "reviewed_at": null,
+      "evidence_refs": {
+        "catalog_coverage": null,
+        "full_text_transcription": null,
+        "teacher_review": null,
+        "rag_rights": null,
+        "exam_version": null,
+        "rag_eligibility": null
+      },
       "rights_status": {
         "link": "allowed",
         "embed": "not_applicable",
@@ -252,9 +367,19 @@
       "record_payload_sha256": "3c8dbfaa8c8d8dced61e5dbeae5d710625f34e59527a53efb1dafa28044ae011",
       "source_class": "publisher_self_report",
       "claim_verification_status": "self_report_only",
+      "catalog_coverage_status": "unassessed",
+      "full_text_transcription_status": "not_started",
       "review_status": "unreviewed",
       "reviewed_by_role": null,
       "reviewed_at": null,
+      "evidence_refs": {
+        "catalog_coverage": null,
+        "full_text_transcription": null,
+        "teacher_review": null,
+        "rag_rights": null,
+        "exam_version": null,
+        "rag_eligibility": null
+      },
       "rights_status": {
         "link": "allowed",
         "embed": "pending",
@@ -275,9 +400,19 @@
       "record_payload_sha256": "50ac7d47d04b730e9d20cf3a067b27df0d5f5e21f4c259017fb935e1fe9e453f",
       "source_class": "publisher_self_report",
       "claim_verification_status": "self_report_only",
+      "catalog_coverage_status": "unassessed",
+      "full_text_transcription_status": "not_started",
       "review_status": "unreviewed",
       "reviewed_by_role": null,
       "reviewed_at": null,
+      "evidence_refs": {
+        "catalog_coverage": null,
+        "full_text_transcription": null,
+        "teacher_review": null,
+        "rag_rights": null,
+        "exam_version": null,
+        "rag_eligibility": null
+      },
       "rights_status": {
         "link": "allowed",
         "embed": "pending",
@@ -298,9 +433,19 @@
       "record_payload_sha256": "591908b56a84d0e78a84808487f97a0452661e3f0ca5aa16c92a6afae924244d",
       "source_class": "publisher_self_report",
       "claim_verification_status": "self_report_only",
+      "catalog_coverage_status": "unassessed",
+      "full_text_transcription_status": "not_started",
       "review_status": "unreviewed",
       "reviewed_by_role": null,
       "reviewed_at": null,
+      "evidence_refs": {
+        "catalog_coverage": null,
+        "full_text_transcription": null,
+        "teacher_review": null,
+        "rag_rights": null,
+        "exam_version": null,
+        "rag_eligibility": null
+      },
       "rights_status": {
         "link": "allowed",
         "embed": "pending",
@@ -321,9 +466,19 @@
       "record_payload_sha256": "c7596bd1559327830bf701b9d156f27afffd9abb4d6edd0f8a21ef388a72d794",
       "source_class": "publisher_self_report",
       "claim_verification_status": "self_report_only",
+      "catalog_coverage_status": "unassessed",
+      "full_text_transcription_status": "not_started",
       "review_status": "unreviewed",
       "reviewed_by_role": null,
       "reviewed_at": null,
+      "evidence_refs": {
+        "catalog_coverage": null,
+        "full_text_transcription": null,
+        "teacher_review": null,
+        "rag_rights": null,
+        "exam_version": null,
+        "rag_eligibility": null
+      },
       "rights_status": {
         "link": "allowed",
         "embed": "pending",
@@ -344,9 +499,19 @@
       "record_payload_sha256": "2d77a2beb7a7ecef8d5041bbe492c53fa4c8b4f454220f27a4abdb099f5040b7",
       "source_class": "publisher_self_report",
       "claim_verification_status": "self_report_only",
+      "catalog_coverage_status": "unassessed",
+      "full_text_transcription_status": "not_started",
       "review_status": "unreviewed",
       "reviewed_by_role": null,
       "reviewed_at": null,
+      "evidence_refs": {
+        "catalog_coverage": null,
+        "full_text_transcription": null,
+        "teacher_review": null,
+        "rag_rights": null,
+        "exam_version": null,
+        "rag_eligibility": null
+      },
       "rights_status": {
         "link": "allowed",
         "embed": "pending",

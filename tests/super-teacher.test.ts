@@ -1,10 +1,18 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { superTeacherRequestSchema, superTeacherResponseSchema, type LearnerContext } from "../lib/super-teacher/contracts";
+import {
+  SUPER_TEACHER_PROTOCOL,
+  SUPER_TEACHER_STATUS_PROTOCOL,
+  superTeacherRequestSchema,
+  superTeacherResponseSchema,
+  superTeacherStatusResponseSchema,
+  type LearnerContext,
+} from "../lib/super-teacher/contracts";
 import { deriveLearnerContext } from "../lib/super-teacher/local-context";
 import { classifyTeacherQuestion } from "../lib/super-teacher/policy";
-import { admittedSourceCounts, buildGroundingBundle } from "../lib/super-teacher/sources";
+import { admittedSourceCounts, buildGroundingBundle, superTeacherSourceBoundary } from "../lib/super-teacher/sources";
+import { buildSuperTeacherStatusResponse } from "../lib/super-teacher/status";
 
 const learnerContext: LearnerContext = {
   protocolVersion: "gate_a_local_v1",
@@ -287,6 +295,32 @@ describe("Super Teacher local context derivation", () => {
 });
 
 describe("Super Teacher source admission", () => {
+  it("builds the separately versioned and strictly validated GET status payload", () => {
+    const payload = buildSuperTeacherStatusResponse({ SUFEIYA_AI_ENABLED: "false" });
+    assert.equal(payload.protocolVersion, SUPER_TEACHER_STATUS_PROTOCOL);
+    assert.equal(payload.interactionProtocolVersion, SUPER_TEACHER_PROTOCOL);
+    assert.equal(superTeacherStatusResponseSchema.safeParse(payload).success, true);
+    assert.equal("claimSourcesAdmitted" in payload.sourceBoundary, false);
+    assert.equal(payload.sourceBoundary.gateAStaticClaimSources, 10);
+  });
+
+  it("labels Gate A static claims without implying RAG admission", () => {
+    const sourceBoundary = superTeacherSourceBoundary();
+    assert.deepEqual(Object.keys(sourceBoundary).sort(), [
+      "archivedKnowledgeChunksAdmitted",
+      "detOfficialSourcesAdmitted",
+      "gateAStaticClaimSources",
+      "linkOnlyResources",
+    ]);
+    assert.deepEqual(sourceBoundary, {
+      gateAStaticClaimSources: 10,
+      linkOnlyResources: 5,
+      detOfficialSourcesAdmitted: 0,
+      archivedKnowledgeChunksAdmitted: 0,
+    });
+    assert.equal("claimSourcesAdmitted" in sourceBoundary, false);
+  });
+
   it("keeps official DET and archive chunks at zero admitted", () => {
     assert.deepEqual(admittedSourceCounts(), {
       claimSources: 10,

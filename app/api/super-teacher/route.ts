@@ -4,12 +4,15 @@ import { randomUUID } from "node:crypto";
 import { auth } from "@clerk/nextjs/server";
 
 import { getClerkRuntimeState } from "@/lib/auth/clerk-config";
-import { SUPER_TEACHER_PROTOCOL, superTeacherRequestSchema, superTeacherResponseSchema } from "@/lib/super-teacher/contracts";
+import {
+  superTeacherRequestSchema,
+  superTeacherResponseSchema,
+} from "@/lib/super-teacher/contracts";
 import { classifyTeacherQuestion } from "@/lib/super-teacher/policy";
 import { checkSuperTeacherRateLimit } from "@/lib/super-teacher/rate-limit";
-import { teacherModelReleaseStatus } from "@/lib/super-teacher/model-runtime";
 import { createTeacherResponse } from "@/lib/super-teacher/responder";
-import { admittedSourceCounts, buildGroundingBundle } from "@/lib/super-teacher/sources";
+import { buildGroundingBundle } from "@/lib/super-teacher/sources";
+import { buildSuperTeacherStatusResponse } from "@/lib/super-teacher/status";
 
 export const maxDuration = 30;
 
@@ -45,35 +48,7 @@ function isSameOrigin(request: Request) {
 }
 
 export async function GET() {
-  const counts = admittedSourceCounts();
-  const modelStatus = teacherModelReleaseStatus();
-  return json({
-    protocolVersion: SUPER_TEACHER_PROTOCOL,
-    status: "gate_a_limited",
-    answerMode: modelStatus.enabled ? "grounded_ai_with_manual_fallback" : "manual_grounded_fallback",
-    modelGenerationEnabled: modelStatus.enabled,
-    modelConfigurationPresent: modelStatus.configured,
-    modelProvider: modelStatus.provider,
-    model: modelStatus.model,
-    modelRegion: modelStatus.region,
-    releaseGovernance: {
-      protocolVersion: modelStatus.governanceProtocolVersion,
-      status: modelStatus.governanceStatus,
-      reasonCode: modelStatus.governanceReasonCode,
-      blockedDecisionIds: modelStatus.blockedDecisionIds,
-      blockedBindingIds: modelStatus.blockedBindingIds,
-    },
-    teacherSurfaceAccess: "public",
-    modelSubmitAccess: "clerk_authenticated",
-    learningPageAccess: "clerk_protected",
-    learningDataStorage: "browser_local_not_account_bound",
-    sourceBoundary: {
-      claimSourcesAdmitted: counts.claimSources,
-      linkOnlyResources: counts.linkOnlyResources,
-      detOfficialSourcesAdmitted: counts.detOfficialSources,
-      archivedKnowledgeChunksAdmitted: counts.archivedKnowledgeChunks,
-    },
-  });
+  return json(buildSuperTeacherStatusResponse());
 }
 
 export async function POST(request: Request) {

@@ -133,6 +133,7 @@ const superTeacherFloatingAssistant = await read("components/sofia-floating-assi
 const superTeacherFloatingStyles = await read("components/sofia-floating-assistant.module.css");
 const superTeacherClientSession = await read("lib/super-teacher/client-session.ts");
 const superTeacherRoute = await read("app/api/super-teacher/route.ts");
+const superTeacherStatus = await read("lib/super-teacher/status.ts");
 const superTeacherResponder = await read("lib/super-teacher/responder.ts");
 const superTeacherModelRuntime = await read("lib/super-teacher/model-runtime.ts");
 const superTeacherVoiceRelease = await read("lib/super-teacher/voice-release.ts");
@@ -1528,14 +1529,16 @@ check(
       "explicit-rag",
       "no-safety-flags",
     ]) &&
-    /五项必须同时满足/.test(sourceAdmissionSection) &&
-    /仅链接目录必须先形成可审核正文/.test(sourceAdmissionSection) &&
+    /五项核心决定不是完整 Gate/.test(sourceAdmissionSection) &&
+    /目录覆盖完整、可审核正文或转写就绪/.test(sourceAdmissionSection) &&
+    /六项逐决定证据绑定/.test(sourceAdmissionSection) &&
+    /五项计数只表示登记字段的声明状态，不表示证据已经核验/.test(sourceAdmissionSection) &&
     /归档记录继续整体阻断/.test(sourceAdmissionSection) &&
     /RAG 准入与 Gate A 的确定性静态解释是不同状态/.test(sourceAdmissionSection),
   "workspace source-admission view is accessible and separates static, link-only, archived, and RAG states",
 );
 check(
-  /const SOURCE_GOVERNANCE_PROTOCOL_VERSION = "sufeiya_content_governance_v1"/.test(journeyScript) &&
+  /const SOURCE_GOVERNANCE_PROTOCOL_VERSION = "sufeiya_content_governance_v2"/.test(journeyScript) &&
     /parseSourceGovernancePublicSummary\(body\.sourceGovernance\)/.test(journeyScript) &&
     /candidate\.trackedRecords !== 15/.test(journeyScript) &&
     /candidate\.blockedArchiveRecords !== 655/.test(journeyScript) &&
@@ -1644,7 +1647,7 @@ await checkExecutableAsync(
           const GATE0_STATUS_PATH = "/api/governance/status";
           const GATE0_PROTOCOL_VERSION = "sufeiya_p0_decision_log_v1";
           const GATE0_RELEASE_AUTHORIZATION = "separate_explicit_controls_required";
-          const SOURCE_GOVERNANCE_PROTOCOL_VERSION = "sufeiya_content_governance_v1";
+          const SOURCE_GOVERNANCE_PROTOCOL_VERSION = "sufeiya_content_governance_v2";
           const isRecord = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value);
           ${gate0RuntimeSource}
           await loadGate0GovernanceStatus();
@@ -1664,7 +1667,7 @@ await checkExecutableAsync(
       releaseAuthorization: "separate_explicit_controls_required",
     };
     const validSourceGovernance = {
-      protocolVersion: "sufeiya_content_governance_v1",
+      protocolVersion: "sufeiya_content_governance_v2",
       status: "none_admitted",
       defaultDisposition: "deny",
       trackedRecords: 15,
@@ -4755,10 +4758,14 @@ check(
   "Super Teacher POST requires a Clerk user before authenticated-user rate limiting and model access",
 );
 check(
-  /teacherSurfaceAccess: "public"/.test(superTeacherRoute) &&
-    /modelSubmitAccess: "clerk_authenticated"/.test(superTeacherRoute) &&
-    /learningPageAccess: "clerk_protected"/.test(superTeacherRoute) &&
-    /learningDataStorage: "browser_local_not_account_bound"/.test(superTeacherRoute) &&
+  /SUPER_TEACHER_STATUS_PROTOCOL = "sufeiya_super_teacher_status_v2"/.test(superTeacherContracts) &&
+    /interactionProtocolVersion: SUPER_TEACHER_PROTOCOL/.test(superTeacherStatus) &&
+    /gateAStaticClaimSources/.test(superTeacherContracts) &&
+    /buildSuperTeacherStatusResponse\(\)/.test(superTeacherRoute) &&
+    /teacherSurfaceAccess: "public"/.test(superTeacherStatus) &&
+    /modelSubmitAccess: "clerk_authenticated"/.test(superTeacherStatus) &&
+    /learningPageAccess: "clerk_protected"/.test(superTeacherStatus) &&
+    /learningDataStorage: "browser_local_not_account_bound"/.test(superTeacherStatus) &&
     /clerk-access-local-learning-data/.test(superTeacherRoute),
   "Super Teacher status separates the public surface, authenticated model submission, protected learning pages, and browser-local data",
 );
