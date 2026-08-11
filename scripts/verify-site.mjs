@@ -50,11 +50,13 @@ const protectedLearnerPaths = [
   "/community",
   "/retest",
   "/my-data",
+  "/teaching-review-demo",
   "/account",
 ];
 const sitemapPublicPaths = ["/", "/super-teacher", "/learning-path", "/platform", "/resources", "/about"];
 const nextOnlyTargets = new Map([
   ["/super-teacher", "app/super-teacher/page.tsx"],
+  ["/teaching-review-demo", "app/teaching-review-demo/page.tsx"],
   ["/assets/sufeiya-super-teacher-avatar.webp", "public/assets/sufeiya-super-teacher-avatar.webp"],
 ]);
 
@@ -117,6 +119,9 @@ const superTeacherModelRuntime = await read("lib/super-teacher/model-runtime.ts"
 const superTeacherVoiceRelease = await read("lib/super-teacher/voice-release.ts");
 const releaseGovernanceSource = await read("lib/release-governance.ts");
 const releaseGovernanceStatusRoute = await read("app/api/governance/status/route.ts");
+const teachingReviewPage = await read("app/teaching-review-demo/page.tsx");
+const teachingReviewClient = await read("components/teaching-review-demo-client.tsx");
+const teachingReviewContract = await read("lib/teaching-review-demo.ts");
 const superTeacherVoiceStatusRoute = await read("app/api/super-teacher/voice/status/route.ts");
 const superTeacherContracts = await read("lib/super-teacher/contracts.ts");
 const superTeacherLocalContext = await read("lib/super-teacher/local-context.ts");
@@ -1204,7 +1209,7 @@ check(
       learningEventClearSource,
     ) &&
     /const before = snapshotState\(\)[\s\S]*catch \{[\s\S]*state = before/.test(learningEventClearSource) &&
-    /计划、练习回执、打卡、复测与 Sofia智能老师对话都会保留/.test(learningEventClearSource),
+    /计划、练习回执、打卡、复测、Sofia智能老师对话与教研复核演示草稿都会保留/.test(learningEventClearSource),
   "My Data keeps learning-event export local-user-backup-only and targeted clear transactional and namespace-preserving",
 );
 
@@ -1226,6 +1231,11 @@ const workspaceClearSource = sourceSection(
 const superTeacherClearSource = sourceSection(
   workspaceScript,
   'document.querySelectorAll("[data-clear-super-teacher]")',
+  'document.querySelectorAll("[data-clear-teaching-review-demo]")',
+);
+const teachingReviewClearSource = sourceSection(
+  workspaceScript,
+  'document.querySelectorAll("[data-clear-teaching-review-demo]")',
   'document.querySelectorAll("[data-clear-all-sufeiya]")',
 );
 const clearAllSufeiyaSource = sourceSection(
@@ -1242,7 +1252,7 @@ check(
   /const allowedSelectors = \["\[data-export-workspace\]"\]/.test(workspaceControlPolicySource) &&
     /if \(allowEventExport\)[\s\S]*data-export-learning-events/.test(workspaceControlPolicySource) &&
     /if \(allowEventClear\)[\s\S]*data-clear-learning-events/.test(workspaceControlPolicySource) &&
-    /if \(allowDataReset\)[\s\S]*data-clear-workspace[\s\S]*data-clear-super-teacher[\s\S]*data-clear-all-sufeiya/.test(
+    /if \(allowDataReset\)[\s\S]*data-clear-workspace[\s\S]*data-clear-super-teacher[\s\S]*data-clear-teaching-review-demo[\s\S]*data-clear-all-sufeiya/.test(
       workspaceControlPolicySource,
     ) &&
     /if \(!workspaceStateRecognized\) \{[\s\S]*allowDataReset:\s*true/.test(workspaceRecoveryGateSource) &&
@@ -1256,6 +1266,9 @@ check(
     recoveryLockSource,
   ) &&
     /navigator\.locks\.request\(`\$\{SUPER_TEACHER_STORAGE_KEY\}:write`, \{ mode: "exclusive" \}/.test(
+      recoveryLockSource,
+    ) &&
+    /navigator\.locks\.request\(`\$\{TEACHING_REVIEW_DEMO_STORAGE_KEY\}:write`, \{ mode: "exclusive" \}/.test(
       recoveryLockSource,
     ) &&
     /!workspaceStateRecognized \|\| !workspaceWriterLeaseAvailable \|\| !learningEventsRuntime/.test(
@@ -1283,18 +1296,28 @@ check(
   "Sofia-only clear uses the Sofia write lock and cannot reload after lock or deletion failure",
 );
 check(
-  /withWorkspaceRecoveryLock\(\(\) => withSuperTeacherWriteLock\(\(\) => \{/.test(clearAllSufeiyaSource) &&
+  /const outcome = await withTeachingReviewDemoWriteLock\(\(\) => \{[\s\S]*localStorage\.removeItem\(TEACHING_REVIEW_DEMO_STORAGE_KEY\)[\s\S]*status: "cleared"[\s\S]*status: "clear_failed"/.test(
+    teachingReviewClearSource,
+  ) &&
+    /if \(outcome\.status !== "cleared"\)[\s\S]*原始本机数据保持不变[\s\S]*return;[\s\S]*window\.location\.reload\(\)/.test(
+      teachingReviewClearSource,
+    ),
+  "teaching-review-only clear uses its independent write lock and cannot reload after failure",
+);
+check(
+  /withWorkspaceRecoveryLock\(\(\) => withSuperTeacherWriteLock\(\(\) => withTeachingReviewDemoWriteLock\(\(\) => \{/.test(clearAllSufeiyaSource) &&
     clearAllSufeiyaSource.indexOf("withWorkspaceRecoveryLock") < clearAllSufeiyaSource.indexOf("withSuperTeacherWriteLock") &&
-    /workspaceBefore = window\.localStorage\.getItem\(STORAGE_KEY\)[\s\S]*teacherBefore = window\.localStorage\.getItem\(SUPER_TEACHER_STORAGE_KEY\)[\s\S]*removeItem\(STORAGE_KEY\)[\s\S]*removeItem\(SUPER_TEACHER_STORAGE_KEY\)/.test(
+    clearAllSufeiyaSource.indexOf("withSuperTeacherWriteLock") < clearAllSufeiyaSource.indexOf("withTeachingReviewDemoWriteLock") &&
+    /\[STORAGE_KEY, window\.localStorage\.getItem\(STORAGE_KEY\)\][\s\S]*\[SUPER_TEACHER_STORAGE_KEY, window\.localStorage\.getItem\(SUPER_TEACHER_STORAGE_KEY\)\][\s\S]*\[TEACHING_REVIEW_DEMO_STORAGE_KEY, window\.localStorage\.getItem\(TEACHING_REVIEW_DEMO_STORAGE_KEY\)\][\s\S]*removeItem\(STORAGE_KEY\)[\s\S]*removeItem\(SUPER_TEACHER_STORAGE_KEY\)[\s\S]*removeItem\(TEACHING_REVIEW_DEMO_STORAGE_KEY\)/.test(
       clearAllSufeiyaSource,
     ) &&
-    /catch \{[\s\S]*workspaceBefore === null[\s\S]*setItem\(STORAGE_KEY, workspaceBefore\)[\s\S]*teacherBefore === null[\s\S]*setItem\(SUPER_TEACHER_STORAGE_KEY, teacherBefore\)[\s\S]*status: "clear_failed"[\s\S]*status: "rollback_failed"/.test(
+    /for \(const \[key, before\] of snapshots\)[\s\S]*before === null[\s\S]*setItem\(key, before\)[\s\S]*rollbackFailed = true[\s\S]*rollback_failed/.test(
       clearAllSufeiyaSource,
     ) &&
     /outcome\.status === "rollback_failed"[\s\S]*停止继续写入[\s\S]*return;[\s\S]*state = freshState\(\)/.test(
       clearAllSufeiyaSource,
     ),
-  "clear-all acquires workspace sealed then Sofia write lock and restores both namespaces on partial failure",
+  "clear-all acquires workspace, Sofia, then teaching-review locks and independently restores all three namespaces on partial failure",
 );
 
 const resolveLocalPath = (urlPath) => {
@@ -1404,8 +1427,8 @@ check(
 const workspaceToolTargets = [...workspace.matchAll(/class="workspace-launch-grid workspace-support-grid"[\s\S]*?<\/div>/g)]
   .flatMap((match) => [...match[0].matchAll(/href="([^"]+)"/g)].map((link) => link[1]));
 check(
-  JSON.stringify(workspaceToolTargets) === JSON.stringify(["/super-teacher", "/today", "/practice", "/focus", "/my-data"]),
-  "workspace keeps Super Teacher and four supporting tools separate from the journey",
+  JSON.stringify(workspaceToolTargets) === JSON.stringify(["/super-teacher", "/today", "/practice", "/focus", "/teaching-review-demo", "/my-data"]),
+  "workspace keeps Sofia, the teaching-review demo, and four supporting tools separate from the journey",
 );
 
 const practice = await read("practice.html");
@@ -1445,13 +1468,15 @@ for (const [file, exerciseId] of [
   const page = await read(file);
   check(new RegExp(`data-exercise-id="${exerciseId}"[\\s\\S]*data-practice-binding-status`).test(page), `${file} exposes its versioned binding and receipt status`);
 }
-check(/data-export-workspace[\s\S]*data-clear-workspace[\s\S]*data-clear-super-teacher[\s\S]*data-clear-all-sufeiya/.test(await read("my-data.html")), "data page supports all-data export and separately scoped clearing");
+check(/data-export-workspace[\s\S]*data-clear-workspace[\s\S]*data-clear-super-teacher[\s\S]*data-clear-teaching-review-demo[\s\S]*data-clear-all-sufeiya/.test(await read("my-data.html")), "data page supports all-data export and three separately scoped namespace clears");
 check(/sufeiya_workspace_v1/.test(workspaceScript), "workspace uses one versioned local-storage namespace");
 check(/sufeiya_workspace_v1/.test(journeyScript), "journey shares the versioned workspace namespace");
 check(/localStorage\.removeItem\(STORAGE_KEY\)/.test(workspaceScript), "clear action only removes the Sufeiya workspace namespace");
 check(/SUPER_TEACHER_STORAGE_KEY = "sufeiya_super_teacher_v1"/.test(workspaceScript), "data controls include the versioned Super Teacher namespace");
-check(/exportProtocol:\s*"sufeiya_local_export_v1"[\s\S]*SUPER_TEACHER_STORAGE_KEY/.test(workspaceScript), "JSON export contains both local Sufeiya namespaces");
-check(/data-clear-super-teacher[\s\S]*removeItem\(SUPER_TEACHER_STORAGE_KEY\)[\s\S]*data-clear-all-sufeiya/.test(workspaceScript), "Super Teacher and all-data clearing are independently implemented");
+check(/TEACHING_REVIEW_DEMO_STORAGE_KEY = "sufeiya_teaching_review_demo_v1"/.test(workspaceScript), "data controls include the versioned teaching-review demo namespace");
+check(/exportProtocol:\s*"sufeiya_local_export_v2"[\s\S]*SUPER_TEACHER_STORAGE_KEY[\s\S]*TEACHING_REVIEW_DEMO_STORAGE_KEY/.test(workspaceScript), "JSON export v2 contains all three local Sufeiya namespaces");
+check(/readTeachingReviewDemoNamespace[\s\S]*status: "unrecognized"[\s\S]*raw[\s\S]*readStatus: teachingReviewNamespace\.status/.test(workspaceScript), "teaching-review data export preserves unrecognized raw values and their read status");
+check(/data-clear-super-teacher[\s\S]*removeItem\(SUPER_TEACHER_STORAGE_KEY\)[\s\S]*data-clear-teaching-review-demo[\s\S]*removeItem\(TEACHING_REVIEW_DEMO_STORAGE_KEY\)[\s\S]*data-clear-all-sufeiya/.test(workspaceScript), "Sofia, teaching-review, and all-data clearing are independently implemented");
 check(
   /const completedCycles = state\.journey\.history\.filter\(\(item\) => item\?\.status === "completed"\)\.length/.test(workspaceScript) &&
     /provisionalCycles[\s\S]*status === "provisional_pending_human_review"[\s\S]*待人工复核的临时轮次/.test(workspaceScript) &&
@@ -3671,6 +3696,69 @@ check(
     !clerkConfig.includes('"/super-teacher"') &&
     !clerkConfig.includes('"/api/super-teacher"'),
   "Clerk classifier covers learner/account roots and subroutes while the Sofia surface remains public",
+);
+check(
+  /if \(!clerkState\.configured\)/.test(teachingReviewPage) &&
+    /const \{ userId, redirectToSignIn \} = await auth\(\)/.test(teachingReviewPage) &&
+    /redirectToSignIn\(\{ returnBackUrl: "\/teaching-review-demo" \}\)/.test(teachingReviewPage) &&
+    /evaluateReleaseSurface\("local_teaching_review_demo"\)/.test(teachingReviewPage) &&
+    /if \(!governance\.enabled\)/.test(teachingReviewPage) &&
+    /<SiteShell pageKey="workspace" sofiaSurface="none">/.test(teachingReviewPage),
+  "teaching-review demo is Clerk protected, governance gated, and rendered without the Sofia runtime",
+);
+check(
+  /CANONICAL_LEARNER_STORAGE_KEY = "sufeiya_workspace_v1"/.test(teachingReviewContract) &&
+    /TEACHING_REVIEW_DEMO_STORAGE_KEY = "sufeiya_teaching_review_demo_v1"/.test(teachingReviewContract) &&
+    /identityVerified: z\.literal\(false\)/.test(teachingReviewContract) &&
+    /qualifiedHumanConfirmation: z\.literal\(false\)/.test(teachingReviewContract) &&
+    /canonicalLedgerWrite: z\.literal\(false\)/.test(teachingReviewContract) &&
+    /cycleClosureAttempted: z\.literal\(false\)/.test(teachingReviewContract) &&
+    !/humanReviewReceiptId/.test(teachingReviewContract),
+  "teaching-review draft contract fixes the non-authoritative boundary and contains no human-review receipt field",
+);
+check(
+  /const ACTIVE_CYCLE_BINDING_FIELDS = \[/.test(teachingReviewContract) &&
+    /function currentProvisionalCycle\(journey: JsonRecord, activeCycle: JsonRecord\)/.test(teachingReviewContract) &&
+    /ACTIVE_CYCLE_BINDING_FIELDS\.every\(\(field\) => entry\[field\] === activeCycle\[field\]\)/.test(teachingReviewContract) &&
+    /matching\.length === 1/.test(teachingReviewContract) &&
+    /active_cycle_history_mismatch/.test(teachingReviewContract),
+  "teaching-review evidence can only project the one provisional history snapshot fully bound to activeCycle",
+);
+check(
+    /const DIAGNOSTIC_QUALITY_FLAGS = new Set/.test(teachingReviewContract) &&
+    /const PRACTICE_QUALITY_FLAGS = new Set/.test(teachingReviewContract) &&
+    /Object\.hasOwn\(DIAGNOSTIC_TASK_MANIFEST, taskId\)/.test(teachingReviewContract) &&
+    /DIAGNOSTIC_TASK_IDS\.every\(\(taskId\) => seen\.has\(taskId\)\)/.test(teachingReviewContract) &&
+    /flagsAreAllowed\(item\.qualityFlags, DIAGNOSTIC_QUALITY_FLAGS\)/.test(teachingReviewContract) &&
+    /flagsAreAllowed\(receipt\.qualityFlags, PRACTICE_QUALITY_FLAGS\)/.test(teachingReviewContract) &&
+    /primary\.teacherReviewed !== undefined/.test(teachingReviewContract) &&
+    /teacherReviewed: false/.test(teachingReviewContract) &&
+    /原始推荐文字在本演示视图中隐藏/.test(teachingReviewContract),
+  "teaching-review projection allowlists coded flags, fixes human-review authority false, and replaces recommendation free text",
+);
+check(
+  /receipt\.completionReceiptId !== receiptId/.test(teachingReviewContract) &&
+    /const linkedTaskProgress =/.test(teachingReviewContract) &&
+    /linkedTaskProgress\.completionClass !== "practice_receipt"/.test(teachingReviewContract) &&
+    /linkedTaskProgress\.practiceReceiptId !== receiptId/.test(teachingReviewContract) &&
+    /checkIn\.evidenceClass !== "practice_receipt"/.test(teachingReviewContract) &&
+    /checkIn\.didText\.length < 10/.test(teachingReviewContract) &&
+    /checkIn\.evidenceText\.length < 10/.test(teachingReviewContract),
+  "teaching-review admission reproduces receipt map-key, task-progress, and check-in closure bindings",
+);
+check(
+  !/fetch\s*\(|sendBeacon|WebSocket|SufeiyaLearningEvents|appendDomainEvent/.test(teachingReviewClient) &&
+    !/localStorage\.(?:setItem|removeItem)\(CANONICAL_LEARNER_STORAGE_KEY/.test(teachingReviewClient) &&
+    /localStorage\.setItem\(TEACHING_REVIEW_DEMO_STORAGE_KEY/.test(teachingReviewClient) &&
+    /sourceAfter !== sourceBefore/.test(teachingReviewClient) &&
+    /previousDemoRaw !== demoRawRef\.current/.test(teachingReviewClient) &&
+    /!canDraft/.test(teachingReviewClient) &&
+    /persistedDemoRaw === serialized/.test(teachingReviewClient) &&
+    /verified\.revision !== draft\.revision/.test(teachingReviewClient) &&
+    /verified\.sourceSnapshotSha256 !== draft\.sourceSnapshotSha256/.test(teachingReviewClient) &&
+    /const restoreDemoRaw =/.test(teachingReviewClient) &&
+    /setStorageStateUnknown\(true\)/.test(teachingReviewClient),
+  "teaching-review client has zero network dispatch, never writes the learner namespace, compare-locks bytes, and fails closed on rollback uncertainty",
 );
 check(
   /isClerkProtectedPathname\(pathname\)/.test(dynamicLegacyPage) &&

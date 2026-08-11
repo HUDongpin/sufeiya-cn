@@ -1,6 +1,8 @@
 (async () => {
   const STORAGE_KEY = "sufeiya_workspace_v1";
   const SUPER_TEACHER_STORAGE_KEY = "sufeiya_super_teacher_v1";
+  const TEACHING_REVIEW_DEMO_STORAGE_KEY = "sufeiya_teaching_review_demo_v1";
+  const TEACHING_REVIEW_DEMO_PROTOCOL = "sufeiya_teaching_review_demo_v1";
   const SCHEMA_VERSION = 1;
   const PROTOCOL_VERSION = "gate_a_local_v1";
   const DIAGNOSTIC_PROTOCOL_VERSION = "gate_a_diagnostic_evidence_v1";
@@ -135,6 +137,70 @@
   };
 
   const isRecord = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value);
+  const readTeachingReviewDemoNamespace = () => {
+    let raw;
+    try {
+      raw = window.localStorage.getItem(TEACHING_REVIEW_DEMO_STORAGE_KEY);
+    } catch {
+      return { status: "unavailable", parsed: null, raw: null };
+    }
+    if (raw === null) return { status: "missing", parsed: null, raw: null };
+    if (raw.length > 20_000) return { status: "unrecognized", parsed: null, raw };
+    try {
+      const value = JSON.parse(raw);
+      const topKeys = new Set([
+        "protocolVersion", "draftId", "revision", "status", "cycleId", "sourceUpdatedAt",
+        "sourceSnapshotSha256", "createdAt", "savedAt", "identityVerified",
+        "qualifiedHumanConfirmation", "canonicalLedgerWrite", "cycleClosureAttempted",
+        "recommendationDraft", "escalationDraft",
+      ]);
+      const recommendationKeys = new Set(["focusSkill", "rationale"]);
+      const escalationKeys = new Set(["category", "note"]);
+      const recognized = Boolean(
+        isRecord(value) &&
+        Object.keys(value).every((key) => topKeys.has(key)) &&
+        Object.keys(value).length === topKeys.size &&
+        value.protocolVersion === TEACHING_REVIEW_DEMO_PROTOCOL &&
+        UUID_V4_PATTERN.test(value.draftId || "") &&
+        Number.isInteger(value.revision) &&
+        value.revision > 0 &&
+        value.status === "local_demo_draft" &&
+        typeof value.cycleId === "string" &&
+        value.cycleId.length > 0 &&
+        value.cycleId.length <= 180 &&
+        (value.sourceUpdatedAt === null || (typeof value.sourceUpdatedAt === "string" && !Number.isNaN(Date.parse(value.sourceUpdatedAt)))) &&
+        typeof value.sourceSnapshotSha256 === "string" &&
+        /^[0-9a-f]{64}$/.test(value.sourceSnapshotSha256) &&
+        typeof value.createdAt === "string" &&
+        !Number.isNaN(Date.parse(value.createdAt)) &&
+        typeof value.savedAt === "string" &&
+        !Number.isNaN(Date.parse(value.savedAt)) &&
+        value.identityVerified === false &&
+        value.qualifiedHumanConfirmation === false &&
+        value.canonicalLedgerWrite === false &&
+        value.cycleClosureAttempted === false &&
+        isRecord(value.recommendationDraft) &&
+        Object.keys(value.recommendationDraft).every((key) => recommendationKeys.has(key)) &&
+        Object.keys(value.recommendationDraft).length === recommendationKeys.size &&
+        ["Balanced", "Reading", "Listening", "Writing", "Speaking"].includes(value.recommendationDraft.focusSkill) &&
+        typeof value.recommendationDraft.rationale === "string" &&
+        value.recommendationDraft.rationale.trim().length >= 12 &&
+        value.recommendationDraft.rationale.trim().length <= 1_200 &&
+        isRecord(value.escalationDraft) &&
+        Object.keys(value.escalationDraft).every((key) => escalationKeys.has(key)) &&
+        Object.keys(value.escalationDraft).length === escalationKeys.size &&
+        ["evidence_quality", "open_response_review", "content_alignment", "other"].includes(value.escalationDraft.category) &&
+        typeof value.escalationDraft.note === "string" &&
+        value.escalationDraft.note.trim().length >= 12 &&
+        value.escalationDraft.note.trim().length <= 1_200
+      );
+      return recognized
+        ? { status: "recognized", parsed: value, raw }
+        : { status: "unrecognized", parsed: null, raw };
+    } catch {
+      return { status: "unrecognized", parsed: null, raw };
+    }
+  };
   const createUuid = () => {
     if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
     const bytes = new Uint8Array(16);
@@ -617,6 +683,14 @@
       return { status: "lock_unavailable" };
     }
   };
+  const withTeachingReviewDemoWriteLock = async (write) => {
+    if (!navigator.locks?.request) return { status: "lock_unavailable" };
+    try {
+      return await navigator.locks.request(`${TEACHING_REVIEW_DEMO_STORAGE_KEY}:write`, { mode: "exclusive" }, write);
+    } catch {
+      return { status: "lock_unavailable" };
+    }
+  };
   const appendLearningEvent = async (eventType, domain) => {
     if (!learningEventsRuntime) return { status: "ledger_invalid", code: "runtime_unavailable" };
     try {
@@ -645,6 +719,7 @@
       allowedSelectors.push(
         "[data-clear-workspace]",
         "[data-clear-super-teacher]",
+        "[data-clear-teaching-review-demo]",
         "[data-clear-all-sufeiya]",
       );
     }
@@ -2783,6 +2858,14 @@
     } catch {
       // Corrupt or unavailable Super Teacher storage is preserved for export or explicit clearing.
     }
+    const teachingReviewNamespace = readTeachingReviewDemoNamespace();
+    const teachingReviewDraftSummary = teachingReviewNamespace.status === "recognized"
+      ? "1 份 · 仅本机演示草稿"
+      : teachingReviewNamespace.status === "missing"
+        ? "0 份"
+        : teachingReviewNamespace.status === "unrecognized"
+          ? "1 份未识别原始值 · 可导出或清除"
+          : "当前浏览器不允许读取";
     clearChildren(summary);
     const rows = [
       ["7 天计划", state.plan ? `当前 1 份 · 历史 ${state.planHistory.length} 份` : "尚未生成"],
@@ -2804,6 +2887,7 @@
       ["专注记录", `${state.focus.sessions.length} 次`],
       ["Sofia智能老师对话消息", teacherTurns + " 条"],
       ["未发送人工请求", handoffRequests + " 条"],
+      ["教研复核演示草稿", teachingReviewDraftSummary],
     ];
     rows.forEach(([label, value]) => {
       const row = document.createElement("p");
@@ -2830,9 +2914,10 @@
       } catch {
         // Preserve an unreadable raw value below rather than silently omitting it.
       }
+      const teachingReviewNamespace = readTeachingReviewDemoNamespace();
       const workspaceData = rawStoredValue && !storageWritable ? null : state;
       const content = JSON.stringify({
-        exportProtocol: "sufeiya_local_export_v1",
+        exportProtocol: "sufeiya_local_export_v2",
         exportedAt: new Date().toISOString(),
         learningEventGovernance: {
           contractId: learningEventsRuntime?.CONTRACT_ID || null,
@@ -2848,6 +2933,11 @@
             parsed: teacherData,
             raw: teacherData || !teacherRaw ? null : teacherRaw,
           },
+          [TEACHING_REVIEW_DEMO_STORAGE_KEY]: {
+            parsed: teachingReviewNamespace.status === "recognized" ? teachingReviewNamespace.parsed : null,
+            raw: teachingReviewNamespace.status === "unrecognized" ? teachingReviewNamespace.raw : null,
+            readStatus: teachingReviewNamespace.status,
+          },
         },
       }, null, 2);
       const blob = new Blob([content], { type: "application/json;charset=utf-8" });
@@ -2860,7 +2950,7 @@
       link.remove();
       URL.revokeObjectURL(url);
       const message = document.querySelector("[data-data-message]");
-      if (message) message.textContent = "包含学习闭环与 Sofia智能老师命名空间的 JSON 备份已导出到下载目录。";
+      if (message) message.textContent = "包含学习闭环、Sofia智能老师与教研复核演示三个命名空间的 JSON 备份已导出到下载目录。";
     });
   });
 
@@ -2892,7 +2982,7 @@
   document.querySelectorAll("[data-clear-learning-events]").forEach((button) => {
     button.addEventListener("click", async () => {
       const message = document.querySelector("[data-data-message]");
-      if (!window.confirm("确定仅清除学习事件账本和本机事件别名吗？计划、练习回执、打卡、复测与 Sofia智能老师对话都会保留；清除后不会回填历史事件，此操作无法撤销。")) return;
+      if (!window.confirm("确定仅清除学习事件账本和本机事件别名吗？计划、练习回执、打卡、复测、Sofia智能老师对话与教研复核演示草稿都会保留；清除后不会回填历史事件，此操作无法撤销。")) return;
       if (!workspaceStateRecognized || !workspaceWriterLeaseAvailable || !learningEventsRuntime || !navigator.locks?.request) {
         if (message) message.textContent = "当前无法安全识别或锁定本机学习数据；请先导出全部原始数据，不会自动清除。";
         return;
@@ -2917,7 +3007,7 @@
 
   document.querySelectorAll("[data-clear-workspace]").forEach((button) => {
     button.addEventListener("click", async () => {
-      if (!window.confirm("确定仅清除这个浏览器中的 Sufeiya 学习闭环数据吗？Sofia智能老师对话不会被删除；此操作无法撤销。")) return;
+      if (!window.confirm("确定仅清除这个浏览器中的 Sufeiya 学习闭环数据吗？Sofia智能老师对话与教研复核演示草稿不会被删除；此操作无法撤销。")) return;
       const outcome = await withWorkspaceRecoveryLock(() => {
         try {
           window.localStorage.removeItem(STORAGE_KEY);
@@ -2942,7 +3032,7 @@
 
   document.querySelectorAll("[data-clear-super-teacher]").forEach((button) => {
     button.addEventListener("click", async () => {
-      if (!window.confirm("确定仅清除这个浏览器中的 Sofia智能老师对话和未发送人工请求吗？学习闭环数据不会被删除；此操作无法撤销。")) return;
+      if (!window.confirm("确定仅清除这个浏览器中的 Sofia智能老师对话和未发送人工请求吗？学习闭环数据与教研复核演示草稿不会被删除；此操作无法撤销。")) return;
       const outcome = await withSuperTeacherWriteLock(() => {
         try {
           window.localStorage.removeItem(SUPER_TEACHER_STORAGE_KEY);
@@ -2962,36 +3052,66 @@
     });
   });
 
-  document.querySelectorAll("[data-clear-all-sufeiya]").forEach((button) => {
+  document.querySelectorAll("[data-clear-teaching-review-demo]").forEach((button) => {
     button.addEventListener("click", async () => {
-      if (!window.confirm("确定清除这个浏览器中的全部 Sufeiya 学习闭环、Sofia智能老师对话和未发送人工请求吗？此操作无法撤销。")) return;
-      const outcome = await withWorkspaceRecoveryLock(() => withSuperTeacherWriteLock(() => {
-        let workspaceBefore;
-        let teacherBefore;
+      if (!window.confirm("确定仅清除这个浏览器中的教研复核演示草稿吗？学习闭环数据与 Sofia智能老师对话不会被删除；此操作无法撤销。")) return;
+      const outcome = await withTeachingReviewDemoWriteLock(() => {
         try {
-          workspaceBefore = window.localStorage.getItem(STORAGE_KEY);
-          teacherBefore = window.localStorage.getItem(SUPER_TEACHER_STORAGE_KEY);
-          window.localStorage.removeItem(STORAGE_KEY);
-          window.localStorage.removeItem(SUPER_TEACHER_STORAGE_KEY);
+          window.localStorage.removeItem(TEACHING_REVIEW_DEMO_STORAGE_KEY);
           return { status: "cleared" };
         } catch {
-          try {
-            if (workspaceBefore === null) window.localStorage.removeItem(STORAGE_KEY);
-            else if (typeof workspaceBefore === "string") window.localStorage.setItem(STORAGE_KEY, workspaceBefore);
-            if (teacherBefore === null) window.localStorage.removeItem(SUPER_TEACHER_STORAGE_KEY);
-            else if (typeof teacherBefore === "string") window.localStorage.setItem(SUPER_TEACHER_STORAGE_KEY, teacherBefore);
-            return { status: "clear_failed" };
-          } catch {
-            return { status: "rollback_failed" };
-          }
+          return { status: "clear_failed" };
         }
-      }));
+      });
+      if (outcome.status !== "cleared") {
+        const message = document.querySelector("[data-data-message]");
+        if (message) message.textContent = outcome.status === "lock_unavailable"
+          ? "当前无法取得教研演示草稿写入锁；请关闭其他教研复核演示页、刷新后再清除。"
+          : "浏览器未允许清除教研复核演示草稿；原始本机数据保持不变。";
+        return;
+      }
+      window.location.reload();
+    });
+  });
+
+  document.querySelectorAll("[data-clear-all-sufeiya]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      if (!window.confirm("确定清除这个浏览器中的全部 Sufeiya 学习闭环、Sofia智能老师对话、未发送人工请求与教研复核演示草稿吗？此操作无法撤销。")) return;
+      const outcome = await withWorkspaceRecoveryLock(() => withSuperTeacherWriteLock(() => withTeachingReviewDemoWriteLock(() => {
+        let snapshots;
+        try {
+          snapshots = [
+            [STORAGE_KEY, window.localStorage.getItem(STORAGE_KEY)],
+            [SUPER_TEACHER_STORAGE_KEY, window.localStorage.getItem(SUPER_TEACHER_STORAGE_KEY)],
+            [TEACHING_REVIEW_DEMO_STORAGE_KEY, window.localStorage.getItem(TEACHING_REVIEW_DEMO_STORAGE_KEY)],
+          ];
+        } catch {
+          return { status: "clear_failed" };
+        }
+        try {
+          window.localStorage.removeItem(STORAGE_KEY);
+          window.localStorage.removeItem(SUPER_TEACHER_STORAGE_KEY);
+          window.localStorage.removeItem(TEACHING_REVIEW_DEMO_STORAGE_KEY);
+          return { status: "cleared" };
+        } catch {
+          let rollbackFailed = false;
+          for (const [key, before] of snapshots) {
+            try {
+              if (before === null) window.localStorage.removeItem(key);
+              else window.localStorage.setItem(key, before);
+            } catch {
+              rollbackFailed = true;
+            }
+          }
+          return { status: rollbackFailed ? "rollback_failed" : "clear_failed" };
+        }
+      })));
       if (outcome.status !== "cleared") {
         const message = document.querySelector("[data-data-message]");
         if (message) message.textContent = outcome.status === "rollback_failed"
           ? "清除未能完整提交，且浏览器未能恢复原值；请立即导出全部原始数据并停止继续写入。"
           : outcome.status === "lock_unavailable"
-            ? "当前无法同时取得学习区与 Sofia 写入锁；请关闭其他 Sufeiya 页面、刷新后再清除。"
+            ? "当前无法同时取得学习区、Sofia 与教研演示草稿写入锁；请关闭其他 Sufeiya 页面、刷新后再清除。"
             : "浏览器未允许清除全部本机数据；原始值已恢复。";
         return;
       }
@@ -3003,7 +3123,11 @@
   });
 
   window.addEventListener("storage", (event) => {
-    if (event.key === STORAGE_KEY || event.key === SUPER_TEACHER_STORAGE_KEY) window.location.reload();
+    if (
+      event.key === STORAGE_KEY ||
+      event.key === SUPER_TEACHER_STORAGE_KEY ||
+      event.key === TEACHING_REVIEW_DEMO_STORAGE_KEY
+    ) window.location.reload();
   });
   window.addEventListener("pageshow", (event) => {
     if (event.persisted) window.location.reload();

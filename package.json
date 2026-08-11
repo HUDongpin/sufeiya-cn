@@ -14,9 +14,10 @@
     "lint": "eslint .",
     "test:clerk": "tsx --test tests/clerk-auth.test.ts",
     "test:governance": "tsx --test tests/release-governance.test.ts tests/release-governance-status.test.ts",
+    "test:teaching-review": "tsx --test tests/teaching-review-demo.test.ts",
     "test:super-teacher": "NODE_OPTIONS='--conditions=react-server' tsx --test tests/super-teacher.test.ts tests/super-teacher-approved-selection.test.ts tests/super-teacher-client-session.test.ts tests/super-teacher-model-runtime.test.ts tests/super-teacher-rate-limit.test.ts tests/super-teacher-voice-release.test.ts",
     "check:legacy": "node scripts/verify-site.mjs",
-    "check": "npm run generate:next-content && npm run check:legacy && npm run test:clerk && npm run test:governance && npm run test:super-teacher && tsc --noEmit && npm run lint && next build"
+    "check": "npm run generate:next-content && npm run check:legacy && npm run test:clerk && npm run test:governance && npm run test:teaching-review && npm run test:super-teacher && tsc --noEmit && npm run lint && next build"
   },
   "engines": {
     "node": ">=22.0.0"

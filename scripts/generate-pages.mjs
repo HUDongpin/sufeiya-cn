@@ -978,6 +978,7 @@ const workspaceContent = `
           <a href="/today"><span>今</span><small>TODAY</small><h3>今日任务</h3><p>读取 7 天计划，逐项完成今天的练习与行动。</p><b>查看今日清单 →</b></a>
           <a href="/practice"><span>练</span><small>PRACTICE</small><h3>四项英文微练习</h3><p>Reading、Listening、Writing 与 Speaking 各有独立页面。</p><b>选择练习页 →</b></a>
           <a href="/focus"><span>专</span><small>FOCUS</small><h3>专注计时</h3><p>选择 15、25 或 45 分钟，开始一段不被打断的学习。</p><b>进入计时页 →</b></a>
+          <a href="/teaching-review-demo"><span>审</span><small>LOCAL REVIEW DEMO</small><h3>教研复核演示</h3><p>只读查看临时轮次证据，草拟修订建议或升级说明；不发送、不结案。</p><b>进入本机演示 →</b></a>
           <a href="/my-data"><span>数</span><small>MY DATA</small><h3>本机数据</h3><p>查看、导出或仅清除当前浏览器中的 Sufeiya 学习记录。</p><b>管理本机数据 →</b></a>
         </div>
       </div>
@@ -1341,11 +1342,11 @@ const reviewContent = `
 
 const myDataContent = `
   <main id="main-content" class="study-tool-page">
-    ${studyPageHero({ current: "", number: "数", label: "我的本机数据", title: "知道数据在哪里，<br />也能自己带走或清除。", lead: "账户登录用于保护学习页面；学习闭环数据，以及 Sofia智能老师的对话副本和未发送人工请求，仍分别保存在当前浏览器的两个版本化命名空间中，不会自动绑定账户、上传或同步到其他设备。", note: "你掌握数据控制权" })}
+    ${studyPageHero({ current: "", number: "数", label: "我的本机数据", title: "知道数据在哪里，<br />也能自己带走或清除。", lead: "账户登录用于保护学习页面；学习闭环数据、Sofia智能老师对话，以及教研复核演示草稿，分别保存在当前浏览器的三个版本化命名空间中，不会自动绑定账户、上传或同步到其他设备。", note: "你掌握数据控制权" })}
     <section class="single-tool-section data-page" aria-labelledby="data-title"><div class="single-tool-inner narrow-tool"><header class="tool-panel-header"><div><span>数</span><div><p>数据控制</p><h2 id="data-title">当前浏览器中的 Sufeiya 数据</h2></div></div><small data-data-status>正在读取</small></header>
-      <div class="data-facts"><article><strong>两个本机命名空间</strong><p>学习闭环与 Sofia智能老师对话分开保存；下方导出和清除会明确列出范围。</p></article><article><strong>本地但未加密</strong><p>同一设备上的其他使用者可能看到这些记录，请勿填写敏感成绩截图或身份材料。</p></article><article><strong>学习事件哈希链</strong><p>事件只保存受限元数据，可发现意外损坏；它不是服务器签名，也不能防止恶意本机重算。当前不连接 LRS。</p></article><article><strong>不保存录音</strong><p>口语练习不申请麦克风权限，也不会储存或上传声音。</p></article></div>
+      <div class="data-facts"><article><strong>三个本机命名空间</strong><p><code>sufeiya_workspace_v1</code>、<code>sufeiya_super_teacher_v1</code> 与 <code>sufeiya_teaching_review_demo_v1</code> 分开保存；教研记录只是未发送的演示草稿，不是正式确认或人工回执。</p></article><article><strong>本地但未加密</strong><p>同一设备上的其他使用者可能看到这些记录，请勿填写敏感成绩截图或身份材料。</p></article><article><strong>学习事件哈希链</strong><p>事件只保存受限元数据，可发现意外损坏；它不是服务器签名，也不能防止恶意本机重算。当前不连接 LRS。</p></article><article><strong>不保存录音</strong><p>口语练习不申请麦克风权限，也不会储存或上传声音。</p></article></div>
       <div class="data-summary" data-data-summary><p>正在统计本机记录…</p></div>
-      <div class="data-actions"><button class="button button-ink" type="button" data-export-workspace>导出全部本机 JSON 数据</button><button class="button button-ghost" type="button" data-export-learning-events>仅导出学习事件备份</button><button class="button button-ghost" type="button" data-clear-learning-events>仅清除学习事件账本</button><button class="button button-ghost" type="button" data-clear-workspace>仅清除学习闭环数据</button><button class="button button-ghost" type="button" data-clear-super-teacher>仅清除 Sofia智能老师对话</button><button class="button button-ghost" type="button" data-clear-all-sufeiya>清除全部本机 Sufeiya 数据</button></div>
+      <div class="data-actions"><button class="button button-ink" type="button" data-export-workspace>导出全部本机 JSON 数据</button><button class="button button-ghost" type="button" data-export-learning-events>仅导出学习事件备份</button><button class="button button-ghost" type="button" data-clear-learning-events>仅清除学习事件账本</button><button class="button button-ghost" type="button" data-clear-workspace>仅清除学习闭环数据</button><button class="button button-ghost" type="button" data-clear-super-teacher>仅清除 Sofia智能老师对话</button><button class="button button-ghost" type="button" data-clear-teaching-review-demo>仅清除教研复核演示草稿</button><button class="button button-ghost" type="button" data-clear-all-sufeiya>清除全部本机 Sufeiya 数据</button></div>
       <p class="save-message" data-data-message role="status" aria-live="polite">导出文件仅供个人备份，不是 LRS 或 xAPI 导出；本站目前不提供导入或云同步。</p>
     </div></section>
   </main>`;
@@ -1499,7 +1500,7 @@ const pages = [
     page: "my-data",
     path: "/my-data",
     title: "我的本机数据｜苏肥鸭学习工作台",
-    description: "查看、导出或仅清除当前浏览器中的 Sufeiya 学习计划、任务进度、练习草稿与复盘数据。",
+    description: "查看、导出或定向清除当前浏览器中的 Sufeiya 学习闭环、Sofia 对话与教研复核演示草稿。",
     content: myDataContent,
     scripts: ["/workspace.js"],
   },

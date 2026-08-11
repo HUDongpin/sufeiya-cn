@@ -87,6 +87,7 @@ function SiteHeader({ pageKey }: { pageKey: NavigationKey }) {
           </a>
           <a href="/super-teacher" aria-current={pageKey === "super-teacher" ? "page" : undefined}>Sofia智能老师<span>Gate A</span></a>
           <a href="/my-data">我的本机数据<span>本机</span></a>
+          <a href="/teaching-review-demo">教研复核演示<span>本机</span></a>
           <a href="/sign-in">登录或注册<span>{clerkState.configured ? "Clerk" : "未配置"}</span></a>
           <a href="/account">我的账户<span>{clerkState.configured ? "已启用" : "未配置"}</span></a>
         </nav>
@@ -116,6 +117,7 @@ function SiteFooter() {
           <div>
             <strong>数据与账户</strong>
             <a href="/my-data">我的本机数据</a>
+            <a href="/teaching-review-demo">教研复核演示</a>
             <a href="/sign-in">安全登录</a>
             <a href="/account">账户管理</a>
             <small>登录不会自动上传或同步本机学习数据。</small>

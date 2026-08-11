@@ -17,6 +17,7 @@ export const CLERK_PROTECTED_PATHS = [
   "/community",
   "/retest",
   "/my-data",
+  "/teaching-review-demo",
   "/account",
 ] as const;
 
