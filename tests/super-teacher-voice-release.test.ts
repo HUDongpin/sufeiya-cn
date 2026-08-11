@@ -29,7 +29,10 @@ describe("Sofia voice release status", () => {
       governanceProtocolVersion: "sufeiya_release_decisions_v1",
       outputGovernanceStatus: "blocked",
       microphoneGovernanceStatus: "blocked",
+      outputGovernanceReasonCode: "decision_not_approved",
+      microphoneGovernanceReasonCode: "decision_not_approved",
       outputBlockedDecisionIds: [
+        "voice_written_authorization_verified",
         "voice_data_flow",
         "voice_retention_deletion",
         "voice_ai_disclosure",
@@ -44,6 +47,8 @@ describe("Sofia voice release status", () => {
         "voice_transport_security_review",
         "external_provider_region_cross_border",
       ],
+      outputBlockedBindingIds: [],
+      microphoneBlockedBindingIds: [],
     });
   });
 
@@ -85,5 +90,9 @@ describe("Sofia voice release status", () => {
     assert.equal(status.region, null);
     assert.equal(status.modelMatches, false);
     assert.equal(status.status, "disabled_pending_evidence");
+    assert.equal(status.outputGovernanceReasonCode, "binding_mismatch");
+    assert.deepEqual(status.outputBlockedBindingIds, [
+      "voice_supplier_model_selection.model",
+    ]);
   });
 });

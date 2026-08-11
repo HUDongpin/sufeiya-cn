@@ -59,7 +59,9 @@ export async function GET() {
     releaseGovernance: {
       protocolVersion: modelStatus.governanceProtocolVersion,
       status: modelStatus.governanceStatus,
+      reasonCode: modelStatus.governanceReasonCode,
       blockedDecisionIds: modelStatus.blockedDecisionIds,
+      blockedBindingIds: modelStatus.blockedBindingIds,
     },
     teacherSurfaceAccess: "public",
     modelSubmitAccess: "clerk_authenticated",

@@ -7,13 +7,13 @@ import {
 import { evaluateReleaseSurface } from "@/lib/release-governance";
 
 const DEFAULT_GATEWAY_MODEL = "zai/glm-4.6v-flash";
-const DEFAULT_DASHSCOPE_MODEL = "qwen3.7-max";
+const DEFAULT_DASHSCOPE_MODEL = "qwen3.8-max";
 const MODEL_TIMEOUT_MS = 15_000;
 const MAX_DASHSCOPE_RESPONSE_BYTES = 64_000;
+const TEXT_MODEL_DATA_MODE = "approved_claim_id_ordering_minimized_context_no_history";
 
 const allowedDashScopeModels = new Set([
-  "qwen3.7-max",
-  "qwen3.8-max-preview",
+  "qwen3.8-max",
 ]);
 
 const dashScopeLegacyEndpoints = {
@@ -47,11 +47,12 @@ function validGatewayModel(model: string) {
 }
 
 function validDashScopeKey(apiKey: string) {
-  return /^sk-[A-Za-z0-9_-]{12,}$/.test(apiKey);
+  return !apiKey.startsWith("sk-sp-") && /^sk-[A-Za-z0-9_-]{12,}$/.test(apiKey);
 }
 
 function validWorkspaceId(workspaceId: string) {
-  return /^[A-Za-z0-9-]{3,80}$/.test(workspaceId);
+  return /^[A-Za-z0-9-]{3,80}$/.test(workspaceId) &&
+    !new Set(["token-plan", "coding", "coding-intl", "trial"]).has(workspaceId.toLowerCase());
 }
 
 function dashScopeEndpoint(region: DashScopeRegion, workspaceId: string) {
@@ -61,6 +62,32 @@ function dashScopeEndpoint(region: DashScopeRegion, workspaceId: string) {
     ? `${workspaceId}.cn-beijing.maas.aliyuncs.com`
     : `${workspaceId}.ap-southeast-1.maas.aliyuncs.com`;
   return `https://${regionalHost}/compatible-mode/v1`;
+}
+
+export function isAllowedDashScopeEndpoint(endpoint: string, region: DashScopeRegion) {
+  let parsed: URL;
+  try {
+    parsed = new URL(endpoint);
+  } catch {
+    return false;
+  }
+  if (
+    parsed.protocol !== "https:" ||
+    parsed.port ||
+    parsed.username ||
+    parsed.password ||
+    parsed.search ||
+    parsed.hash ||
+    parsed.pathname !== "/compatible-mode/v1"
+  ) {
+    return false;
+  }
+
+  const allowedHost = region === "beijing"
+    ? /^(?:dashscope\.aliyuncs\.com|[a-z0-9-]+\.cn-beijing\.maas\.aliyuncs\.com)$/i
+    : /^(?:dashscope-intl\.aliyuncs\.com|[a-z0-9-]+\.ap-southeast-1\.maas\.aliyuncs\.com)$/i;
+  const reservedHost = /^(?:token-plan|coding|coding-intl|trial)\./i.test(parsed.hostname);
+  return !reservedHost && allowedHost.test(parsed.hostname);
 }
 
 export function resolveTeacherModelConfiguration(
@@ -89,20 +116,26 @@ export function resolveTeacherModelConfiguration(
     return null;
   }
   const endpoint = dashScopeEndpoint(region, clean(environment.DASHSCOPE_WORKSPACE_ID));
-  return endpoint ? { provider, model, region, endpoint, apiKey } : null;
+  return endpoint && isAllowedDashScopeEndpoint(endpoint, region)
+    ? { provider, model, region, endpoint, apiKey }
+    : null;
 }
 
 export function resolveTeacherModelRuntime(
   environment: Environment = process.env,
 ): TeacherModelRuntime | null {
-  const governance = evaluateReleaseSurface("sofia_external_text_model");
+  const runtime = resolveTeacherModelConfiguration(environment);
+  if (!runtime) return null;
+  const governance = evaluateTeacherModelRuntime(runtime);
   if (!governance.enabled) return null;
-  return resolveTeacherModelConfiguration(environment);
+  return runtime;
 }
 
 export function teacherModelReleaseStatus(environment: Environment = process.env) {
   const configuredRuntime = resolveTeacherModelConfiguration(environment);
-  const governance = evaluateReleaseSurface("sofia_external_text_model");
+  const governance = configuredRuntime
+    ? evaluateTeacherModelRuntime(configuredRuntime)
+    : evaluateReleaseSurface("sofia_external_text_model", { dataMode: TEXT_MODEL_DATA_MODE });
   const runtime = governance.enabled ? configuredRuntime : null;
   return {
     enabled: Boolean(runtime),
@@ -111,9 +144,20 @@ export function teacherModelReleaseStatus(environment: Environment = process.env
     model: configuredRuntime?.model ?? null,
     region: configuredRuntime?.provider === "dashscope" ? configuredRuntime.region : null,
     governanceStatus: governance.status,
+    governanceReasonCode: governance.reasonCode,
     governanceProtocolVersion: governance.protocolVersion,
     blockedDecisionIds: governance.blockedControlIds,
+    blockedBindingIds: governance.blockedBindingIds,
   };
+}
+
+function evaluateTeacherModelRuntime(runtime: TeacherModelRuntime) {
+  return evaluateReleaseSurface("sofia_external_text_model", {
+    provider: runtime.provider,
+    model: runtime.model,
+    region: runtime.provider === "dashscope" ? runtime.region : null,
+    dataMode: TEXT_MODEL_DATA_MODE,
+  });
 }
 
 async function boundedResponseText(response: Response) {
@@ -140,6 +184,50 @@ async function boundedResponseText(response: Response) {
   return text + decoder.decode();
 }
 
+export async function parseDashScopeModelResponse(
+  response: Response,
+  expectedModel: string,
+): Promise<ModelTeacherSelection | null> {
+  if (!response.ok || !response.headers.get("content-type")?.toLowerCase().includes("application/json")) {
+    return null;
+  }
+
+  const responseText = await boundedResponseText(response);
+  if (!responseText) return null;
+  let envelope: unknown;
+  try {
+    envelope = JSON.parse(responseText);
+  } catch {
+    return null;
+  }
+  if (!envelope || typeof envelope !== "object") return null;
+  const responseObject = envelope as {
+    model?: unknown;
+    choices?: Array<{
+      finish_reason?: unknown;
+      message?: { content?: unknown };
+    }>;
+  };
+  const choice = responseObject.choices?.[0];
+  if (
+    responseObject.model !== expectedModel ||
+    responseObject.choices?.length !== 1 ||
+    choice?.finish_reason !== "stop" ||
+    typeof choice.message?.content !== "string"
+  ) {
+    return null;
+  }
+
+  let candidate: unknown;
+  try {
+    candidate = JSON.parse(choice.message.content);
+  } catch {
+    return null;
+  }
+  const parsed = modelTeacherSelectionSchema.safeParse(candidate);
+  return parsed.success ? parsed.data : null;
+}
+
 async function invokeDashScopeModel({
   runtime,
   system,
@@ -153,6 +241,7 @@ async function invokeDashScopeModel({
   abortSignal?: AbortSignal;
   fetchImpl: FetchLike;
 }): Promise<ModelTeacherSelection | null> {
+  if (!isAllowedDashScopeEndpoint(runtime.endpoint, runtime.region)) return null;
   const timeoutSignal = AbortSignal.timeout(MODEL_TIMEOUT_MS);
   const signal = abortSignal
     ? AbortSignal.any([abortSignal, timeoutSignal])
@@ -187,44 +276,7 @@ async function invokeDashScopeModel({
     }),
     signal,
   });
-  if (!response.ok || !response.headers.get("content-type")?.toLowerCase().includes("application/json")) {
-    return null;
-  }
-
-  const responseText = await boundedResponseText(response);
-  if (!responseText) return null;
-  let envelope: unknown;
-  try {
-    envelope = JSON.parse(responseText);
-  } catch {
-    return null;
-  }
-  if (!envelope || typeof envelope !== "object") return null;
-  const responseObject = envelope as {
-    model?: unknown;
-    choices?: Array<{
-      finish_reason?: unknown;
-      message?: { content?: unknown };
-    }>;
-  };
-  const choice = responseObject.choices?.[0];
-  if (
-    responseObject.model !== runtime.model ||
-    responseObject.choices?.length !== 1 ||
-    choice?.finish_reason !== "stop" ||
-    typeof choice.message?.content !== "string"
-  ) {
-    return null;
-  }
-
-  let candidate: unknown;
-  try {
-    candidate = JSON.parse(choice.message.content);
-  } catch {
-    return null;
-  }
-  const parsed = modelTeacherSelectionSchema.safeParse(candidate);
-  return parsed.success ? parsed.data : null;
+  return parseDashScopeModelResponse(response, runtime.model);
 }
 
 export async function invokeTeacherModel({
@@ -240,6 +292,7 @@ export async function invokeTeacherModel({
   abortSignal?: AbortSignal;
   fetchImpl?: FetchLike;
 }): Promise<ModelTeacherSelection | null> {
+  if (!evaluateTeacherModelRuntime(runtime).enabled) return null;
   if (runtime.provider === "dashscope") {
     return invokeDashScopeModel({ runtime, system, prompt, abortSignal, fetchImpl });
   }

@@ -17,8 +17,6 @@ function approvedRegion(value: string | undefined) {
 }
 
 export function sofiaVoiceReleaseStatus(environment: Environment = process.env) {
-  const outputGovernance = evaluateReleaseSurface("sofia_voice_output");
-  const microphoneGovernance = evaluateReleaseSurface("sofia_microphone_input");
   const authorizationEvidenceStatus = reviewStatus(environment.SUFEIYA_VOICE_AUTHORIZATION_STATUS);
   const dataFlowStatus = reviewStatus(environment.SUFEIYA_VOICE_DATA_FLOW_STATUS);
   const deletionProcedureStatus = reviewStatus(environment.SUFEIYA_VOICE_DELETION_STATUS);
@@ -27,6 +25,19 @@ export function sofiaVoiceReleaseStatus(environment: Environment = process.env) 
   const microphoneRequested = environment.SUFEIYA_MIC_INPUT_ENABLED === "true";
   const modelMatches = (environment.SUFEIYA_TTS_MODEL || SOFIA_TTS_MODEL) === SOFIA_TTS_MODEL;
   const region = approvedRegion(environment.DASHSCOPE_REGION);
+  const requestedModel = environment.SUFEIYA_TTS_MODEL || SOFIA_TTS_MODEL;
+  const outputGovernance = evaluateReleaseSurface("sofia_voice_output", {
+    provider: "dashscope",
+    model: requestedModel,
+    region,
+    dataMode: "voice_clone_output",
+  });
+  const microphoneGovernance = evaluateReleaseSurface("sofia_microphone_input", {
+    provider: "dashscope",
+    model: requestedModel,
+    region,
+    dataMode: "microphone_input_realtime_voice",
+  });
   const voiceIdConfigured = Boolean(environment.SUFEIYA_QWEN_VOICE_ID?.trim());
   const evidenceApproved = authorizationEvidenceStatus === "approved" &&
     dataFlowStatus === "approved" &&
@@ -65,7 +76,11 @@ export function sofiaVoiceReleaseStatus(environment: Environment = process.env) 
     governanceProtocolVersion: outputGovernance.protocolVersion,
     outputGovernanceStatus: outputGovernance.status,
     microphoneGovernanceStatus: microphoneGovernance.status,
+    outputGovernanceReasonCode: outputGovernance.reasonCode,
+    microphoneGovernanceReasonCode: microphoneGovernance.reasonCode,
     outputBlockedDecisionIds: outputGovernance.blockedControlIds,
     microphoneBlockedDecisionIds: microphoneGovernance.blockedControlIds,
+    outputBlockedBindingIds: outputGovernance.blockedBindingIds,
+    microphoneBlockedBindingIds: microphoneGovernance.blockedBindingIds,
   } as const;
 }

@@ -1,20 +1,69 @@
 {
   "protocolVersion": "sufeiya_release_decisions_v1",
   "effectiveAt": "2026-08-11T00:00:00+08:00",
+  "nextRegisterReviewAt": "2026-08-31T23:59:59+08:00",
+  "registerReviewStatus": "active_with_blockers",
   "defaultDisposition": "deny",
   "environmentPolicy": "one_register_for_local_preview_and_production",
   "amendmentPolicy": "A release control changes only through an explicit project-owner decision with a durable evidence reference. Environment variables cannot override this register.",
+  "evidenceCatalog": [
+    {
+      "id": "approved_plan_2026-08-09",
+      "kind": "approved_plan",
+      "locator": "deliverables/Sufeiya学生智能诊断与伴学平台方案_讨论稿_2026-08-09.docx",
+      "contentSha256": "6ad237bf7433134961c2b4f9de4cb0f055391b9179e6b4632c269cdd84809169",
+      "verificationStatus": "verified_file_hash"
+    },
+    {
+      "id": "user_approval_2026-08-11_clerk",
+      "kind": "user_instruction",
+      "locator": "codex_goal_user_message_2026-08-11_clerk_approval",
+      "contentSha256": null,
+      "verificationStatus": "user_instruction_received"
+    },
+    {
+      "id": "user_instruction_2026-08-10_qwen",
+      "kind": "user_instruction",
+      "locator": "codex_goal_user_message_2026-08-10_qwen_provider_and_model",
+      "contentSha256": null,
+      "verificationStatus": "user_instruction_received"
+    },
+    {
+      "id": "alibaba_qwen38_backend_api_2026-08-11",
+      "kind": "vendor_documentation",
+      "locator": "https://help.aliyun.com/en/model-studio/qwen-api-via-openai-chat-completions",
+      "contentSha256": null,
+      "verificationStatus": "verified_online_current"
+    },
+    {
+      "id": "user_instruction_2026-08-10_qwen_tts",
+      "kind": "user_instruction",
+      "locator": "codex_goal_user_message_2026-08-10_qwen_tts_model",
+      "contentSha256": null,
+      "verificationStatus": "user_instruction_received"
+    },
+    {
+      "id": "user_assertion_2026-08-10_voice_authorization",
+      "kind": "user_assertion",
+      "locator": "codex_goal_user_message_2026-08-10_voice_authorization_assertion",
+      "contentSha256": null,
+      "verificationStatus": "user_assertion_received"
+    }
+  ],
   "controls": [
     {
       "id": "gate_a_local_demo",
       "title": "Gate A 本机合成学习闭环",
       "status": "approved",
+      "reviewStatus": "current",
       "scope": "Browser-local synthetic demonstration only; no server student data, official score, real community, or formal diagnosis.",
       "decisionOwner": "project_owner",
       "decidedAt": "2026-08-09T00:00:00+08:00",
-      "evidenceReferences": [
-        "approved_plan_2026-08-09"
-      ],
+      "reviewDueAt": "2026-09-09T23:59:59+08:00",
+      "evidenceReferenceIds": ["approved_plan_2026-08-09"],
+      "implementationStatus": "implemented",
+      "implementationImpact": "Allows the current browser-local synthetic learning loop while preserving all Gate A limitations.",
+      "bindings": null,
       "conditions": [
         "Learning evidence remains browser-local and not account-bound.",
         "All diagnostic and progress claims retain Gate A limitations."
@@ -24,12 +73,15 @@
       "id": "clerk_access_boundary",
       "title": "Clerk 学习页面访问边界",
       "status": "approved",
+      "reviewStatus": "current",
       "scope": "Clerk protects learner and account routes without uploading or binding browser-local learning records.",
       "decisionOwner": "project_owner",
       "decidedAt": "2026-08-11T00:00:00+08:00",
-      "evidenceReferences": [
-        "codex_goal_user_approval_2026-08-11_clerk"
-      ],
+      "reviewDueAt": "2026-09-11T23:59:59+08:00",
+      "evidenceReferenceIds": ["user_approval_2026-08-11_clerk"],
+      "implementationStatus": "implemented",
+      "implementationImpact": "Keeps canonical learner routes authenticated while leaving local learning namespaces unbound to the account.",
+      "bindings": null,
       "conditions": [
         "Authentication is not a teacher, staff, age, or data-processing authorization.",
         "Missing or invalid Clerk configuration fails closed."
@@ -39,14 +91,24 @@
       "id": "external_text_model_supplier_selection",
       "title": "Sofia 外部文本模型供应商选择",
       "status": "approved",
+      "reviewStatus": "current",
       "scope": "Alibaba Cloud DashScope/Qwen may be configured, but this control alone never permits network processing or release.",
       "decisionOwner": "project_owner",
       "decidedAt": "2026-08-10T00:00:00+08:00",
-      "evidenceReferences": [
-        "codex_goal_user_instruction_2026-08-10_qwen"
-      ],
+      "reviewDueAt": "2026-09-10T23:59:59+08:00",
+      "evidenceReferenceIds": ["user_instruction_2026-08-10_qwen", "alibaba_qwen38_backend_api_2026-08-11"],
+      "implementationStatus": "configuration_only",
+      "implementationImpact": "Constrains any future approved external text runtime to the recorded DashScope and Qwen allowlist.",
+      "bindings": {
+        "providers": ["dashscope"],
+        "models": ["qwen3.8-max"],
+        "regions": [],
+        "dataModes": []
+      },
       "conditions": [
         "Only repository-allowlisted models and fixed regional endpoints may be configured.",
+        "The exact qwen3.8-max model was verified in the official pay-as-you-go DashScope and OpenAI-compatible backend API documentation on 2026-08-11.",
+        "The separate qwen3.8-max-preview Token Plan model and sk-sp credentials remain excluded from the application backend.",
         "Every other Sofia external-text-model control must also be approved."
       ]
     },
@@ -54,76 +116,128 @@
       "id": "external_text_model_data_flow",
       "title": "Sofia 外部文本模型数据流",
       "status": "pending_review",
+      "reviewStatus": "pending_review",
       "scope": "Fields, purposes, recipients, logging, and minimization for questions and learning summaries sent to an external model.",
       "decisionOwner": null,
       "decidedAt": null,
-      "evidenceReferences": [],
+      "reviewDueAt": "2026-08-31T23:59:59+08:00",
+      "evidenceReferenceIds": [],
+      "implementationStatus": "partially_implemented",
+      "implementationImpact": "Keeps all external model calls disabled until a reviewed data mode is recorded and context-bound.",
+      "bindings": null,
       "conditions": []
     },
     {
       "id": "external_text_model_retention_deletion",
       "title": "Sofia 外部文本模型留存与删除",
       "status": "pending_review",
+      "reviewStatus": "pending_review",
       "scope": "Supplier retention, training-use settings, deletion procedure, and evidence of deletion behavior.",
       "decisionOwner": null,
       "decidedAt": null,
-      "evidenceReferences": [],
+      "reviewDueAt": "2026-08-31T23:59:59+08:00",
+      "evidenceReferenceIds": [],
+      "implementationStatus": "not_implemented",
+      "implementationImpact": "Blocks external text-model release until retention and deletion behavior are documented and approved.",
+      "bindings": null,
       "conditions": []
     },
     {
       "id": "external_provider_region_cross_border",
       "title": "外部供应商地域与跨境路径",
       "status": "pending_review",
+      "reviewStatus": "pending_review",
       "scope": "Selected region, data residency, cross-border path, and deployment-mode implications for external AI services.",
       "decisionOwner": null,
       "decidedAt": null,
-      "evidenceReferences": [],
+      "reviewDueAt": "2026-08-31T23:59:59+08:00",
+      "evidenceReferenceIds": [],
+      "implementationStatus": "configuration_only",
+      "implementationImpact": "Prevents a configured provider region from becoming an approved processing region by environment variable alone.",
+      "bindings": null,
       "conditions": []
     },
     {
       "id": "external_text_model_abuse_budget",
       "title": "Sofia 外部文本模型滥用与预算控制",
       "status": "pending_review",
+      "reviewStatus": "pending_review",
       "scope": "Persistent abuse controls, budget caps, incident handling, and provider outage behavior beyond in-memory rate limiting.",
       "decisionOwner": null,
       "decidedAt": null,
-      "evidenceReferences": [],
+      "reviewDueAt": "2026-08-31T23:59:59+08:00",
+      "evidenceReferenceIds": [],
+      "implementationStatus": "partially_implemented",
+      "implementationImpact": "Retains deterministic fallback and blocks paid external generation until persistent controls are approved.",
+      "bindings": null,
       "conditions": []
     },
     {
       "id": "external_text_model_semantic_citation_validation",
       "title": "Sofia 主张与引用语义校验",
       "status": "pending_review",
+      "reviewStatus": "pending_review",
       "scope": "Reviewed evidence that every released answer claim is semantically supported by its displayed source, not merely allowlisted by ID.",
       "decisionOwner": null,
       "decidedAt": null,
-      "evidenceReferences": [],
+      "reviewDueAt": "2026-08-31T23:59:59+08:00",
+      "evidenceReferenceIds": [],
+      "implementationStatus": "partially_implemented",
+      "implementationImpact": "Keeps external generation off while the existing exact-ID allowlist remains a non-semantic safety layer only.",
+      "bindings": null,
       "conditions": []
     },
     {
-      "id": "voice_subject_authorization",
-      "title": "Sofia 声音权利人授权",
+      "id": "voice_authorization_assertion_received",
+      "title": "Sofia 声音授权声明已收到",
       "status": "approved",
-      "scope": "Project-owner assertion that the depicted speaker authorized use of her voice as the source identity for a future voice clone.",
+      "reviewStatus": "current",
+      "scope": "Records only that the project owner asserted that the depicted speaker authorized future voice cloning; it is not authorization-document verification.",
       "decisionOwner": "project_owner",
       "decidedAt": "2026-08-10T00:00:00+08:00",
-      "evidenceReferences": [
-        "codex_goal_user_asserted_authorization_2026-08-10_voice"
-      ],
+      "reviewDueAt": "2026-09-10T23:59:59+08:00",
+      "evidenceReferenceIds": ["user_assertion_2026-08-10_voice_authorization"],
+      "implementationStatus": "decision_recorded",
+      "implementationImpact": "Preserves the user assertion without converting it into production voice-release evidence.",
+      "bindings": null,
       "conditions": [
-        "Authorization does not approve supplier data flow, retention, disclosure, transport, microphone input, or production release."
+        "This record does not satisfy written-authorization verification.",
+        "It does not approve data flow, retention, disclosure, transport, microphone input, or release."
       ]
+    },
+    {
+      "id": "voice_written_authorization_verified",
+      "title": "Sofia 书面声音授权证据核验",
+      "status": "pending_review",
+      "reviewStatus": "pending_review",
+      "scope": "Verification of the written authorization artifact, covered uses, revocation terms, duration, and identity of the rights holder.",
+      "decisionOwner": null,
+      "decidedAt": null,
+      "reviewDueAt": "2026-08-31T23:59:59+08:00",
+      "evidenceReferenceIds": [],
+      "implementationStatus": "not_implemented",
+      "implementationImpact": "Prevents the received assertion from being treated as verified release evidence.",
+      "bindings": null,
+      "conditions": []
     },
     {
       "id": "voice_supplier_model_selection",
       "title": "Sofia 语音供应商与模型选择",
       "status": "approved",
+      "reviewStatus": "current",
       "scope": "Qwen qwen3-tts-vc-realtime-2026-01-15 is the requested future voice-cloning model; configuration alone does not permit release.",
       "decisionOwner": "project_owner",
       "decidedAt": "2026-08-10T00:00:00+08:00",
-      "evidenceReferences": [
-        "codex_goal_user_instruction_2026-08-10_qwen_tts"
-      ],
+      "reviewDueAt": "2026-09-10T23:59:59+08:00",
+      "evidenceReferenceIds": ["user_instruction_2026-08-10_qwen_tts"],
+      "implementationStatus": "configuration_only",
+      "implementationImpact": "Pins any future approved voice output to DashScope and the exact requested model.",
+      "bindings": {
+        "providers": ["dashscope"],
+        "models": ["qwen3-tts-vc-realtime-2026-01-15"],
+        "regions": [],
+        "dataModes": []
+      },
       "conditions": [
         "Every other Sofia voice-output control must also be approved.",
         "Transport remains disabled until independently implemented and reviewed."
@@ -133,138 +247,195 @@
       "id": "voice_data_flow",
       "title": "Sofia 声音复刻数据流",
       "status": "pending_review",
+      "reviewStatus": "pending_review",
       "scope": "Source audio, generated audio, voice profile, recipients, purpose limitation, and regional processing path.",
       "decisionOwner": null,
       "decidedAt": null,
-      "evidenceReferences": [],
+      "reviewDueAt": "2026-08-31T23:59:59+08:00",
+      "evidenceReferenceIds": [],
+      "implementationStatus": "not_implemented",
+      "implementationImpact": "Blocks all voice output and microphone processing until exact reviewed data modes are bound.",
+      "bindings": null,
       "conditions": []
     },
     {
       "id": "voice_retention_deletion",
       "title": "Sofia 声音数据留存与删除",
       "status": "pending_review",
+      "reviewStatus": "pending_review",
       "scope": "Voice profile and audio retention, revocation, deletion procedure, and evidence of completion.",
       "decisionOwner": null,
       "decidedAt": null,
-      "evidenceReferences": [],
+      "reviewDueAt": "2026-08-31T23:59:59+08:00",
+      "evidenceReferenceIds": [],
+      "implementationStatus": "not_implemented",
+      "implementationImpact": "Keeps voice transport disabled until deletion and revocation can be exercised and evidenced.",
+      "bindings": null,
       "conditions": []
     },
     {
       "id": "voice_ai_disclosure",
       "title": "Sofia AI 合成声音披露",
       "status": "pending_review",
+      "reviewStatus": "pending_review",
       "scope": "Learner-visible AI voice labeling, consent/notice timing, and accessibility-equivalent text path.",
       "decisionOwner": null,
       "decidedAt": null,
-      "evidenceReferences": [],
+      "reviewDueAt": "2026-08-31T23:59:59+08:00",
+      "evidenceReferenceIds": [],
+      "implementationStatus": "partially_implemented",
+      "implementationImpact": "Retains the current text-only AI disclosure but does not approve synthesized audio disclosure.",
+      "bindings": null,
       "conditions": []
     },
     {
       "id": "voice_transport_security_review",
       "title": "Sofia 语音传输实现与安全复核",
       "status": "pending_review",
+      "reviewStatus": "pending_review",
       "scope": "Implemented transport, authentication, origin controls, timeouts, quotas, logging minimization, and failure fallback.",
       "decisionOwner": null,
       "decidedAt": null,
-      "evidenceReferences": [],
+      "reviewDueAt": "2026-08-31T23:59:59+08:00",
+      "evidenceReferenceIds": [],
+      "implementationStatus": "not_implemented",
+      "implementationImpact": "Keeps TRANSPORT_IMPLEMENTED false and makes voice activation impossible.",
+      "bindings": null,
       "conditions": []
     },
     {
       "id": "microphone_input_policy",
       "title": "学习者麦克风输入",
       "status": "not_approved",
+      "reviewStatus": "not_approved",
       "scope": "Microphone permission, capture, ASR processing, retention, deletion, and non-audio alternative.",
       "decisionOwner": null,
       "decidedAt": null,
-      "evidenceReferences": [
-        "approved_plan_2026-08-09_mvp_no_voice_cloning"
-      ],
+      "reviewDueAt": "2026-08-31T23:59:59+08:00",
+      "evidenceReferenceIds": ["approved_plan_2026-08-09"],
+      "implementationStatus": "not_implemented",
+      "implementationImpact": "Continues to prohibit microphone permission and audio capture in Gate A.",
+      "bindings": null,
       "conditions": []
     },
     {
       "id": "server_student_data_processing",
       "title": "服务器端学生数据处理",
       "status": "not_approved",
+      "reviewStatus": "not_approved",
       "scope": "Any upload, account binding, cross-device sync, remote research collection, or server-side learner evidence store.",
       "decisionOwner": null,
       "decidedAt": null,
-      "evidenceReferences": [
-        "approved_plan_2026-08-09_gate_a_no_real_student_data"
-      ],
+      "reviewDueAt": "2026-08-31T23:59:59+08:00",
+      "evidenceReferenceIds": ["approved_plan_2026-08-09"],
+      "implementationStatus": "not_implemented",
+      "implementationImpact": "Keeps learning evidence browser-local and prevents silent account binding or remote collection.",
+      "bindings": null,
       "conditions": []
     },
     {
       "id": "adult_invitation_community",
       "title": "成人邀请制真实社区",
       "status": "not_approved",
+      "reviewStatus": "not_approved",
       "scope": "Real membership, invitations, experience-card publication, or learner-to-learner interaction.",
       "decisionOwner": null,
       "decidedAt": null,
-      "evidenceReferences": [
-        "approved_plan_2026-08-09_gate_a_synthetic_community_only"
-      ],
+      "reviewDueAt": "2026-08-31T23:59:59+08:00",
+      "evidenceReferenceIds": ["approved_plan_2026-08-09"],
+      "implementationStatus": "not_implemented",
+      "implementationImpact": "Keeps the current community surface synthetic with realCommunityUsed=false.",
+      "bindings": null,
       "conditions": []
     },
     {
       "id": "community_moderation_escalation",
       "title": "社区审核与升级机制",
       "status": "not_approved",
+      "reviewStatus": "not_approved",
       "scope": "Moderation roles, reporting, blocking, escalation matrix, response expectations, evidence-card withdrawal, and shutdown drills.",
       "decisionOwner": null,
       "decidedAt": null,
-      "evidenceReferences": [],
+      "reviewDueAt": "2026-08-31T23:59:59+08:00",
+      "evidenceReferenceIds": [],
+      "implementationStatus": "not_implemented",
+      "implementationImpact": "Prevents a synthetic card from being promoted into a real community without moderation controls.",
+      "bindings": null,
       "conditions": []
     },
     {
       "id": "real_human_case_queue",
       "title": "真实人工案例队列",
       "status": "not_approved",
+      "reviewStatus": "not_approved",
       "scope": "Sending learner requests or evidence to a staffed remote queue, including delivery and response expectations.",
       "decisionOwner": null,
       "decidedAt": null,
-      "evidenceReferences": [],
+      "reviewDueAt": "2026-08-31T23:59:59+08:00",
+      "evidenceReferenceIds": [],
+      "implementationStatus": "not_implemented",
+      "implementationImpact": "Keeps current support requests local_not_sent and blocks any delivery claim.",
+      "bindings": null,
       "conditions": []
     },
     {
       "id": "staff_role_authorization",
       "title": "教研与运营角色授权",
       "status": "not_approved",
+      "reviewStatus": "not_approved",
       "scope": "Server-verified staff roles, resource-level authorization, reviewer qualification, revocation, and access review.",
       "decisionOwner": null,
       "decidedAt": null,
-      "evidenceReferences": [],
+      "reviewDueAt": "2026-08-31T23:59:59+08:00",
+      "evidenceReferenceIds": [],
+      "implementationStatus": "not_implemented",
+      "implementationImpact": "Prevents an ordinary Clerk login or local demo identity from being treated as an authorized reviewer.",
+      "bindings": null,
       "conditions": []
     },
     {
       "id": "staff_admin_write_operations",
       "title": "教研与管理员写入操作",
       "status": "not_approved",
+      "reviewStatus": "not_approved",
       "scope": "Remote evidence review, recommendation revision, escalation, case resolution, or human-review receipt issuance.",
       "decisionOwner": null,
       "decidedAt": null,
-      "evidenceReferences": [],
+      "reviewDueAt": "2026-08-31T23:59:59+08:00",
+      "evidenceReferenceIds": [],
+      "implementationStatus": "not_implemented",
+      "implementationImpact": "Prevents local self-attestation from closing a qualified-human-review branch or mutating canonical evidence.",
+      "bindings": null,
       "conditions": []
     },
     {
       "id": "real_incentive_value_transfer",
       "title": "真实奖励或价值转移",
       "status": "not_approved",
+      "reviewStatus": "not_approved",
       "scope": "Cash, gifts, credits with real value, payment rails, or binding incentive accounting.",
       "decisionOwner": null,
       "decidedAt": null,
-      "evidenceReferences": [
-        "approved_plan_2026-08-09_mvp_simulated_ledger_only"
-      ],
+      "reviewDueAt": "2026-08-31T23:59:59+08:00",
+      "evidenceReferenceIds": ["approved_plan_2026-08-09"],
+      "implementationStatus": "not_implemented",
+      "implementationImpact": "Keeps all incentives simulated and prevents real value transfer.",
+      "bindings": null,
       "conditions": []
     },
     {
       "id": "serious_failure_shutdown_runbook",
       "title": "严重故障停机与恢复演练",
       "status": "pending_review",
+      "reviewStatus": "pending_review",
       "scope": "Named owners, stop conditions, learner notice, data containment, recovery evidence, and restart approval for remote services.",
       "decisionOwner": null,
       "decidedAt": null,
-      "evidenceReferences": [],
+      "reviewDueAt": "2026-08-31T23:59:59+08:00",
+      "evidenceReferenceIds": [],
+      "implementationStatus": "not_implemented",
+      "implementationImpact": "Blocks real community, human queue, staff writes, and incentives until remote-service shutdown drills exist.",
+      "bindings": null,
       "conditions": []
     }
   ],
@@ -282,7 +453,8 @@
       "external_text_model_semantic_citation_validation"
     ],
     "sofia_voice_output": [
-      "voice_subject_authorization",
+      "voice_authorization_assertion_received",
+      "voice_written_authorization_verified",
       "voice_supplier_model_selection",
       "voice_data_flow",
       "voice_retention_deletion",

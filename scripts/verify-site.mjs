@@ -116,6 +116,7 @@ const superTeacherResponder = await read("lib/super-teacher/responder.ts");
 const superTeacherModelRuntime = await read("lib/super-teacher/model-runtime.ts");
 const superTeacherVoiceRelease = await read("lib/super-teacher/voice-release.ts");
 const releaseGovernanceSource = await read("lib/release-governance.ts");
+const releaseGovernanceStatusRoute = await read("app/api/governance/status/route.ts");
 const superTeacherVoiceStatusRoute = await read("app/api/super-teacher/voice/status/route.ts");
 const superTeacherContracts = await read("lib/super-teacher/contracts.ts");
 const superTeacherLocalContext = await read("lib/super-teacher/local-context.ts");
@@ -3802,25 +3803,48 @@ check(
 check(
   releaseDecisionRegister.controls
     .filter((control) => control.status === "approved")
-    .every((control) => control.decisionOwner && control.decidedAt && control.evidenceReferences?.length > 0) &&
-    releaseDecisionRegister.controls.some((control) => control.id === "voice_subject_authorization" && control.status === "approved") &&
+    .every((control) => control.decisionOwner && control.decidedAt && control.reviewDueAt && control.implementationImpact && control.evidenceReferenceIds?.length > 0) &&
+    releaseDecisionRegister.evidenceCatalog.some((evidence) =>
+      evidence.id === "approved_plan_2026-08-09" &&
+      evidence.contentSha256 === "6ad237bf7433134961c2b4f9de4cb0f055391b9179e6b4632c269cdd84809169" &&
+      evidence.verificationStatus === "verified_file_hash"
+    ) &&
+    releaseDecisionRegister.controls.some((control) => control.id === "voice_authorization_assertion_received" && control.status === "approved") &&
+    releaseDecisionRegister.controls.some((control) => control.id === "voice_written_authorization_verified" && control.status === "pending_review") &&
     releaseDecisionRegister.controls.some((control) => control.id === "voice_data_flow" && control.status === "pending_review") &&
     releaseDecisionRegister.controls.some((control) => control.id === "server_student_data_processing" && control.status === "not_approved"),
-  "approved decisions carry owner evidence while authorization remains narrower than data and server release",
+  "approved decisions carry structured evidence, implementation impact, and review dates while a voice assertion remains narrower than verified authorization",
 );
 check(
   /releaseDecisionRegisterSchema[\s\S]*defaultDisposition:\s*z\.literal\("deny"\)/.test(releaseGovernanceSource) &&
-    /approved release control lacks owner, decision time, or evidence/.test(releaseGovernanceSource) &&
+    /approved release control lacks owner, decision time, current review, or evidence/.test(releaseGovernanceSource) &&
     /unknown release control/.test(releaseGovernanceSource) &&
-    /blockedControlIds/.test(releaseGovernanceSource),
-  "release-governance parser rejects permissive, evidence-free, and dangling decisions",
+    /approved plan evidence lacks SHA-256/.test(releaseGovernanceSource) &&
+    /function deepFreeze[\s\S]*Object\.freeze/.test(releaseGovernanceSource) &&
+    /blockedBindingIds/.test(releaseGovernanceSource),
+  "release-governance parser rejects permissive, evidence-free, and dangling decisions and deep-freezes the canonical register",
 );
 check(
-  /SUFEIYA_AI_ENABLED !== "true"/.test(superTeacherModelRuntime) &&
+  /export async function GET\(\)/.test(releaseGovernanceStatusRoute) &&
+    !/export async function (?:POST|PUT|PATCH|DELETE)/.test(releaseGovernanceStatusRoute) &&
+    /sanitized_read_only_status/.test(releaseGovernanceStatusRoute) &&
+    /private, no-store/.test(releaseGovernanceStatusRoute) &&
+    /read-only-no-mutations/.test(releaseGovernanceStatusRoute) &&
+    !/evidenceCatalog|decisionOwner|contentSha256|locator/.test(releaseGovernanceStatusRoute),
+  "governance status API is GET-only, no-store, sanitized, and exposes no mutation surface",
+);
+check(
+    /SUFEIYA_AI_ENABLED !== "true"/.test(superTeacherModelRuntime) &&
     /provider !== "dashscope"/.test(superTeacherModelRuntime) &&
     /allowedDashScopeModels\.has\(model\)/.test(superTeacherModelRuntime) &&
-    /evaluateReleaseSurface\("sofia_external_text_model"\)[\s\S]*!governance\.enabled/.test(superTeacherModelRuntime),
-  "model generation is fail-closed behind provider configuration, Qwen allowlist, and the canonical decision register",
+    /!apiKey\.startsWith\("sk-sp-"\)/.test(superTeacherModelRuntime) &&
+    /isAllowedDashScopeEndpoint\(runtime\.endpoint, runtime\.region\)/.test(superTeacherModelRuntime) &&
+    /allowedDashScopeModels[\s\S]{0,200}qwen3\.8-max/.test(superTeacherModelRuntime) &&
+    !/allowedDashScopeModels[\s\S]{0,200}qwen3\.8-max-preview/.test(superTeacherModelRuntime) &&
+    /evaluateTeacherModelRuntime\(runtime\)[\s\S]*!governance\.enabled/.test(superTeacherModelRuntime) &&
+    /provider:\s*runtime\.provider[\s\S]*model:\s*runtime\.model[\s\S]*region:[\s\S]*dataMode:\s*TEXT_MODEL_DATA_MODE/.test(superTeacherModelRuntime) &&
+    /Promise<ModelTeacherSelection \| null> \{[\s\S]*if \(!evaluateTeacherModelRuntime\(runtime\)\.enabled\) return null;[\s\S]*invokeDashScopeModel/.test(superTeacherModelRuntime),
+  "model generation is context-bound and rechecks governance immediately before any provider dispatch",
 );
 check(
   /批准主张排序器，不是自由文本作者/.test(superTeacherResponder) &&
@@ -3831,8 +3855,8 @@ check(
 check(
   /qwen3-tts-vc-realtime-2026-01-15/.test(superTeacherVoiceRelease) &&
     /const TRANSPORT_IMPLEMENTED = false/.test(superTeacherVoiceRelease) &&
-    /evaluateReleaseSurface\("sofia_voice_output"\)/.test(superTeacherVoiceRelease) &&
-    /evaluateReleaseSurface\("sofia_microphone_input"\)/.test(superTeacherVoiceRelease) &&
+    /evaluateReleaseSurface\("sofia_voice_output",\s*\{/.test(superTeacherVoiceRelease) &&
+    /evaluateReleaseSurface\("sofia_microphone_input",\s*\{/.test(superTeacherVoiceRelease) &&
     /ttsEnabled: TRANSPORT_IMPLEMENTED/.test(superTeacherVoiceRelease) &&
     /microphoneEnabled: TRANSPORT_IMPLEMENTED/.test(superTeacherVoiceRelease),
   "Sofia voice is pinned to the requested model and fails closed behind governance plus a reviewed transport",
