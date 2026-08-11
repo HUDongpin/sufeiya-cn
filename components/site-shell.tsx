@@ -19,7 +19,7 @@ function ArrowIcon() {
   );
 }
 
-function SiteHeader({ pageKey }: { pageKey: NavigationKey }) {
+function SiteHeader({ pageKey, authAware }: { pageKey: NavigationKey; authAware: boolean }) {
   const clerkState = getClerkRuntimeState();
 
   return (
@@ -64,10 +64,17 @@ function SiteHeader({ pageKey }: { pageKey: NavigationKey }) {
             >
               Sofia智能老师
             </a>
-            {clerkState.configured ? (
-              <ClerkAccountControls />
+            {authAware ? (
+              clerkState.configured ? (
+                <ClerkAccountControls />
+              ) : (
+                <a className="auth-link" href="/sign-in">账户未配置</a>
+              )
             ) : (
-              <a className="auth-link" href="/sign-in">账户未配置</a>
+              <>
+                <a className="auth-link" href="/sign-in">登录</a>
+                <a className="auth-link auth-link-primary" href="/sign-up">注册</a>
+              </>
             )}
             <span className="local-mode-badge">
               {clerkState.configured ? "学习数据仍在本机" : "Clerk 未配置 · 本机保存"}
@@ -90,8 +97,17 @@ function SiteHeader({ pageKey }: { pageKey: NavigationKey }) {
           <a href="/super-teacher" aria-current={pageKey === "super-teacher" ? "page" : undefined}>Sofia智能老师<span>Gate A</span></a>
           <a href="/my-data">我的本机数据<span>本机</span></a>
           <a href="/teaching-review-demo">教研复核演示<span>本机</span></a>
-          <a href="/sign-in">登录或注册<span>{clerkState.configured ? "Clerk" : "未配置"}</span></a>
-          <a href="/account">我的账户<span>{clerkState.configured ? "已启用" : "未配置"}</span></a>
+          {authAware ? (
+            <>
+              <a href="/sign-in">登录或注册<span>{clerkState.configured ? "Clerk" : "未配置"}</span></a>
+              <a href="/account">我的账户<span>{clerkState.configured ? "已启用" : "未配置"}</span></a>
+            </>
+          ) : (
+            <>
+              <a href="/sign-in">登录<span>账户</span></a>
+              <a href="/sign-up">注册<span>免费</span></a>
+            </>
+          )}
         </nav>
       </header>
     </>
@@ -147,10 +163,12 @@ export type SofiaSurface = "floating" | "page" | "none";
 
 export function SiteShell({
   pageKey,
+  authAware = true,
   sofiaSurface,
   children,
 }: {
   pageKey: NavigationKey;
+  authAware?: boolean;
   sofiaSurface: SofiaSurface;
   children: ReactNode;
 }) {
@@ -163,7 +181,7 @@ export function SiteShell({
 
   return (
     <>
-      <SiteHeader pageKey={pageKey} />
+      <SiteHeader pageKey={pageKey} authAware={authAware} />
       {content}
       <SiteFooter />
       <Script id="sufeiya-site-runtime" src="/script.js" strategy="afterInteractive" />

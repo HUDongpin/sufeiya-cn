@@ -1190,17 +1190,6 @@ button {
   color: var(--color-ink-deep);
 }
 
-.about::after {
-  position: absolute;
-  top: -340px;
-  right: -250px;
-  width: 730px;
-  height: 730px;
-  content: "";
-  border: 1px solid rgba(16, 44, 41, 0.2);
-  border-radius: 50%;
-}
-
 .about-inner {
   position: relative;
   z-index: 1;

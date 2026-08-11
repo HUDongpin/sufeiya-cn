@@ -1,15 +1,18 @@
 # Sufeiya Website
 
-`sufeiya.cn` 是面向中国大陆 DET 学习者的在线学习平台。本仓库使用 Next.js App Router 承载公开网站、账户入口与可直接使用的学生学习工具；既有页面内容仍由 `scripts/generate-pages.mjs` 统一生成，再由 Next.js 外壳渲染。
+`sufeiya.cn` 是面向中国大陆 DET 学习者的在线学习平台。本仓库使用 Next.js App Router 承载多页面公开网站、Clerk 账户入口与可直接使用的学生学习工具，并通过 GitHub 与 Vercel 发布；既有页面内容仍由 `scripts/generate-pages.mjs` 统一生成，再由 Next.js 外壳渲染。
 
 ## Local development
 
 ```bash
+npm ci
 npm run check
 npm run dev
 ```
 
 Next.js 本地开发地址默认为 `http://localhost:3000`。
+
+Clerk Development 认证需要在被 Git 忽略的 `.env.local` 中同时提供同一 Development 实例的 `pk_test_` 与 `sk_test_`。若 Vercel Development 作用域未配置 server-only secret，`vercel env pull` 不能单独形成完整的本机凭据；应使用项目所有者维护的受控本机配置，且仓库和日志均不得保存或输出真实密钥值。
 
 ### Clerk Development smoke E2E
 
@@ -29,7 +32,7 @@ SUFEIYA_CLERK_E2E_BASE_URL=https://your-new-preview.vercel.app npm run test:e2e:
 
 ## Product boundary
 
-每次修改页面源稿后，先运行 `npm run generate` 生成 HTML 页面，再运行 `npm run check` 完成旧页面结构、TypeScript、ESLint 与生产构建检查。`generate:next-content` 会把页面正文写入 `lib/legacy-content.generated.ts`，并同步浏览器运行时与音频到 `public/`。
+公开学习页源稿仍以经过检查的 HTML 保存。每次修改页面源稿后，先运行 `npm run generate` 生成 HTML 页面，再运行 `npm run check` 完成旧页面结构、TypeScript、ESLint 与生产构建检查。`generate:next-content` 会把页面正文写入 `lib/legacy-content.generated.ts`，并同步浏览器运行时与音频到 `public/`；发布必须来自明确提交的干净工作树。
 
 跨出 Gate A 本机演示边界的能力统一受 `data/release-decision-register.v1.json` 控制。该登记表对本机、预览和生产使用同一版本，默认拒绝；环境变量只能表达请求配置，不能把待审或未批准的能力打开。登记表包含批准方案文件的 SHA-256、结构化证据引用、实施影响、实施状态和复核日期，解析后在运行时深度冻结；外部调用还必须逐项匹配获批的 provider、model、region 与 data mode，并在供应商请求前再次核对。当前只有本机合成学习闭环、Clerk 访问边界、Qwen 供应商选择，以及“项目所有者已声明获得声音授权”这一事实有明确记录；书面授权证据核验、外部文本模型的数据流/留存/地域/预算/语义引用校验、声音的数据流/删除/披露/传输、服务器学生数据、真实社区、真实人工队列、教研管理员写入和真实奖励仍被统一闸门阻断。供应商选择或授权声明不等于发布批准。
 
@@ -71,7 +74,9 @@ Qwen 后端已按 2026-08-11 最新的 Alibaba Cloud 官方 DashScope/OpenAI 兼
 - `/learning-path`：七步学习闭环；
 - `/platform`：四项平台功能与开放状态；
 - `/resources`：中文界面/英文备考材料规则和 Bilibili 学习资源；
-- `/about`：团队角色、平台边界与常见问题。
+- `/about`：团队角色、平台边界与常见问题；
+- `/sign-in`、`/sign-up`：Clerk 登录与注册；
+- `/account`：登录后账户资料页，未登录访问会返回登录页。
 
 每个顶部导航按钮进入一个独立页面，不使用单页长滚动替代多页面导航。
 
@@ -110,7 +115,7 @@ Listening 只有在静态音频触发完整播放结束，或设备语音合成�
 
 Logo 使用由原始附件精确抠图并进行 4× 重采样的 `2792 × 560` 真透明 PNG；圆形标志另存为 `512 × 512` 透明站点图标。
 
-学习闭环数据使用 `sufeiya_workspace_v1` 本机存储命名空间；所有 `workspace.js` 与 `journey.js` 页面共享同名的 `page-writer` Web Lock 长租约，同一时间只有一个标签页可写，第二个标签页在初始化控件前切换为只读。诊断预检与 Sofia智能老师上下文区都会在交互前显示浏览器安全写入锁能力；不支持 Web Locks 时不建立新的闭环或问答写入。Sofia智能老师的对话副本和未发送人工请求使用独立的 `sufeiya_super_teacher_v1` 命名空间；教研复核演示草稿使用 `sufeiya_teaching_review_demo_v1`，只读取与当前 `activeCycle` 的 protocol、状态及全部下游 ID 完整一致，且符合固定任务集、计划、推荐、回执、任务进度、打卡、复测和临时计划回链的唯一 provisional 本机快照。教研投影只显示冻结枚举、质量标记白名单与确定性推荐说明，不复制原始答案、开放作答、打卡自由文本或原始推荐文案；草稿保存使用独立 Web Lock、源快照 SHA-256、原始字节 compare-and-set、精确写后校验和可核验回滚，任何未知存储状态都会停止后续写入。Clerk 账户用于保护 `/workspace`、七步闭环、练习、专注、本机数据、`/teaching-review-demo` 与 `/account` 等规范 Next.js 路由；`/sign-in`、`/sign-up` 提供账户入口。缺少或无效密钥时，受保护页面关闭并显示安全配置提示，不会默认放行。Clerk 登录只证明账户访问，不证明教师/教研身份、专业资质、组织关系或个案授权；它也不会自动迁移、上传、绑定或按身份隔离现有的三个本机存储命名空间，不会提供跨设备同步。
+Clerk 只负责账户身份、资料与受保护路由的访问控制；不会成为本机学习记录的账户绑定层。学习闭环数据使用 `sufeiya_workspace_v1` 本机存储命名空间；所有 `workspace.js` 与 `journey.js` 页面共享同名的 `page-writer` Web Lock 长租约，同一时间只有一个标签页可写，第二个标签页在初始化控件前切换为只读。诊断预检与 Sofia智能老师上下文区都会在交互前显示浏览器安全写入锁能力；不支持 Web Locks 时不建立新的闭环或问答写入。Sofia智能老师的对话副本和未发送人工请求使用独立的 `sufeiya_super_teacher_v1` 命名空间；教研复核演示草稿使用 `sufeiya_teaching_review_demo_v1`，只读取与当前 `activeCycle` 的 protocol、状态及全部下游 ID 完整一致，且符合固定任务集、计划、推荐、回执、任务进度、打卡、复测和临时计划回链的唯一 provisional 本机快照。教研投影只显示冻结枚举、质量标记白名单与确定性推荐说明，不复制原始答案、开放作答、打卡自由文本或原始推荐文案；草稿保存使用独立 Web Lock、源快照 SHA-256、原始字节 compare-and-set、精确写后校验和可核验回滚，任何未知存储状态都会停止后续写入。Clerk 账户用于保护 `/workspace`、七步闭环、练习、专注、本机数据、`/teaching-review-demo` 与 `/account` 等规范 Next.js 路由；`/sign-in`、`/sign-up` 提供账户入口。缺少或无效密钥时，受保护页面关闭并显示安全配置提示，不会默认放行。Clerk 登录只证明账户访问，不证明教师/教研身份、专业资质、组织关系或个案授权；它也不会自动迁移、上传、绑定或按身份隔离现有的三个本机存储命名空间，不会提供跨设备同步。清除浏览器站点数据会导致这些本机记录丢失。
 
 工作台历史使用 `buildCycleHistoryProjection(state, ledgerStatus)` 生成严格白名单投影。它不读取或写入其他存储命名空间、不调用 `localStorage.setItem`、不追加学习事件，也不发起网络请求；DOM 仅接收计划重点、固定任务集版本、已验证事件数量、UTC 终止时间和 9 个安全长度内的域 ID。原始诊断答案、Writing/Speaking 内容、打卡自由文本、昵称、考试日、账户/Clerk 标识和 Sofia 对话均不会进入投影。任一 ID/技能/任务集/计划来源/时间/匿名事件别名/事件隐私字段不一致，或历史中出现重复 `cycle_id`，该条就只增加脱敏的无效计数而不显示原始内容；全局事件账本校验失败时，全部历史失败关闭。此视图是未签名、本机、只读的流程核对，不是服务器防篡改凭证、正式诊断、学习增长证明或资格人员复核结果。
 
@@ -122,6 +127,8 @@ Sofia智能老师只对已经在六任务诊断证据包中完成 18+ 本机确�
 
 ## Deployment
 
-项目使用 Next.js 与 `vercel.json` 配置路由和基础安全响应头。`.vercel/` 是本机项目链接信息，不进入版本控制；任何真实数据、供应商或 Gate B 试点仍需另行完成文档中的 P0 书面决定。
+项目使用 Next.js 与 `vercel.json` 配置干净 URL、旧 `.html` 地址重定向及基础安全响应头。Clerk 密钥只存放在 Vercel 环境变量及被忽略的本机 `.env.local`，不得提交到仓库；`.vercel/` 也只保存本机项目链接信息，不进入版本控制。发布必须来自明确提交的干净工作树；任何真实数据、供应商或 Gate B 试点仍需另行完成文档中的 P0 书面决定。
 
 生产规范域名：`https://sufeiya.cn/`。
+
+支付、订阅和发票功能尚未进入本版代码或页面。

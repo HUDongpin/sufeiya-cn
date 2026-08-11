@@ -114,6 +114,7 @@ const notFound = await read("404.html");
 const sitemap = await read("sitemap.xml");
 const nextSitemap = await read("app/sitemap.ts");
 const rootLayout = await read("app/layout.tsx");
+const notFoundRoute = await read("app/not-found.tsx");
 const dynamicLegacyPage = await read("app/[slug]/page.tsx");
 const legacyPageComponent = await read("components/legacy-page.tsx");
 const siteShell = await read("components/site-shell.tsx");
@@ -1429,6 +1430,7 @@ check(/:focus-visible/.test(styles), "visible keyboard focus style is present");
 check(/\.hero\s*\{[\s\S]*linear-gradient\(135deg,\s*#fffdf7/i.test(styles), "home hero uses a light background");
 check(!/hero-orbit|page-hero-orbit/.test(styles), "navigation-adjacent hero styles contain no decorative orbit lines");
 check(!/\.learning-plate::before/.test(styles), "home learning card contains no decorative arc line");
+check(!/\.about::after/.test(styles), "yellow about section contains no decorative fan-shaped arc line");
 check(/\.system\s*\{[\s\S]*background:\s*var\(--color-sage\)/i.test(styles), "platform section uses a light sage background");
 check(/中文讲解[\s\S]*英文材料/.test(await read("resources.html")), "resources page states the Chinese UI and English materials rule");
 check(/胡冬品博士（Dr\. Peter Hu）/.test(await read("about.html")), "confirmed Dr. Peter Hu public name is present");
@@ -4719,10 +4721,14 @@ check(
   "Super Teacher discloses Web Locks capability before the learner reaches question controls",
 );
 check(
-  /<body>[\s\S]*<ClerkProvider[\s\S]*dynamic[\s\S]*localization=\{zhCN\}[\s\S]*signInUrl="\/sign-in"[\s\S]*signUpUrl="\/sign-up"[\s\S]*\{children\}[\s\S]*<\/ClerkProvider>[\s\S]*<\/body>/.test(
+  /<body>[\s\S]*<ClerkProvider[\s\S]*dynamic[\s\S]*localization=\{clerkLocalization\}[\s\S]*signInUrl="\/sign-in"[\s\S]*signUpUrl="\/sign-up"[\s\S]*\{children\}[\s\S]*<\/ClerkProvider>[\s\S]*<\/body>/.test(
     rootLayout,
-  ) && /getClerkRuntimeState/.test(rootLayout),
-  "configured ClerkProvider is dynamic, localized, and rendered inside body",
+  ) &&
+    /\{clerkState\.configured \? \(/.test(rootLayout) &&
+    /formFieldInputPlaceholder__password: "请输入密码"/.test(rootLayout) &&
+    /formFieldInputPlaceholder__signUpPassword: "请创建密码"/.test(rootLayout) &&
+    /getClerkRuntimeState/.test(rootLayout),
+  "configured ClerkProvider remains fail-closed and dynamic with complete Chinese password placeholders",
 );
 check(
   protectedLearnerPaths.every((path) => clerkConfig.includes(`"${path}"`)) &&
@@ -5206,6 +5212,28 @@ check(
 
 check((notFound.match(/<h1\b/gi) || []).length === 1, "404 page has one h1");
 check(!/favicon\.svg/.test(notFound), "404 page does not use the retired favicon");
+check(
+  /jpe\?g\|webp\|png\|gif\|svg/.test(proxyScript) && /webmanifest\|mp3/.test(proxyScript),
+  "public images and audio bypass Clerk middleware",
+);
+check(
+  notFoundRoute.includes('authAware={false}') &&
+    legacyPageComponent.includes("authAware?: boolean") &&
+    /authAware=\{authAware\}/.test(legacyPageComponent) &&
+    /sofiaSurface=\{pageKey === "not-found" \? "none" : "floating"\}/.test(
+      legacyPageComponent,
+    ) &&
+    siteShell.includes("authAware = true") &&
+    siteShell.includes("{authAware ? (") &&
+    /<SiteHeader pageKey=\{pageKey\} authAware=\{authAware\}\s*\/>/.test(siteShell) &&
+    /\{authAware \? \([\s\S]*<ClerkAccountControls\s*\/>[\s\S]*\) : \([\s\S]*href="\/sign-in"[\s\S]*href="\/sign-up"/.test(
+      siteShell,
+    ),
+  "shared 404 shell keeps Sofia disabled, forwards anonymous mode, and renders direct account links without mounting signed-in controls",
+);
+
+const faviconStats = await stat(join(root, "app/favicon.ico"));
+check(faviconStats.size > 10_000 && faviconStats.size < 100_000, "multi-size favicon has a plausible production size");
 
 const logoStats = await stat(join(root, "assets/sufeiya-logo.png"));
 check(logoStats.size > 100_000 && logoStats.size < 2_000_000, "HD logo has a plausible production size");
