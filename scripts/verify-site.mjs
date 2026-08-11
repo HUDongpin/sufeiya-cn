@@ -115,6 +115,7 @@ const superTeacherRoute = await read("app/api/super-teacher/route.ts");
 const superTeacherResponder = await read("lib/super-teacher/responder.ts");
 const superTeacherModelRuntime = await read("lib/super-teacher/model-runtime.ts");
 const superTeacherVoiceRelease = await read("lib/super-teacher/voice-release.ts");
+const releaseGovernanceSource = await read("lib/release-governance.ts");
 const superTeacherVoiceStatusRoute = await read("app/api/super-teacher/voice/status/route.ts");
 const superTeacherContracts = await read("lib/super-teacher/contracts.ts");
 const superTeacherLocalContext = await read("lib/super-teacher/local-context.ts");
@@ -127,6 +128,7 @@ const learningEventRegister = JSON.parse(await read("data/learning-event-registe
 const learningEventExamples = JSON.parse(await read("data/learning-event-examples.v2.json"));
 const diagnosticTaskRegister = JSON.parse(await read("data/diagnostic-task-register.json"));
 const practiceTaskRegister = JSON.parse(await read("data/practice-task-register.json"));
+const releaseDecisionRegister = JSON.parse(await read("data/release-decision-register.v1.json"));
 const runtimePageSources = new Map(
   await Promise.all(pageFiles.map(async ([filename]) => [filename, await read(filename)])),
 );
@@ -1449,6 +1451,12 @@ check(/localStorage\.removeItem\(STORAGE_KEY\)/.test(workspaceScript), "clear ac
 check(/SUPER_TEACHER_STORAGE_KEY = "sufeiya_super_teacher_v1"/.test(workspaceScript), "data controls include the versioned Super Teacher namespace");
 check(/exportProtocol:\s*"sufeiya_local_export_v1"[\s\S]*SUPER_TEACHER_STORAGE_KEY/.test(workspaceScript), "JSON export contains both local Sufeiya namespaces");
 check(/data-clear-super-teacher[\s\S]*removeItem\(SUPER_TEACHER_STORAGE_KEY\)[\s\S]*data-clear-all-sufeiya/.test(workspaceScript), "Super Teacher and all-data clearing are independently implemented");
+check(
+  /const completedCycles = state\.journey\.history\.filter\(\(item\) => item\?\.status === "completed"\)\.length/.test(workspaceScript) &&
+    /provisionalCycles[\s\S]*status === "provisional_pending_human_review"[\s\S]*待人工复核的临时轮次/.test(workspaceScript) &&
+    !/status === "completed" \|\| item\?\.updatedPlanId/.test(workspaceScript),
+  "My Data counts only completed cycles and reports provisional human-review cycles separately",
+);
 check(/endsAt[\s\S]*Date\.now\(\)/.test(workspaceScript), "focus timer uses an absolute end time for background and reload recovery");
 check(/Number\.isFinite\(storedRemaining\)/.test(workspaceScript), "focus timer preserves a completed zero-second value");
 check(/hasValidPlanShape\(value\.plan\)/.test(workspaceScript), "stored plans are shape-checked before rendering");
@@ -3784,10 +3792,35 @@ check(
 );
 check(/manualAnswer[\s\S]*tryModelAnswer[\s\S]*fallback/.test(superTeacherResponder), "Super Teacher has a deterministic grounded fallback");
 check(
+  releaseDecisionRegister.protocolVersion === "sufeiya_release_decisions_v1" &&
+    releaseDecisionRegister.defaultDisposition === "deny" &&
+    releaseDecisionRegister.environmentPolicy === "one_register_for_local_preview_and_production" &&
+    Array.isArray(releaseDecisionRegister.controls) &&
+    new Set(releaseDecisionRegister.controls.map((control) => control.id)).size === releaseDecisionRegister.controls.length,
+  "one versioned release decision register applies a deny-by-default policy to every environment",
+);
+check(
+  releaseDecisionRegister.controls
+    .filter((control) => control.status === "approved")
+    .every((control) => control.decisionOwner && control.decidedAt && control.evidenceReferences?.length > 0) &&
+    releaseDecisionRegister.controls.some((control) => control.id === "voice_subject_authorization" && control.status === "approved") &&
+    releaseDecisionRegister.controls.some((control) => control.id === "voice_data_flow" && control.status === "pending_review") &&
+    releaseDecisionRegister.controls.some((control) => control.id === "server_student_data_processing" && control.status === "not_approved"),
+  "approved decisions carry owner evidence while authorization remains narrower than data and server release",
+);
+check(
+  /releaseDecisionRegisterSchema[\s\S]*defaultDisposition:\s*z\.literal\("deny"\)/.test(releaseGovernanceSource) &&
+    /approved release control lacks owner, decision time, or evidence/.test(releaseGovernanceSource) &&
+    /unknown release control/.test(releaseGovernanceSource) &&
+    /blockedControlIds/.test(releaseGovernanceSource),
+  "release-governance parser rejects permissive, evidence-free, and dangling decisions",
+);
+check(
   /SUFEIYA_AI_ENABLED !== "true"/.test(superTeacherModelRuntime) &&
     /provider !== "dashscope"/.test(superTeacherModelRuntime) &&
-    /allowedDashScopeModels\.has\(model\)/.test(superTeacherModelRuntime),
-  "model generation is fail-closed and requires an explicit provider, release switch, and Qwen allowlist",
+    /allowedDashScopeModels\.has\(model\)/.test(superTeacherModelRuntime) &&
+    /evaluateReleaseSurface\("sofia_external_text_model"\)[\s\S]*!governance\.enabled/.test(superTeacherModelRuntime),
+  "model generation is fail-closed behind provider configuration, Qwen allowlist, and the canonical decision register",
 );
 check(
   /批准主张排序器，不是自由文本作者/.test(superTeacherResponder) &&
@@ -3798,9 +3831,11 @@ check(
 check(
   /qwen3-tts-vc-realtime-2026-01-15/.test(superTeacherVoiceRelease) &&
     /const TRANSPORT_IMPLEMENTED = false/.test(superTeacherVoiceRelease) &&
+    /evaluateReleaseSurface\("sofia_voice_output"\)/.test(superTeacherVoiceRelease) &&
+    /evaluateReleaseSurface\("sofia_microphone_input"\)/.test(superTeacherVoiceRelease) &&
     /ttsEnabled: TRANSPORT_IMPLEMENTED/.test(superTeacherVoiceRelease) &&
     /microphoneEnabled: TRANSPORT_IMPLEMENTED/.test(superTeacherVoiceRelease),
-  "Sofia voice is pinned to the approved model name and fails closed without a reviewed transport",
+  "Sofia voice is pinned to the requested model and fails closed behind governance plus a reviewed transport",
 );
 check(
   /private, no-store/.test(superTeacherVoiceStatusRoute) &&

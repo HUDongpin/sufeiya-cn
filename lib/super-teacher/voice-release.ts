@@ -1,3 +1,5 @@
+import { evaluateReleaseSurface } from "@/lib/release-governance";
+
 export const SOFIA_TTS_MODEL = "qwen3-tts-vc-realtime-2026-01-15";
 export const SOFIA_VOICE_DISCLOSURE_VERSION = "sofia_voice_disclosure_v1";
 
@@ -15,6 +17,8 @@ function approvedRegion(value: string | undefined) {
 }
 
 export function sofiaVoiceReleaseStatus(environment: Environment = process.env) {
+  const outputGovernance = evaluateReleaseSurface("sofia_voice_output");
+  const microphoneGovernance = evaluateReleaseSurface("sofia_microphone_input");
   const authorizationEvidenceStatus = reviewStatus(environment.SUFEIYA_VOICE_AUTHORIZATION_STATUS);
   const dataFlowStatus = reviewStatus(environment.SUFEIYA_VOICE_DATA_FLOW_STATUS);
   const deletionProcedureStatus = reviewStatus(environment.SUFEIYA_VOICE_DELETION_STATUS);
@@ -27,18 +31,24 @@ export function sofiaVoiceReleaseStatus(environment: Environment = process.env) 
   const evidenceApproved = authorizationEvidenceStatus === "approved" &&
     dataFlowStatus === "approved" &&
     deletionProcedureStatus === "approved";
-  const releasePrerequisitesMet = evidenceApproved &&
+  const configuredPrerequisitesMet = evidenceApproved &&
     voiceProfileApproved &&
     modelMatches &&
     Boolean(region) &&
     voiceIdConfigured;
+  const outputPrerequisitesMet = configuredPrerequisitesMet && outputGovernance.enabled;
+  const microphonePrerequisitesMet = configuredPrerequisitesMet && microphoneGovernance.enabled;
+  const governanceBlocked = (outputRequested && !outputGovernance.enabled) ||
+    (microphoneRequested && !microphoneGovernance.enabled);
 
   return {
-    status: releasePrerequisitesMet && (outputRequested || microphoneRequested)
-      ? "disabled_not_implemented"
-      : "disabled_pending_evidence",
-    ttsEnabled: TRANSPORT_IMPLEMENTED && releasePrerequisitesMet && outputRequested,
-    microphoneEnabled: TRANSPORT_IMPLEMENTED && releasePrerequisitesMet && microphoneRequested,
+    status: governanceBlocked
+      ? "disabled_pending_governance"
+      : configuredPrerequisitesMet && (outputRequested || microphoneRequested)
+        ? "disabled_not_implemented"
+        : "disabled_pending_evidence",
+    ttsEnabled: TRANSPORT_IMPLEMENTED && outputPrerequisitesMet && outputRequested,
+    microphoneEnabled: TRANSPORT_IMPLEMENTED && microphonePrerequisitesMet && microphoneRequested,
     transportImplemented: TRANSPORT_IMPLEMENTED,
     outputRequested,
     microphoneRequested,
@@ -52,5 +62,10 @@ export function sofiaVoiceReleaseStatus(environment: Environment = process.env) 
     region,
     asrModel: null,
     disclosureVersion: SOFIA_VOICE_DISCLOSURE_VERSION,
+    governanceProtocolVersion: outputGovernance.protocolVersion,
+    outputGovernanceStatus: outputGovernance.status,
+    microphoneGovernanceStatus: microphoneGovernance.status,
+    outputBlockedDecisionIds: outputGovernance.blockedControlIds,
+    microphoneBlockedDecisionIds: microphoneGovernance.blockedControlIds,
   } as const;
 }

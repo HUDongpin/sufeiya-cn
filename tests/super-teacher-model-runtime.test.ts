@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 
 import {
   invokeTeacherModel,
+  resolveTeacherModelConfiguration,
   resolveTeacherModelRuntime,
   teacherModelReleaseStatus,
   type TeacherModelRuntime,
@@ -44,30 +45,41 @@ const validCandidate = {
 };
 
 describe("Sofia model runtime configuration", () => {
-  it("stays disabled until provider and release switch are both explicit", () => {
+  it("stays disabled until provider configuration and the canonical decision register are both approved", () => {
     assert.equal(resolveTeacherModelRuntime({ ...validEnvironment, SUFEIYA_AI_ENABLED: "false" }), null);
-    assert.equal(resolveTeacherModelRuntime({ ...validEnvironment, SUFEIYA_AI_PROVIDER: "" }), null);
-    assert.equal(resolveTeacherModelRuntime({ ...validEnvironment, DASHSCOPE_API_KEY: "" }), null);
+    assert.equal(resolveTeacherModelRuntime(validEnvironment), null);
+    assert.equal(resolveTeacherModelConfiguration({ ...validEnvironment, SUFEIYA_AI_PROVIDER: "" }), null);
+    assert.equal(resolveTeacherModelConfiguration({ ...validEnvironment, DASHSCOPE_API_KEY: "" }), null);
   });
 
-  it("allows only fixed Qwen models, regions, and validated workspace IDs", () => {
-    const resolved = resolveTeacherModelRuntime(validEnvironment);
+  it("validates requested configuration against fixed Qwen models, regions, and workspace IDs before governance", () => {
+    const resolved = resolveTeacherModelConfiguration(validEnvironment);
     assert.equal(resolved?.provider, "dashscope");
     assert.equal(resolved?.model, "qwen3.7-max");
     assert.equal(resolved?.provider === "dashscope" ? resolved.endpoint : null, runtime.endpoint);
-    assert.equal(resolveTeacherModelRuntime({ ...validEnvironment, SUFEIYA_AI_MODEL: "qwen-plus" }), null);
-    assert.equal(resolveTeacherModelRuntime({ ...validEnvironment, DASHSCOPE_REGION: "auto" }), null);
-    assert.equal(resolveTeacherModelRuntime({ ...validEnvironment, DASHSCOPE_REGION: "toString" }), null);
-    assert.equal(resolveTeacherModelRuntime({ ...validEnvironment, DASHSCOPE_WORKSPACE_ID: "evil.example/path" }), null);
+    assert.equal(resolveTeacherModelConfiguration({ ...validEnvironment, SUFEIYA_AI_MODEL: "qwen-plus" }), null);
+    assert.equal(resolveTeacherModelConfiguration({ ...validEnvironment, DASHSCOPE_REGION: "auto" }), null);
+    assert.equal(resolveTeacherModelConfiguration({ ...validEnvironment, DASHSCOPE_REGION: "toString" }), null);
+    assert.equal(resolveTeacherModelConfiguration({ ...validEnvironment, DASHSCOPE_WORKSPACE_ID: "evil.example/path" }), null);
   });
 
-  it("publishes status without credentials or provider endpoints", () => {
+  it("publishes a blocked governance status without credentials or provider endpoints", () => {
     const status = teacherModelReleaseStatus(validEnvironment);
     assert.deepEqual(status, {
-      enabled: true,
+      enabled: false,
+      configured: true,
       provider: "dashscope",
       model: "qwen3.7-max",
       region: "beijing",
+      governanceStatus: "blocked",
+      governanceProtocolVersion: "sufeiya_release_decisions_v1",
+      blockedDecisionIds: [
+        "external_text_model_data_flow",
+        "external_text_model_retention_deletion",
+        "external_provider_region_cross_border",
+        "external_text_model_abuse_budget",
+        "external_text_model_semantic_citation_validation",
+      ],
     });
     assert.equal(JSON.stringify(status).includes("credential"), false);
     assert.equal(JSON.stringify(status).includes("dashscope.aliyuncs.com"), false);

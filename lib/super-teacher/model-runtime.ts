@@ -4,6 +4,7 @@ import {
   modelTeacherSelectionSchema,
   type ModelTeacherSelection,
 } from "@/lib/super-teacher/contracts";
+import { evaluateReleaseSurface } from "@/lib/release-governance";
 
 const DEFAULT_GATEWAY_MODEL = "zai/glm-4.6v-flash";
 const DEFAULT_DASHSCOPE_MODEL = "qwen3.7-max";
@@ -62,7 +63,7 @@ function dashScopeEndpoint(region: DashScopeRegion, workspaceId: string) {
   return `https://${regionalHost}/compatible-mode/v1`;
 }
 
-export function resolveTeacherModelRuntime(
+export function resolveTeacherModelConfiguration(
   environment: Environment = process.env,
 ): TeacherModelRuntime | null {
   if (environment.SUFEIYA_AI_ENABLED !== "true") return null;
@@ -91,13 +92,27 @@ export function resolveTeacherModelRuntime(
   return endpoint ? { provider, model, region, endpoint, apiKey } : null;
 }
 
+export function resolveTeacherModelRuntime(
+  environment: Environment = process.env,
+): TeacherModelRuntime | null {
+  const governance = evaluateReleaseSurface("sofia_external_text_model");
+  if (!governance.enabled) return null;
+  return resolveTeacherModelConfiguration(environment);
+}
+
 export function teacherModelReleaseStatus(environment: Environment = process.env) {
-  const runtime = resolveTeacherModelRuntime(environment);
+  const configuredRuntime = resolveTeacherModelConfiguration(environment);
+  const governance = evaluateReleaseSurface("sofia_external_text_model");
+  const runtime = governance.enabled ? configuredRuntime : null;
   return {
     enabled: Boolean(runtime),
-    provider: runtime?.provider ?? null,
-    model: runtime?.model ?? null,
-    region: runtime?.provider === "dashscope" ? runtime.region : null,
+    configured: Boolean(configuredRuntime),
+    provider: configuredRuntime?.provider ?? null,
+    model: configuredRuntime?.model ?? null,
+    region: configuredRuntime?.provider === "dashscope" ? configuredRuntime.region : null,
+    governanceStatus: governance.status,
+    governanceProtocolVersion: governance.protocolVersion,
+    blockedDecisionIds: governance.blockedControlIds,
   };
 }
 

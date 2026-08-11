@@ -2764,7 +2764,10 @@
     const confirmedReviews = Object.values(state.checkIns).filter(
       (item) => item?.status === "saved" && item?.learnerConfirmedReview === true && item?.reviewId,
     ).length;
-    const completedCycles = state.journey.history.filter((item) => item?.status === "completed" || item?.updatedPlanId).length;
+    const completedCycles = state.journey.history.filter((item) => item?.status === "completed").length;
+    const provisionalCycles = state.journey.history.filter(
+      (item) => item?.status === "provisional_pending_human_review",
+    ).length;
     const learningEventSummary = learningLedgerStatus.ok && learningEventsRuntime
       ? await learningEventsRuntime.summarize(state)
       : { status: "ledger_invalid", eventCount: null, headHash: null };
@@ -2791,6 +2794,7 @@
       ["证据式打卡", `${savedCheckins} 条`],
       ["学生确认复盘", `${confirmedReviews} 条`],
       ["完整演示闭环", `${completedCycles} 轮`],
+      ["待人工复核的临时轮次", `${provisionalCycles} 轮`],
       ["本机学习事件", learningEventSummary.status === "ready"
         ? `${learningEventSummary.eventCount} 条 · ${learningEventsRuntime?.CONTRACT_ID || "组件未加载"}`
         : `不可投影 · ${learningEventsRuntime?.CONTRACT_ID || "组件未加载"}`],

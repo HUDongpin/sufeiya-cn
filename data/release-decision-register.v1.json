@@ -1,0 +1,326 @@
+{
+  "protocolVersion": "sufeiya_release_decisions_v1",
+  "effectiveAt": "2026-08-11T00:00:00+08:00",
+  "defaultDisposition": "deny",
+  "environmentPolicy": "one_register_for_local_preview_and_production",
+  "amendmentPolicy": "A release control changes only through an explicit project-owner decision with a durable evidence reference. Environment variables cannot override this register.",
+  "controls": [
+    {
+      "id": "gate_a_local_demo",
+      "title": "Gate A 本机合成学习闭环",
+      "status": "approved",
+      "scope": "Browser-local synthetic demonstration only; no server student data, official score, real community, or formal diagnosis.",
+      "decisionOwner": "project_owner",
+      "decidedAt": "2026-08-09T00:00:00+08:00",
+      "evidenceReferences": [
+        "approved_plan_2026-08-09"
+      ],
+      "conditions": [
+        "Learning evidence remains browser-local and not account-bound.",
+        "All diagnostic and progress claims retain Gate A limitations."
+      ]
+    },
+    {
+      "id": "clerk_access_boundary",
+      "title": "Clerk 学习页面访问边界",
+      "status": "approved",
+      "scope": "Clerk protects learner and account routes without uploading or binding browser-local learning records.",
+      "decisionOwner": "project_owner",
+      "decidedAt": "2026-08-11T00:00:00+08:00",
+      "evidenceReferences": [
+        "codex_goal_user_approval_2026-08-11_clerk"
+      ],
+      "conditions": [
+        "Authentication is not a teacher, staff, age, or data-processing authorization.",
+        "Missing or invalid Clerk configuration fails closed."
+      ]
+    },
+    {
+      "id": "external_text_model_supplier_selection",
+      "title": "Sofia 外部文本模型供应商选择",
+      "status": "approved",
+      "scope": "Alibaba Cloud DashScope/Qwen may be configured, but this control alone never permits network processing or release.",
+      "decisionOwner": "project_owner",
+      "decidedAt": "2026-08-10T00:00:00+08:00",
+      "evidenceReferences": [
+        "codex_goal_user_instruction_2026-08-10_qwen"
+      ],
+      "conditions": [
+        "Only repository-allowlisted models and fixed regional endpoints may be configured.",
+        "Every other Sofia external-text-model control must also be approved."
+      ]
+    },
+    {
+      "id": "external_text_model_data_flow",
+      "title": "Sofia 外部文本模型数据流",
+      "status": "pending_review",
+      "scope": "Fields, purposes, recipients, logging, and minimization for questions and learning summaries sent to an external model.",
+      "decisionOwner": null,
+      "decidedAt": null,
+      "evidenceReferences": [],
+      "conditions": []
+    },
+    {
+      "id": "external_text_model_retention_deletion",
+      "title": "Sofia 外部文本模型留存与删除",
+      "status": "pending_review",
+      "scope": "Supplier retention, training-use settings, deletion procedure, and evidence of deletion behavior.",
+      "decisionOwner": null,
+      "decidedAt": null,
+      "evidenceReferences": [],
+      "conditions": []
+    },
+    {
+      "id": "external_provider_region_cross_border",
+      "title": "外部供应商地域与跨境路径",
+      "status": "pending_review",
+      "scope": "Selected region, data residency, cross-border path, and deployment-mode implications for external AI services.",
+      "decisionOwner": null,
+      "decidedAt": null,
+      "evidenceReferences": [],
+      "conditions": []
+    },
+    {
+      "id": "external_text_model_abuse_budget",
+      "title": "Sofia 外部文本模型滥用与预算控制",
+      "status": "pending_review",
+      "scope": "Persistent abuse controls, budget caps, incident handling, and provider outage behavior beyond in-memory rate limiting.",
+      "decisionOwner": null,
+      "decidedAt": null,
+      "evidenceReferences": [],
+      "conditions": []
+    },
+    {
+      "id": "external_text_model_semantic_citation_validation",
+      "title": "Sofia 主张与引用语义校验",
+      "status": "pending_review",
+      "scope": "Reviewed evidence that every released answer claim is semantically supported by its displayed source, not merely allowlisted by ID.",
+      "decisionOwner": null,
+      "decidedAt": null,
+      "evidenceReferences": [],
+      "conditions": []
+    },
+    {
+      "id": "voice_subject_authorization",
+      "title": "Sofia 声音权利人授权",
+      "status": "approved",
+      "scope": "Project-owner assertion that the depicted speaker authorized use of her voice as the source identity for a future voice clone.",
+      "decisionOwner": "project_owner",
+      "decidedAt": "2026-08-10T00:00:00+08:00",
+      "evidenceReferences": [
+        "codex_goal_user_asserted_authorization_2026-08-10_voice"
+      ],
+      "conditions": [
+        "Authorization does not approve supplier data flow, retention, disclosure, transport, microphone input, or production release."
+      ]
+    },
+    {
+      "id": "voice_supplier_model_selection",
+      "title": "Sofia 语音供应商与模型选择",
+      "status": "approved",
+      "scope": "Qwen qwen3-tts-vc-realtime-2026-01-15 is the requested future voice-cloning model; configuration alone does not permit release.",
+      "decisionOwner": "project_owner",
+      "decidedAt": "2026-08-10T00:00:00+08:00",
+      "evidenceReferences": [
+        "codex_goal_user_instruction_2026-08-10_qwen_tts"
+      ],
+      "conditions": [
+        "Every other Sofia voice-output control must also be approved.",
+        "Transport remains disabled until independently implemented and reviewed."
+      ]
+    },
+    {
+      "id": "voice_data_flow",
+      "title": "Sofia 声音复刻数据流",
+      "status": "pending_review",
+      "scope": "Source audio, generated audio, voice profile, recipients, purpose limitation, and regional processing path.",
+      "decisionOwner": null,
+      "decidedAt": null,
+      "evidenceReferences": [],
+      "conditions": []
+    },
+    {
+      "id": "voice_retention_deletion",
+      "title": "Sofia 声音数据留存与删除",
+      "status": "pending_review",
+      "scope": "Voice profile and audio retention, revocation, deletion procedure, and evidence of completion.",
+      "decisionOwner": null,
+      "decidedAt": null,
+      "evidenceReferences": [],
+      "conditions": []
+    },
+    {
+      "id": "voice_ai_disclosure",
+      "title": "Sofia AI 合成声音披露",
+      "status": "pending_review",
+      "scope": "Learner-visible AI voice labeling, consent/notice timing, and accessibility-equivalent text path.",
+      "decisionOwner": null,
+      "decidedAt": null,
+      "evidenceReferences": [],
+      "conditions": []
+    },
+    {
+      "id": "voice_transport_security_review",
+      "title": "Sofia 语音传输实现与安全复核",
+      "status": "pending_review",
+      "scope": "Implemented transport, authentication, origin controls, timeouts, quotas, logging minimization, and failure fallback.",
+      "decisionOwner": null,
+      "decidedAt": null,
+      "evidenceReferences": [],
+      "conditions": []
+    },
+    {
+      "id": "microphone_input_policy",
+      "title": "学习者麦克风输入",
+      "status": "not_approved",
+      "scope": "Microphone permission, capture, ASR processing, retention, deletion, and non-audio alternative.",
+      "decisionOwner": null,
+      "decidedAt": null,
+      "evidenceReferences": [
+        "approved_plan_2026-08-09_mvp_no_voice_cloning"
+      ],
+      "conditions": []
+    },
+    {
+      "id": "server_student_data_processing",
+      "title": "服务器端学生数据处理",
+      "status": "not_approved",
+      "scope": "Any upload, account binding, cross-device sync, remote research collection, or server-side learner evidence store.",
+      "decisionOwner": null,
+      "decidedAt": null,
+      "evidenceReferences": [
+        "approved_plan_2026-08-09_gate_a_no_real_student_data"
+      ],
+      "conditions": []
+    },
+    {
+      "id": "adult_invitation_community",
+      "title": "成人邀请制真实社区",
+      "status": "not_approved",
+      "scope": "Real membership, invitations, experience-card publication, or learner-to-learner interaction.",
+      "decisionOwner": null,
+      "decidedAt": null,
+      "evidenceReferences": [
+        "approved_plan_2026-08-09_gate_a_synthetic_community_only"
+      ],
+      "conditions": []
+    },
+    {
+      "id": "community_moderation_escalation",
+      "title": "社区审核与升级机制",
+      "status": "not_approved",
+      "scope": "Moderation roles, reporting, blocking, escalation matrix, response expectations, evidence-card withdrawal, and shutdown drills.",
+      "decisionOwner": null,
+      "decidedAt": null,
+      "evidenceReferences": [],
+      "conditions": []
+    },
+    {
+      "id": "real_human_case_queue",
+      "title": "真实人工案例队列",
+      "status": "not_approved",
+      "scope": "Sending learner requests or evidence to a staffed remote queue, including delivery and response expectations.",
+      "decisionOwner": null,
+      "decidedAt": null,
+      "evidenceReferences": [],
+      "conditions": []
+    },
+    {
+      "id": "staff_role_authorization",
+      "title": "教研与运营角色授权",
+      "status": "not_approved",
+      "scope": "Server-verified staff roles, resource-level authorization, reviewer qualification, revocation, and access review.",
+      "decisionOwner": null,
+      "decidedAt": null,
+      "evidenceReferences": [],
+      "conditions": []
+    },
+    {
+      "id": "staff_admin_write_operations",
+      "title": "教研与管理员写入操作",
+      "status": "not_approved",
+      "scope": "Remote evidence review, recommendation revision, escalation, case resolution, or human-review receipt issuance.",
+      "decisionOwner": null,
+      "decidedAt": null,
+      "evidenceReferences": [],
+      "conditions": []
+    },
+    {
+      "id": "real_incentive_value_transfer",
+      "title": "真实奖励或价值转移",
+      "status": "not_approved",
+      "scope": "Cash, gifts, credits with real value, payment rails, or binding incentive accounting.",
+      "decisionOwner": null,
+      "decidedAt": null,
+      "evidenceReferences": [
+        "approved_plan_2026-08-09_mvp_simulated_ledger_only"
+      ],
+      "conditions": []
+    },
+    {
+      "id": "serious_failure_shutdown_runbook",
+      "title": "严重故障停机与恢复演练",
+      "status": "pending_review",
+      "scope": "Named owners, stop conditions, learner notice, data containment, recovery evidence, and restart approval for remote services.",
+      "decisionOwner": null,
+      "decidedAt": null,
+      "evidenceReferences": [],
+      "conditions": []
+    }
+  ],
+  "surfaceRequirements": {
+    "local_teaching_review_demo": [
+      "gate_a_local_demo",
+      "clerk_access_boundary"
+    ],
+    "sofia_external_text_model": [
+      "external_text_model_supplier_selection",
+      "external_text_model_data_flow",
+      "external_text_model_retention_deletion",
+      "external_provider_region_cross_border",
+      "external_text_model_abuse_budget",
+      "external_text_model_semantic_citation_validation"
+    ],
+    "sofia_voice_output": [
+      "voice_subject_authorization",
+      "voice_supplier_model_selection",
+      "voice_data_flow",
+      "voice_retention_deletion",
+      "voice_ai_disclosure",
+      "voice_transport_security_review",
+      "external_provider_region_cross_border"
+    ],
+    "sofia_microphone_input": [
+      "microphone_input_policy",
+      "voice_data_flow",
+      "voice_retention_deletion",
+      "voice_ai_disclosure",
+      "voice_transport_security_review",
+      "external_provider_region_cross_border"
+    ],
+    "real_community": [
+      "server_student_data_processing",
+      "adult_invitation_community",
+      "community_moderation_escalation",
+      "staff_role_authorization",
+      "serious_failure_shutdown_runbook"
+    ],
+    "real_human_queue": [
+      "server_student_data_processing",
+      "real_human_case_queue",
+      "staff_role_authorization",
+      "serious_failure_shutdown_runbook"
+    ],
+    "staff_admin_write": [
+      "server_student_data_processing",
+      "staff_role_authorization",
+      "staff_admin_write_operations",
+      "serious_failure_shutdown_runbook"
+    ],
+    "real_incentives": [
+      "server_student_data_processing",
+      "real_incentive_value_transfer",
+      "serious_failure_shutdown_runbook"
+    ]
+  }
+}

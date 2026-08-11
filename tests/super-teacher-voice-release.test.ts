@@ -26,6 +26,24 @@ describe("Sofia voice release status", () => {
       region: null,
       asrModel: null,
       disclosureVersion: SOFIA_VOICE_DISCLOSURE_VERSION,
+      governanceProtocolVersion: "sufeiya_release_decisions_v1",
+      outputGovernanceStatus: "blocked",
+      microphoneGovernanceStatus: "blocked",
+      outputBlockedDecisionIds: [
+        "voice_data_flow",
+        "voice_retention_deletion",
+        "voice_ai_disclosure",
+        "voice_transport_security_review",
+        "external_provider_region_cross_border",
+      ],
+      microphoneBlockedDecisionIds: [
+        "microphone_input_policy",
+        "voice_data_flow",
+        "voice_retention_deletion",
+        "voice_ai_disclosure",
+        "voice_transport_security_review",
+        "external_provider_region_cross_border",
+      ],
     });
   });
 
@@ -39,7 +57,7 @@ describe("Sofia voice release status", () => {
     assert.equal(status.voiceIdConfigured, false);
   });
 
-  it("remains disabled until a reviewed transport is implemented", () => {
+  it("remains disabled when environment claims are approved but the canonical decisions are not", () => {
     const status = sofiaVoiceReleaseStatus({
       SUFEIYA_VOICE_AUTHORIZATION_STATUS: "approved",
       SUFEIYA_VOICE_DATA_FLOW_STATUS: "approved",
@@ -51,10 +69,12 @@ describe("Sofia voice release status", () => {
       SUFEIYA_QWEN_VOICE_ID: "voice-test-id",
       DASHSCOPE_REGION: "beijing",
     });
-    assert.equal(status.status, "disabled_not_implemented");
+    assert.equal(status.status, "disabled_pending_governance");
     assert.equal(status.ttsEnabled, false);
     assert.equal(status.microphoneEnabled, false);
     assert.equal(status.transportImplemented, false);
+    assert.equal(status.outputGovernanceStatus, "blocked");
+    assert.equal(status.microphoneGovernanceStatus, "blocked");
   });
 
   it("rejects unreviewed regions and model drift", () => {
