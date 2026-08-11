@@ -1431,6 +1431,28 @@ check(
   JSON.stringify(workspaceToolTargets) === JSON.stringify(["/super-teacher", "/today", "/practice", "/focus", "/teaching-review-demo", "/my-data"]),
   "workspace keeps Sofia, the teaching-review demo, and four supporting tools separate from the journey",
 );
+const cycleLedgerSection = workspace.match(/<section class="cycle-ledger-section[\s\S]*?<\/section>/)?.[0] || "";
+const cycleLedgerRows = [...cycleLedgerSection.matchAll(/data-cycle-ledger-row="([^"]+)"/g)].map((match) => match[1]);
+check(
+  JSON.stringify(cycleLedgerRows) === JSON.stringify([
+    "diagnostic",
+    "plan",
+    "recommendation",
+    "checkin",
+    "review",
+    "peerHelp",
+    "retest",
+    "updatedPlan",
+  ]),
+  "workspace exposes the approved diagnostic-to-updated-plan receipt chain in order",
+);
+check(
+  /data-cycle-ledger-status[^>]*aria-live="polite"/.test(cycleLedgerSection) &&
+    /diagnostic_session_id[\s\S]*plan_id[\s\S]*recommendation_id[\s\S]*check_in_id[\s\S]*review_id[\s\S]*peer_help_id \/ status[\s\S]*retest_id[\s\S]*updated_plan_id/.test(cycleLedgerSection) &&
+    /未签名演示回执/.test(cycleLedgerSection) &&
+    !/(?:作文|首答|打卡自由文本|聊天内容)<\/code>/.test(cycleLedgerSection),
+  "cycle receipt overview is accessible, complete, and explicitly excludes learner free text",
+);
 
 const practice = await read("practice.html");
 const practiceTargets = [...practice.matchAll(/class="practice-launch-grid"[\s\S]*?<\/div>/g)]
@@ -1491,6 +1513,12 @@ check(!/(?:0\s*[–-]\s*100|10\s*[–-]\s*160|官方估分|预测分数)/.test(w
 check(/activeCycle[\s\S]*cycleId[\s\S]*basePlanId/.test(journeyScript), "journey binds all stages to one active cycle and base plan");
 check(/effective|previousComplete/.test(journeyScript), "journey completion is sequential rather than seven independent booleans");
 check(/recommendationId[\s\S]*checkInId[\s\S]*reviewId[\s\S]*peerHelpId[\s\S]*retestId[\s\S]*updatedPlanId/.test(journeyScript), "journey implements the complete event-ID chain");
+check(
+  /const buildCycleEvidenceProjection[\s\S]*diagnosticComplete[\s\S]*planComplete[\s\S]*recommendationComplete[\s\S]*checkInComplete[\s\S]*reviewComplete[\s\S]*peerHelpComplete[\s\S]*retestEvidenceComplete[\s\S]*planUpdateRecorded/.test(journeyScript) &&
+    /const chain = validateCycleEvidence\(\)[\s\S]*evaluateJourney\(chain\)[\s\S]*renderCycleEvidenceLedger\(chain\)/.test(journeyScript) &&
+    /value\.textContent = entry\.value \|\| "尚未形成"/.test(journeyScript),
+  "workspace receipt projection reuses the central validator and writes only safe text nodes",
+);
 check(/const PROTOCOL_VERSION = "gate_a_local_v1"/.test(journeyScript), "journey names one exact Gate A protocol version");
 check(/value\.journey\.protocolVersion !== PROTOCOL_VERSION[\s\S]*activeCycle\.protocolVersion !== PROTOCOL_VERSION/.test(journeyScript), "journey rejects missing, empty, or unknown stored protocol versions");
 check(
@@ -2005,6 +2033,7 @@ const journeyEvidenceHarness = (() => {
           deriveRecommendationBindingCore,
           recommendationBindingMatches,
           deriveRetestOutcome,
+          buildCycleEvidenceProjection,
           evaluate(nextState) {
             state = nextState;
             return validateCycleEvidence();
@@ -3470,6 +3499,66 @@ checkExecutable(
       result.provisionalUpdateRecorded &&
       result.planUpdateRecorded &&
       !result.updateComplete
+    );
+  },
+);
+checkExecutable(
+  "cycle receipt projection exposes only validated IDs and keeps provisional closure distinct",
+  () => {
+    const complete = createJourneyEvidenceFixture();
+    const completeChain = journeyEvidenceHarness.evaluate(complete);
+    const completeProjection = journeyEvidenceHarness.buildCycleEvidenceProjection(completeChain);
+    const expectedKeys = ["diagnostic", "plan", "recommendation", "checkin", "review", "peerHelp", "retest", "updatedPlan"];
+    const expectedValues = [
+      complete.journey.activeCycle.diagnosticSessionId,
+      complete.journey.activeCycle.basePlanId,
+      complete.journey.activeCycle.recommendationId,
+      complete.journey.activeCycle.checkInId,
+      complete.journey.activeCycle.reviewId,
+      complete.journey.activeCycle.peerHelpId,
+      complete.journey.activeCycle.retestId,
+      complete.journey.activeCycle.updatedPlanId,
+    ];
+    if (
+      completeProjection.state !== "complete" ||
+      completeProjection.completedCount !== 7 ||
+      completeProjection.recordedCount !== 8 ||
+      JSON.stringify(completeProjection.rows.map((row) => row.key)) !== JSON.stringify(expectedKeys) ||
+      JSON.stringify(completeProjection.rows.map((row) => row.value)) !== JSON.stringify(expectedValues) ||
+      completeProjection.rows.some((row) => row.state !== "recorded") ||
+      ["completed-task", "evidence-note", "Reading evidence fixture"].some((marker) => JSON.stringify(completeProjection).includes(marker))
+    ) return false;
+
+    const provisional = createJourneyEvidenceFixture();
+    const retest = provisional.journey.retest;
+    retest.evidence.selectedAnswer = "a";
+    const derived = journeyEvidenceHarness.deriveRetestOutcome(retest.skill, retest.evidence);
+    if (!derived || derived.humanReviewRequired !== true) return false;
+    retest.evidence.resultType = derived.resultType;
+    retest.evidenceStatus = derived.evidenceStatus;
+    retest.evidenceSufficiency = derived.evidenceSufficiency;
+    retest.humanConfirmationStatus = derived.humanConfirmationStatus;
+    provisional.journey.activeCycle.status = "provisional_pending_human_review";
+    provisional.journey.planUpdate.confirmationClass = "provisional_pending_human_review";
+    provisional.journey.planUpdate.humanConfirmationStatus = "required_not_completed";
+    const provisionalProjection = journeyEvidenceHarness.buildCycleEvidenceProjection(
+      journeyEvidenceHarness.evaluate(provisional),
+    );
+
+    const rejected = createJourneyEvidenceFixture();
+    rejected.journey.diagnostic.taskEvidence[0].contentHash = "f".repeat(64);
+    const rejectedProjection = journeyEvidenceHarness.buildCycleEvidenceProjection(
+      journeyEvidenceHarness.evaluate(rejected),
+    );
+    return (
+      provisionalProjection.state === "provisional" &&
+      provisionalProjection.completedCount === 6 &&
+      provisionalProjection.recordedCount === 8 &&
+      provisionalProjection.rows.at(-1)?.state === "pending-human" &&
+      provisionalProjection.rows.at(-1)?.status === "等待具备资质的人工确认" &&
+      rejectedProjection.rows[0]?.state === "current" &&
+      rejectedProjection.rows[0]?.value === null &&
+      rejectedProjection.rows.slice(1).every((row) => row.state === "locked" && row.value === null)
     );
   },
 );

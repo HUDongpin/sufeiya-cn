@@ -22,7 +22,7 @@ Qwen 后端已按 2026-08-11 最新的 Alibaba Cloud 官方 DashScope/OpenAI 兼
 ## Page structure
 
 - `/`：精炼首页与四个页面入口；
-- `/workspace`：七阶段 Gate A 闭环进度与独立功能页入口；
+- `/workspace`：七阶段 Gate A 闭环进度、独立功能页入口，以及只投影中央校验器已确认 ID 的本轮证据链总览；
 - `/super-teacher`：有来源的 Gate A 学习解释、拒答边界、非 AI 退出与本机人工支持请求；
 - `/diagnostic`：18+、本机、无评分的六任务诊断证据包（2 Reading + 2 Listening + 90 秒 Speaking + 3 分钟 Writing）；
 - `/plan`：7 天学习计划生成器；
@@ -47,6 +47,7 @@ Qwen 后端已按 2026-08-11 最新的 Alibaba Cloud 官方 DashScope/OpenAI 兼
 学生当前可以直接使用：
 
 - 通过同一 `cycle_id` 串联的 Gate A 演示闭环：六任务诊断证据包 → 计划 → 推荐 → 证据式打卡 → 学习者确认 → 自愿互助状态 → 平行微复测 → 更新计划；
+- 在工作台集中核对 `diagnostic_session_id → plan_id → recommendation_id → check_in_id → review_id → peer_help_id/status → retest_id → updated_plan_id`；未通过前序回链的节点不会提前显示，临时更新计划单独标记为等待具备资质的人工确认；
 - 依次完成 2 项 Reading、2 项 Listening、90 秒 Speaking 与 3 分钟 Writing：客观题只封存首答，若本机持久化失败则完整回滚到提交前状态；听力文本替代、播放失败、中断、跳过等情况进入质量标记，最终由学习者确认一条下一步优先任务；
 - 纯前端 7 天计划生成器；
 - 可跨页面同步的今日任务清单；

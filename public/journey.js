@@ -991,6 +991,100 @@
     };
   };
 
+  const cycleLedgerDefinitions = Object.freeze([
+    Object.freeze({ key: "diagnostic", idField: "diagnosticSessionId", recordedKey: "diagnosticComplete" }),
+    Object.freeze({ key: "plan", idField: "basePlanId", recordedKey: "planComplete" }),
+    Object.freeze({ key: "recommendation", idField: "recommendationId", recordedKey: "recommendationComplete" }),
+    Object.freeze({ key: "checkin", idField: "checkInId", recordedKey: "checkInComplete" }),
+    Object.freeze({ key: "review", idField: "reviewId", recordedKey: "reviewComplete" }),
+    Object.freeze({ key: "peerHelp", idField: "peerHelpId", recordedKey: "peerHelpComplete" }),
+    Object.freeze({ key: "retest", idField: "retestId", recordedKey: "retestEvidenceComplete" }),
+    Object.freeze({ key: "updatedPlan", idField: "updatedPlanId", recordedKey: "planUpdateRecorded" }),
+  ]);
+
+  const displayableCycleLedgerId = (value) =>
+    typeof value === "string" && value.length > 0 && value.length <= 180 && !/[\u0000-\u001f\u007f]/.test(value)
+      ? value
+      : null;
+
+  const buildCycleEvidenceProjection = (chain) => {
+    const cycle = isRecord(chain?.cycle) ? chain.cycle : null;
+    const details = {
+      diagnostic: chain?.diagnostic?.evidenceSufficiency === "evidence_insufficient"
+        ? "证据不足 · 已记录"
+        : "证据有限 · 已记录",
+      plan: "已连接本轮诊断",
+      recommendation: chain?.recommendation?.status === "skipped" ? "已明确跳过" : "已接受",
+      checkin: "练习回执已绑定",
+      review: "learner_confirmed_review",
+      peerHelp: VALID_PEER_HELP_STATES.has(chain?.peerHelp?.status)
+        ? `${chain.peerHelp.status} · 已记录`
+        : "状态已记录",
+      retest: ["evidence_insufficient", "needs_review", "limited_single_task"].includes(chain?.retest?.evidenceStatus)
+        ? `${chain.retest.evidenceStatus} · 已记录`
+        : "平行任务证据已记录",
+      updatedPlan: chain?.provisionalUpdateRecorded
+        ? "等待具备资质的人工确认"
+        : "学习者已确认更新",
+    };
+    let previousRecorded = true;
+    const rows = cycleLedgerDefinitions.map((definition) => {
+      const eligible = previousRecorded;
+      const value = eligible && chain?.[definition.recordedKey]
+        ? displayableCycleLedgerId(cycle?.[definition.idField])
+        : null;
+      const recorded = Boolean(value);
+      const pendingHuman = definition.key === "updatedPlan" && recorded && chain?.provisionalUpdateRecorded;
+      const state = recorded ? (pendingHuman ? "pending-human" : "recorded") : eligible ? "current" : "locked";
+      previousRecorded = recorded;
+      return {
+        key: definition.key,
+        value,
+        state,
+        status: recorded ? details[definition.key] : eligible ? "下一条待形成" : "等待前一步",
+      };
+    });
+    const completedCount = [
+      chain?.diagnosticComplete,
+      chain?.planComplete,
+      chain?.recommendationComplete,
+      chain?.checkInComplete,
+      chain?.reviewComplete,
+      chain?.peerHelpComplete,
+      chain?.updateComplete,
+    ].filter(Boolean).length;
+    const recordedCount = rows.filter((row) => row.value).length;
+    const state = !cycle
+      ? "empty"
+      : chain?.updateComplete
+        ? "complete"
+        : chain?.provisionalUpdateRecorded
+          ? "provisional"
+          : "in-progress";
+    return {
+      state,
+      cycleId: displayableCycleLedgerId(cycle?.cycleId),
+      protocolVersion: PROTOCOL_VERSION,
+      completedCount,
+      recordedCount,
+      status: state === "complete"
+        ? "7 / 7 步已留证"
+        : state === "provisional"
+          ? "7 / 7 步已记录 · 待人工确认"
+          : cycle
+            ? `${completedCount} / 7 步已留证`
+            : "尚未建立本轮证据链",
+      copy: state === "complete"
+        ? "全部节点已经通过中央闭环校验；这只证明 Gate A 本机演示流程闭合。"
+        : state === "provisional"
+          ? "八个节点已经回链，但更新计划仍是临时记录；具备资质的人工确认尚未完成。"
+          : cycle
+            ? "总览只显示已经通过前序回链核对的节点；请继续完成当前步骤。"
+            : "从六任务诊断开始后，这里会按顺序显示已经通过核对的节点。",
+      rows,
+    };
+  };
+
   const diagnosticStatusLabels = {
     completed: "已留证",
     skipped: "已跳过",
@@ -3228,8 +3322,7 @@
     { key: "retest", title: "完成平行任务并确认更新计划", copy: "保存一条新任务证据，再由你选择下一轮重点。", route: "/retest" },
   ];
 
-  const evaluateJourney = () => {
-    const chain = validateCycleEvidence();
+  const evaluateJourney = (chain = validateCycleEvidence()) => {
     const { diagnostic, recommendation, peerHelp, retest } = chain;
     const raw = [
       chain.diagnosticComplete,
@@ -3258,9 +3351,36 @@
     });
   };
 
+  const renderCycleEvidenceLedger = (chain) => {
+    const root = document.querySelector("[data-cycle-ledger]");
+    if (!root) return;
+    const projection = buildCycleEvidenceProjection(chain);
+    root.dataset.cycleState = projection.state;
+    setText("[data-cycle-ledger-status]", projection.status);
+    setText("[data-cycle-ledger-copy]", projection.copy);
+    setText("[data-cycle-ledger-cycle-id]", projection.cycleId || "尚未形成");
+    setText("[data-cycle-ledger-protocol]", projection.protocolVersion);
+    setText(
+      "[data-cycle-ledger-integrity]",
+      learningLedgerStatus.ok
+        ? `${learningLedgerStatus.eventCount} 条事件已核对${learningLedgerStatus.headHash ? ` · 链头 ${learningLedgerStatus.headHash.slice(0, 12)}…` : ""}`
+        : "核对失败 · 已停止自动写入",
+    );
+    projection.rows.forEach((entry) => {
+      const row = root.querySelector(`[data-cycle-ledger-row="${entry.key}"]`);
+      if (!row) return;
+      row.dataset.state = entry.state;
+      const value = row.querySelector("[data-cycle-ledger-value]");
+      const status = row.querySelector("[data-cycle-ledger-row-status]");
+      if (value) value.textContent = entry.value || "尚未形成";
+      if (status) status.textContent = entry.status;
+    });
+  };
+
   const renderJourneyDashboard = () => {
     if (!document.querySelector("[data-journey-list]")) return;
-    const status = evaluateJourney();
+    const chain = validateCycleEvidence();
+    const status = evaluateJourney(chain);
     const completedCount = status.filter((step) => step.complete).length;
     const next = status.find((step) => !step.complete);
     status.forEach((step) => {
@@ -3290,6 +3410,7 @@
       link.href = next?.route || "/plan";
       link.textContent = next ? "继续下一步 →" : "查看更新后的计划 →";
     }
+    renderCycleEvidenceLedger(chain);
   };
 
   const workspaceWriterLeaseAvailable = await acquireSharedWorkspaceWriterLease();

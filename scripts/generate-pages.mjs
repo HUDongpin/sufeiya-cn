@@ -967,6 +967,38 @@ const workspaceContent = `
         <p class="workspace-launch-boundary">这是 Gate A 本机演示：不接触服务器端学生数据，不提供官方 DET 分数、成绩预测、自动诊断、真题机经、考试中协助、真实社区或结果保证。</p>
       </div>
     </section>
+    <section class="cycle-ledger-section section" aria-labelledby="cycle-ledger-title" data-cycle-ledger data-cycle-state="empty">
+      <div class="section-inner">
+        <div class="cycle-ledger-heading">
+          <div><p class="workspace-overline">CURRENT CYCLE RECEIPT</p><h2 id="cycle-ledger-title">把七步留下的节点，<br />放在一起核对。</h2></div>
+          <p>这里只投影中央闭环校验器已经确认的本机 ID 与固定状态，不展示作文、首答、打卡自由文本或聊天内容。未通过前序核对的节点不会被提前显示。</p>
+        </div>
+        <div class="cycle-ledger-shell">
+          <aside class="cycle-ledger-overview" aria-label="本轮证据链状态">
+            <span>LOCAL / UNSIGNED</span>
+            <strong data-cycle-ledger-status aria-live="polite">尚未建立本轮证据链</strong>
+            <p data-cycle-ledger-copy>从六任务诊断开始后，这里会按顺序显示已经通过核对的节点。</p>
+            <dl>
+              <div><dt>cycle_id</dt><dd><code data-cycle-ledger-cycle-id>尚未形成</code></dd></div>
+              <div><dt>protocol</dt><dd><code data-cycle-ledger-protocol>gate_a_local_v1</code></dd></div>
+              <div><dt>事件链完整性</dt><dd data-cycle-ledger-integrity>正在核对</dd></div>
+            </dl>
+            <a class="button button-ghost" href="/my-data">查看或导出我的本机数据${arrow}</a>
+          </aside>
+          <ol class="cycle-ledger-list" aria-label="本轮证据节点">
+            <li data-cycle-ledger-row="diagnostic" data-state="current"><span class="cycle-ledger-index" aria-hidden="true">01</span><div><strong>诊断证据</strong><small>diagnostic_session_id</small></div><code data-cycle-ledger-value>尚未形成</code><span data-cycle-ledger-row-status>下一条待形成</span></li>
+            <li data-cycle-ledger-row="plan" data-state="locked"><span class="cycle-ledger-index" aria-hidden="true">02</span><div><strong>基础计划</strong><small>plan_id</small></div><code data-cycle-ledger-value>尚未形成</code><span data-cycle-ledger-row-status>等待前一步</span></li>
+            <li data-cycle-ledger-row="recommendation" data-state="locked"><span class="cycle-ledger-index" aria-hidden="true">03</span><div><strong>推荐决定</strong><small>recommendation_id</small></div><code data-cycle-ledger-value>尚未形成</code><span data-cycle-ledger-row-status>等待前一步</span></li>
+            <li data-cycle-ledger-row="checkin" data-state="locked"><span class="cycle-ledger-index" aria-hidden="true">04</span><div><strong>证据式打卡</strong><small>check_in_id</small></div><code data-cycle-ledger-value>尚未形成</code><span data-cycle-ledger-row-status>等待前一步</span></li>
+            <li data-cycle-ledger-row="review" data-state="locked"><span class="cycle-ledger-index" aria-hidden="true">05</span><div><strong>学习者确认</strong><small>review_id</small></div><code data-cycle-ledger-value>尚未形成</code><span data-cycle-ledger-row-status>等待前一步</span></li>
+            <li data-cycle-ledger-row="peerHelp" data-state="locked"><span class="cycle-ledger-index" aria-hidden="true">06</span><div><strong>自愿互助状态</strong><small>peer_help_id / status</small></div><code data-cycle-ledger-value>尚未形成</code><span data-cycle-ledger-row-status>等待前一步</span></li>
+            <li data-cycle-ledger-row="retest" data-state="locked"><span class="cycle-ledger-index" aria-hidden="true">07</span><div><strong>平行微复测</strong><small>retest_id</small></div><code data-cycle-ledger-value>尚未形成</code><span data-cycle-ledger-row-status>等待前一步</span></li>
+            <li data-cycle-ledger-row="updatedPlan" data-state="locked"><span class="cycle-ledger-index" aria-hidden="true">08</span><div><strong>更新计划</strong><small>updated_plan_id</small></div><code data-cycle-ledger-value>尚未形成</code><span data-cycle-ledger-row-status>等待前一步</span></li>
+          </ol>
+        </div>
+        <p class="cycle-ledger-boundary">这份总览是当前浏览器中的未签名演示回执：可用于核对流程与回链，不是服务器签名、正式诊断、教师确认、学习增长证明或防篡改凭证。</p>
+      </div>
+    </section>
     <section class="workspace-launch section" aria-labelledby="workspace-launch-title">
       <div class="section-inner">
         <div class="workspace-launch-heading">
