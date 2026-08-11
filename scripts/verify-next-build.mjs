@@ -53,22 +53,46 @@ for (const [path, html] of [
 assertNoForbiddenContent(clientReferenceManifest, clientReferenceManifestPath);
 assertNoForbiddenContent(buildManifest, buildManifestPath);
 
-const clientManifestAssignment = 'globalThis.__RSC_MANIFEST["/_not-found/page"] = ';
-const clientManifestAssignmentIndex = clientReferenceManifest.indexOf(clientManifestAssignment);
-if (clientManifestAssignmentIndex === -1) {
+const clientManifestPreamble =
+  "globalThis.__RSC_MANIFEST = globalThis.__RSC_MANIFEST || {};\n";
+const clientManifestAssignment = `${clientManifestPreamble}globalThis.__RSC_MANIFEST["/_not-found/page"] = `;
+const normalizedClientManifest = clientReferenceManifest.trim();
+if (!normalizedClientManifest.startsWith(clientManifestAssignment)) {
   throw new Error(
     `${clientReferenceManifestPath} is missing the expected anonymous 404 route assignment.`,
   );
 }
 
-const clientManifestJson = clientReferenceManifest
-  .slice(clientManifestAssignmentIndex + clientManifestAssignment.length)
-  .trim();
+const clientManifestJson = normalizedClientManifest.slice(clientManifestAssignment.length);
 if (!clientManifestJson.endsWith(";")) {
   throw new Error(`${clientReferenceManifestPath} has an incomplete route assignment.`);
 }
 
 const parsedClientManifest = JSON.parse(clientManifestJson.slice(0, -1));
+const expectedClientManifestKeys = [
+  "clientModules",
+  "edgeRscModuleMapping",
+  "edgeSSRModuleMapping",
+  "entryCSSFiles",
+  "entryJSFiles",
+  "moduleLoading",
+  "rscModuleMapping",
+  "ssrModuleMapping",
+];
+if (Object.keys(parsedClientManifest).sort().join(",") !== expectedClientManifestKeys.join(",")) {
+  throw new Error(`${clientReferenceManifestPath} has an unreviewed top-level field.`);
+}
+const moduleLoading = parsedClientManifest.moduleLoading;
+if (
+  !moduleLoading ||
+  Array.isArray(moduleLoading) ||
+  typeof moduleLoading !== "object" ||
+  Object.keys(moduleLoading).sort().join(",") !== "crossOrigin,prefix" ||
+  moduleLoading.prefix !== "" ||
+  moduleLoading.crossOrigin !== "none"
+) {
+  throw new Error(`${clientReferenceManifestPath} has an unapproved client chunk prefix.`);
+}
 if (
   !parsedClientManifest.clientModules ||
   Array.isArray(parsedClientManifest.clientModules) ||
@@ -84,18 +108,44 @@ if (
 }
 
 const parsedBuildManifest = JSON.parse(buildManifest);
+const expectedBuildManifestKeys = [
+  "ampDevFiles",
+  "ampFirstPages",
+  "chunkLoadingGlobal",
+  "devFiles",
+  "lowPriorityFiles",
+  "pages",
+  "pagesChunkGroupBootstrapParams",
+  "polyfillFiles",
+  "rootMainFiles",
+  "rootMainFilesTree",
+];
+if (Object.keys(parsedBuildManifest).sort().join(",") !== expectedBuildManifestKeys.join(",")) {
+  throw new Error(`${buildManifestPath} has an unreviewed top-level field.`);
+}
 if (
   !Array.isArray(parsedBuildManifest.rootMainFiles) ||
   parsedBuildManifest.rootMainFiles.length === 0
 ) {
   throw new Error(`${buildManifestPath} is missing the expected root client runtime list.`);
 }
+if (
+  !Array.isArray(parsedBuildManifest.ampFirstPages) ||
+  parsedBuildManifest.ampFirstPages.length !== 0 ||
+  !parsedBuildManifest.pagesChunkGroupBootstrapParams ||
+  Array.isArray(parsedBuildManifest.pagesChunkGroupBootstrapParams) ||
+  typeof parsedBuildManifest.pagesChunkGroupBootstrapParams !== "object" ||
+  Object.keys(parsedBuildManifest.pagesChunkGroupBootstrapParams).length !== 0 ||
+  parsedBuildManifest.chunkLoadingGlobal !== "TURBOPACK"
+) {
+  throw new Error(`${buildManifestPath} contains an unreviewed inline bootstrap shape.`);
+}
 
-const executablePaths = new Set();
 const allowedPublicScripts = new Map([
   ["/learning-events.js", "public/learning-events.js"],
   ["/script.js", "public/script.js"],
 ]);
+const executablePaths = new Set(allowedPublicScripts.values());
 const htmlNextChunkPattern =
   /^\/_next\/static\/(?:immutable\/)?chunks\/[A-Za-z0-9._-]+\.js$/;
 const manifestStaticScriptPattern =
@@ -151,7 +201,10 @@ const extractStartTags = (html, tagName) => {
     if (end === html.length || quote) {
       throw new Error(`HTML contains an unterminated <${tagName}> start tag.`);
     }
-    tags.push(html.slice(startMatch.index, end + 1));
+    tags.push({
+      tag: html.slice(startMatch.index, end + 1),
+      endIndex: end,
+    });
     startPattern.lastIndex = end + 1;
   }
 
@@ -208,6 +261,60 @@ const parseTagAttributes = (tag, tagName) => {
   return attributes;
 };
 
+const allowedInlineScriptPatterns = [
+  /^\(self\.__next_s=self\.__next_s\|\|\[\]\)\.push\(\["\/learning-events\.js",\{"id":"sufeiya-learning-events-runtime"\}\]\)$/,
+  /^\(self\.__next_f=self\.__next_f\|\|\[\]\)\.push\(\[0\]\)$/,
+  /^self\.__next_f\.push\(\[1,"(?:\\[\s\S]|[^"\\])*"\]\)$/,
+];
+
+const assertAllowedInlineScript = (html, tag, endIndex, path) => {
+  if (tag !== "<script>") {
+    throw new Error(`${path} contains an inline script with unapproved attributes.`);
+  }
+  const closingPattern = /<\/script\s*>/gi;
+  closingPattern.lastIndex = endIndex + 1;
+  const closingMatch = closingPattern.exec(html);
+  if (!closingMatch) {
+    throw new Error(`${path} contains an unterminated inline script.`);
+  }
+  const body = html.slice(endIndex + 1, closingMatch.index).trim();
+  if (!allowedInlineScriptPatterns.some((pattern) => pattern.test(body))) {
+    throw new Error(`${path} contains an unapproved inline script.`);
+  }
+};
+
+const assertAllowedResourceScriptAttributes = (attributes, path) => {
+  const allowedNames = new Set(["src", "href", "xlink:href", "async", "crossorigin", "nomodule", "id"]);
+  for (const name of attributes.keys()) {
+    if (!allowedNames.has(name)) {
+      throw new Error(`${path} contains an unapproved ${name} attribute on a script resource.`);
+    }
+  }
+  for (const name of ["async", "crossorigin", "nomodule"]) {
+    if (attributes.has(name) && ![null, ""].includes(attributes.get(name))) {
+      throw new Error(`${path} contains an unapproved ${name} value on a script resource.`);
+    }
+  }
+  if (attributes.has("id") && attributes.get("id") !== "_R_") {
+    throw new Error(`${path} contains an unapproved id on a script resource.`);
+  }
+};
+
+const assertAllowedScriptPreloadAttributes = (attributes, path) => {
+  const allowedNames = new Set(["rel", "as", "fetchpriority", "href", "crossorigin"]);
+  for (const name of attributes.keys()) {
+    if (!allowedNames.has(name)) {
+      throw new Error(`${path} contains an unapproved ${name} attribute on a script preload.`);
+    }
+  }
+  if (
+    attributes.has("crossorigin") &&
+    ![null, ""].includes(attributes.get("crossorigin"))
+  ) {
+    throw new Error(`${path} contains an unapproved crossorigin value on a script preload.`);
+  }
+};
+
 for (const [path, html] of [
   [appNotFoundHtmlPath, appNotFoundHtml],
   [pagesNotFoundHtmlPath, pagesNotFoundHtml],
@@ -216,18 +323,35 @@ for (const [path, html] of [
   if (scriptTags.length === 0) {
     throw new Error(`${path} does not expose an inspectable client script list.`);
   }
-  for (const tag of scriptTags) {
+  for (const { tag, endIndex } of scriptTags) {
     const attributes = parseTagAttributes(tag, "script");
-    if (attributes.has("src")) addHtmlScript(attributes.get("src"), path);
+    const resourceAttributes = ["src", "href", "xlink:href"].filter((name) =>
+      attributes.has(name),
+    );
+    if (resourceAttributes.length > 1) {
+      throw new Error(`${path} contains a script with ambiguous resource attributes.`);
+    }
+    if (resourceAttributes.length === 1) {
+      assertAllowedResourceScriptAttributes(attributes, path);
+      addHtmlScript(attributes.get(resourceAttributes[0]), path);
+    } else {
+      assertAllowedInlineScript(html, tag, endIndex, path);
+    }
   }
 
-  for (const tag of extractStartTags(html, "link")) {
+  for (const { tag } of extractStartTags(html, "link")) {
     const attributes = parseTagAttributes(tag, "link");
+    for (const name of attributes.keys()) {
+      if (name.startsWith("on")) {
+        throw new Error(`${path} contains an inline event handler on a link.`);
+      }
+    }
     const relTokens = (attributes.get("rel") ?? "").toLowerCase().split(/\s+/);
     if (relTokens.includes("preload") && attributes.get("as")?.toLowerCase() === "script") {
       if (!attributes.has("href")) {
         throw new Error(`${path} contains a script preload without an href.`);
       }
+      assertAllowedScriptPreloadAttributes(attributes, path);
       addHtmlScript(attributes.get("href"), path);
     }
   }
