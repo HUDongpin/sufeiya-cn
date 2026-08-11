@@ -4,19 +4,14 @@ import { legacyPages, type LegacyPageKey } from "@/lib/legacy-content.generated"
 import type { NavigationKey } from "@/lib/site";
 import { SiteShell } from "@/components/site-shell";
 
-export function LegacyPage({
-  pageKey,
-  authAware = true,
-}: {
-  pageKey: LegacyPageKey;
-  authAware?: boolean;
-}) {
+export type RoutedLegacyPageKey = Exclude<LegacyPageKey, "not-found">;
+
+export function LegacyPage({ pageKey }: { pageKey: RoutedLegacyPageKey }) {
   const page = legacyPages[pageKey];
   return (
     <SiteShell
       pageKey={page.nav as NavigationKey}
-      authAware={authAware}
-      sofiaSurface={pageKey === "not-found" ? "none" : "floating"}
+      sofiaSurface="floating"
     >
       {page.jsonLd ? (
         <script

@@ -10,7 +10,7 @@
     "generate:p0-prep": "tsx scripts/generate-p0-decision-preparation.ts",
     "validate:p0-prep": "tsx scripts/validate-p0-decision-preparation.ts",
     "dev": "npm run generate:next-content && next dev",
-    "build": "npm run generate:next-content && next build",
+    "build": "npm run generate:next-content && next build && npm run check:next-build",
     "start": "next start",
     "typecheck": "npm run generate:next-content && tsc --noEmit",
     "lint": "eslint .",
@@ -21,7 +21,8 @@
     "test:teaching-review": "tsx --test tests/teaching-review-demo.test.ts",
     "test:super-teacher": "NODE_OPTIONS='--conditions=react-server' tsx --test tests/content-governance.test.ts tests/super-teacher.test.ts tests/super-teacher-approved-selection.test.ts tests/super-teacher-client-session.test.ts tests/super-teacher-local-response.test.ts tests/super-teacher-model-runtime.test.ts tests/super-teacher-rate-limit.test.ts tests/super-teacher-route-auth-boundary.test.ts tests/super-teacher-voice-release.test.ts",
     "check:legacy": "node scripts/verify-site.mjs",
-    "check": "npm run generate:next-content && npm run check:legacy && npm run test:clerk && npm run test:governance && npm run test:teaching-review && npm run test:super-teacher && tsc --noEmit && npm run lint && next build"
+    "check:next-build": "node scripts/verify-next-build.mjs",
+    "check": "npm run generate:next-content && npm run check:legacy && npm run test:clerk && npm run test:governance && npm run test:teaching-review && npm run test:super-teacher && tsc --noEmit && npm run lint && next build && npm run check:next-build"
   },
   "engines": {
     "node": ">=22.0.0"

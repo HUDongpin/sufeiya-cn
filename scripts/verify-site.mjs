@@ -117,7 +117,9 @@ const rootLayout = await read("app/layout.tsx");
 const notFoundRoute = await read("app/not-found.tsx");
 const dynamicLegacyPage = await read("app/[slug]/page.tsx");
 const legacyPageComponent = await read("components/legacy-page.tsx");
+const anonymousLegacyPage = await read("components/anonymous-legacy-page.tsx");
 const siteShell = await read("components/site-shell.tsx");
+const siteFrame = await read("components/site-frame.tsx");
 const authPage = await read("components/auth-page.tsx");
 const clerkWidgetFrame = await read("components/clerk-widget-frame.tsx");
 const clerkAccountControls = await read("components/clerk-account-controls.tsx");
@@ -4721,14 +4723,15 @@ check(
   "Super Teacher discloses Web Locks capability before the learner reaches question controls",
 );
 check(
-  /<body>[\s\S]*<ClerkProvider[\s\S]*dynamic[\s\S]*localization=\{clerkLocalization\}[\s\S]*signInUrl="\/sign-in"[\s\S]*signUpUrl="\/sign-up"[\s\S]*\{children\}[\s\S]*<\/ClerkProvider>[\s\S]*<\/body>/.test(
-    rootLayout,
-  ) &&
-    /\{clerkState\.configured \? \(/.test(rootLayout) &&
-    /formFieldInputPlaceholder__password: "请输入密码"/.test(rootLayout) &&
-    /formFieldInputPlaceholder__signUpPassword: "请创建密码"/.test(rootLayout) &&
-    /getClerkRuntimeState/.test(rootLayout),
-  "configured ClerkProvider remains fail-closed and dynamic with complete Chinese password placeholders",
+  !/<ClerkProvider/.test(rootLayout) &&
+    /if \(!clerkState\.configured\) return shell/.test(siteShell) &&
+    /<ClerkProvider[\s\S]*dynamic[\s\S]*localization=\{clerkLocalization\}[\s\S]*signInUrl="\/sign-in"[\s\S]*signUpUrl="\/sign-up"[\s\S]*\{shell\}[\s\S]*<\/ClerkProvider>/.test(
+      siteShell,
+    ) &&
+    /formFieldInputPlaceholder__password: "请输入密码"/.test(siteShell) &&
+    /formFieldInputPlaceholder__signUpPassword: "请创建密码"/.test(siteShell) &&
+    /getClerkRuntimeState/.test(siteShell),
+  "configured SiteShell mounts Clerk fail-closed and dynamically with complete Chinese password placeholders",
 );
 check(
   protectedLearnerPaths.every((path) => clerkConfig.includes(`"${path}"`)) &&
@@ -5217,19 +5220,23 @@ check(
   "public images and audio bypass Clerk middleware",
 );
 check(
-  notFoundRoute.includes('authAware={false}') &&
-    legacyPageComponent.includes("authAware?: boolean") &&
-    /authAware=\{authAware\}/.test(legacyPageComponent) &&
-    /sofiaSurface=\{pageKey === "not-found" \? "none" : "floating"\}/.test(
-      legacyPageComponent,
+  /import \{ AnonymousNotFoundPage \} from "@\/components\/anonymous-legacy-page"/.test(
+    notFoundRoute,
+  ) &&
+    /return <AnonymousNotFoundPage \/>/.test(notFoundRoute) &&
+    !/LegacyPage|SiteShell|@clerk|ClerkAccountControls|SofiaAccessBoundary/.test(notFoundRoute) &&
+    /import \{ SiteFrame \} from "@\/components\/site-frame"/.test(anonymousLegacyPage) &&
+    /pageKey=\{page\.nav as NavigationKey\}/.test(anonymousLegacyPage) &&
+    /href="\/sign-in"/.test(anonymousLegacyPage) &&
+    /href="\/sign-up"/.test(anonymousLegacyPage) &&
+    !/SiteShell|@clerk|ClerkAccountControls|SofiaAccessBoundary|getClerkRuntimeState/.test(
+      anonymousLegacyPage,
     ) &&
-    siteShell.includes("authAware = true") &&
-    siteShell.includes("{authAware ? (") &&
-    /<SiteHeader pageKey=\{pageKey\} authAware=\{authAware\}\s*\/>/.test(siteShell) &&
-    /\{authAware \? \([\s\S]*<ClerkAccountControls\s*\/>[\s\S]*\) : \([\s\S]*href="\/sign-in"[\s\S]*href="\/sign-up"/.test(
-      siteShell,
-    ),
-  "shared 404 shell keeps Sofia disabled, forwards anonymous mode, and renders direct account links without mounting signed-in controls",
+    !/@clerk|ClerkAccountControls|SofiaAccessBoundary|getClerkRuntimeState/.test(siteFrame) &&
+    /Exclude<LegacyPageKey, "not-found">/.test(legacyPageComponent) &&
+    !/authAware/.test(`${legacyPageComponent}\n${siteShell}`) &&
+    /if \(!clerkState\.configured\) return shell/.test(siteShell),
+  "404 uses a separate anonymous module graph with direct account links and no Clerk or Sofia runtime imports",
 );
 
 const faviconStats = await stat(join(root, "app/favicon.ico"));

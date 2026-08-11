@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { LegacyPage } from "@/components/legacy-page";
+import { AnonymousNotFoundPage } from "@/components/anonymous-legacy-page";
 
 export const metadata: Metadata = {
   title: "页面没有找到｜苏肥鸭多邻国",
@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 };
 
 export default function NotFoundPage() {
-  // Static files bypass Clerk middleware. Keep the shared 404 shell useful,
-  // but render anonymous account links so a missing asset never requests auth.
-  return <LegacyPage pageKey="not-found" authAware={false} />;
+  // Static files bypass Clerk middleware. This route uses a Clerk-free module
+  // graph so a missing asset cannot initialize account or Sofia runtimes.
+  return <AnonymousNotFoundPage />;
 }

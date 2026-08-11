@@ -3,9 +3,9 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { AuthPage, ClerkUnavailablePanel } from "@/components/auth-page";
-import { LegacyPage } from "@/components/legacy-page";
+import { LegacyPage, type RoutedLegacyPageKey } from "@/components/legacy-page";
 import { getClerkRuntimeState, isClerkProtectedPathname } from "@/lib/auth/clerk-config";
-import { legacyPages, publicRouteSlugs, type LegacyPageKey } from "@/lib/legacy-content.generated";
+import { legacyPages, publicRouteSlugs } from "@/lib/legacy-content.generated";
 import { metadataForPage } from "@/lib/site";
 
 export const dynamicParams = false;
@@ -14,9 +14,9 @@ export function generateStaticParams() {
   return publicRouteSlugs.map((slug) => ({ slug }));
 }
 
-function routeKey(slug: string): LegacyPageKey | null {
+function routeKey(slug: string): RoutedLegacyPageKey | null {
   if (slug === "home" || slug === "not-found") return null;
-  return slug in legacyPages ? (slug as LegacyPageKey) : null;
+  return slug in legacyPages ? (slug as RoutedLegacyPageKey) : null;
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
