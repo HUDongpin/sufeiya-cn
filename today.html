@@ -31,6 +31,7 @@
       {"@context":"https://schema.org","@type":"WebPage","name":"今日任务｜苏肥鸭学习工作台","url":"https://sufeiya.cn/today","inLanguage":"zh-CN","description":"查看并完成今天的 DET 学习任务，实时保存本机进度与下一步提示。","isPartOf":{"@type":"WebSite","name":"苏肥鸭多邻国","url":"https://sufeiya.cn/"}}
     </script>
     <script src="/script.js" defer></script>
+    <script src="/learning-events.js" defer></script>
     <script src="/workspace.js" defer></script>
   </head>
   <body data-page="today">
@@ -116,6 +117,7 @@
     <section class="single-tool-section" aria-labelledby="today-title">
       <div class="single-tool-inner">
         <header class="tool-panel-header"><div><span>02</span><div><p>今日清单</p><h2 id="today-title">今天先完成这三项</h2></div></div><small data-today-status>0 / 3 已完成</small></header>
+        <div class="gate-a-notice"><strong>任务来源与完成来源会分开显示</strong><p data-today-plan-boundary>正在核对当前计划；独立练习不会推进诊断闭环。</p><p>手动勾选只表示“学习者自报完成”，不会生成练习回执；从计划绑定入口完成练习后，才会显示“练习记录已留存”。两者都可帮助自我管理，只有合格练习回执可推进当前闭环。</p></div>
         <div class="today-layout">
           <div><div class="task-progress"><progress max="3" value="0" data-task-progress>0 / 3</progress><span data-task-progress-text>0%</span></div><ul class="today-tasks" data-today-tasks>
             <li><input id="today-task-0" type="checkbox" data-task-index="0" /><label for="today-task-0"><strong>Reading 微练习</strong><span>阅读本站英文短文并完成理解题。</span></label></li>
@@ -137,6 +139,7 @@
         <div>
           <strong>页面</strong>
           <a href="/workspace">开始学习</a>
+          <a href="/super-teacher">Sofia智能老师</a>
           <a href="/my-data">我的本机数据</a>
           <a href="/learning-path">学习路径</a>
           <a href="/platform">平台功能</a>

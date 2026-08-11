@@ -31,7 +31,9 @@
       {"@context":"https://schema.org","@type":"WebPage","name":"学习工作台｜苏肥鸭多邻国在线学习平台","url":"https://sufeiya.cn/workspace","inLanguage":"zh-CN","description":"直接使用 Sufeiya 学习工作台：生成 7 天 DET 学习计划、完成今日任务、练习英文听说读写、专注计时并保存本机复盘。","isPartOf":{"@type":"WebSite","name":"苏肥鸭多邻国","url":"https://sufeiya.cn/"}}
     </script>
     <script src="/script.js" defer></script>
+    <script src="/learning-events.js" defer></script>
     <script src="/workspace.js" defer></script>
+    <script src="/journey.js" defer></script>
   </head>
   <body data-page="workspace">
 
@@ -97,31 +99,169 @@
       <div class="workspace-hero-inner">
         <div>
           <p class="page-label"><span>学</span>学生学习工作台</p>
-          <h1 id="workspace-title">选择一个功能，<br />进入一个独立页面。</h1>
-          <p>这里是学习入口，不是把所有内容塞在一起的长页面。计划、今日任务、英文练习、专注计时与学习复盘各自独立，并通过本机数据连接起来。</p>
+          <h1 id="workspace-title">沿着一条闭环，<br />完成清楚的下一步。</h1>
+          <p>每个按钮仍进入一个独立功能页；工作台负责把演示性初筛、计划、推荐、打卡、复盘、自愿互助与平行微复测连接成一条可追踪路径。</p>
         </div>
-        <aside class="workspace-today" aria-label="今日学习概览">
-          <span>今日 / TODAY</span>
+        <aside class="workspace-today" aria-label="学习闭环概览">
+          <span>GATE A / 本机演示</span>
           <time data-today-date></time>
-          <strong data-hero-progress>0 / 3 项任务</strong>
-          <p>无需注册 · 本机保存 · 随时清除</p>
+          <strong data-journey-summary>0 / 7 步已留证</strong>
+          <p data-journey-next-label>下一步：完成六任务诊断证据包</p>
         </aside>
+      </div>
+    </section>
+    <section class="journey-section section" aria-labelledby="journey-title">
+      <div class="section-inner">
+        <div class="journey-heading">
+          <div><p class="workspace-overline">SUFEIYA CLOSED LOOP V1</p><h2 id="journey-title">七步各自独立，<br />证据彼此连接。</h2></div>
+          <div class="local-data-note"><div><strong>隐私优先</strong><span>登录只控制访问；学习数据不上传，可随时清除</span></div><button type="button" data-clear-workspace>清除我的数据</button></div>
+        </div>
+        <ol class="journey-grid" data-journey-list>
+          <li data-journey-step="diagnostic"><a href="/diagnostic"><span>01</span><small data-journey-step-status>待开始</small><h3>诊断证据包</h3><p>完成 2 Reading、2 Listening、90 秒 Speaking 与 3 分钟 Writing，再确认优先项。</p><b>进入诊断页 →</b></a></li>
+          <li data-journey-step="plan"><a href="/plan"><span>02</span><small data-journey-step-status>待开始</small><h3>7 天计划</h3><p>把优先项与可用时间变成具体任务；调整设置后可重新生成。</p><b>进入计划页 →</b></a></li>
+          <li data-journey-step="recommendation"><a href="/recommendations"><span>03</span><small data-journey-step-status>待开始</small><h3>内容推荐</h3><p>查看一个主任务与至多两个补充，并明确接受或跳过。</p><b>进入推荐页 →</b></a></li>
+          <li data-journey-step="checkin"><a href="/check-in"><span>04</span><small data-journey-step-status>待开始</small><h3>证据式打卡</h3><p>同时保存做了什么、一条学习证据和仍待解决的问题。</p><b>进入打卡页 →</b></a></li>
+          <li data-journey-step="review"><a href="/review"><span>05</span><small data-journey-step-status>待开始</small><h3>学生确认复盘</h3><p>核对刚才的打卡内容，再明确确认或返回修正。</p><b>进入确认页 →</b></a></li>
+          <li data-journey-step="community"><a href="/community"><span>06</span><small data-journey-step-status>待开始</small><h3>自愿社区互助</h3><p>可使用演示经验卡，也可谢绝、不需要或标记暂不可用。</p><b>进入互助选择 →</b></a></li>
+          <li data-journey-step="retest"><a href="/retest"><span>07</span><small data-journey-step-status>待开始</small><h3>平行微复测</h3><p>完成一条原创平行任务，再由学习者确认下一轮计划。</p><b>进入微复测 →</b></a></li>
+        </ol>
+        <div class="journey-next-card" aria-live="polite">
+          <div><span>NEXT EVIDENCE</span><h3 data-journey-next-title>完成六任务诊断证据包</h3><p data-journey-next-copy>先完成设备预检，再依次留下六项原创任务证据与学习者确认的优先项。</p></div>
+          <a class="button button-accent" href="/diagnostic" data-journey-next-link>继续下一步
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M5 12h13M14 7l5 5-5 5" />
+  </svg></a>
+        </div>
+        <p class="workspace-launch-boundary">这是 Gate A 本机演示：不接触服务器端学生数据，不提供官方 DET 分数、成绩预测、自动诊断、真题机经、考试中协助、真实社区或结果保证。</p>
+      </div>
+    </section>
+    <section class="cycle-ledger-section section" aria-labelledby="cycle-ledger-title" data-cycle-ledger data-cycle-state="empty">
+      <div class="section-inner">
+        <div class="cycle-ledger-heading">
+          <div><p class="workspace-overline">CURRENT CYCLE RECEIPT</p><h2 id="cycle-ledger-title">把七步留下的节点，<br />放在一起核对。</h2></div>
+          <p>这里只投影中央闭环校验器已经确认的本机 ID 与固定状态，不展示作文、首答、打卡自由文本或聊天内容。未通过前序核对的节点不会被提前显示。</p>
+        </div>
+        <div class="cycle-ledger-shell">
+          <aside class="cycle-ledger-overview" aria-label="本轮证据链状态">
+            <span>LOCAL / UNSIGNED</span>
+            <strong data-cycle-ledger-status aria-live="polite">尚未建立本轮证据链</strong>
+            <p data-cycle-ledger-copy>从六任务诊断开始后，这里会按顺序显示已经通过核对的节点。</p>
+            <dl>
+              <div><dt>cycle_id</dt><dd><code data-cycle-ledger-cycle-id>尚未形成</code></dd></div>
+              <div><dt>protocol</dt><dd><code data-cycle-ledger-protocol>gate_a_local_v1</code></dd></div>
+              <div><dt>事件链完整性</dt><dd data-cycle-ledger-integrity>正在核对</dd></div>
+            </dl>
+            <a class="button button-ghost" href="/my-data">查看或导出我的本机数据
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M5 12h13M14 7l5 5-5 5" />
+  </svg></a>
+          </aside>
+          <ol class="cycle-ledger-list" aria-label="本轮证据节点">
+            <li data-cycle-ledger-row="diagnostic" data-state="current"><span class="cycle-ledger-index" aria-hidden="true">01</span><div><strong>诊断证据</strong><small>diagnostic_session_id</small></div><code data-cycle-ledger-value>尚未形成</code><span data-cycle-ledger-row-status>下一条待形成</span></li>
+            <li data-cycle-ledger-row="plan" data-state="locked"><span class="cycle-ledger-index" aria-hidden="true">02</span><div><strong>基础计划</strong><small>plan_id</small></div><code data-cycle-ledger-value>尚未形成</code><span data-cycle-ledger-row-status>等待前一步</span></li>
+            <li data-cycle-ledger-row="recommendation" data-state="locked"><span class="cycle-ledger-index" aria-hidden="true">03</span><div><strong>推荐决定</strong><small>recommendation_id</small></div><code data-cycle-ledger-value>尚未形成</code><span data-cycle-ledger-row-status>等待前一步</span></li>
+            <li data-cycle-ledger-row="checkin" data-state="locked"><span class="cycle-ledger-index" aria-hidden="true">04</span><div><strong>证据式打卡</strong><small>check_in_id</small></div><code data-cycle-ledger-value>尚未形成</code><span data-cycle-ledger-row-status>等待前一步</span></li>
+            <li data-cycle-ledger-row="review" data-state="locked"><span class="cycle-ledger-index" aria-hidden="true">05</span><div><strong>学习者确认</strong><small>review_id</small></div><code data-cycle-ledger-value>尚未形成</code><span data-cycle-ledger-row-status>等待前一步</span></li>
+            <li data-cycle-ledger-row="peerHelp" data-state="locked"><span class="cycle-ledger-index" aria-hidden="true">06</span><div><strong>自愿互助状态</strong><small>peer_help_id / status</small></div><code data-cycle-ledger-value>尚未形成</code><span data-cycle-ledger-row-status>等待前一步</span></li>
+            <li data-cycle-ledger-row="retest" data-state="locked"><span class="cycle-ledger-index" aria-hidden="true">07</span><div><strong>平行微复测</strong><small>retest_id</small></div><code data-cycle-ledger-value>尚未形成</code><span data-cycle-ledger-row-status>等待前一步</span></li>
+            <li data-cycle-ledger-row="updatedPlan" data-state="locked"><span class="cycle-ledger-index" aria-hidden="true">08</span><div><strong>更新计划</strong><small>updated_plan_id</small></div><code data-cycle-ledger-value>尚未形成</code><span data-cycle-ledger-row-status>等待前一步</span></li>
+          </ol>
+        </div>
+        <p class="cycle-ledger-boundary">这份总览是当前浏览器中的未签名演示回执：可用于核对流程与回链，不是服务器签名、正式诊断、教师确认、学习增长证明或防篡改凭证。</p>
+      </div>
+    </section>
+    <section class="cycle-history-section section" aria-labelledby="cycle-history-title" data-cycle-history data-cycle-history-state="empty">
+      <div class="section-inner">
+        <div class="cycle-history-heading">
+          <div><p class="workspace-overline">LOCAL CYCLE HISTORY / LAST 10</p><h2 id="cycle-history-title">上一轮计划怎么变，<br />只看通过核对的版本。</h2></div>
+          <div>
+            <p>这里最多显示最近 10 轮。每轮都重新核对完整 ID 链、固定任务集、能力方向、时间顺序、计划前后版本与本机事件链；当前轮次不重复列入历史。</p>
+            <strong data-cycle-history-summary aria-live="polite">正在核对本机轮次历史</strong>
+          </div>
+        </div>
+        <ol class="cycle-history-list" data-cycle-history-list aria-label="已核对的 Gate A 本机轮次历史" hidden></ol>
+        <p class="cycle-history-empty" data-cycle-history-empty>完成一轮 Gate A 本机闭环后，这里会显示经过重新核对的计划版本与脱敏 ID 链。</p>
+        <p class="cycle-history-invalid" data-cycle-history-invalid hidden></p>
+        <p class="cycle-history-boundary">只读投影不会写入学习状态、追加事件或发送网络请求；姓名、考试日、作文与首答、打卡自由文本、Sofia 对话和账户标识不会进入历史视图。完成本机闭环与“待具备资格人员复核”是两个不同状态。</p>
+      </div>
+    </section>
+    <section class="gate0-section section" aria-labelledby="gate0-title" data-gate0-summary data-gate0-state="loading">
+      <div class="section-inner">
+        <div class="gate0-heading">
+          <div><p class="workspace-overline">GATE 0 / APPENDIX A</p><h2 id="gate0-title">平台开放之前，<br />先把决定写清楚。</h2></div>
+          <p>批准方案附录 A 有 29 项 P0 决策。这里显示逐项书面结论是否齐备，不是学习任务、页面数量或工程功能的完成率。</p>
+        </div>
+        <div class="gate0-shell">
+          <div class="gate0-status-card">
+            <span>DEFAULT DENY / READ ONLY</span>
+            <strong data-gate0-status aria-live="polite">正在核对 29 项 P0 决策</strong>
+            <p data-gate0-copy>核对完成前，平台按 Gate 0 未通过处理；任何未知或缺失状态都不会显示成批准。</p>
+            <div class="gate0-meter">
+              <div><span>已形成逐项书面结论</span><strong><span data-gate0-resolved>—</span> / <span data-gate0-total>29</span></strong></div>
+              <progress data-gate0-progress max="29" aria-label="已形成逐项书面结论" aria-valuetext="正在核对，按未通过处理">正在核对</progress>
+            </div>
+          </div>
+          <aside class="gate0-boundary-card" aria-label="Gate 0 与运行时发布边界">
+            <span>SEPARATE RELEASE AUTHORITY</span>
+            <strong>书面决定不直接开放功能</strong>
+            <p>登录成功、页面可访问、模型或功能代码已经配置，都不属于批准证据。P0 Decision Log 与运行时发布登记表彼此独立。</p>
+            <ul>
+              <li>真实社区、真实人工队列和 staff 写入继续关闭</li>
+              <li>服务器学生数据、外部生成、声音与麦克风继续关闭</li>
+              <li>Gate A 本机演示不等于正式 Gate A PASS 或真实试点</li>
+            </ul>
+          </aside>
+        </div>
+        <p class="gate0-footnote">当前只公开脱敏汇总，不公开负责人、证据位置、内部决策摘要、控制项映射或复审日期。完整 Decision Log 需要独立 staff RBAC 才能查看。</p>
+      </div>
+    </section>
+    <section class="source-admission-section section" aria-labelledby="source-admission-title" data-source-governance data-source-governance-state="loading">
+      <div class="section-inner">
+        <div class="source-admission-heading">
+          <div><p class="workspace-overline">SOURCE GOVERNANCE / DEFAULT DENY</p><h2 id="source-admission-title">能被看到，<br />不等于能进入 RAG。</h2></div>
+          <p>每条内容必须先满足目录覆盖完整、可审核正文或转写就绪，以及六项逐决定证据绑定；之后还要通过教师审核、用途权利、考试版本、显式准入和安全旗标五项核心决定。这里仅显示脱敏计数，不开放知识库内容。</p>
+        </div>
+        <div class="source-admission-shell">
+          <div class="source-admission-status-card">
+            <span>CANONICAL CONTRACT · READ ONLY</span>
+            <strong data-source-governance-status aria-live="polite">正在核对来源准入登记</strong>
+            <p data-source-governance-copy>核对完成前，RAG 准入数按 0 处理；Gate A 静态解释来源与仅链接目录不会被当作可检索知识库。</p>
+            <dl class="source-admission-metrics">
+              <div><dt>RAG 已准入</dt><dd><span data-source-rag-eligible>—</span> / <span data-source-tracked>15</span></dd></div>
+              <div><dt>Gate A 静态来源</dt><dd data-source-gate-a>—</dd></div>
+              <div><dt>仅链接目录</dt><dd data-source-link-only>—</dd></div>
+              <div><dt>归档继续阻断</dt><dd data-source-archive-blocked>—</dd></div>
+            </dl>
+          </div>
+          <aside class="source-admission-contract" aria-label="RAG 逐条准入合同">
+            <span>FIVE CORE DECISIONS · PLUS EVIDENCE</span>
+            <strong>五项核心决定不是完整 Gate</strong>
+            <ol>
+              <li><span>01</span><div><b>教师审核</b><small>review_status = teacher_reviewed</small></div><em data-source-criterion="teacher-reviewed">— / 15</em></li>
+              <li><span>02</span><div><b>RAG 用途权利</b><small>rights_status.rag = allowed</small></div><em data-source-criterion="rag-rights">— / 15</em></li>
+              <li><span>03</span><div><b>版本当前或不适用</b><small>exam_version_status</small></div><em data-source-criterion="exam-version">— / 15</em></li>
+              <li><span>04</span><div><b>显式准入</b><small>rag_eligibility = allowed</small></div><em data-source-criterion="explicit-rag">— / 15</em></li>
+              <li><span>05</span><div><b>无阻断安全旗标</b><small>safety_flags</small></div><em data-source-criterion="no-safety-flags">— / 15</em></li>
+            </ol>
+          </aside>
+        </div>
+        <p class="source-admission-footnote">五项计数只表示登记字段的声明状态，不表示证据已经核验。完整 Gate 还要求目录覆盖、可审核正文或转写、六项证据目录解析及有效期全部通过；归档记录继续整体阻断。RAG 准入与 Gate A 的确定性静态解释是不同状态。</p>
       </div>
     </section>
     <section class="workspace-launch section" aria-labelledby="workspace-launch-title">
       <div class="section-inner">
         <div class="workspace-launch-heading">
-          <div><p class="workspace-overline">CHOOSE ONE TOOL</p><h2 id="workspace-launch-title">一个按钮，进入一个功能页面。</h2></div>
-          <div class="local-data-note"><div><strong>隐私优先</strong><span>不登录、不上传，可随时清除</span></div><button type="button" data-clear-workspace>清除我的数据</button></div>
+          <div><p class="workspace-overline">SUPPORTING TOOLS</p><h2 id="workspace-launch-title">闭环之外，<br />按需打开辅助工具。</h2></div>
+          <p class="workspace-tools-copy">练习、专注与数据管理都有独立页面；它们不会自动生成能力结论，也不会替代七步闭环中的学生确认。</p>
         </div>
-        <div class="workspace-launch-grid">
-          <a href="/plan"><span>01</span><small>PLAN</small><h3>生成 7 天计划</h3><p>选择每日时间与重点能力，得到每天可完成的安排。</p><b>进入计划页 →</b></a>
-          <a href="/today"><span>02</span><small>TODAY</small><h3>完成今日任务</h3><p>逐项打卡并查看进度；计划更新后，清单也会同步。</p><b>进入任务页 →</b></a>
-          <a href="/practice"><span>03</span><small>PRACTICE</small><h3>开始英文微练习</h3><p>Reading、Listening、Writing 与 Speaking 各有独立页面。</p><b>选择练习页 →</b></a>
-          <a href="/focus"><span>04</span><small>FOCUS</small><h3>启动专注计时</h3><p>选择 15、25 或 45 分钟，开始一段不被打断的学习。</p><b>进入计时页 →</b></a>
-          <a href="/check-in"><span>05</span><small>REFLECT</small><h3>保存学习复盘</h3><p>记录今天完成了什么、困难在哪里，以及明天先做什么。</p><b>进入复盘页 →</b></a>
+        <div class="workspace-launch-grid workspace-support-grid">
+          <a href="/super-teacher"><img class="workspace-sofia-avatar" src="/assets/sufeiya-super-teacher-avatar.webp" width="72" height="72" alt="" /><small>SOFIA AI TEACHER · AI</small><h3>Sofia智能老师</h3><p>解释本机证据、计划与推荐依据；来源不足时明确停下。</p><b>有来源地问为什么 →</b></a>
+          <a href="/today"><span>今</span><small>TODAY</small><h3>今日任务</h3><p>读取 7 天计划，逐项完成今天的练习与行动。</p><b>查看今日清单 →</b></a>
+          <a href="/practice"><span>练</span><small>PRACTICE</small><h3>四项英文微练习</h3><p>Reading、Listening、Writing 与 Speaking 各有独立页面。</p><b>选择练习页 →</b></a>
+          <a href="/focus"><span>专</span><small>FOCUS</small><h3>专注计时</h3><p>选择 15、25 或 45 分钟，开始一段不被打断的学习。</p><b>进入计时页 →</b></a>
+          <a href="/teaching-review-demo"><span>审</span><small>LOCAL REVIEW DEMO</small><h3>教研复核演示</h3><p>只读查看临时轮次证据，草拟修订建议或升级说明；不发送、不结案。</p><b>进入本机演示 →</b></a>
+          <a href="/my-data"><span>数</span><small>MY DATA</small><h3>本机数据</h3><p>查看、导出或仅清除当前浏览器中的 Sufeiya 学习记录。</p><b>管理本机数据 →</b></a>
         </div>
-        <p class="workspace-launch-boundary">这些是自我学习工具，不提供官方 DET 分数、成绩预测、真题机经、考试中协助或结果保证。</p>
       </div>
     </section>
   </main>
@@ -135,6 +275,7 @@
         <div>
           <strong>页面</strong>
           <a href="/workspace">开始学习</a>
+          <a href="/super-teacher">Sofia智能老师</a>
           <a href="/my-data">我的本机数据</a>
           <a href="/learning-path">学习路径</a>
           <a href="/platform">平台功能</a>

@@ -1,20 +1,11 @@
-import { ClerkProvider } from "@clerk/nextjs";
-import { zhCN } from "@clerk/localizations";
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import type { ReactNode } from "react";
 
 import "../styles.css";
 import "./next-overrides.css";
 
 import { SITE_NAME, SITE_URL } from "@/lib/site";
-
-const clerkLocalization = {
-  ...zhCN,
-  // These two strings are currently undefined in Clerk's zh-CN bundle and
-  // otherwise fall back to English in the sign-in and sign-up cards.
-  formFieldInputPlaceholder__password: "请输入密码",
-  formFieldInputPlaceholder__signUpPassword: "请创建密码",
-};
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -36,9 +27,12 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
   return (
     <html lang="zh-CN">
       <body>
-        <ClerkProvider localization={clerkLocalization}>
-          {children}
-        </ClerkProvider>
+        <Script
+          id="sufeiya-learning-events-runtime"
+          src="/learning-events.js"
+          strategy="beforeInteractive"
+        />
+        {children}
       </body>
     </html>
   );

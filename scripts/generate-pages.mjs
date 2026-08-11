@@ -1,7 +1,89 @@
-import { writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
+const diagnosticTaskRegister = JSON.parse(
+  await readFile(new URL("../data/diagnostic-task-register.json", import.meta.url), "utf8"),
+);
+const practiceTaskRegister = JSON.parse(
+  await readFile(new URL("../data/practice-task-register.json", import.meta.url), "utf8"),
+);
+if (
+  practiceTaskRegister.protocolVersion !== "sufeiya_practice_task_register_v1" ||
+  practiceTaskRegister.releaseStatus !== "gate_a_demo_only" ||
+  practiceTaskRegister.ownerScope !== "browser_local_not_account_bound" ||
+  practiceTaskRegister.teacherReviewed !== false ||
+  practiceTaskRegister.measurementReviewed !== false ||
+  !Array.isArray(practiceTaskRegister.tasks) ||
+  practiceTaskRegister.tasks.length !== 4
+) {
+  throw new Error("Practice task register is missing the exact Gate A four-task contract.");
+}
+for (const task of practiceTaskRegister.tasks) {
+  const digest = createHash("sha256").update(JSON.stringify(task.content)).digest("hex");
+  if (task.contentHash !== digest) throw new Error(`Practice content hash mismatch: ${task.exerciseId}`);
+}
+const practiceTasksByExerciseId = new Map(practiceTaskRegister.tasks.map((task) => [task.exerciseId, task]));
+if (practiceTasksByExerciseId.size !== practiceTaskRegister.tasks.length) {
+  throw new Error("Practice task register contains duplicate exercise IDs.");
+}
+const requirePracticeTask = (exerciseId, expectedSkill, expectedResponseType) => {
+  const task = practiceTasksByExerciseId.get(exerciseId);
+  if (
+    !task ||
+    task.skill !== expectedSkill ||
+    task.responseType !== expectedResponseType ||
+    typeof task.contentId !== "string" ||
+    typeof task.contentVersion !== "string" ||
+    !/^[a-f0-9]{64}$/.test(task.contentHash) ||
+    typeof task.route !== "string" ||
+    !task.route.startsWith("/") ||
+    !task.content ||
+    task.content.contentVersion !== task.contentVersion ||
+    !task.presentation ||
+    typeof task.presentation.headerNoteZh !== "string" ||
+    typeof task.presentation.instructionZh !== "string"
+  ) {
+    throw new Error(`Practice task has an invalid canonical contract: ${exerciseId}`);
+  }
+  return task;
+};
+const diagnosticTasks = [...diagnosticTaskRegister.tasks].sort((left, right) => left.order - right.order);
+if (
+  diagnosticTaskRegister.protocolVersion !== "sufeiya_diagnostic_task_register_v1" ||
+  diagnosticTaskRegister.taskSetVersion !== "gate_a_original_6_v1" ||
+  diagnosticTasks.length !== 6
+) {
+  throw new Error("Diagnostic task register is missing the exact Gate A six-task contract.");
+}
+for (const task of diagnosticTasks) {
+  const digest = createHash("sha256").update(JSON.stringify(task.content)).digest("hex");
+  if (task.contentHash !== digest) throw new Error(`Diagnostic content hash mismatch: ${task.taskId}`);
+}
+const diagnosticManifest = diagnosticTasks.map(({ taskId, taskVersion, skill, responseType, constructTag, contentHash }) => ({
+  taskId,
+  taskVersion,
+  skill,
+  responseType,
+  constructTag,
+  contentHash,
+}));
+const diagnosticTaskSetDigest = createHash("sha256").update(JSON.stringify(diagnosticManifest)).digest("hex");
+if (diagnosticTaskRegister.taskSetDigest !== diagnosticTaskSetDigest) {
+  throw new Error("Diagnostic task-set digest does not match the six-task manifest.");
+}
+const staticListeningTask = diagnosticTasks.find((task) => task.content.audioMode === "static_asset");
+if (!staticListeningTask?.audioAsset || staticListeningTask.audioAsset.path !== staticListeningTask.content.audioPath) {
+  throw new Error("Static diagnostic audio is missing its canonical asset receipt.");
+}
+const staticListeningBytes = await readFile(new URL(`..${staticListeningTask.audioAsset.path}`, import.meta.url));
+if (
+  staticListeningBytes.byteLength !== staticListeningTask.audioAsset.bytes ||
+  createHash("sha256").update(staticListeningBytes).digest("hex") !== staticListeningTask.audioAsset.sha256
+) {
+  throw new Error("Static diagnostic audio does not match its canonical asset receipt.");
+}
 const bilibili = "https://space.bilibili.com/448907095";
 const navItems = [
   { key: "learning-path", label: "学习路径", href: "/learning-path" },
@@ -19,6 +101,88 @@ const externalArrow = `
   <svg viewBox="0 0 20 20" aria-hidden="true">
     <path d="M5 15 15 5M7 5h8v8" />
   </svg>`;
+
+const escapeHtml = (value) =>
+  String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+
+const fillPracticeTemplate = (template, values) => {
+  if (typeof template !== "string") throw new Error("Practice presentation template must be a string.");
+  return template.replace(/\{([A-Za-z][A-Za-z0-9]*)\}/g, (match, key) => {
+    if (!(key in values)) throw new Error(`Practice presentation template has an unknown placeholder: ${match}`);
+    return String(values[key]);
+  });
+};
+
+const practiceArticleAttributes = (task, practiceKey) => {
+  const completionRule = task.content?.completionRule;
+  if (typeof completionRule !== "string") {
+    throw new Error(`Practice task is missing its completion rule: ${task.exerciseId}`);
+  }
+  return [
+    ["data-practice", practiceKey],
+    ["data-exercise-id", task.exerciseId],
+    ["data-activity-id", task.activityId],
+    ["data-content-id", task.contentId],
+    ["data-content-version", task.contentVersion],
+    ["data-content-hash", task.contentHash],
+    ["data-response-type", task.responseType],
+    ["data-evidence-class", task.evidenceClass],
+    ["data-completion-rule", completionRule],
+  ]
+    .map(([name, value]) => `${name}="${escapeHtml(value)}"`)
+    .join(" ");
+};
+
+const renderPracticeBindingStatus = () =>
+  '<div class="practice-binding-status" data-practice-binding-status role="status"><strong data-practice-binding-title>正在核对计划绑定</strong><p data-practice-binding-copy></p></div><a class="button button-accent practice-checkin-next" href="/check-in" data-practice-checkin-link hidden>下一步：用这条练习回执完成证据式打卡 →</a>';
+
+const renderPracticeChoices = (task, inputName) => {
+  const options = task.content?.options;
+  const values = Array.isArray(options) ? options.map((_, index) => String.fromCharCode(97 + index)) : [];
+  if (
+    values.length < 2 ||
+    !options.every((option) => typeof option === "string" && option.length > 0) ||
+    !values.includes(task.content.correctValue)
+  ) {
+    throw new Error(`Practice choice contract is invalid: ${task.exerciseId}`);
+  }
+  return options
+    .map(
+      (option, index) =>
+        `<label><input type="radio" name="${escapeHtml(inputName)}" value="${values[index]}" /> ${escapeHtml(option)}</label>`,
+    )
+    .join("");
+};
+
+const renderPracticeSelfReview = (task, dataAttribute, { disabled = false } = {}) => {
+  const reviewIds = task.content?.selfReview;
+  const labels = task.presentation?.selfReviewLabelsEn;
+  if (
+    !Array.isArray(reviewIds) ||
+    reviewIds.length === 0 ||
+    new Set(reviewIds).size !== reviewIds.length ||
+    !labels ||
+    reviewIds.some((reviewId) => typeof reviewId !== "string" || typeof labels[reviewId] !== "string")
+  ) {
+    throw new Error(`Practice self-review contract is invalid: ${task.exerciseId}`);
+  }
+  return reviewIds
+    .map(
+      (reviewId) =>
+        `<label><input type="checkbox" ${dataAttribute}="${escapeHtml(reviewId)}"${disabled ? " disabled" : ""} /> ${escapeHtml(labels[reviewId])}</label>`,
+    )
+    .join("");
+};
+
+const formatPracticeClock = (seconds) => {
+  if (!Number.isInteger(seconds) || seconds <= 0) throw new Error(`Invalid practice duration: ${seconds}`);
+  return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+};
 
 const header = (page) => `
   <div class="reading-progress" aria-hidden="true"><span></span></div>
@@ -72,6 +236,7 @@ const footer = () => `
         <div>
           <strong>页面</strong>
           <a href="/workspace">开始学习</a>
+          <a href="/super-teacher">Sofia智能老师</a>
           <a href="/my-data">我的本机数据</a>
           <a href="/learning-path">学习路径</a>
           <a href="/platform">平台功能</a>
@@ -190,7 +355,7 @@ const homeContent = `
           </a>
           <a href="/platform">
             <span>02</span><small>查看平台能力</small>
-            <h3>平台功能</h3><p>了解全科诊断、智能老师、打卡营和自愿社区互助。</p>
+            <h3>平台功能</h3><p>了解全科诊断、Sofia智能老师、打卡营和自愿社区互助。</p>
             <b aria-hidden="true">进入页面 →</b>
           </a>
           <a href="/resources">
@@ -215,7 +380,7 @@ const homeContent = `
         </div>
         <dl>
           <div><dt>现在可用</dt><dd>7 天计划、今日清单、四项英文微练习、专注计时与本机复盘</dd></div>
-          <div><dt>分阶段开放</dt><dd>正式学习诊断、智能老师、带教打卡营与社区互助</dd></div>
+          <div><dt>分阶段开放</dt><dd>正式学习诊断、Sofia智能老师、带教打卡营与社区互助</dd></div>
           <div><dt>明确不提供</dt><dd>官方成绩预测、真题机经、考试中协助或结果保证</dd></div>
         </dl>
       </div>
@@ -296,8 +461,8 @@ const platformContent = `
       number: "02",
       label: "平台功能",
       title: "四项平台能力，<br />服务同一条学习路径。",
-      lead: "基础学习工具已经可以直接使用；正式诊断、智能辅助、带教打卡与社区能力继续分阶段验证。每项能力都服务同一条学习路径。",
-      aside: "<strong>现在就能学习</strong><p>进入学习工作台，生成计划、完成清单、练习英文听说读写并保存复盘。</p>",
+      lead: "基础学习工具和 Sofia智能老师 Gate A 已经可以直接使用；正式诊断、完整课程知识、带教打卡与社区能力继续分阶段验证。每项能力都服务同一条学习路径。",
+      aside: "<strong>现在就能学习</strong><p>进入学习工作台完成七步闭环，或让 Sofia智能老师解释本机证据、计划与推荐依据。</p>",
     })}
     <section class="workspace-entry section" aria-labelledby="workspace-entry-title">
       <div class="section-inner">
@@ -308,7 +473,7 @@ const platformContent = `
             <h2 id="workspace-entry-title">打开网页，<br />今天就能完成一轮学习。</h2>
           </div>
           <div>
-            <p>无需注册。计划、打卡与复盘只保存在当前浏览器中，学生可以随时清除，不会上传到网站服务器。</p>
+            <p>工作台与学习页面使用 Clerk 登录保护。计划、打卡与复盘仍只保存在当前浏览器中；登录不会自动上传、绑定或跨设备同步这些记录，学生可以随时清除。</p>
             <a class="button button-ink" href="/workspace">进入学习工作台${arrow}</a>
           </div>
         </div>
@@ -337,7 +502,7 @@ const platformContent = `
           </article>
           <article>
             <div class="system-index"><span>02</span><small>解释</small></div>
-            <div class="system-content"><p class="system-label">苏肥鸭超级智能老师</p><h3>解释为什么，<br />也知道何时说“不确定”。</h3><p>计划基于经审核的苏肥鸭课程与 DET 官方资料提供解释、引用与练习反馈；证据不足时清楚说明，并保留人工支持路径。</p></div>
+            <div class="system-content"><p class="system-label">Sofia智能老师</p><h3>解释为什么，<br />也知道何时停下。</h3><p>Gate A 已开放：逐句引用本站本机证据、计划、推荐与原创任务；DET 官方资料和课程正文完成审核前不会进入回答，并保留非 AI 与人工支持路径。</p><a class="text-link" href="/super-teacher">打开 Sofia智能老师 →</a></div>
           </article>
           <article>
             <div class="system-index"><span>03</span><small>练习</small></div>
@@ -348,7 +513,7 @@ const platformContent = `
             <div class="system-content"><p class="system-label">上岸学员社区互助</p><h3>让真实经验，<br />以有边界的方式流动。</h3><p>计划邀请经核验、培训的上岸学员分享结构化经验；每位学习者是否参加完全自愿，不参加也不会阻断个人学习路径。</p></div>
           </article>
         </div>
-        <p class="system-boundary"><strong>当前状态：</strong>基础学习工作台与公开课程入口已经开放；正式诊断、智能老师、带教打卡与社区能力将分阶段开放，当前不提供正式评分服务。</p>
+        <p class="system-boundary"><strong>当前状态：</strong>基础学习工作台、公开课程入口与 Sofia智能老师 Gate A 已开放；后者只回答已准入范围，当前 DET 官方语料与归档知识块准入均为 0。正式诊断、完整知识服务、带教打卡与社区能力仍分阶段开放。</p>
       </div>
     </section>
     <section class="current-status current-status-light" aria-labelledby="platform-status-title">
@@ -356,7 +521,8 @@ const platformContent = `
         <div><p>能力状态</p><h2 id="platform-status-title">开放状态必须清楚，<br />不把规划写成现成服务。</h2></div>
         <dl>
           <div><dt>学习工作台</dt><dd>已开放，可直接生成计划、练习、计时并在本机保存复盘</dd></div>
-          <div><dt>进阶能力</dt><dd>完成内容、测评、隐私和运营准备后分阶段开放</dd></div>
+          <div><dt>Sofia智能老师</dt><dd>Gate A 已开放：有来源解释、明确拒答、非 AI 退出和本机人工请求</dd></div>
+          <div><dt>其余进阶能力</dt><dd>完成内容、测评、隐私和运营准备后分阶段开放</dd></div>
           <div><dt>非官方边界</dt><dd>不冒充官方评分，不保证提分、录取或上岸结果</dd></div>
         </dl>
       </div>
@@ -495,7 +661,7 @@ const aboutContent = `
         <div class="faq-list">
           <details><summary><span>这个网站是 Duolingo 或 DET 官方网站吗？</span><span class="faq-toggle" aria-hidden="true"></span></summary><p>不是。sufeiya.cn 是独立在线学习平台，与 Duolingo, Inc. 没有官方隶属、授权或合作关系。“Duolingo English Test / DET”用于说明所讨论的考试与学习领域。</p></details>
           <details><summary><span>这里能给出正式 DET 分数或“保分”承诺吗？</span><span class="faq-toggle" aria-hidden="true"></span></summary><p>不能。平台中的学习诊断只用于识别当前证据、错误模式和学习优先级，不冒充官方考试评分，也不承诺提分、录取或上岸结果。</p></details>
-          <details><summary><span>“苏肥鸭超级智能老师”现在可以使用吗？</span><span class="faq-toggle" aria-hidden="true"></span></summary><p>该模块正在分阶段设计和验证。正式开放前，需要完成内容授权、教研审核、引用准确性、数据安全与人工转介等测试；当前公开页面不提供 AI 对话服务。</p></details>
+          <details><summary><span>“Sofia智能老师”现在可以使用吗？</span><span class="faq-toggle" aria-hidden="true"></span></summary><p>可以使用 Gate A 限定版。它只解释本站本机学习证据、计划、推荐与原创任务，逐句显示来源；DET 官方规则和归档课程正文尚无准入条目，因此相关问题会明确停下。使用前需同意本次发送，也可随时改走非 AI 或人工支持路径。</p></details>
           <details><summary><span>网站为什么主要使用中文？</span><span class="faq-toggle" aria-hidden="true"></span></summary><p>平台主要服务中国大陆学生，因此导航、说明、反馈和帮助使用简体中文。真正用于 DET 备考的题目、阅读听力材料、作文与口语任务保留英文。</p></details>
           <details><summary><span>社区互助会是必选环节吗？</span><span class="faq-toggle" aria-hidden="true"></span></summary><p>不会。社区互助是平台计划提供的一种支持能力，但每位学习者是否参与都应当自愿；不参加不会影响个人计划、复盘、再诊断或退出。</p></details>
         </div>
@@ -539,7 +705,7 @@ const workspacePrototype = `
             <h2 id="workspace-tools-title">四个工具，一次学习闭环。</h2>
           </div>
           <div class="local-data-note">
-            <div><strong>本机保存</strong><span>不登录、不上传，可随时清除</span></div>
+            <div><strong>本机保存</strong><span>登录只控制访问；学习数据不上传，可随时清除</span></div>
             <button type="button" data-clear-workspace>清除我的数据</button>
           </div>
         </header>
@@ -768,40 +934,315 @@ const workspaceContent = `
       <div class="workspace-hero-inner">
         <div>
           <p class="page-label"><span>学</span>学生学习工作台</p>
-          <h1 id="workspace-title">选择一个功能，<br />进入一个独立页面。</h1>
-          <p>这里是学习入口，不是把所有内容塞在一起的长页面。计划、今日任务、英文练习、专注计时与学习复盘各自独立，并通过本机数据连接起来。</p>
+          <h1 id="workspace-title">沿着一条闭环，<br />完成清楚的下一步。</h1>
+          <p>每个按钮仍进入一个独立功能页；工作台负责把演示性初筛、计划、推荐、打卡、复盘、自愿互助与平行微复测连接成一条可追踪路径。</p>
         </div>
-        <aside class="workspace-today" aria-label="今日学习概览">
-          <span>今日 / TODAY</span>
+        <aside class="workspace-today" aria-label="学习闭环概览">
+          <span>GATE A / 本机演示</span>
           <time data-today-date></time>
-          <strong data-hero-progress>0 / 3 项任务</strong>
-          <p>无需注册 · 本机保存 · 随时清除</p>
+          <strong data-journey-summary>0 / 7 步已留证</strong>
+          <p data-journey-next-label>下一步：完成六任务诊断证据包</p>
         </aside>
+      </div>
+    </section>
+    <section class="journey-section section" aria-labelledby="journey-title">
+      <div class="section-inner">
+        <div class="journey-heading">
+          <div><p class="workspace-overline">SUFEIYA CLOSED LOOP V1</p><h2 id="journey-title">七步各自独立，<br />证据彼此连接。</h2></div>
+          <div class="local-data-note"><div><strong>隐私优先</strong><span>登录只控制访问；学习数据不上传，可随时清除</span></div><button type="button" data-clear-workspace>清除我的数据</button></div>
+        </div>
+        <ol class="journey-grid" data-journey-list>
+          <li data-journey-step="diagnostic"><a href="/diagnostic"><span>01</span><small data-journey-step-status>待开始</small><h3>诊断证据包</h3><p>完成 2 Reading、2 Listening、90 秒 Speaking 与 3 分钟 Writing，再确认优先项。</p><b>进入诊断页 →</b></a></li>
+          <li data-journey-step="plan"><a href="/plan"><span>02</span><small data-journey-step-status>待开始</small><h3>7 天计划</h3><p>把优先项与可用时间变成具体任务；调整设置后可重新生成。</p><b>进入计划页 →</b></a></li>
+          <li data-journey-step="recommendation"><a href="/recommendations"><span>03</span><small data-journey-step-status>待开始</small><h3>内容推荐</h3><p>查看一个主任务与至多两个补充，并明确接受或跳过。</p><b>进入推荐页 →</b></a></li>
+          <li data-journey-step="checkin"><a href="/check-in"><span>04</span><small data-journey-step-status>待开始</small><h3>证据式打卡</h3><p>同时保存做了什么、一条学习证据和仍待解决的问题。</p><b>进入打卡页 →</b></a></li>
+          <li data-journey-step="review"><a href="/review"><span>05</span><small data-journey-step-status>待开始</small><h3>学生确认复盘</h3><p>核对刚才的打卡内容，再明确确认或返回修正。</p><b>进入确认页 →</b></a></li>
+          <li data-journey-step="community"><a href="/community"><span>06</span><small data-journey-step-status>待开始</small><h3>自愿社区互助</h3><p>可使用演示经验卡，也可谢绝、不需要或标记暂不可用。</p><b>进入互助选择 →</b></a></li>
+          <li data-journey-step="retest"><a href="/retest"><span>07</span><small data-journey-step-status>待开始</small><h3>平行微复测</h3><p>完成一条原创平行任务，再由学习者确认下一轮计划。</p><b>进入微复测 →</b></a></li>
+        </ol>
+        <div class="journey-next-card" aria-live="polite">
+          <div><span>NEXT EVIDENCE</span><h3 data-journey-next-title>完成六任务诊断证据包</h3><p data-journey-next-copy>先完成设备预检，再依次留下六项原创任务证据与学习者确认的优先项。</p></div>
+          <a class="button button-accent" href="/diagnostic" data-journey-next-link>继续下一步${arrow}</a>
+        </div>
+        <p class="workspace-launch-boundary">这是 Gate A 本机演示：不接触服务器端学生数据，不提供官方 DET 分数、成绩预测、自动诊断、真题机经、考试中协助、真实社区或结果保证。</p>
+      </div>
+    </section>
+    <section class="cycle-ledger-section section" aria-labelledby="cycle-ledger-title" data-cycle-ledger data-cycle-state="empty">
+      <div class="section-inner">
+        <div class="cycle-ledger-heading">
+          <div><p class="workspace-overline">CURRENT CYCLE RECEIPT</p><h2 id="cycle-ledger-title">把七步留下的节点，<br />放在一起核对。</h2></div>
+          <p>这里只投影中央闭环校验器已经确认的本机 ID 与固定状态，不展示作文、首答、打卡自由文本或聊天内容。未通过前序核对的节点不会被提前显示。</p>
+        </div>
+        <div class="cycle-ledger-shell">
+          <aside class="cycle-ledger-overview" aria-label="本轮证据链状态">
+            <span>LOCAL / UNSIGNED</span>
+            <strong data-cycle-ledger-status aria-live="polite">尚未建立本轮证据链</strong>
+            <p data-cycle-ledger-copy>从六任务诊断开始后，这里会按顺序显示已经通过核对的节点。</p>
+            <dl>
+              <div><dt>cycle_id</dt><dd><code data-cycle-ledger-cycle-id>尚未形成</code></dd></div>
+              <div><dt>protocol</dt><dd><code data-cycle-ledger-protocol>gate_a_local_v1</code></dd></div>
+              <div><dt>事件链完整性</dt><dd data-cycle-ledger-integrity>正在核对</dd></div>
+            </dl>
+            <a class="button button-ghost" href="/my-data">查看或导出我的本机数据${arrow}</a>
+          </aside>
+          <ol class="cycle-ledger-list" aria-label="本轮证据节点">
+            <li data-cycle-ledger-row="diagnostic" data-state="current"><span class="cycle-ledger-index" aria-hidden="true">01</span><div><strong>诊断证据</strong><small>diagnostic_session_id</small></div><code data-cycle-ledger-value>尚未形成</code><span data-cycle-ledger-row-status>下一条待形成</span></li>
+            <li data-cycle-ledger-row="plan" data-state="locked"><span class="cycle-ledger-index" aria-hidden="true">02</span><div><strong>基础计划</strong><small>plan_id</small></div><code data-cycle-ledger-value>尚未形成</code><span data-cycle-ledger-row-status>等待前一步</span></li>
+            <li data-cycle-ledger-row="recommendation" data-state="locked"><span class="cycle-ledger-index" aria-hidden="true">03</span><div><strong>推荐决定</strong><small>recommendation_id</small></div><code data-cycle-ledger-value>尚未形成</code><span data-cycle-ledger-row-status>等待前一步</span></li>
+            <li data-cycle-ledger-row="checkin" data-state="locked"><span class="cycle-ledger-index" aria-hidden="true">04</span><div><strong>证据式打卡</strong><small>check_in_id</small></div><code data-cycle-ledger-value>尚未形成</code><span data-cycle-ledger-row-status>等待前一步</span></li>
+            <li data-cycle-ledger-row="review" data-state="locked"><span class="cycle-ledger-index" aria-hidden="true">05</span><div><strong>学习者确认</strong><small>review_id</small></div><code data-cycle-ledger-value>尚未形成</code><span data-cycle-ledger-row-status>等待前一步</span></li>
+            <li data-cycle-ledger-row="peerHelp" data-state="locked"><span class="cycle-ledger-index" aria-hidden="true">06</span><div><strong>自愿互助状态</strong><small>peer_help_id / status</small></div><code data-cycle-ledger-value>尚未形成</code><span data-cycle-ledger-row-status>等待前一步</span></li>
+            <li data-cycle-ledger-row="retest" data-state="locked"><span class="cycle-ledger-index" aria-hidden="true">07</span><div><strong>平行微复测</strong><small>retest_id</small></div><code data-cycle-ledger-value>尚未形成</code><span data-cycle-ledger-row-status>等待前一步</span></li>
+            <li data-cycle-ledger-row="updatedPlan" data-state="locked"><span class="cycle-ledger-index" aria-hidden="true">08</span><div><strong>更新计划</strong><small>updated_plan_id</small></div><code data-cycle-ledger-value>尚未形成</code><span data-cycle-ledger-row-status>等待前一步</span></li>
+          </ol>
+        </div>
+        <p class="cycle-ledger-boundary">这份总览是当前浏览器中的未签名演示回执：可用于核对流程与回链，不是服务器签名、正式诊断、教师确认、学习增长证明或防篡改凭证。</p>
+      </div>
+    </section>
+    <section class="cycle-history-section section" aria-labelledby="cycle-history-title" data-cycle-history data-cycle-history-state="empty">
+      <div class="section-inner">
+        <div class="cycle-history-heading">
+          <div><p class="workspace-overline">LOCAL CYCLE HISTORY / LAST 10</p><h2 id="cycle-history-title">上一轮计划怎么变，<br />只看通过核对的版本。</h2></div>
+          <div>
+            <p>这里最多显示最近 10 轮。每轮都重新核对完整 ID 链、固定任务集、能力方向、时间顺序、计划前后版本与本机事件链；当前轮次不重复列入历史。</p>
+            <strong data-cycle-history-summary aria-live="polite">正在核对本机轮次历史</strong>
+          </div>
+        </div>
+        <ol class="cycle-history-list" data-cycle-history-list aria-label="已核对的 Gate A 本机轮次历史" hidden></ol>
+        <p class="cycle-history-empty" data-cycle-history-empty>完成一轮 Gate A 本机闭环后，这里会显示经过重新核对的计划版本与脱敏 ID 链。</p>
+        <p class="cycle-history-invalid" data-cycle-history-invalid hidden></p>
+        <p class="cycle-history-boundary">只读投影不会写入学习状态、追加事件或发送网络请求；姓名、考试日、作文与首答、打卡自由文本、Sofia 对话和账户标识不会进入历史视图。完成本机闭环与“待具备资格人员复核”是两个不同状态。</p>
+      </div>
+    </section>
+    <section class="gate0-section section" aria-labelledby="gate0-title" data-gate0-summary data-gate0-state="loading">
+      <div class="section-inner">
+        <div class="gate0-heading">
+          <div><p class="workspace-overline">GATE 0 / APPENDIX A</p><h2 id="gate0-title">平台开放之前，<br />先把决定写清楚。</h2></div>
+          <p>批准方案附录 A 有 29 项 P0 决策。这里显示逐项书面结论是否齐备，不是学习任务、页面数量或工程功能的完成率。</p>
+        </div>
+        <div class="gate0-shell">
+          <div class="gate0-status-card">
+            <span>DEFAULT DENY / READ ONLY</span>
+            <strong data-gate0-status aria-live="polite">正在核对 29 项 P0 决策</strong>
+            <p data-gate0-copy>核对完成前，平台按 Gate 0 未通过处理；任何未知或缺失状态都不会显示成批准。</p>
+            <div class="gate0-meter">
+              <div><span>已形成逐项书面结论</span><strong><span data-gate0-resolved>—</span> / <span data-gate0-total>29</span></strong></div>
+              <progress data-gate0-progress max="29" aria-label="已形成逐项书面结论" aria-valuetext="正在核对，按未通过处理">正在核对</progress>
+            </div>
+          </div>
+          <aside class="gate0-boundary-card" aria-label="Gate 0 与运行时发布边界">
+            <span>SEPARATE RELEASE AUTHORITY</span>
+            <strong>书面决定不直接开放功能</strong>
+            <p>登录成功、页面可访问、模型或功能代码已经配置，都不属于批准证据。P0 Decision Log 与运行时发布登记表彼此独立。</p>
+            <ul>
+              <li>真实社区、真实人工队列和 staff 写入继续关闭</li>
+              <li>服务器学生数据、外部生成、声音与麦克风继续关闭</li>
+              <li>Gate A 本机演示不等于正式 Gate A PASS 或真实试点</li>
+            </ul>
+          </aside>
+        </div>
+        <p class="gate0-footnote">当前只公开脱敏汇总，不公开负责人、证据位置、内部决策摘要、控制项映射或复审日期。完整 Decision Log 需要独立 staff RBAC 才能查看。</p>
+      </div>
+    </section>
+    <section class="source-admission-section section" aria-labelledby="source-admission-title" data-source-governance data-source-governance-state="loading">
+      <div class="section-inner">
+        <div class="source-admission-heading">
+          <div><p class="workspace-overline">SOURCE GOVERNANCE / DEFAULT DENY</p><h2 id="source-admission-title">能被看到，<br />不等于能进入 RAG。</h2></div>
+          <p>每条内容必须先满足目录覆盖完整、可审核正文或转写就绪，以及六项逐决定证据绑定；之后还要通过教师审核、用途权利、考试版本、显式准入和安全旗标五项核心决定。这里仅显示脱敏计数，不开放知识库内容。</p>
+        </div>
+        <div class="source-admission-shell">
+          <div class="source-admission-status-card">
+            <span>CANONICAL CONTRACT · READ ONLY</span>
+            <strong data-source-governance-status aria-live="polite">正在核对来源准入登记</strong>
+            <p data-source-governance-copy>核对完成前，RAG 准入数按 0 处理；Gate A 静态解释来源与仅链接目录不会被当作可检索知识库。</p>
+            <dl class="source-admission-metrics">
+              <div><dt>RAG 已准入</dt><dd><span data-source-rag-eligible>—</span> / <span data-source-tracked>15</span></dd></div>
+              <div><dt>Gate A 静态来源</dt><dd data-source-gate-a>—</dd></div>
+              <div><dt>仅链接目录</dt><dd data-source-link-only>—</dd></div>
+              <div><dt>归档继续阻断</dt><dd data-source-archive-blocked>—</dd></div>
+            </dl>
+          </div>
+          <aside class="source-admission-contract" aria-label="RAG 逐条准入合同">
+            <span>FIVE CORE DECISIONS · PLUS EVIDENCE</span>
+            <strong>五项核心决定不是完整 Gate</strong>
+            <ol>
+              <li><span>01</span><div><b>教师审核</b><small>review_status = teacher_reviewed</small></div><em data-source-criterion="teacher-reviewed">— / 15</em></li>
+              <li><span>02</span><div><b>RAG 用途权利</b><small>rights_status.rag = allowed</small></div><em data-source-criterion="rag-rights">— / 15</em></li>
+              <li><span>03</span><div><b>版本当前或不适用</b><small>exam_version_status</small></div><em data-source-criterion="exam-version">— / 15</em></li>
+              <li><span>04</span><div><b>显式准入</b><small>rag_eligibility = allowed</small></div><em data-source-criterion="explicit-rag">— / 15</em></li>
+              <li><span>05</span><div><b>无阻断安全旗标</b><small>safety_flags</small></div><em data-source-criterion="no-safety-flags">— / 15</em></li>
+            </ol>
+          </aside>
+        </div>
+        <p class="source-admission-footnote">五项计数只表示登记字段的声明状态，不表示证据已经核验。完整 Gate 还要求目录覆盖、可审核正文或转写、六项证据目录解析及有效期全部通过；归档记录继续整体阻断。RAG 准入与 Gate A 的确定性静态解释是不同状态。</p>
       </div>
     </section>
     <section class="workspace-launch section" aria-labelledby="workspace-launch-title">
       <div class="section-inner">
         <div class="workspace-launch-heading">
-          <div><p class="workspace-overline">CHOOSE ONE TOOL</p><h2 id="workspace-launch-title">一个按钮，进入一个功能页面。</h2></div>
-          <div class="local-data-note"><div><strong>隐私优先</strong><span>不登录、不上传，可随时清除</span></div><button type="button" data-clear-workspace>清除我的数据</button></div>
+          <div><p class="workspace-overline">SUPPORTING TOOLS</p><h2 id="workspace-launch-title">闭环之外，<br />按需打开辅助工具。</h2></div>
+          <p class="workspace-tools-copy">练习、专注与数据管理都有独立页面；它们不会自动生成能力结论，也不会替代七步闭环中的学生确认。</p>
         </div>
-        <div class="workspace-launch-grid">
-          <a href="/plan"><span>01</span><small>PLAN</small><h3>生成 7 天计划</h3><p>选择每日时间与重点能力，得到每天可完成的安排。</p><b>进入计划页 →</b></a>
-          <a href="/today"><span>02</span><small>TODAY</small><h3>完成今日任务</h3><p>逐项打卡并查看进度；计划更新后，清单也会同步。</p><b>进入任务页 →</b></a>
-          <a href="/practice"><span>03</span><small>PRACTICE</small><h3>开始英文微练习</h3><p>Reading、Listening、Writing 与 Speaking 各有独立页面。</p><b>选择练习页 →</b></a>
-          <a href="/focus"><span>04</span><small>FOCUS</small><h3>启动专注计时</h3><p>选择 15、25 或 45 分钟，开始一段不被打断的学习。</p><b>进入计时页 →</b></a>
-          <a href="/check-in"><span>05</span><small>REFLECT</small><h3>保存学习复盘</h3><p>记录今天完成了什么、困难在哪里，以及明天先做什么。</p><b>进入复盘页 →</b></a>
+        <div class="workspace-launch-grid workspace-support-grid">
+          <a href="/super-teacher"><img class="workspace-sofia-avatar" src="/assets/sufeiya-super-teacher-avatar.webp" width="72" height="72" alt="" /><small>SOFIA AI TEACHER · AI</small><h3>Sofia智能老师</h3><p>解释本机证据、计划与推荐依据；来源不足时明确停下。</p><b>有来源地问为什么 →</b></a>
+          <a href="/today"><span>今</span><small>TODAY</small><h3>今日任务</h3><p>读取 7 天计划，逐项完成今天的练习与行动。</p><b>查看今日清单 →</b></a>
+          <a href="/practice"><span>练</span><small>PRACTICE</small><h3>四项英文微练习</h3><p>Reading、Listening、Writing 与 Speaking 各有独立页面。</p><b>选择练习页 →</b></a>
+          <a href="/focus"><span>专</span><small>FOCUS</small><h3>专注计时</h3><p>选择 15、25 或 45 分钟，开始一段不被打断的学习。</p><b>进入计时页 →</b></a>
+          <a href="/teaching-review-demo"><span>审</span><small>LOCAL REVIEW DEMO</small><h3>教研复核演示</h3><p>只读查看临时轮次证据，草拟修订建议或升级说明；不发送、不结案。</p><b>进入本机演示 →</b></a>
+          <a href="/my-data"><span>数</span><small>MY DATA</small><h3>本机数据</h3><p>查看、导出或仅清除当前浏览器中的 Sufeiya 学习记录。</p><b>管理本机数据 →</b></a>
         </div>
-        <p class="workspace-launch-boundary">这些是自我学习工具，不提供官方 DET 分数、成绩预测、真题机经、考试中协助或结果保证。</p>
       </div>
     </section>
+  </main>`;
+
+const renderDiagnosticChoices = (task) => `
+  <fieldset class="diagnostic-choice-list">
+    <legend>${escapeHtml(task.content.question)}</legend>
+    ${task.content.choices
+      .map(
+        (choice) => `<label><input type="radio" name="diagnostic-answer-${escapeHtml(task.taskId)}" value="${escapeHtml(choice.value)}" /><span>${escapeHtml(choice.label)}</span></label>`,
+      )
+      .join("")}
+  </fieldset>`;
+
+const renderDiagnosticTask = (task, index) => {
+  const headingId = `diagnostic-task-title-${index + 1}`;
+  const common = `data-diagnostic-task data-task-id="${escapeHtml(task.taskId)}" data-task-version="${escapeHtml(task.taskVersion)}" data-task-order="${task.order}" data-task-skill="${escapeHtml(task.skill)}" data-response-type="${escapeHtml(task.responseType)}" data-construct-tag="${escapeHtml(task.constructTag)}" data-content-hash="${escapeHtml(task.contentHash)}" aria-labelledby="${headingId}"`;
+  const header = `<header class="diagnostic-task-heading"><div><span>${String(index + 1).padStart(2, "0")}</span><div><p>${escapeHtml(task.content.eyebrow)}</p><h3 id="${headingId}" tabindex="-1" lang="en">${escapeHtml(task.content.title)}</h3></div></div><small data-task-state>待开始</small></header><p class="diagnostic-task-instruction">${escapeHtml(task.content.instructionZh)}</p>`;
+  const unavailable = `<button class="button button-ghost diagnostic-skip" type="button" data-diagnostic-skip-task>当前无法完成 / 跳过</button>`;
+
+  if (task.skill === "Reading") {
+    return `<article class="diagnostic-task-card" ${common} data-correct-value="${escapeHtml(task.content.correctValue)}" hidden>${header}<div class="english-material" lang="en"><p>${escapeHtml(task.content.passage)}</p>${renderDiagnosticChoices(task)}</div><div class="diagnostic-task-actions"><button class="button button-ink" type="button" data-diagnostic-submit-task disabled>封存第一次选择${arrow}</button>${unavailable}</div><p class="practice-feedback" data-task-message role="status" aria-live="polite"></p></article>`;
+  }
+
+  if (task.skill === "Listening") {
+    const audio = task.content.audioMode === "static_asset"
+      ? `<audio controls preload="metadata" data-diagnostic-audio aria-label="Listening 1 英文材料；需完整播放后再提交" src="${escapeHtml(task.content.audioPath)}"><p>当前浏览器无法播放音频，请使用英文原文替代；该任务会标记为证据不足。</p></audio>`
+      : `<button class="diagnostic-audio-button" type="button" data-diagnostic-speech-play><span aria-hidden="true">▶</span><span><strong>播放英文音频</strong><small>由当前设备的通用英文语音合成器朗读</small></span></button>`;
+    return `<article class="diagnostic-task-card" ${common} data-correct-value="${escapeHtml(task.content.correctValue)}" data-audio-mode="${escapeHtml(task.content.audioMode)}" hidden>${header}${audio}<p class="audio-status" data-diagnostic-audio-status role="status" aria-live="polite">请先播放英文材料；可以重复播放。</p><div class="english-material" lang="en">${renderDiagnosticChoices(task)}</div><details class="listening-transcript diagnostic-transcript" data-diagnostic-transcript><summary>音频不可用或需要无障碍替代时，查看英文原文</summary><p lang="en" data-diagnostic-transcript-text>${escapeHtml(task.content.transcript)}</p><small>打开后仍可完成任务，但不会被解释为纯听力证据。</small></details><div class="diagnostic-task-actions"><button class="button button-ink" type="button" data-diagnostic-submit-task disabled>封存第一次选择${arrow}</button>${unavailable}</div><p class="practice-feedback" data-task-message role="status" aria-live="polite"></p></article>`;
+  }
+
+  if (task.skill === "Speaking") {
+    return `<article class="diagnostic-task-card" ${common} data-prep-seconds="${task.content.prepSeconds}" data-response-seconds="${task.content.responseSeconds}" hidden>${header}<p class="english-prompt" lang="en">${escapeHtml(task.content.prompt)}</p><div class="speaking-clock diagnostic-clock"><strong data-diagnostic-timer>${String(task.content.prepSeconds).padStart(2, "0")}</strong><span data-diagnostic-timer-state>准备好后开始</span></div><p class="sr-only" data-diagnostic-timer-announcement aria-live="polite"></p><div class="tool-button-row" data-speaking-controls><button class="tool-action" type="button" data-speaking-start>开始 20 秒准备</button><button class="tool-action tool-action-secondary" type="button" data-speaking-finish hidden>提前结束回答</button></div><fieldset class="self-review diagnostic-self-review" data-speaking-review-wrap hidden lang="en"><legend>Self-review after speaking</legend>${task.content.selfReview.map((item) => `<label><input type="checkbox" data-speaking-review="${escapeHtml(item.id)}" /> ${escapeHtml(item.label)}</label>`).join("")}</fieldset><div class="diagnostic-task-actions" data-speaking-submit-wrap hidden><button class="button button-ink" type="button" data-speaking-submit>保存计时与自查${arrow}</button>${unavailable}</div><div class="diagnostic-task-actions" data-speaking-skip-wrap>${unavailable}</div><p class="practice-feedback" data-task-message role="status" aria-live="polite"></p></article>`;
+  }
+
+  return `<article class="diagnostic-task-card" ${common} data-response-seconds="${task.content.responseSeconds}" data-minimum-words="${task.content.minimumWordsForCompletion}" hidden>${header}<p class="english-prompt" lang="en">${escapeHtml(task.content.prompt)}</p><div class="diagnostic-writing-start" data-writing-start-wrap><button class="button button-ink" type="button" data-writing-start>开始 3 分钟写作${arrow}</button><p>开始前不会保存任何作文文本。</p></div><div data-writing-workspace hidden><div class="diagnostic-writing-clock"><span>TIME LEFT</span><strong data-diagnostic-timer>03:00</strong><small data-diagnostic-timer-state>尚未开始</small></div><label class="writing-field"><span lang="en">Your response</span><textarea rows="10" maxlength="1800" spellcheck="true" lang="en" data-diagnostic-writing-answer disabled placeholder="Write your response in English..."></textarea></label><div class="writing-meta"><span><b data-diagnostic-word-count>0</b> words</span><span data-diagnostic-writing-save>只在本机保存</span></div><button class="button button-ghost" type="button" data-writing-finish>结束写作并自查</button></div><fieldset class="self-review diagnostic-self-review" data-writing-review-wrap hidden lang="en"><legend>Self-review</legend>${task.content.selfReview.map((item) => `<label><input type="checkbox" data-writing-review="${escapeHtml(item.id)}" /> ${escapeHtml(item.label)}</label>`).join("")}</fieldset><div class="diagnostic-task-actions" data-writing-submit-wrap hidden><button class="button button-ink" type="button" data-writing-submit>保存作答条件与自查${arrow}</button>${unavailable}</div><div class="diagnostic-task-actions" data-writing-skip-wrap>${unavailable}</div><p class="practice-feedback" data-task-message role="status" aria-live="polite"></p></article>`;
+};
+
+const diagnosticContent = `
+  <main id="main-content" class="study-tool-page">
+    ${studyPageHero({ current: "", number: "01", label: "Gate A 诊断证据包", title: "先做六项原创任务，<br />再确认下一步练什么。", lead: "2 项 Reading、2 项 Listening、90 秒 Speaking 与 3 分钟 Writing 共同形成一份本机证据报告。它只验证流程和可解释性，不生成能力等级、DET 估分或自动开放题诊断。", note: "约 10–12 分钟 · 仅限 18+ 演示" })}
+    <section class="single-tool-section journey-tool-section" aria-labelledby="diagnostic-title" data-diagnostic-app data-task-set-version="${escapeHtml(diagnosticTaskRegister.taskSetVersion)}" data-task-set-digest="${escapeHtml(diagnosticTaskRegister.taskSetDigest)}">
+      <div class="single-tool-inner diagnostic-tool-inner">
+        <header class="tool-panel-header"><div><span>01</span><div><p>诊断证据会话</p><h2 id="diagnostic-title">完成设备预检与六项版本化任务</h2></div></div><small data-diagnostic-status>尚未开始</small></header>
+        <div class="gate-a-notice"><strong>发布边界</strong><p>本任务集是未经教研与测量双签的 Gate A 原创演示任务，只保存在当前浏览器。客观题只记录首答；Writing 与 Speaking 未经合格人工审核，不会生成正式诊断。旧的平行微复测题继续独立保留。</p></div>
+
+        <section class="diagnostic-preflight" data-diagnostic-preflight aria-labelledby="preflight-title">
+          <div class="diagnostic-preflight-copy"><span>DEVICE & DATA CHECK</span><h3 id="preflight-title" tabindex="-1">开始前，用一分钟确认边界与设备</h3><p>固定演示目标：在约四周内完成一轮 DET 备考行动闭环。这里不收集认证成绩，不请求麦克风，也不上传自由文本。</p></div>
+          <div class="diagnostic-device-grid" aria-label="自动设备检查结果">
+            <div><span>本机存储</span><strong data-device-storage>正在检查</strong></div>
+            <div><span>MP3 播放</span><strong data-device-mp3>正在检查</strong></div>
+            <div><span>设备语音</span><strong data-device-speech>正在检查</strong></div>
+            <div><span>安全写入锁</span><strong data-device-lock>正在检查</strong></div>
+            <div><span>当前屏幕</span><strong data-device-viewport>正在检查</strong></div>
+            <div><span>麦克风</span><strong>不会请求</strong></div>
+            <div><span>网络状态</span><strong data-device-network>正在检查</strong></div>
+          </div>
+          <form id="diagnostic-start-form" class="diagnostic-start-form" novalidate>
+            <label class="consent-check"><input type="checkbox" name="adultConfirmed" /><span><strong>我确认当前使用者已满 18 岁</strong><small>未成年人模式尚未开放；若不符合，请停止并退出本页。</small></span></label>
+            <label class="consent-check"><input type="checkbox" name="localBoundaryConfirmed" /><span><strong>我理解这是本机 Gate A 演示</strong><small>作文只存当前浏览器；不上传姓名、成绩、作文或录音，不用于模型训练。</small></span></label>
+            <label class="consent-check"><input type="checkbox" name="noScoreConfirmed" /><span><strong>我理解报告不是分数或正式能力诊断</strong><small>它只显示本次任务证据、质量限制、候选优先项与下一条任务。</small></span></label>
+            <label class="diagnostic-keyboard-check"><span>键盘预检</span><input type="text" name="keyboardCheck" maxlength="12" autocomplete="off" placeholder="请在这里输入任意字符" /><small>输入内容只用于确认键盘可用，不会写入诊断记录。</small></label>
+            <label class="consent-check"><input type="checkbox" name="environmentConfirmed" /><span><strong>我现在可以阅读、听音并大声回答</strong><small>如环境不允许，可把任务标记为跳过或不可用，不会被记作零分。</small></span></label>
+            <fieldset class="diagnostic-audio-check"><legend>声音输出预检</legend><button class="button button-ghost" type="button" data-audio-test>播放 1 秒测试音</button><label><input type="radio" name="audioOutput" value="heard" /> 我听到了测试音</label><label><input type="radio" name="audioOutput" value="unavailable" /> 当前听不到，继续使用文本替代</label></fieldset>
+            <button class="button button-ink" type="submit">开始六项原创任务${arrow}</button>
+            <p class="form-inline-message" data-diagnostic-message role="alert" tabindex="-1"></p>
+          </form>
+        </section>
+
+        <section class="diagnostic-runner" data-diagnostic-runner hidden aria-labelledby="runner-title">
+          <aside class="diagnostic-stepper" aria-label="诊断任务进度"><span>LOCAL EVIDENCE</span><h3 id="runner-title">六项任务</h3><ol>${diagnosticTasks.map((task, index) => `<li data-diagnostic-step="${escapeHtml(task.taskId)}"><span>${String(index + 1).padStart(2, "0")}</span><div><strong>${escapeHtml(task.skill)}</strong><small data-step-state>待开始</small></div></li>`).join("")}</ol><button class="text-link-button" type="button" data-diagnostic-restart>重新开始本轮</button></aside>
+          <div class="diagnostic-task-stage">
+            <div class="diagnostic-progress"><div><span data-diagnostic-progress-label>任务 1 / 6</span><strong data-diagnostic-progress-percent>0%</strong></div><progress max="6" value="0" data-diagnostic-progress aria-label="六项诊断任务完成进度">0 / 6</progress></div>
+            ${diagnosticTasks.map(renderDiagnosticTask).join("")}
+          </div>
+        </section>
+
+        <section class="diagnostic-report" data-diagnostic-report hidden aria-labelledby="report-title">
+          <header><div><span>NON-SCORE REPORT</span><h3 id="report-title" tabindex="-1">本次任务证据报告</h3></div><strong data-report-confidence>低置信度</strong></header>
+          <div class="diagnostic-report-lead"><p data-report-summary></p><div><span>证据状态</span><strong data-diagnostic-sufficiency></strong></div></div>
+          <div class="diagnostic-evidence-grid" data-report-evidence></div>
+          <div class="diagnostic-report-columns"><section><h4>观察到的任务模式</h4><ul data-report-patterns></ul></section><section><h4>证据质量与限制</h4><ul data-report-quality></ul></section></div>
+          <form id="diagnostic-priority-form" class="diagnostic-priority-form" novalidate>
+            <div><span>NEXT EVIDENCE PRIORITY</span><h4>确认本轮下一条优先任务</h4><p data-priority-explanation></p></div>
+            <fieldset><legend>选择一个方向</legend><div data-priority-options></div></fieldset>
+            <label class="consent-check"><input type="checkbox" name="learnerConfirmedPriority" /><span><strong>我确认把所选方向作为本轮计划重点</strong><small>这是本轮重点的学习者确认，不是能力等级；若需改变方向，请重新开始诊断。</small></span></label>
+            <button class="button button-ink" type="submit">确认并生成诊断回执${arrow}</button>
+            <p class="form-inline-message" data-priority-message role="alert"></p>
+          </form>
+          <div class="chain-receipt" data-diagnostic-result hidden aria-live="polite"><span>DIAGNOSTIC RECEIPT</span><h3 data-diagnostic-result-title tabindex="-1">六项任务状态已记录</h3><p data-diagnostic-result-copy></p><dl><div><dt>diagnostic_session_id</dt><dd data-diagnostic-id></dd></div><div><dt>task_set_version</dt><dd>${escapeHtml(diagnosticTaskRegister.taskSetVersion)}</dd></div><div><dt>证据状态</dt><dd data-diagnostic-receipt-sufficiency></dd></div><div><dt>下一条优先项</dt><dd data-diagnostic-priority></dd></div></dl><div class="diagnostic-next-actions"><a class="button button-accent" href="/plan">下一步：生成 7 天计划${arrow}</a><a class="button button-ghost" href="/super-teacher">问 Sofia智能老师为什么先练这个${arrow}</a></div></div>
+          <button class="text-link-button diagnostic-report-restart" type="button" data-diagnostic-restart>重新完成一轮任务</button>
+        </section>
+      </div>
+    </section>
+  </main>`;
+
+const recommendationsContent = `
+  <main id="main-content" class="study-tool-page">
+    ${studyPageHero({ current: "", number: "03", label: "可解释推荐", title: "一个主任务，<br />至多两个可选补充。", lead: "推荐只基于本机计划与已冻结的原创练习入口；每项显示原因、时长和验证方式。当前不使用 RAG、不自由上网，也不把打开链接当成完成学习。", note: "接受或明确跳过都可留证" })}
+    <section class="single-tool-section journey-tool-section" aria-labelledby="recommendation-title"><div class="single-tool-inner">
+      <header class="tool-panel-header"><div><span>03</span><div><p>内容推荐</p><h2 id="recommendation-title">今天先做哪一项</h2></div></div><small data-recommendation-status>正在读取计划</small></header>
+      <div class="gate-a-notice"><strong>来源边界</strong><p>主任务来自本站原创微练习；补充入口只连接已审阅的公开目录或非评分工具。页面不会声称 Bilibili 目录已经成为 RAG 语料。</p></div>
+      <div class="recommendation-empty" data-recommendation-empty><h3>还没有可用计划</h3><p>先完成六任务诊断证据包并生成 7 天计划，推荐页才会生成与当前重点相关的任务。</p><a class="button button-ink" href="/diagnostic">先完成诊断证据包${arrow}</a></div>
+      <div data-recommendation-ready hidden><div class="recommendation-list" data-recommendation-items></div><div class="recommendation-actions"><button class="button button-ink" type="button" data-accept-recommendation>接受主任务</button><button class="button button-ghost" type="button" data-skip-recommendation>今天明确跳过</button><a class="button button-accent" href="/today" data-recommendation-start hidden>开始已接受的主任务${arrow}</a></div><p class="save-message" data-recommendation-message role="status" aria-live="polite"></p><dl class="compact-receipt" data-recommendation-receipt hidden><div><dt>recommendation_id</dt><dd data-recommendation-id></dd></div><div><dt>binding_id</dt><dd data-recommendation-binding-id></dd></div><div><dt>plan_id</dt><dd data-recommendation-plan-id></dd></div></dl></div>
+    </div></section>
+  </main>`;
+
+const communityContent = `
+  <main id="main-content" class="study-tool-page">
+    ${studyPageHero({ current: "", number: "06", label: "自愿社区互助", title: "需要就使用，<br />不需要也不影响学习。", lead: "真实社区、导师与陌生人互动尚未开放。本页只用一张明确标注的合成演示经验卡，验证学习者能主动选择使用、谢绝、不需要或暂不可用。", note: "四种状态都不会阻断闭环" })}
+    <section class="single-tool-section journey-tool-section" aria-labelledby="community-title"><div class="single-tool-inner narrow-tool">
+      <header class="tool-panel-header"><div><span>06</span><div><p>互助选择</p><h2 id="community-title">记录你的自愿状态</h2></div></div><small data-community-status>尚未选择</small></header>
+      <article class="demo-peer-card"><span>合成演示经验卡 · 非真实学员材料</span><h3>先把口语回答写成三行提纲</h3><p>“我会先写主题、一个原因和一个例子，再开始 60 秒练习。这样做只是我的个人练习方式，不代表官方规则，也不保证适合每个人。”</p><small>来源：Gate A 合成示例；不含姓名、成绩、截图或可识别经历。</small></article>
+      <form id="community-form" class="journey-form community-form" novalidate>
+        <fieldset><legend>这一步如何记录？</legend>
+          <label><input type="radio" name="peerHelpStatus" value="used" /><span><strong>已使用</strong><small>我查看了上方演示经验卡。</small></span></label>
+          <label><input type="radio" name="peerHelpStatus" value="declined" /><span><strong>谢绝</strong><small>我今天不想使用社区互助。</small></span></label>
+          <label><input type="radio" name="peerHelpStatus" value="not_needed" /><span><strong>不需要</strong><small>我能继续个人计划，不需要互助。</small></span></label>
+          <label><input type="radio" name="peerHelpStatus" value="unavailable" /><span><strong>暂不可用</strong><small>真实社区尚未开放，记录系统状态。</small></span></label>
+        </fieldset>
+        <button class="button button-ink" type="submit">保存互助状态${arrow}</button><p class="form-inline-message" data-community-message role="alert"></p>
+      </form>
+      <dl class="compact-receipt" data-community-receipt hidden><div><dt>peer_help_id</dt><dd data-community-id></dd></div><div><dt>peer_help_status</dt><dd data-community-value></dd></div></dl>
+      <a class="button button-accent journey-next-button" href="/retest" data-community-next hidden>下一步：平行微复测${arrow}</a>
+    </div></section>
+  </main>`;
+
+const retestContent = `
+  <main id="main-content" class="study-tool-page">
+    ${studyPageHero({ current: "", number: "07", label: "平行微复测与更新计划", title: "再收集一条证据，<br />不把单题写成能力增长。", lead: "系统会锁定与本轮诊断优先项、计划任务和练习回执相同的技能，再提供一项原创平行任务。结果只说明本次任务证据；随后由你确认下一轮重点。", note: "同技能锁定 · 不评分 · 可解释更新" })}
+    <section class="single-tool-section journey-tool-section" aria-labelledby="retest-title"><div class="single-tool-inner">
+      <header class="tool-panel-header"><div><span>07</span><div><p>平行微复测</p><h2 id="retest-title">完成一条可回链的新证据</h2></div></div><small data-retest-status>尚未完成</small></header>
+      <div class="gate-a-notice"><strong>解释边界</strong><p>答对一题或完成一次自查都不能证明真实能力增长、教学因果效果或 DET 分数变化。页面只保存任务版本、结果类型和学习者确认的下一步。</p></div>
+      <form id="retest-form" class="journey-form retest-form" novalidate>
+        <section class="locked-retest-target" aria-labelledby="locked-retest-title"><span>LOCKED SAME-SKILL TARGET</span><h3 id="locked-retest-title" data-retest-skill-label>等待同技能练习记录</h3><p data-retest-comparability>完成前置步骤后，系统才会锁定本轮平行任务。</p><input type="hidden" name="retestSkill" data-retest-skill value="" /></section>
+        <section class="retest-panel" data-retest-panel="Reading"><h3 lang="en">Reading parallel task</h3><div class="english-material" lang="en"><p>After the community garden added labels to each planting area, fewer volunteers placed tools in the wrong shed. The labels did not change the gardening tasks, but they made it easier for new volunteers to understand where materials belonged.</p><fieldset><legend>What was the main effect of the labels?</legend><label><input type="radio" name="retestReading" value="a" /> They reduced the number of gardening tasks.</label><label><input type="radio" name="retestReading" value="b" /> They helped new volunteers organize materials correctly.</label><label><input type="radio" name="retestReading" value="c" /> They encouraged volunteers to plant more vegetables.</label></fieldset></div></section>
+        <section class="retest-panel" data-retest-panel="Listening" hidden><h3 lang="en">Listening parallel task</h3><audio controls preload="metadata" data-retest-listening-audio aria-label="Listening 平行微复测英文材料；需完整播放后再提交" src="/assets/listening-writing-center.mp3"><p>当前浏览器无法播放音频，请展开英文原文继续任务。</p></audio><div class="english-material" lang="en"><fieldset><legend>When and where will the workshop take place?</legend><label><input type="radio" name="retestListening" value="a" /> Wednesday at 2:15 in Room 204.</label><label><input type="radio" name="retestListening" value="b" /> Friday at 2:50 in Room 204.</label><label><input type="radio" name="retestListening" value="c" /> Friday at 2:15 in Room 204.</label></fieldset></div><details class="listening-transcript"><summary>音频不可用或需要核对时，查看英文原文</summary><p lang="en">The campus writing center has changed its workshop schedule. The session originally planned for Wednesday will take place on Friday at two fifteen in Room 204. Students who already registered do not need to sign up again.</p></details></section>
+        <section class="retest-panel" data-retest-panel="Writing" hidden><h3 lang="en">Writing parallel task</h3><p class="english-prompt" lang="en">Describe one small habit that can help a student learn more consistently. Explain why it may help.</p><label class="writing-field"><span lang="en">Your response</span><textarea name="retestWriting" rows="8" maxlength="1200" lang="en" spellcheck="true"></textarea></label><fieldset class="self-review" lang="en"><legend>Self-review</legend><label><input type="checkbox" data-retest-writing-review /> I stated one clear habit.</label><label><input type="checkbox" data-retest-writing-review /> I explained why it may help.</label><label><input type="checkbox" data-retest-writing-review /> I checked my response.</label></fieldset></section>
+        <section class="retest-panel" data-retest-panel="Speaking" hidden><h3 lang="en">Speaking parallel task</h3><p class="english-prompt" lang="en">Describe a place where you can study effectively. Explain what makes the place useful for you.</p><fieldset class="self-review" lang="en"><legend>After speaking aloud</legend><label><input type="checkbox" data-retest-speaking-review /> I spoke aloud for about 45–60 seconds.</label><label><input type="checkbox" data-retest-speaking-review /> I answered both parts of the prompt.</label><label><input type="checkbox" data-retest-speaking-review /> I gave one specific detail.</label></fieldset><p>本站不请求麦克风权限、不录音；完成状态由你确认。</p></section>
+        <button class="button button-ink" type="submit">保存本次平行任务证据${arrow}</button><p class="form-inline-message" data-retest-message role="alert"></p>
+      </form>
+      <div class="chain-receipt" data-retest-result hidden aria-live="polite"><span>PARALLEL RETEST RECEIPT</span><h3 data-retest-result-title>平行任务已留证</h3><p data-retest-result-copy></p><dl><div><dt>retest_id</dt><dd data-retest-id></dd></div><div><dt>target_skill</dt><dd data-retest-target-skill></dd></div><div><dt>same_skill</dt><dd data-retest-same-skill></dd></div><div><dt>parallel_form_pair</dt><dd data-retest-parallel-pair></dd></div><div><dt>parallel_retest</dt><dd>true</dd></div></dl></div>
+      <form id="plan-update-form" class="journey-form plan-update-form" hidden novalidate><h3>由你确认下一轮重点</h3><p>系统不会根据单题自动改分或决定能力。请选择下一轮计划重点；保存后会生成新的 plan_id，并保留上一轮计划的回链。</p><label><span>下一轮重点</span><select name="nextFocusSkill"><option value="Balanced">综合训练</option><option value="Reading">Reading · 阅读</option><option value="Listening">Listening · 听力</option><option value="Writing">Writing · 写作</option><option value="Speaking">Speaking · 口语</option></select></label><label class="consent-check"><input type="checkbox" name="learnerConfirmed" /><span><strong>我确认这是我的学习计划选择</strong><small>它不是系统自动诊断结论。</small></span></label><button class="button button-accent" type="submit">生成更新后的 7 天计划${arrow}</button><p class="form-inline-message" data-plan-update-message role="alert"></p></form>
+      <dl class="compact-receipt" data-plan-update-receipt hidden><div><dt>updated_plan_id</dt><dd data-updated-plan-id></dd></div><div><dt>supersedes_plan_id</dt><dd data-superseded-plan-id></dd></div></dl>
+    </div></section>
   </main>`;
 
 const planContent = `
   <main id="main-content" class="study-tool-page">
     ${studyPageHero({
       current: "plan",
-      number: "01",
+      number: "02",
       label: "7 天学习计划",
       title: "把目标变成，<br />每天能完成的一小步。",
       lead: "选择每天可投入的时间与本周重点，规则生成器会即时制作一份 7 天安排。它用于行动规划，不进行官方评分或成绩预测。",
@@ -815,7 +1256,7 @@ const planContent = `
             <label><span>你的称呼 <small>选填</small></span><input name="nickname" type="text" maxlength="20" autocomplete="nickname" placeholder="例如：小林" /></label>
             <label><span>预计考试日期 <small>选填</small></span><input name="examDate" type="date" data-exam-date /></label>
             <label><span>每天可学习时间</span><select name="dailyMinutes"><option value="15">15 分钟</option><option value="30" selected>30 分钟</option><option value="45">45 分钟</option><option value="60">60 分钟</option></select></label>
-            <label><span>本周重点能力</span><select name="focusSkill"><option value="Balanced">综合训练</option><option value="Reading">Reading · 阅读</option><option value="Listening">Listening · 听力</option><option value="Writing">Writing · 写作</option><option value="Speaking">Speaking · 口语</option></select><small class="field-note">由你自行选择，不是诊断结论或能力评分。</small></label>
+            <label><span>本周重点能力</span><select name="focusSkill"><option value="Balanced">综合训练</option><option value="Reading">Reading · 阅读</option><option value="Listening">Listening · 听力</option><option value="Writing">Writing · 写作</option><option value="Speaking">Speaking · 口语</option></select><small class="field-note" data-plan-focus-note>由你自行选择，不是诊断结论或能力评分。</small></label>
             <button class="button button-ink" type="submit">生成 7 天计划${arrow}</button>
             <p>计划由当前浏览器即时生成；姓名与考试日期不会上传。</p>
           </form>
@@ -841,6 +1282,7 @@ const todayContent = `
     <section class="single-tool-section" aria-labelledby="today-title">
       <div class="single-tool-inner">
         <header class="tool-panel-header"><div><span>02</span><div><p>今日清单</p><h2 id="today-title">今天先完成这三项</h2></div></div><small data-today-status>0 / 3 已完成</small></header>
+        <div class="gate-a-notice"><strong>任务来源与完成来源会分开显示</strong><p data-today-plan-boundary>正在核对当前计划；独立练习不会推进诊断闭环。</p><p>手动勾选只表示“学习者自报完成”，不会生成练习回执；从计划绑定入口完成练习后，才会显示“练习记录已留存”。两者都可帮助自我管理，只有合格练习回执可推进当前闭环。</p></div>
         <div class="today-layout">
           <div><div class="task-progress"><progress max="3" value="0" data-task-progress>0 / 3</progress><span data-task-progress-text>0%</span></div><ul class="today-tasks" data-today-tasks>
             <li><input id="today-task-0" type="checkbox" data-task-index="0" /><label for="today-task-0"><strong>Reading 微练习</strong><span>阅读本站英文短文并完成理解题。</span></label></li>
@@ -876,28 +1318,91 @@ const practiceContent = `
     </section>
   </main>`;
 
+const readingPracticeTask = requirePracticeTask("reading-library-v1", "Reading", "single_choice");
+const listeningPracticeTask = requirePracticeTask("listening-club-v1", "Listening", "single_choice_audio");
+const writingPracticeTask = requirePracticeTask("writing-community-v1", "Writing", "local_text_self_review");
+const speakingPracticeTask = requirePracticeTask("speaking-skill-v1", "Speaking", "timed_self_report");
+
+const renderReadingPracticeCard = (task) => {
+  if (
+    typeof task.content.prompt !== "string" ||
+    typeof task.content.question !== "string" ||
+    typeof task.presentation.initialFeedbackZh !== "string"
+  ) {
+    throw new Error(`Reading practice content is incomplete: ${task.exerciseId}`);
+  }
+  return `<article class="practice-card practice-card-single" ${practiceArticleAttributes(task, "reading")} data-correct-value="${escapeHtml(task.content.correctValue)}"><header><span>${escapeHtml(task.skill)}</span><small>${escapeHtml(task.presentation.headerNoteZh)}</small></header>${renderPracticeBindingStatus()}<p class="practice-instruction">${escapeHtml(task.presentation.instructionZh)}</p><div class="english-material" lang="en"><p>${escapeHtml(task.content.prompt)}</p><fieldset><legend>${escapeHtml(task.content.question)}</legend>${renderPracticeChoices(task, "reading-answer")}</fieldset></div><button class="tool-action" type="button" data-check-reading disabled>检查答案</button><p class="practice-feedback" data-reading-feedback role="status" aria-live="polite">${escapeHtml(task.presentation.initialFeedbackZh)}</p><a class="text-link" href="/practice">← 返回四项练习</a></article>`;
+};
+
+const renderListeningPracticeCard = (task) => {
+  if (
+    typeof task.content.audioPath !== "string" ||
+    !task.content.audioPath.startsWith("/assets/") ||
+    typeof task.content.transcript !== "string" ||
+    typeof task.content.question !== "string" ||
+    typeof task.presentation.initialFeedbackZh !== "string"
+  ) {
+    throw new Error(`Listening practice content is incomplete: ${task.exerciseId}`);
+  }
+  return `<article class="practice-card practice-card-single" ${practiceArticleAttributes(task, "listening")} data-correct-value="${escapeHtml(task.content.correctValue)}"><header><span>${escapeHtml(task.skill)}</span><small>${escapeHtml(task.presentation.headerNoteZh)}</small></header>${renderPracticeBindingStatus()}<p class="practice-instruction">${escapeHtml(task.presentation.instructionZh)}</p><audio controls preload="metadata" data-listening-audio aria-label="Listening 原创英文材料；完整播放后可形成练习回执" src="${escapeHtml(task.content.audioPath)}"><p>当前浏览器无法播放音频，请展开下方英文原文继续练习。</p></audio><p class="audio-status" data-audio-status role="status" aria-live="polite">可重复播放英文材料。</p><div class="english-material" lang="en"><fieldset><legend>${escapeHtml(task.content.question)}</legend>${renderPracticeChoices(task, "listening-answer")}</fieldset></div><details class="listening-transcript"><summary>音频不可用或需要核对时，查看英文原文</summary><p>使用文本稿仍可用于学习，但本次记录会标为证据不足，不能作为严格听力练习回执推进闭环。</p><p lang="en">${escapeHtml(task.content.transcript)}</p></details><div class="tool-button-row"><button class="tool-action" type="button" data-check-listening disabled>检查答案</button><button class="tool-action tool-action-secondary" type="button" data-restart-listening hidden>开始新的听力尝试</button></div><p class="practice-feedback" data-listening-feedback role="status" aria-live="polite">${escapeHtml(task.presentation.initialFeedbackZh)}</p><a class="text-link" href="/practice">← 返回四项练习</a></article>`;
+};
+
+const renderWritingPracticeCard = (task) => {
+  const minimumWords = task.content.minimumWords;
+  if (
+    typeof task.content.prompt !== "string" ||
+    !Number.isInteger(minimumWords) ||
+    minimumWords <= 0 ||
+    typeof task.presentation.answerLabelEn !== "string" ||
+    typeof task.presentation.answerPlaceholderEn !== "string" ||
+    typeof task.presentation.selfReviewLegendEn !== "string" ||
+    typeof task.presentation.completionFeedbackZh !== "string"
+  ) {
+    throw new Error(`Writing practice content is incomplete: ${task.exerciseId}`);
+  }
+  const feedback = fillPracticeTemplate(task.presentation.completionFeedbackZh, { minimumWords });
+  return `<article class="practice-card practice-card-single" ${practiceArticleAttributes(task, "writing")} data-minimum-words="${minimumWords}"><header><span>${escapeHtml(task.skill)}</span><small>${escapeHtml(task.presentation.headerNoteZh)}</small></header>${renderPracticeBindingStatus()}<p class="practice-instruction">${escapeHtml(task.presentation.instructionZh)}</p><p class="english-prompt" lang="en">${escapeHtml(task.content.prompt)}</p><label class="writing-field"><span lang="en">${escapeHtml(task.presentation.answerLabelEn)}</span><textarea rows="10" spellcheck="true" lang="en" data-writing-answer placeholder="${escapeHtml(task.presentation.answerPlaceholderEn)}"></textarea></label><div class="writing-meta"><span><b data-word-count>0</b> words</span><span data-writing-save-status>尚未输入</span></div><fieldset class="self-review" lang="en"><legend>${escapeHtml(task.presentation.selfReviewLegendEn)}</legend>${renderPracticeSelfReview(task, "data-review")}</fieldset><button class="tool-action" type="button" data-complete-writing disabled>达到 ${minimumWords} 词并完成自查后标记完成</button><p class="practice-feedback" data-writing-feedback role="status" aria-live="polite">${escapeHtml(feedback)}</p><a class="text-link" href="/practice">← 返回四项练习</a></article>`;
+};
+
+const renderSpeakingPracticeCard = (task) => {
+  const { prepSeconds, responseSeconds } = task.content;
+  if (
+    typeof task.content.prompt !== "string" ||
+    !Number.isInteger(prepSeconds) ||
+    prepSeconds <= 0 ||
+    !Number.isInteger(responseSeconds) ||
+    responseSeconds <= 0 ||
+    typeof task.presentation.selfReviewLegendEn !== "string" ||
+    typeof task.presentation.completionFeedbackZh !== "string"
+  ) {
+    throw new Error(`Speaking practice content is incomplete: ${task.exerciseId}`);
+  }
+  const instruction = fillPracticeTemplate(task.presentation.instructionZh, { prepSeconds, responseSeconds });
+  return `<article class="practice-card practice-card-single" ${practiceArticleAttributes(task, "speaking")} data-prep-seconds="${prepSeconds}" data-response-seconds="${responseSeconds}"><header><span>${escapeHtml(task.skill)}</span><small>${escapeHtml(task.presentation.headerNoteZh)}</small></header>${renderPracticeBindingStatus()}<p class="practice-instruction">${escapeHtml(instruction)}</p><p class="english-prompt" lang="en">${escapeHtml(task.content.prompt)}</p><div class="speaking-clock"><strong data-speaking-time>${formatPracticeClock(prepSeconds)}</strong><span data-speaking-state>准备好后开始</span></div><p class="sr-only" data-speaking-announcement aria-live="polite"></p><div class="tool-button-row"><button class="tool-action" type="button" data-speaking-start>开始准备</button><button class="tool-action tool-action-secondary" type="button" data-speaking-reset>重置</button></div><fieldset class="self-review speaking-review" lang="en"><legend>${escapeHtml(task.presentation.selfReviewLegendEn)}</legend>${renderPracticeSelfReview(task, "data-speaking-review", { disabled: true })}</fieldset><p class="practice-feedback" data-speaking-feedback>${escapeHtml(task.presentation.completionFeedbackZh)}</p><a class="text-link" href="/practice">← 返回四项练习</a></article>`;
+};
+
 const readingPracticeContent = `
   <main id="main-content" class="study-tool-page">
     ${studyPageHero({ current: "practice", number: "R", label: "Reading 练习", title: "先读懂变化，<br />再判断作者意图。", lead: "阅读一段原创英文材料，选择最合适的答案。提交后会看到解释，不给出官方 DET 分数。", note: "约 3 分钟" })}
-    <section class="single-practice-section"><article class="practice-card practice-card-single" data-practice="reading"><header><span>Reading</span><small>原创微练习 · 不是真题</small></header><p class="practice-instruction">阅读英文材料并选择最合适的答案。本题记录仅用于自学，不是官方 DET 评分或成绩预测。</p><div class="english-material" lang="en"><p>Maya noticed that the school library was busiest just before exams. Instead of adding more desks, the librarian created several quiet zones and one small area for group discussion. After two weeks, students reported that it was easier to choose a space that matched the way they needed to study.</p><fieldset><legend>Why did the librarian reorganize the space?</legend><label><input type="radio" name="reading-answer" value="a" /> To make the library look larger.</label><label><input type="radio" name="reading-answer" value="b" /> To support different ways of studying.</label><label><input type="radio" name="reading-answer" value="c" /> To reduce the number of students.</label></fieldset></div><button class="tool-action" type="button" data-check-reading disabled>检查答案</button><p class="practice-feedback" data-reading-feedback role="status" aria-live="polite">请选择一个答案。</p><a class="text-link" href="/practice">← 返回四项练习</a></article></section>
+    <section class="single-practice-section">${renderReadingPracticeCard(readingPracticeTask)}</section>
   </main>`;
 
 const listeningPracticeContent = `
   <main id="main-content" class="study-tool-page">
     ${studyPageHero({ current: "practice", number: "L", label: "Listening 练习", title: "听出关键变化，<br />抓住日期与时间。", lead: "点击播放英文材料，再回答信息理解题。可以重复播放，也可以在需要时查看英文原文。", note: "可重复播放" })}
-    <section class="single-practice-section"><article class="practice-card practice-card-single" data-practice="listening"><header><span>Listening</span><small>原创微练习 · 不是真题</small></header><p class="practice-instruction">播放英文材料，听完后回答问题。本题记录仅用于自学，不是官方 DET 评分或成绩预测。</p><audio controls preload="metadata" data-listening-audio src="/assets/listening-science-club.mp3"><p>当前浏览器无法播放音频，请展开下方英文原文继续练习。</p></audio><p class="audio-status" data-audio-status role="status" aria-live="polite">可重复播放英文材料。</p><div class="english-material" lang="en"><fieldset><legend>When will the science club meet?</legend><label><input type="radio" name="listening-answer" value="a" /> Tuesday at 4:30.</label><label><input type="radio" name="listening-answer" value="b" /> Thursday at 4:30.</label><label><input type="radio" name="listening-answer" value="c" /> Thursday at 3:30.</label></fieldset></div><details class="listening-transcript"><summary>音频不可用或需要核对时，查看英文原文</summary><p lang="en">The science club moved its weekly meeting from Tuesday to Thursday because the laboratory is now used for another class on Tuesday afternoon. The meeting will still begin at four thirty.</p></details><button class="tool-action" type="button" data-check-listening disabled>检查答案</button><p class="practice-feedback" data-listening-feedback role="status" aria-live="polite">请先听材料并选择答案。</p><a class="text-link" href="/practice">← 返回四项练习</a></article></section>
+    <section class="single-practice-section">${renderListeningPracticeCard(listeningPracticeTask)}</section>
   </main>`;
 
 const writingPracticeContent = `
   <main id="main-content" class="study-tool-page">
     ${studyPageHero({ current: "practice", number: "W", label: "Writing 练习", title: "写清一个观点，<br />再用理由支持它。", lead: "根据英文提示作答。页面会统计英文词数并保存草稿，三项自查帮助你完成一次可解释的自我复核。", note: "建议 5 分钟" })}
-    <section class="single-practice-section"><article class="practice-card practice-card-single" data-practice="writing"><header><span>Writing</span><small>原创微练习 · 不是真题</small></header><p class="practice-instruction">阅读提示后用英文作答；内容只保存在本机。本题记录仅用于自学，不是官方 DET 评分或成绩预测。</p><p class="english-prompt" lang="en">Describe one change that could make your school or community a better place to learn. Explain why it would help.</p><label class="writing-field"><span lang="en">Your response</span><textarea rows="10" spellcheck="true" lang="en" data-writing-answer placeholder="Write your response in English..."></textarea></label><div class="writing-meta"><span><b data-word-count>0</b> words</span><span data-writing-save-status>尚未输入</span></div><fieldset class="self-review" lang="en"><legend>Self-review</legend><label><input type="checkbox" data-review="idea" /> I stated one clear idea.</label><label><input type="checkbox" data-review="reason" /> I gave a reason or example.</label><label><input type="checkbox" data-review="edit" /> I checked grammar and spelling.</label></fieldset><button class="tool-action" type="button" data-complete-writing disabled>达到 20 词并完成自查后标记完成</button><p class="practice-feedback" data-writing-feedback role="status" aria-live="polite">20 词只是任务完成条件，不代表写作水平。</p><a class="text-link" href="/practice">← 返回四项练习</a></article></section>
+    <section class="single-practice-section">${renderWritingPracticeCard(writingPracticeTask)}</section>
   </main>`;
 
 const speakingPracticeContent = `
   <main id="main-content" class="study-tool-page">
-    ${studyPageHero({ current: "practice", number: "S", label: "Speaking 练习", title: "组织一个回答，<br />并在 60 秒内说出来。", lead: "阅读英文提示后开始计时并大声回答。本站不请求麦克风权限、不录音，也不上传你的声音。", note: "60 秒练习" })}
-    <section class="single-practice-section"><article class="practice-card practice-card-single" data-practice="speaking"><header><span>Speaking</span><small>原创微练习 · 不录音</small></header><p class="practice-instruction">先准备 20 秒，再用 60 秒大声回答。本题记录仅用于自学，不是官方 DET 评分或成绩预测。</p><p class="english-prompt" lang="en">Talk about a skill you would like to learn. What is the skill, why is it useful, and how would you practice it?</p><div class="speaking-clock"><strong data-speaking-time>00:20</strong><span data-speaking-state>准备好后开始</span></div><p class="sr-only" data-speaking-announcement aria-live="polite"></p><div class="tool-button-row"><button class="tool-action" type="button" data-speaking-start>开始准备</button><button class="tool-action tool-action-secondary" type="button" data-speaking-reset>重置</button></div><fieldset class="self-review speaking-review" lang="en"><legend>Self-review after speaking</legend><label><input type="checkbox" data-speaking-review="answer" disabled /> I answered all parts of the prompt.</label><label><input type="checkbox" data-speaking-review="example" disabled /> I gave a reason or example.</label><label><input type="checkbox" data-speaking-review="flow" disabled /> I kept speaking in complete thoughts.</label></fieldset><p class="practice-feedback" data-speaking-feedback>建议结构：回答主题 → 给出原因 → 提供具体例子。</p><a class="text-link" href="/practice">← 返回四项练习</a></article></section>
+    ${studyPageHero({ current: "practice", number: "S", label: "Speaking 练习", title: `组织一个回答，<br />并在 ${speakingPracticeTask.content.responseSeconds} 秒内说出来。`, lead: "阅读英文提示后开始计时并大声回答。本站不请求麦克风权限、不录音，也不上传你的声音。", note: `${speakingPracticeTask.content.responseSeconds} 秒练习` })}
+    <section class="single-practice-section">${renderSpeakingPracticeCard(speakingPracticeTask)}</section>
   </main>`;
 
 const focusContent = `
@@ -908,33 +1413,51 @@ const focusContent = `
 
 const checkInContent = `
   <main id="main-content" class="study-tool-page">
-    ${studyPageHero({ current: "check-in", number: "05", label: "学习复盘", title: "写下真实困难，<br />让明天更容易开始。", lead: "记录完成内容、具体学习证据与仍待解决的问题。草稿会自动保存在本机；点击保存后，才形成当天的正式复盘记录。", note: "证据式复盘 · 本机保存" })}
+    ${studyPageHero({ current: "check-in", number: "04", label: "证据式打卡", title: "写下真实困难，<br />让明天更容易开始。", lead: "一次记录同时包含做了什么、具体学习证据与仍待解决的问题。闭环打卡必须引用本轮核心任务的合格练习回执；没有回执时仍可保存为不推进闭环的独立复盘。", note: "练习回执绑定 · 本机保存" })}
     <section class="single-tool-section checkin-single" aria-labelledby="checkin-title">
       <div class="single-tool-inner narrow-tool">
-        <header class="tool-panel-header"><div><span>05</span><div><p>今日复盘</p><h2 id="checkin-title">把今天的证据留下来</h2></div></div><small data-checkin-date></small></header>
+        <header class="tool-panel-header"><div><span>04</span><div><p>今日打卡</p><h2 id="checkin-title">把今天的证据留下来</h2></div></div><small data-checkin-date></small></header>
         <div class="form-errors" data-checkin-errors role="alert" tabindex="-1" hidden><strong>请检查以下内容：</strong><ul></ul></div>
         <form id="checkin-form" class="checkin-form" novalidate>
           <label><span>复盘日期</span><input type="text" name="date" data-checkin-date-input readonly /></label>
-          <label><span>关联今日任务 <small>选填</small></span><select name="linkedTaskId" data-linked-task><option value="">不关联任务</option></select></label>
+          <label><span>关联今日任务 <small>闭环记录必须选择带合格练习回执的本轮核心任务</small></span><select name="linkedTaskId" data-linked-task><option value="">不关联任务 · 保存为独立复盘</option></select><small class="field-error" data-error-for="linkedTaskId"></small></label>
+          <p class="checkin-evidence-status" data-checkin-evidence-status data-evidence-class="not_linked" role="status" aria-live="polite">未关联任务的记录可以作为独立复盘，但不会进入当前七步闭环。</p>
           <label><span>今天完成了什么？ <small>10–300 字</small></span><textarea name="didText" rows="5" minlength="10" maxlength="300" data-checkin-field="didText" placeholder="例如：完成了一篇英文短文阅读，并核对了主旨题。"></textarea><small class="field-error" data-error-for="didText"></small></label>
           <label><span>留下什么具体学习证据？ <small>10–500 字</small></span><textarea name="evidenceText" rows="7" minlength="10" maxlength="500" data-checkin-field="evidenceText" placeholder="可以写英文例句、摘要、错误修正或你真正弄懂的一点。"></textarea><small class="field-error" data-error-for="evidenceText"></small></label>
           <fieldset class="question-status"><legend>今天还有需要继续解决的问题吗？</legend><label><input type="radio" name="questionStatus" value="none" /> 暂时没有</label><label><input type="radio" name="questionStatus" value="has_question" /> 有一个问题</label><small class="field-error" data-error-for="questionStatus"></small></fieldset>
           <label data-question-wrap hidden><span>写下这个问题 <small>最多 300 字</small></span><textarea name="questionText" rows="4" maxlength="300" data-checkin-field="questionText" placeholder="明天要先解决的问题是……"></textarea><small class="field-error" data-error-for="questionText"></small></label>
-          <div class="checkin-submit"><small data-checkin-draft-status>尚未输入</small><button class="button button-accent" type="submit">保存今日复盘</button></div>
-          <p class="save-message" data-note-status role="status" aria-live="polite">草稿只保存在当前浏览器。</p>
+          <div class="checkin-submit"><small data-checkin-draft-status>尚未输入</small><button class="button button-accent" type="submit">保存证据式打卡</button></div>
+          <p class="save-message" data-note-status role="status" aria-live="polite">草稿只保存在当前浏览器；保存后还需由你确认复盘。</p>
+          <dl class="compact-receipt" data-checkin-receipt hidden><div><dt>check_in_id</dt><dd data-checkin-id></dd></div><div><dt>plan_id</dt><dd data-checkin-plan-id></dd></div><div><dt>evidence_class</dt><dd data-checkin-evidence-class></dd></div><div><dt>completion_receipt_id</dt><dd data-checkin-practice-receipt-id></dd></div></dl>
+          <a class="button button-ink journey-next-button" href="/review" data-checkin-review-link hidden>下一步：确认复盘${arrow}</a>
         </form>
       </div>
     </section>
   </main>`;
 
+const reviewContent = `
+  <main id="main-content" class="study-tool-page">
+    ${studyPageHero({ current: "", number: "05", label: "学生确认复盘", title: "先核对内容，<br />再由你明确确认。", lead: "本页读取当前闭环中刚保存的证据式打卡。你可以返回修正；只有勾选确认并提交后，才生成独立 review_id 与 learner_confirmed_review。", note: "确认与打卡分开留证" })}
+    <section class="single-tool-section journey-tool-section" aria-labelledby="review-title"><div class="single-tool-inner narrow-tool">
+      <header class="tool-panel-header"><div><span>05</span><div><p>复盘确认</p><h2 id="review-title">这是你愿意确认的记录吗？</h2></div></div><small data-review-status>等待证据式打卡</small></header>
+      <div class="review-empty" data-review-empty><h3>当前闭环还没有待确认打卡</h3><p>先保存“做了什么 + 一条学习证据 + 一个问题”，再回到这里核对。</p><a class="button button-ink" href="/check-in">先完成证据式打卡${arrow}</a></div>
+      <div class="review-ready" data-review-ready hidden>
+        <article class="review-record" aria-labelledby="review-record-title"><span>CHECK-IN DRAFT FOR REVIEW</span><h3 id="review-record-title" data-review-date></h3><dl><div><dt>做了什么</dt><dd data-review-did></dd></div><div><dt>学习证据</dt><dd data-review-evidence></dd></div><div><dt>证据来源</dt><dd data-review-evidence-class></dd></div><div><dt>练习回执</dt><dd data-review-practice-receipt-id></dd></div><div><dt>问题状态</dt><dd data-review-question></dd></div></dl><a class="text-link" href="/check-in">返回修正打卡 →</a></article>
+        <form id="review-form" class="journey-form" novalidate><label class="consent-check"><input type="checkbox" name="learnerConfirmed" /><span><strong>我已核对，并确认这份复盘反映了我的学习记录</strong><small>如果内容不准确，请先返回修正；系统不会替你自动确认。</small></span></label><button class="button button-accent" type="submit">确认这份复盘${arrow}</button><p class="form-inline-message" data-review-message role="alert"></p></form>
+        <dl class="compact-receipt" data-review-receipt hidden><div><dt>review_id</dt><dd data-review-id></dd></div><div><dt>check_in_id</dt><dd data-review-checkin-id></dd></div><div><dt>learner_confirmed_review</dt><dd>true</dd></div></dl>
+        <a class="button button-ink journey-next-button" href="/community" data-review-next hidden>下一步：选择是否使用互助${arrow}</a>
+      </div>
+    </div></section>
+  </main>`;
+
 const myDataContent = `
   <main id="main-content" class="study-tool-page">
-    ${studyPageHero({ current: "", number: "数", label: "我的本机数据", title: "知道数据在哪里，<br />也能自己带走或清除。", lead: "学习计划、任务进度、练习草稿、专注记录与复盘只保存在当前浏览器。本站没有账号系统，也不会自动同步到其他设备。", note: "你掌握数据控制权" })}
+    ${studyPageHero({ current: "", number: "数", label: "我的本机数据", title: "知道数据在哪里，<br />也能自己带走或清除。", lead: "账户登录用于保护学习页面；学习闭环数据、Sofia智能老师对话，以及教研复核演示草稿，分别保存在当前浏览器的三个版本化命名空间中，不会自动绑定账户、上传或同步到其他设备。", note: "你掌握数据控制权" })}
     <section class="single-tool-section data-page" aria-labelledby="data-title"><div class="single-tool-inner narrow-tool"><header class="tool-panel-header"><div><span>数</span><div><p>数据控制</p><h2 id="data-title">当前浏览器中的 Sufeiya 数据</h2></div></div><small data-data-status>正在读取</small></header>
-      <div class="data-facts"><article><strong>只在当前浏览器</strong><p>不会自动跨设备同步；清除浏览器网站数据后也会丢失。</p></article><article><strong>本地但未加密</strong><p>同一设备上的其他使用者可能看到这些记录，请勿填写敏感成绩截图或身份材料。</p></article><article><strong>不保存录音</strong><p>口语练习不申请麦克风权限，也不会储存或上传声音。</p></article></div>
+      <div class="data-facts"><article><strong>三个本机命名空间</strong><p><code>sufeiya_workspace_v1</code>、<code>sufeiya_super_teacher_v1</code> 与 <code>sufeiya_teaching_review_demo_v1</code> 分开保存；教研记录只是未发送的演示草稿，不是正式确认或人工回执。</p></article><article><strong>本地但未加密</strong><p>同一设备上的其他使用者可能看到这些记录，请勿填写敏感成绩截图或身份材料。</p></article><article><strong>学习事件哈希链</strong><p>事件只保存受限元数据，可发现意外损坏；它不是服务器签名，也不能防止恶意本机重算。当前不连接 LRS。</p></article><article><strong>不保存录音</strong><p>口语练习不申请麦克风权限，也不会储存或上传声音。</p></article></div>
       <div class="data-summary" data-data-summary><p>正在统计本机记录…</p></div>
-      <div class="data-actions"><button class="button button-ink" type="button" data-export-workspace>导出我的 JSON 数据</button><button class="button button-ghost" type="button" data-clear-workspace>仅清除 Sufeiya 学习数据</button></div>
-      <p class="save-message" data-data-message role="status" aria-live="polite">导出文件可用于个人备份；本站目前不提供导入或云同步。</p>
+      <div class="data-actions"><button class="button button-ink" type="button" data-export-workspace>导出全部本机 JSON 数据</button><button class="button button-ghost" type="button" data-export-learning-events>仅导出学习事件备份</button><button class="button button-ghost" type="button" data-clear-learning-events>仅清除学习事件账本</button><button class="button button-ghost" type="button" data-clear-workspace>仅清除学习闭环数据</button><button class="button button-ghost" type="button" data-clear-super-teacher>仅清除 Sofia智能老师对话</button><button class="button button-ghost" type="button" data-clear-teaching-review-demo>仅清除教研复核演示草稿</button><button class="button button-ghost" type="button" data-clear-all-sufeiya>清除全部本机 Sufeiya 数据</button></div>
+      <p class="save-message" data-data-message role="status" aria-live="polite">导出文件仅供个人备份，不是 LRS 或 xAPI 导出；本站目前不提供导入或云同步。</p>
     </div></section>
   </main>`;
 
@@ -954,7 +1477,16 @@ const pages = [
     title: "学习工作台｜苏肥鸭多邻国在线学习平台",
     description: "直接使用 Sufeiya 学习工作台：生成 7 天 DET 学习计划、完成今日任务、练习英文听说读写、专注计时并保存本机复盘。",
     content: workspaceContent,
-    scripts: ["/workspace.js"],
+    scripts: ["/workspace.js", "/journey.js"],
+  },
+  {
+    filename: "diagnostic.html",
+    page: "diagnostic",
+    path: "/diagnostic",
+    title: "演示性初筛｜苏肥鸭学习工作台",
+    description: "建立不上传数据、不提供分数的 Gate A 演示诊断会话，汇总本机练习证据并确认学习优先项。",
+    content: diagnosticContent,
+    scripts: ["/workspace.js", "/journey.js"],
   },
   {
     filename: "plan.html",
@@ -973,6 +1505,15 @@ const pages = [
     description: "查看并完成今天的 DET 学习任务，实时保存本机进度与下一步提示。",
     content: todayContent,
     scripts: ["/workspace.js"],
+  },
+  {
+    filename: "recommendations.html",
+    page: "recommendations",
+    path: "/recommendations",
+    title: "可解释推荐｜苏肥鸭学习工作台",
+    description: "根据本机 7 天计划生成一个主任务与至多两个可选补充，明确显示推荐原因、来源、时长和验证方式。",
+    content: recommendationsContent,
+    scripts: ["/workspace.js", "/journey.js"],
   },
   {
     filename: "practice.html",
@@ -1038,11 +1579,38 @@ const pages = [
     scripts: ["/workspace.js"],
   },
   {
+    filename: "review.html",
+    page: "review",
+    path: "/review",
+    title: "学生确认复盘｜苏肥鸭学习工作台",
+    description: "核对当前闭环中的证据式打卡，并由学习者明确确认后生成独立 review_id。",
+    content: reviewContent,
+    scripts: ["/journey.js"],
+  },
+  {
+    filename: "community.html",
+    page: "community",
+    path: "/community",
+    title: "自愿社区互助｜苏肥鸭学习工作台",
+    description: "在真实社区尚未开放时，用合成经验卡演示并保存 used、declined、not_needed 或 unavailable 自愿状态。",
+    content: communityContent,
+    scripts: ["/workspace.js", "/journey.js"],
+  },
+  {
+    filename: "retest.html",
+    page: "retest",
+    path: "/retest",
+    title: "平行微复测与更新计划｜苏肥鸭学习工作台",
+    description: "完成一条原创平行微任务，保存可解释证据，并由学习者确认生成更新后的 7 天计划。",
+    content: retestContent,
+    scripts: ["/workspace.js", "/journey.js"],
+  },
+  {
     filename: "my-data.html",
     page: "my-data",
     path: "/my-data",
     title: "我的本机数据｜苏肥鸭学习工作台",
-    description: "查看、导出或仅清除当前浏览器中的 Sufeiya 学习计划、任务进度、练习草稿与复盘数据。",
+    description: "查看、导出或定向清除当前浏览器中的 Sufeiya 学习闭环、Sofia 对话与教研复核演示草稿。",
     content: myDataContent,
     scripts: ["/workspace.js"],
   },
@@ -1059,7 +1627,7 @@ const pages = [
     page: "platform",
     path: "/platform",
     title: "平台功能｜苏肥鸭多邻国在线学习平台",
-    description: "直接进入基础学习工作台，并了解全科诊断伴学课、苏肥鸭超级智能老师、带教打卡营与自愿社区互助等分阶段能力。",
+    description: "直接进入基础学习工作台，并了解全科诊断伴学课、Sofia智能老师、带教打卡营与自愿社区互助等分阶段能力。",
     content: platformContent,
   },
   {
@@ -1081,7 +1649,11 @@ const pages = [
   },
 ];
 
-const shell = ({ page, path, title, description, content, scripts = [] }) => `<!doctype html>
+const shell = ({ page, path, title, description, content, scripts = [] }) => {
+  const orderedScripts = scripts.some((source) => ["/workspace.js", "/journey.js"].includes(source))
+    ? ["/learning-events.js", ...scripts]
+    : scripts;
+  return `<!doctype html>
 <html lang="zh-CN">
   <head>
     <meta charset="utf-8" />
@@ -1122,7 +1694,7 @@ const shell = ({ page, path, title, description, content, scripts = [] }) => `<!
       }).replace(',"isPartOf":undefined', "")}
     </script>
     <script src="/script.js" defer></script>
-    ${scripts.map((source) => `<script src="${source}" defer></script>`).join("\n    ")}
+    ${orderedScripts.map((source) => `<script src="${source}" defer></script>`).join("\n    ")}
   </head>
   <body data-page="${page}">
     ${header(page)}
@@ -1131,6 +1703,7 @@ const shell = ({ page, path, title, description, content, scripts = [] }) => `<!
   </body>
 </html>
 `;
+};
 
 for (const page of pages) {
   const html = shell(page).replace(/[ \t]+$/gm, "");

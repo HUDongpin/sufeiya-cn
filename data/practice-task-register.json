@@ -1,0 +1,127 @@
+{
+  "protocolVersion": "sufeiya_practice_task_register_v1",
+  "releaseStatus": "gate_a_demo_only",
+  "ownerScope": "browser_local_not_account_bound",
+  "teacherReviewed": false,
+  "measurementReviewed": false,
+  "tasks": [
+    {
+      "exerciseId": "reading-library-v1",
+      "contentId": "reading-library-v1",
+      "contentVersion": "v1",
+      "contentHash": "7238e32977e09ec90227c0dcbdf85d63506e0f0b9458e6efeafc68f4326bbb6f",
+      "activityId": "https://sufeiya.cn/activities/practice/reading-library/v1",
+      "skill": "Reading",
+      "route": "/practice-reading",
+      "responseType": "single_choice",
+      "evidenceClass": "objective_response",
+      "presentation": {
+        "headerNoteZh": "原创微练习 · 不是真题",
+        "instructionZh": "阅读英文材料并选择最合适的答案。本题记录仅用于自学，不是官方 DET 评分或成绩预测。",
+        "initialFeedbackZh": "请选择一个答案。"
+      },
+      "content": {
+        "prompt": "Maya noticed that the school library was busiest just before exams. Instead of adding more desks, the librarian created several quiet zones and one small area for group discussion. After two weeks, students reported that it was easier to choose a space that matched the way they needed to study.",
+        "question": "Why did the librarian reorganize the space?",
+        "options": [
+          "To make the library look larger.",
+          "To support different ways of studying.",
+          "To reduce the number of students."
+        ],
+        "correctValue": "b",
+        "completionRule": "final_answer_correct",
+        "contentVersion": "v1"
+      }
+    },
+    {
+      "exerciseId": "listening-club-v1",
+      "contentId": "listening-club-v1",
+      "contentVersion": "v1",
+      "contentHash": "1415f88a1903064dbe1fc21384ca5160be811b9bcab691b7fe7afeeb1928c2cb",
+      "activityId": "https://sufeiya.cn/activities/practice/listening-club/v1",
+      "skill": "Listening",
+      "route": "/practice-listening",
+      "responseType": "single_choice_audio",
+      "evidenceClass": "audio_objective_response",
+      "presentation": {
+        "headerNoteZh": "原创微练习 · 不是真题",
+        "instructionZh": "播放英文材料，听完后回答问题。本题记录仅用于自学，不是官方 DET 评分或成绩预测。",
+        "initialFeedbackZh": "请先听材料并选择答案。"
+      },
+      "content": {
+        "audioPath": "/assets/listening-science-club.mp3",
+        "transcript": "The science club moved its weekly meeting from Tuesday to Thursday because the laboratory is now used for another class on Tuesday afternoon. The meeting will still begin at four thirty.",
+        "question": "When will the science club meet?",
+        "options": [
+          "Tuesday at 4:30.",
+          "Thursday at 4:30.",
+          "Thursday at 3:30."
+        ],
+        "correctValue": "b",
+        "completionRule": "final_answer_correct_with_audio_quality",
+        "contentVersion": "v1"
+      }
+    },
+    {
+      "exerciseId": "writing-community-v1",
+      "contentId": "writing-community-v1",
+      "contentVersion": "v1",
+      "contentHash": "1c52065b38cc80712ef3f8832fe8da110cb547a32c06e3a0e98c79cd8f4bc75b",
+      "activityId": "https://sufeiya.cn/activities/practice/writing-community/v1",
+      "skill": "Writing",
+      "route": "/practice-writing",
+      "responseType": "local_text_self_review",
+      "evidenceClass": "self_reviewed_artifact",
+      "presentation": {
+        "headerNoteZh": "原创微练习 · 不是真题",
+        "instructionZh": "阅读提示后用英文作答；内容只保存在本机。本题记录仅用于自学，不是官方 DET 评分或成绩预测。",
+        "answerLabelEn": "Your response",
+        "answerPlaceholderEn": "Write your response in English...",
+        "selfReviewLegendEn": "Self-review",
+        "selfReviewLabelsEn": {
+          "idea": "I stated one clear idea.",
+          "reason": "I gave a reason or example.",
+          "edit": "I checked grammar and spelling."
+        },
+        "completionFeedbackZh": "{minimumWords} 词只是任务完成条件，不代表写作水平。"
+      },
+      "content": {
+        "prompt": "Describe one change that could make your school or community a better place to learn. Explain why it would help.",
+        "minimumWords": 20,
+        "selfReview": ["idea", "reason", "edit"],
+        "completionRule": "minimum_words_and_all_self_checks",
+        "contentVersion": "v1"
+      }
+    },
+    {
+      "exerciseId": "speaking-skill-v1",
+      "contentId": "speaking-skill-v1",
+      "contentVersion": "v1",
+      "contentHash": "c52c0194f8ee42d677148bc3e54bbf772fa74f8ee1a7d5bd90a21d8dd2a87843",
+      "activityId": "https://sufeiya.cn/activities/practice/speaking-skill/v1",
+      "skill": "Speaking",
+      "route": "/practice-speaking",
+      "responseType": "timed_self_report",
+      "evidenceClass": "timed_self_report",
+      "presentation": {
+        "headerNoteZh": "原创微练习 · 不录音",
+        "instructionZh": "先准备 {prepSeconds} 秒，再用 {responseSeconds} 秒大声回答。本题记录仅用于自学，不是官方 DET 评分或成绩预测。",
+        "selfReviewLegendEn": "Self-review after speaking",
+        "selfReviewLabelsEn": {
+          "answer": "I answered all parts of the prompt.",
+          "example": "I gave a reason or example.",
+          "flow": "I kept speaking in complete thoughts."
+        },
+        "completionFeedbackZh": "建议结构：回答主题 → 给出原因 → 提供具体例子。"
+      },
+      "content": {
+        "prompt": "Talk about a skill you would like to learn. What is the skill, why is it useful, and how would you practice it?",
+        "prepSeconds": 20,
+        "responseSeconds": 60,
+        "selfReview": ["answer", "example", "flow"],
+        "completionRule": "full_timer_and_all_self_checks",
+        "contentVersion": "v1"
+      }
+    }
+  ]
+}

@@ -1,0 +1,1381 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sufeiya.cn/schemas/learning-event.schema.v2.json",
+  "title": "Sufeiya local learning event v2",
+  "description": "Strict, forward-only, anonymous, runtime-enabled browser-local learning-event contract. Runtime capture is permitted only within this contract; network dispatch is forbidden.",
+  "$comment": "Runtime assertions not expressible by single-event JSON Schema: validate the actual candidate event against this schema before append; require recordedAt >= occurredAt; require eventId and idempotencyKey uniqueness across the ledger; allow sequence 1 to be any allowlisted post-activation event; prohibit same-cycle phase regression and historical backfill.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractId",
+    "schemaVersion",
+    "eventId",
+    "idempotencyKey",
+    "eventType",
+    "sequence",
+    "occurredAt",
+    "recordedAt",
+    "subject",
+    "context",
+    "activity",
+    "attributes",
+    "privacy",
+    "governance",
+    "previousEventHash",
+    "eventHash"
+  ],
+  "properties": {
+    "contractId": {
+      "const": "sufeiya.learning-event.v2"
+    },
+    "schemaVersion": {
+      "const": 2
+    },
+    "eventId": {
+      "$ref": "#/$defs/uuidV4"
+    },
+    "idempotencyKey": {
+      "$ref": "#/$defs/uuidV4"
+    },
+    "eventType": {
+      "enum": [
+        "learning_cycle.started",
+        "recommendation.decided",
+        "practice_attempt.finalized",
+        "check_in.committed",
+        "retest.completed",
+        "learning_cycle.completed"
+      ]
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "occurredAt": {
+      "$ref": "#/$defs/utcMilliseconds"
+    },
+    "recordedAt": {
+      "$ref": "#/$defs/utcMilliseconds"
+    },
+    "subject": {
+      "$ref": "#/$defs/anonymousSubject"
+    },
+    "context": {
+      "$ref": "#/$defs/eventContext"
+    },
+    "activity": {
+      "type": "object"
+    },
+    "attributes": {
+      "$ref": "#/$defs/eventAttributes"
+    },
+    "privacy": {
+      "$ref": "#/$defs/privacy"
+    },
+    "governance": {
+      "$ref": "#/$defs/governance"
+    },
+    "previousEventHash": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/sha256"
+        }
+      ]
+    },
+    "eventHash": {
+      "$ref": "#/$defs/sha256"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "sequence": {
+            "const": 1
+          }
+        },
+        "required": [
+          "sequence"
+        ]
+      },
+      "then": {
+        "properties": {
+          "previousEventHash": {
+            "type": "null"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "previousEventHash": {
+            "$ref": "#/$defs/sha256"
+          }
+        }
+      }
+    }
+  ],
+  "oneOf": [
+    {
+      "$ref": "#/$defs/learningCycleStarted"
+    },
+    {
+      "$ref": "#/$defs/recommendationDecided"
+    },
+    {
+      "$ref": "#/$defs/practiceAttemptFinalized"
+    },
+    {
+      "$ref": "#/$defs/checkInCommitted"
+    },
+    {
+      "$ref": "#/$defs/retestCompleted"
+    },
+    {
+      "$ref": "#/$defs/learningCycleCompleted"
+    }
+  ],
+  "$defs": {
+    "uuidV4": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "anonymousSubjectId": {
+      "type": "string",
+      "pattern": "^anon_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "utcMilliseconds": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])-([0-2][0-9]|3[0-1])T([0-1][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]\\.[0-9]{3}Z$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "anonymousSubject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "subjectId",
+        "subjectType",
+        "identityAssurance",
+        "assignedBy"
+      ],
+      "properties": {
+        "subjectId": {
+          "$ref": "#/$defs/anonymousSubjectId"
+        },
+        "subjectType": {
+          "const": "anonymous_installation"
+        },
+        "identityAssurance": {
+          "const": "local_random_alias"
+        },
+        "assignedBy": {
+          "const": "local_runtime_csprng"
+        }
+      }
+    },
+    "eventContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "learningCycleId": {
+          "$ref": "#/$defs/uuidV4"
+        },
+        "diagnosticSessionId": {
+          "$ref": "#/$defs/uuidV4"
+        },
+        "planId": {
+          "$ref": "#/$defs/uuidV4"
+        },
+        "recommendationId": {
+          "$ref": "#/$defs/uuidV4"
+        },
+        "bindingId": {
+          "$ref": "#/$defs/uuidV4"
+        },
+        "taskId": {
+          "$ref": "#/$defs/uuidV4"
+        },
+        "attemptId": {
+          "$ref": "#/$defs/uuidV4"
+        },
+        "practiceReceiptId": {
+          "$ref": "#/$defs/uuidV4"
+        },
+        "checkInId": {
+          "$ref": "#/$defs/uuidV4"
+        },
+        "retestId": {
+          "$ref": "#/$defs/uuidV4"
+        },
+        "baselinePracticeReceiptId": {
+          "$ref": "#/$defs/uuidV4"
+        },
+        "humanReviewReceiptId": {
+          "$ref": "#/$defs/uuidV4"
+        },
+        "updatedPlanId": {
+          "$ref": "#/$defs/uuidV4"
+        },
+        "causationEventId": {
+          "$ref": "#/$defs/uuidV4"
+        }
+      }
+    },
+    "eventAttributes": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "outcome": {
+          "enum": [
+            "started",
+            "matched",
+            "needs_retry",
+            "self_review_completed",
+            "committed",
+            "completed"
+          ]
+        },
+        "taskSetVersion": {
+          "const": "gate_a_original_6_v1"
+        },
+        "taskSetDigest": {
+          "const": "c1b2922ca96677665690bf790281be2438a016bbbe0d9f85478685af3c8dfc2c"
+        },
+        "decision": {
+          "enum": [
+            "accepted",
+            "skipped"
+          ]
+        },
+        "bindingReviewStatus": {
+          "const": "gate_a_unreviewed"
+        },
+        "skill": {
+          "$ref": "#/$defs/skill"
+        },
+        "evidenceType": {
+          "enum": [
+            "single_task_correct",
+            "single_task_needs_retry",
+            "single_task_needs_review",
+            "task_completed_no_score"
+          ]
+        },
+        "evidenceStatus": {
+          "enum": [
+            "evidence_limited",
+            "evidence_insufficient"
+          ]
+        },
+        "automatedScoreProduced": {
+          "const": false
+        },
+        "formalDiagnosisProduced": {
+          "const": false
+        },
+        "officialEquivalenceClaimed": {
+          "const": false
+        },
+        "attemptCount": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        },
+        "wordCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100000
+        },
+        "selfCheckCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "evidenceClass": {
+          "const": "practice_receipt"
+        },
+        "questionStatus": {
+          "enum": [
+            "none",
+            "has_question"
+          ]
+        },
+        "evidenceSufficiency": {
+          "enum": [
+            "limited_unreviewed_same_skill_task",
+            "insufficient_audio_conditions"
+          ]
+        },
+        "comparabilityClass": {
+          "const": "same_skill_unreviewed_construct"
+        },
+        "humanConfirmationStatus": {
+          "enum": [
+            "not_required_for_gate_a_flow",
+            "required_not_completed",
+            "completed"
+          ]
+        },
+        "growthClaimed": {
+          "const": false
+        },
+        "nextFocusSkill": {
+          "$ref": "#/$defs/focusSkill"
+        }
+      }
+    },
+    "skill": {
+      "enum": [
+        "Reading",
+        "Listening",
+        "Writing",
+        "Speaking"
+      ]
+    },
+    "focusSkill": {
+      "enum": [
+        "Reading",
+        "Listening",
+        "Writing",
+        "Speaking",
+        "Balanced"
+      ]
+    },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "classification",
+        "containsDirectIdentifier",
+        "containsAccountIdentifier",
+        "containsClerkIdentifier",
+        "containsFreeText",
+        "containsRawResponse",
+        "containsAudio",
+        "containsSofiaContent"
+      ],
+      "properties": {
+        "classification": {
+          "const": "pseudonymous_local_learning_metadata"
+        },
+        "containsDirectIdentifier": {
+          "const": false
+        },
+        "containsAccountIdentifier": {
+          "const": false
+        },
+        "containsClerkIdentifier": {
+          "const": false
+        },
+        "containsFreeText": {
+          "const": false
+        },
+        "containsRawResponse": {
+          "const": false
+        },
+        "containsAudio": {
+          "const": false
+        },
+        "containsSofiaContent": {
+          "const": false
+        }
+      }
+    },
+    "governance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "captureMode",
+        "historicalBackfillAllowed",
+        "storageScope",
+        "appendPolicy",
+        "integrityAssurance",
+        "corruptionPolicy",
+        "networkDispatch",
+        "lrsDispatch",
+        "xapiDispatch",
+        "sofiaAccess",
+        "exportEligibility"
+      ],
+      "properties": {
+        "captureMode": {
+          "const": "forward_only_no_backfill"
+        },
+        "historicalBackfillAllowed": {
+          "const": false
+        },
+        "storageScope": {
+          "const": "browser_local_only"
+        },
+        "appendPolicy": {
+          "const": "application_append_only"
+        },
+        "integrityAssurance": {
+          "const": "local_hash_chain_not_tamper_proof"
+        },
+        "corruptionPolicy": {
+          "const": "fail_closed"
+        },
+        "networkDispatch": {
+          "const": "disabled"
+        },
+        "lrsDispatch": {
+          "const": "disabled"
+        },
+        "xapiDispatch": {
+          "const": "disabled"
+        },
+        "sofiaAccess": {
+          "const": "forbidden"
+        },
+        "exportEligibility": {
+          "const": "local_user_backup_only_not_lrs_exportable"
+        }
+      }
+    },
+    "activityLearningCycle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "version"
+      ],
+      "properties": {
+        "kind": {
+          "const": "learning_cycle"
+        },
+        "id": {
+          "const": "https://sufeiya.cn/activities/learning-cycle/gate-a/v1"
+        },
+        "version": {
+          "const": "gate_a_local_v1"
+        }
+      }
+    },
+    "activityRecommendation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "version"
+      ],
+      "properties": {
+        "kind": {
+          "const": "recommendation"
+        },
+        "id": {
+          "const": "https://sufeiya.cn/activities/recommendations/gate-a/v1"
+        },
+        "version": {
+          "const": "gate_a_local_v1"
+        }
+      }
+    },
+    "activityCheckIn": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "version"
+      ],
+      "properties": {
+        "kind": {
+          "const": "check_in"
+        },
+        "id": {
+          "const": "https://sufeiya.cn/activities/check-in/evidence/v1"
+        },
+        "version": {
+          "const": "gate_a_local_v1"
+        }
+      }
+    },
+    "activityPracticeReading": {
+      "$ref": "#/$defs/activityPracticeReadingDefinition"
+    },
+    "activityPracticeReadingDefinition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "version"
+      ],
+      "properties": {
+        "kind": {
+          "const": "practice"
+        },
+        "id": {
+          "const": "https://sufeiya.cn/activities/practice/reading-library/v1"
+        },
+        "version": {
+          "const": "gate_a_local_v1"
+        }
+      }
+    },
+    "activityPracticeListening": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "version"
+      ],
+      "properties": {
+        "kind": {
+          "const": "practice"
+        },
+        "id": {
+          "const": "https://sufeiya.cn/activities/practice/listening-club/v1"
+        },
+        "version": {
+          "const": "gate_a_local_v1"
+        }
+      }
+    },
+    "activityPracticeWriting": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "version"
+      ],
+      "properties": {
+        "kind": {
+          "const": "practice"
+        },
+        "id": {
+          "const": "https://sufeiya.cn/activities/practice/writing-community/v1"
+        },
+        "version": {
+          "const": "gate_a_local_v1"
+        }
+      }
+    },
+    "activityPracticeSpeaking": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "version"
+      ],
+      "properties": {
+        "kind": {
+          "const": "practice"
+        },
+        "id": {
+          "const": "https://sufeiya.cn/activities/practice/speaking-skill/v1"
+        },
+        "version": {
+          "const": "gate_a_local_v1"
+        }
+      }
+    },
+    "activityRetestReading": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "version"
+      ],
+      "properties": {
+        "kind": {
+          "const": "retest"
+        },
+        "id": {
+          "const": "https://sufeiya.cn/activities/retest/reading-parallel/v1"
+        },
+        "version": {
+          "const": "gate_a_local_v1"
+        }
+      }
+    },
+    "activityRetestListening": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "version"
+      ],
+      "properties": {
+        "kind": {
+          "const": "retest"
+        },
+        "id": {
+          "const": "https://sufeiya.cn/activities/retest/listening-parallel/v1"
+        },
+        "version": {
+          "const": "gate_a_local_v1"
+        }
+      }
+    },
+    "activityRetestWriting": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "version"
+      ],
+      "properties": {
+        "kind": {
+          "const": "retest"
+        },
+        "id": {
+          "const": "https://sufeiya.cn/activities/retest/writing-parallel/v1"
+        },
+        "version": {
+          "const": "gate_a_local_v1"
+        }
+      }
+    },
+    "activityRetestSpeaking": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "version"
+      ],
+      "properties": {
+        "kind": {
+          "const": "retest"
+        },
+        "id": {
+          "const": "https://sufeiya.cn/activities/retest/speaking-parallel/v1"
+        },
+        "version": {
+          "const": "gate_a_local_v1"
+        }
+      }
+    },
+    "learningCycleStarted": {
+      "type": "object",
+      "properties": {
+        "eventType": {
+          "const": "learning_cycle.started"
+        },
+        "context": {
+          "required": [
+            "learningCycleId",
+            "diagnosticSessionId"
+          ],
+          "propertyNames": {
+            "enum": [
+              "learningCycleId",
+              "diagnosticSessionId"
+            ]
+          }
+        },
+        "activity": {
+          "$ref": "#/$defs/activityLearningCycle"
+        },
+        "attributes": {
+          "required": [
+            "outcome",
+            "taskSetVersion",
+            "taskSetDigest"
+          ],
+          "propertyNames": {
+            "enum": [
+              "outcome",
+              "taskSetVersion",
+              "taskSetDigest"
+            ]
+          },
+          "properties": {
+            "outcome": {
+              "const": "started"
+            }
+          }
+        }
+      }
+    },
+    "recommendationDecided": {
+      "type": "object",
+      "properties": {
+        "eventType": {
+          "const": "recommendation.decided"
+        },
+        "context": {
+          "required": [
+            "learningCycleId",
+            "diagnosticSessionId",
+            "planId",
+            "recommendationId",
+            "bindingId"
+          ],
+          "propertyNames": {
+            "enum": [
+              "learningCycleId",
+              "diagnosticSessionId",
+              "planId",
+              "recommendationId",
+              "bindingId",
+              "causationEventId"
+            ]
+          }
+        },
+        "activity": {
+          "$ref": "#/$defs/activityRecommendation"
+        },
+        "attributes": {
+          "required": [
+            "decision",
+            "bindingReviewStatus"
+          ],
+          "propertyNames": {
+            "enum": [
+              "decision",
+              "bindingReviewStatus"
+            ]
+          }
+        }
+      }
+    },
+    "practiceAttemptFinalized": {
+      "type": "object",
+      "properties": {
+        "eventType": {
+          "const": "practice_attempt.finalized"
+        },
+        "context": {
+          "required": [
+            "learningCycleId",
+            "diagnosticSessionId",
+            "planId",
+            "recommendationId",
+            "bindingId",
+            "taskId",
+            "attemptId",
+            "practiceReceiptId"
+          ],
+          "propertyNames": {
+            "enum": [
+              "learningCycleId",
+              "diagnosticSessionId",
+              "planId",
+              "recommendationId",
+              "bindingId",
+              "taskId",
+              "attemptId",
+              "practiceReceiptId",
+              "causationEventId"
+            ]
+          }
+        },
+        "attributes": {
+          "required": [
+            "outcome",
+            "skill",
+            "evidenceType",
+            "evidenceStatus",
+            "automatedScoreProduced",
+            "formalDiagnosisProduced",
+            "officialEquivalenceClaimed"
+          ],
+          "propertyNames": {
+            "enum": [
+              "outcome",
+              "skill",
+              "evidenceType",
+              "evidenceStatus",
+              "automatedScoreProduced",
+              "formalDiagnosisProduced",
+              "officialEquivalenceClaimed",
+              "attemptCount",
+              "wordCount",
+              "selfCheckCount"
+            ]
+          }
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "activity": {
+              "$ref": "#/$defs/activityPracticeReading"
+            },
+            "attributes": {
+              "properties": {
+                "skill": {
+                  "const": "Reading"
+                }
+              },
+              "oneOf": [
+                {
+                  "properties": {
+                    "outcome": {
+                      "const": "matched"
+                    },
+                    "evidenceType": {
+                      "const": "single_task_correct"
+                    },
+                    "evidenceStatus": {
+                      "const": "evidence_limited"
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "outcome": {
+                      "const": "needs_retry"
+                    },
+                    "evidenceType": {
+                      "const": "single_task_needs_retry"
+                    },
+                    "evidenceStatus": {
+                      "const": "evidence_limited"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "properties": {
+            "activity": {
+              "$ref": "#/$defs/activityPracticeListening"
+            },
+            "attributes": {
+              "properties": {
+                "skill": {
+                  "const": "Listening"
+                }
+              },
+              "oneOf": [
+                {
+                  "properties": {
+                    "outcome": {
+                      "const": "matched"
+                    },
+                    "evidenceType": {
+                      "const": "single_task_correct"
+                    },
+                    "evidenceStatus": {
+                      "const": "evidence_limited"
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "outcome": {
+                      "const": "needs_retry"
+                    },
+                    "evidenceType": {
+                      "const": "single_task_needs_retry"
+                    },
+                    "evidenceStatus": {
+                      "const": "evidence_limited"
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "outcome": {
+                      "const": "needs_retry"
+                    },
+                    "evidenceType": {
+                      "const": "single_task_needs_retry"
+                    },
+                    "evidenceStatus": {
+                      "const": "evidence_insufficient"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "properties": {
+            "activity": {
+              "$ref": "#/$defs/activityPracticeWriting"
+            },
+            "attributes": {
+              "properties": {
+                "skill": {
+                  "const": "Writing"
+                },
+                "outcome": {
+                  "const": "self_review_completed"
+                },
+                "evidenceType": {
+                  "const": "task_completed_no_score"
+                },
+                "evidenceStatus": {
+                  "const": "evidence_limited"
+                }
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "activity": {
+              "$ref": "#/$defs/activityPracticeSpeaking"
+            },
+            "attributes": {
+              "properties": {
+                "skill": {
+                  "const": "Speaking"
+                },
+                "outcome": {
+                  "const": "self_review_completed"
+                },
+                "evidenceType": {
+                  "const": "task_completed_no_score"
+                },
+                "evidenceStatus": {
+                  "const": "evidence_limited"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "checkInCommitted": {
+      "type": "object",
+      "properties": {
+        "eventType": {
+          "const": "check_in.committed"
+        },
+        "context": {
+          "required": [
+            "learningCycleId",
+            "diagnosticSessionId",
+            "planId",
+            "recommendationId",
+            "bindingId",
+            "taskId",
+            "practiceReceiptId",
+            "checkInId"
+          ],
+          "propertyNames": {
+            "enum": [
+              "learningCycleId",
+              "diagnosticSessionId",
+              "planId",
+              "recommendationId",
+              "bindingId",
+              "taskId",
+              "practiceReceiptId",
+              "checkInId",
+              "causationEventId"
+            ]
+          }
+        },
+        "activity": {
+          "$ref": "#/$defs/activityCheckIn"
+        },
+        "attributes": {
+          "required": [
+            "outcome",
+            "evidenceClass",
+            "evidenceStatus",
+            "questionStatus"
+          ],
+          "propertyNames": {
+            "enum": [
+              "outcome",
+              "evidenceClass",
+              "evidenceStatus",
+              "questionStatus"
+            ]
+          },
+          "properties": {
+            "outcome": {
+              "const": "committed"
+            },
+            "evidenceStatus": {
+              "const": "evidence_limited"
+            }
+          }
+        }
+      }
+    },
+    "retestCompleted": {
+      "type": "object",
+      "properties": {
+        "eventType": {
+          "const": "retest.completed"
+        },
+        "context": {
+          "required": [
+            "learningCycleId",
+            "diagnosticSessionId",
+            "planId",
+            "recommendationId",
+            "bindingId",
+            "checkInId",
+            "retestId",
+            "baselinePracticeReceiptId"
+          ],
+          "propertyNames": {
+            "enum": [
+              "learningCycleId",
+              "diagnosticSessionId",
+              "planId",
+              "recommendationId",
+              "bindingId",
+              "checkInId",
+              "retestId",
+              "baselinePracticeReceiptId",
+              "humanReviewReceiptId",
+              "causationEventId"
+            ]
+          }
+        },
+        "attributes": {
+          "required": [
+            "outcome",
+            "skill",
+            "evidenceType",
+            "evidenceSufficiency",
+            "comparabilityClass",
+            "humanConfirmationStatus",
+            "automatedScoreProduced",
+            "formalDiagnosisProduced",
+            "growthClaimed",
+            "officialEquivalenceClaimed"
+          ],
+          "propertyNames": {
+            "enum": [
+              "outcome",
+              "skill",
+              "evidenceType",
+              "evidenceSufficiency",
+              "comparabilityClass",
+              "humanConfirmationStatus",
+              "automatedScoreProduced",
+              "formalDiagnosisProduced",
+              "growthClaimed",
+              "officialEquivalenceClaimed"
+            ]
+          },
+          "properties": {
+            "outcome": {
+              "const": "completed"
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "oneOf": [
+            {
+              "properties": {
+                "activity": {
+                  "$ref": "#/$defs/activityRetestReading"
+                },
+                "attributes": {
+                  "properties": {
+                    "skill": {
+                      "const": "Reading"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "properties": {
+                "activity": {
+                  "$ref": "#/$defs/activityRetestListening"
+                },
+                "attributes": {
+                  "properties": {
+                    "skill": {
+                      "const": "Listening"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "properties": {
+                "activity": {
+                  "$ref": "#/$defs/activityRetestWriting"
+                },
+                "attributes": {
+                  "properties": {
+                    "skill": {
+                      "const": "Writing"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "properties": {
+                "activity": {
+                  "$ref": "#/$defs/activityRetestSpeaking"
+                },
+                "attributes": {
+                  "properties": {
+                    "skill": {
+                      "const": "Speaking"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "oneOf": [
+            {
+              "properties": {
+                "attributes": {
+                  "properties": {
+                    "skill": {
+                      "enum": [
+                        "Reading",
+                        "Listening"
+                      ]
+                    },
+                    "evidenceType": {
+                      "const": "single_task_correct"
+                    },
+                    "evidenceSufficiency": {
+                      "const": "limited_unreviewed_same_skill_task"
+                    },
+                    "humanConfirmationStatus": {
+                      "const": "not_required_for_gate_a_flow"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "properties": {
+                "attributes": {
+                  "properties": {
+                    "skill": {
+                      "enum": [
+                        "Reading",
+                        "Listening"
+                      ]
+                    },
+                    "evidenceType": {
+                      "const": "single_task_needs_review"
+                    },
+                    "evidenceSufficiency": {
+                      "const": "limited_unreviewed_same_skill_task"
+                    },
+                    "humanConfirmationStatus": {
+                      "enum": [
+                        "required_not_completed",
+                        "completed"
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "properties": {
+                "attributes": {
+                  "properties": {
+                    "skill": {
+                      "enum": [
+                        "Writing",
+                        "Speaking"
+                      ]
+                    },
+                    "evidenceType": {
+                      "const": "task_completed_no_score"
+                    },
+                    "evidenceSufficiency": {
+                      "const": "limited_unreviewed_same_skill_task"
+                    },
+                    "humanConfirmationStatus": {
+                      "enum": [
+                        "required_not_completed",
+                        "completed"
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "properties": {
+                "attributes": {
+                  "properties": {
+                    "skill": {
+                      "const": "Listening"
+                    },
+                    "evidenceType": {
+                      "const": "single_task_needs_review"
+                    },
+                    "evidenceSufficiency": {
+                      "const": "insufficient_audio_conditions"
+                    },
+                    "humanConfirmationStatus": {
+                      "enum": [
+                        "required_not_completed",
+                        "completed"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "if": {
+            "properties": {
+              "attributes": {
+                "properties": {
+                  "humanConfirmationStatus": {
+                    "const": "completed"
+                  }
+                },
+                "required": [
+                  "humanConfirmationStatus"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "context": {
+                "required": [
+                  "humanReviewReceiptId"
+                ]
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "context": {
+                "not": {
+                  "required": [
+                    "humanReviewReceiptId"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "learningCycleCompleted": {
+      "type": "object",
+      "properties": {
+        "eventType": {
+          "const": "learning_cycle.completed"
+        },
+        "context": {
+          "required": [
+            "learningCycleId",
+            "diagnosticSessionId",
+            "planId",
+            "retestId",
+            "updatedPlanId"
+          ],
+          "propertyNames": {
+            "enum": [
+              "learningCycleId",
+              "diagnosticSessionId",
+              "planId",
+              "retestId",
+              "updatedPlanId",
+              "humanReviewReceiptId",
+              "causationEventId"
+            ]
+          }
+        },
+        "activity": {
+          "$ref": "#/$defs/activityLearningCycle"
+        },
+        "attributes": {
+          "required": [
+            "outcome",
+            "nextFocusSkill",
+            "humanConfirmationStatus",
+            "automatedScoreProduced",
+            "formalDiagnosisProduced",
+            "growthClaimed",
+            "officialEquivalenceClaimed"
+          ],
+          "propertyNames": {
+            "enum": [
+              "outcome",
+              "nextFocusSkill",
+              "humanConfirmationStatus",
+              "automatedScoreProduced",
+              "formalDiagnosisProduced",
+              "growthClaimed",
+              "officialEquivalenceClaimed"
+            ]
+          },
+          "properties": {
+            "outcome": {
+              "const": "completed"
+            },
+            "humanConfirmationStatus": {
+              "enum": [
+                "not_required_for_gate_a_flow",
+                "completed"
+              ]
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "attributes": {
+                "properties": {
+                  "humanConfirmationStatus": {
+                    "const": "completed"
+                  }
+                },
+                "required": [
+                  "humanConfirmationStatus"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "context": {
+                "required": [
+                  "humanReviewReceiptId"
+                ]
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "context": {
+                "not": {
+                  "required": [
+                    "humanReviewReceiptId"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

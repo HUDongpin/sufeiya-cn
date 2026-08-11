@@ -4,16 +4,18 @@ import { fileURLToPath } from "node:url";
 const root = fileURLToPath(new URL("../", import.meta.url));
 const output = fileURLToPath(new URL("../lib/legacy-content.generated.ts", import.meta.url));
 
-// Keep this launch manifest deliberately narrow. Draft/experimental pages in the
-// working tree do not enter a production build until they are explicitly added.
+// Keep this release manifest explicit. The approved Gate A journey pages below
+// are local-only demonstrations and do not imply a real-data pilot or RAG release.
 const definitions = [
   { key: "home", file: "index.html", path: "/", runtime: "site", nav: "home" },
   { key: "learning-path", file: "learning-path.html", path: "/learning-path", runtime: "site", nav: "learning-path" },
   { key: "platform", file: "platform.html", path: "/platform", runtime: "site", nav: "platform" },
   { key: "resources", file: "resources.html", path: "/resources", runtime: "resources", nav: "resources" },
   { key: "about", file: "about.html", path: "/about", runtime: "site", nav: "about" },
-  { key: "workspace", file: "workspace.html", path: "/workspace", runtime: "workspace", nav: "workspace" },
+  { key: "workspace", file: "workspace.html", path: "/workspace", runtime: "workspace", nav: "workspace", journey: true },
+  { key: "diagnostic", file: "diagnostic.html", path: "/diagnostic", runtime: "workspace", nav: "workspace", journey: true },
   { key: "plan", file: "plan.html", path: "/plan", runtime: "workspace", nav: "workspace" },
+  { key: "recommendations", file: "recommendations.html", path: "/recommendations", runtime: "workspace", nav: "workspace", journey: true },
   { key: "today", file: "today.html", path: "/today", runtime: "workspace", nav: "workspace" },
   { key: "practice", file: "practice.html", path: "/practice", runtime: "workspace", nav: "workspace" },
   { key: "practice-reading", file: "practice-reading.html", path: "/practice-reading", runtime: "workspace", nav: "workspace" },
@@ -22,6 +24,9 @@ const definitions = [
   { key: "practice-speaking", file: "practice-speaking.html", path: "/practice-speaking", runtime: "workspace", nav: "workspace" },
   { key: "focus", file: "focus.html", path: "/focus", runtime: "workspace", nav: "workspace" },
   { key: "check-in", file: "check-in.html", path: "/check-in", runtime: "workspace", nav: "workspace" },
+  { key: "review", file: "review.html", path: "/review", runtime: "site", nav: "workspace", journey: true },
+  { key: "community", file: "community.html", path: "/community", runtime: "workspace", nav: "workspace", journey: true },
+  { key: "retest", file: "retest.html", path: "/retest", runtime: "workspace", nav: "workspace", journey: true },
   { key: "my-data", file: "my-data.html", path: "/my-data", runtime: "workspace", nav: "workspace" },
   { key: "not-found", file: "404.html", path: "/404", runtime: "site", nav: "home" },
 ];
@@ -30,25 +35,6 @@ const requiredMatch = (html, pattern, label, file) => {
   const match = html.match(pattern);
   if (!match?.[1]) throw new Error(`Could not extract ${label} from ${file}`);
   return match[1].trim();
-};
-
-const copyReplacements = new Map([
-  [
-    "无需注册。计划、打卡与复盘只保存在当前浏览器中，学生可以随时清除，不会上传到网站服务器。",
-    "注册与登录已经开放，但这些学习工具无需登录也可使用。计划、打卡与复盘仍只保存在当前浏览器中，学生可以随时清除，不会自动上传到网站服务器。",
-  ],
-  ["无需注册 · 本机保存 · 随时清除", "无需登录也可使用 · 本机保存 · 随时清除"],
-  ["不登录、不上传，可随时清除", "本机保存、不自动上传，可随时清除"],
-  [
-    "学习计划、任务进度、练习草稿、专注记录与复盘只保存在当前浏览器。本站没有账号系统，也不会自动同步到其他设备。",
-    "账户用于注册、登录与个人资料管理；学习计划、任务进度、练习草稿、专注记录与复盘仍只保存在当前浏览器，不会自动同步到其他设备。",
-  ],
-]);
-
-const updateAccountCopy = (mainHtml) => {
-  let result = mainHtml;
-  for (const [from, to] of copyReplacements) result = result.replaceAll(from, to);
-  return result;
 };
 
 const pages = {};
@@ -61,9 +47,10 @@ for (const definition of definitions) {
   }
   pages[definition.key] = {
     ...definition,
+    journey: Boolean(definition.journey),
     title: requiredMatch(html, /<title>([\s\S]*?)<\/title>/i, "title", definition.file),
     description: descriptionMatch || "页面没有找到，请返回苏肥鸭多邻国在线学习平台首页。",
-    mainHtml: updateAccountCopy(requiredMatch(html, /(<main\b[\s\S]*?<\/main>)/i, "main", definition.file)),
+    mainHtml: requiredMatch(html, /(<main\b[\s\S]*?<\/main>)/i, "main", definition.file),
     jsonLd: html.match(/<script\s+type="application\/ld\+json">\s*([\s\S]*?)\s*<\/script>/i)?.[1]?.trim() || null,
   };
 }
@@ -79,10 +66,16 @@ await writeFile(output, source, "utf8");
 await mkdir(new URL("../public/assets/", import.meta.url), { recursive: true });
 for (const [from, to] of [
   ["../workspace.js", "../public/workspace.js"],
+  ["../journey.js", "../public/journey.js"],
+  ["../learning-events.js", "../public/learning-events.js"],
   ["../script.js", "../public/script.js"],
   ["../resources.js", "../public/resources.js"],
 ]) {
   await copyFile(new URL(from, import.meta.url), new URL(to, import.meta.url));
 }
+await copyFile(
+  new URL("../assets/listening-writing-center.mp3", import.meta.url),
+  new URL("../public/assets/listening-writing-center.mp3", import.meta.url),
+);
 
 console.log(`Generated ${Object.keys(pages).length} release page records and synchronized public runtimes from ${root}`);

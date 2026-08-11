@@ -7,30 +7,45 @@
   "scripts": {
     "generate": "node scripts/generate-pages.mjs",
     "generate:next-content": "node scripts/build-legacy-content.mjs",
+    "generate:p0-prep": "tsx scripts/generate-p0-decision-preparation.ts",
+    "validate:p0-prep": "tsx scripts/validate-p0-decision-preparation.ts",
     "dev": "npm run generate:next-content && next dev",
-    "build": "npm run generate:next-content && next build",
+    "build": "npm run generate:next-content && next build && npm run check:next-build",
     "start": "next start",
     "typecheck": "npm run generate:next-content && tsc --noEmit",
     "lint": "eslint .",
+    "test:clerk": "tsx --test tests/clerk-auth.test.ts tests/clerk-development-e2e-config.test.ts",
+    "pretest:e2e:clerk-dev": "npm run build",
+    "test:e2e:clerk-dev": "playwright test --config=playwright.clerk.config.ts",
+    "test:governance": "tsx --test tests/p0-decision-log.test.ts tests/p0-decision-preparation.test.ts tests/release-governance.test.ts tests/release-governance-status.test.ts",
+    "test:teaching-review": "tsx --test tests/teaching-review-demo.test.ts",
+    "test:super-teacher": "NODE_OPTIONS='--conditions=react-server' tsx --test tests/content-governance.test.ts tests/super-teacher.test.ts tests/super-teacher-approved-selection.test.ts tests/super-teacher-client-session.test.ts tests/super-teacher-local-response.test.ts tests/super-teacher-model-runtime.test.ts tests/super-teacher-rate-limit.test.ts tests/super-teacher-route-auth-boundary.test.ts tests/super-teacher-voice-release.test.ts",
     "check:legacy": "node scripts/verify-site.mjs",
-    "check": "npm run check:legacy && npm run typecheck && npm run lint && npm run build"
+    "check:next-build": "node scripts/verify-next-build.mjs",
+    "check": "npm run generate:next-content && npm run check:legacy && npm run test:clerk && npm run test:governance && npm run test:teaching-review && npm run test:super-teacher && tsc --noEmit && npm run lint && next build && npm run check:next-build"
   },
   "engines": {
-    "node": ">=20.9.0"
+    "node": ">=22.0.0"
   },
   "dependencies": {
     "@clerk/localizations": "4.14.2",
     "@clerk/nextjs": "7.7.1",
+    "ai": "^7.0.58",
     "next": "16.3.0",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@clerk/backend": "3.16.3",
+    "@clerk/testing": "2.2.21",
+    "@playwright/test": "1.62.1",
     "@types/node": "^24.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "eslint": "^9.0.0",
     "eslint-config-next": "16.3.0",
+    "tsx": "^4.23.11",
     "typescript": "^5.9.0"
   }
 }

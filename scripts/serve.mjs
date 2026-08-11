@@ -13,6 +13,7 @@ const contentTypes = new Map([
   [".js", "text/javascript; charset=utf-8"],
   [".json", "application/json; charset=utf-8"],
   [".png", "image/png"],
+  [".webp", "image/webp"],
   [".svg", "image/svg+xml"],
   [".txt", "text/plain; charset=utf-8"],
   [".xml", "application/xml; charset=utf-8"],
@@ -29,6 +30,13 @@ const resolveRequest = async (pathname) => {
     if (details.isDirectory()) candidate = join(candidate, "index.html");
     return candidate;
   } catch {
+    const publicCandidate = join(root, "public", safeRelative);
+    try {
+      const publicDetails = await stat(publicCandidate);
+      if (publicDetails.isFile()) return publicCandidate;
+    } catch {
+      // Continue to extensionless HTML resolution below.
+    }
     if (!extname(candidate)) {
       const htmlCandidate = `${candidate}.html`;
       try {

@@ -3,10 +3,13 @@ import type { NextConfig } from "next";
 const cleanRoutes = [
   "learning-path",
   "platform",
+  "super-teacher",
   "resources",
   "about",
   "workspace",
+  "diagnostic",
   "plan",
+  "recommendations",
   "today",
   "practice",
   "practice-reading",
@@ -15,6 +18,9 @@ const cleanRoutes = [
   "practice-speaking",
   "focus",
   "check-in",
+  "review",
+  "community",
+  "retest",
   "my-data",
 ];
 

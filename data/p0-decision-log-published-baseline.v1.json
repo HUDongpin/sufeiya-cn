@@ -1,0 +1,127 @@
+{
+  "protocolVersion": "sufeiya_p0_published_baseline_v1",
+  "sourceLedgerRevision": 1,
+  "sourceLedgerContentSha256": "0cbccd9dd8c7d149dd2d2d7a23b219d1bd8ca19d200d73ade2e50b1038c1886f",
+  "canonicalDefinitionSetSha256": "aa8541908240f7ed44abf20b25ddf8a2d917f13f94d103f50288323f541c8bfd",
+  "decisionRolePolicySha256": "a058cac9e9abd6e6615fa3bcae4f3cdaa3367c2e68532073bedb2eeb925ea1f6",
+  "evidenceFingerprints": [],
+  "itemHistoryHeads": [
+    {
+      "itemId": "p0_a01_product_promise_success_metric",
+      "eventSha256s": []
+    },
+    {
+      "itemId": "p0_a02_det_score_display",
+      "eventSha256s": []
+    },
+    {
+      "itemId": "p0_a03_launch_user_cohort",
+      "eventSha256s": []
+    },
+    {
+      "itemId": "p0_a04_brand_scale_claims",
+      "eventSha256s": []
+    },
+    {
+      "itemId": "p0_b01_teacher_persona_boundary",
+      "eventSha256s": []
+    },
+    {
+      "itemId": "p0_b02_voice_digital_human",
+      "eventSha256s": []
+    },
+    {
+      "itemId": "p0_b03_content_transcript_rag_rights",
+      "eventSha256s": []
+    },
+    {
+      "itemId": "p0_b04_exam_integrity_quarantine",
+      "eventSha256s": []
+    },
+    {
+      "itemId": "p0_b05_student_case_rights",
+      "eventSha256s": []
+    },
+    {
+      "itemId": "p0_b06_existing_custom_ai_audit",
+      "eventSha256s": []
+    },
+    {
+      "itemId": "p0_c01_diagnostic_scope_item_approval",
+      "eventSha256s": []
+    },
+    {
+      "itemId": "p0_c02_rubric_insufficient_evidence",
+      "eventSha256s": []
+    },
+    {
+      "itemId": "p0_c03_recommendation_count_sources",
+      "eventSha256s": []
+    },
+    {
+      "itemId": "p0_c04_certified_scores_research",
+      "eventSha256s": []
+    },
+    {
+      "itemId": "p0_d01_peer_mentor_qualification",
+      "eventSha256s": []
+    },
+    {
+      "itemId": "p0_d02_visibility_direct_messages",
+      "eventSha256s": []
+    },
+    {
+      "itemId": "p0_d03_moderation_reporting_escalation",
+      "eventSha256s": []
+    },
+    {
+      "itemId": "p0_d04_incentive_policy",
+      "eventSha256s": []
+    },
+    {
+      "itemId": "p0_d05_disqualification_exceptions_exit",
+      "eventSha256s": []
+    },
+    {
+      "itemId": "p0_d06_mentor_conflicts_review",
+      "eventSha256s": []
+    },
+    {
+      "itemId": "p0_e01_runtime_web_access",
+      "eventSha256s": []
+    },
+    {
+      "itemId": "p0_e02_source_priority_unknown_handling",
+      "eventSha256s": []
+    },
+    {
+      "itemId": "p0_e03_memory_exam_request_boundary",
+      "eventSha256s": []
+    },
+    {
+      "itemId": "p0_e04_human_escalation_capacity",
+      "eventSha256s": []
+    },
+    {
+      "itemId": "p0_f01_legal_entity_deployment_suppliers",
+      "eventSha256s": []
+    },
+    {
+      "itemId": "p0_f02_audio_chat_training_retention",
+      "eventSha256s": []
+    },
+    {
+      "itemId": "p0_f03_minors_policy",
+      "eventSha256s": []
+    },
+    {
+      "itemId": "p0_f04_gate_a_gate_b_scoring_scope",
+      "eventSha256s": []
+    },
+    {
+      "itemId": "p0_f05_serious_failure_shutdown",
+      "eventSha256s": []
+    }
+  ],
+  "baselineContentSha256": "92eb7712ec9e310cc1cf1dc0f76a28cb89195a6585e99d699b7a593bf06a9616"
+}
