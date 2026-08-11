@@ -89,6 +89,7 @@ describe("Sofia model runtime configuration", () => {
       governanceReasonCode: "decision_not_approved",
       governanceProtocolVersion: "sufeiya_release_decisions_v1",
       blockedDecisionIds: [
+        "server_student_data_processing",
         "external_text_model_data_flow",
         "external_text_model_retention_deletion",
         "external_provider_region_cross_border",

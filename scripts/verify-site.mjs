@@ -130,11 +130,15 @@ const superTeacherClient = await read("components/super-teacher-client.tsx");
 const superTeacherConversation = await read("components/super-teacher/super-teacher-conversation.tsx");
 const superTeacherSessionProvider = await read("components/super-teacher/super-teacher-session-provider.tsx");
 const superTeacherFloatingAssistant = await read("components/sofia-floating-assistant.tsx");
+const superTeacherAccessBoundary = await read("components/sofia-access-boundary.tsx");
+const superTeacherPublicAccess = await read("components/sofia-public-access.tsx");
 const superTeacherFloatingStyles = await read("components/sofia-floating-assistant.module.css");
 const superTeacherClientSession = await read("lib/super-teacher/client-session.ts");
 const superTeacherRoute = await read("app/api/super-teacher/route.ts");
 const superTeacherStatus = await read("lib/super-teacher/status.ts");
 const superTeacherResponder = await read("lib/super-teacher/responder.ts");
+const superTeacherDeterministicResponder = await read("lib/super-teacher/deterministic-responder.ts");
+const superTeacherLocalGrounding = await read("lib/super-teacher/local-grounding.ts");
 const superTeacherModelRuntime = await read("lib/super-teacher/model-runtime.ts");
 const superTeacherVoiceRelease = await read("lib/super-teacher/voice-release.ts");
 const releaseGovernanceSource = await read("lib/release-governance.ts");
@@ -1167,11 +1171,6 @@ check(
   "each business mutation appends its learning event before the same persist and rolls back event or persistence failure",
 );
 
-const superTeacherRequestBodySource = sourceSection(
-  superTeacherSessionProvider,
-  "body: JSON.stringify({",
-  "const payload",
-);
 const learnerContextContractSource = sourceSection(
   superTeacherContracts,
   "export const learnerContextSchema",
@@ -1179,13 +1178,13 @@ const learnerContextContractSource = sourceSection(
 );
 check(
   !/learningEvents|learningEventBindings/.test(superTeacherLocalContext) &&
-    !/learningEvents|learningEventBindings/.test(superTeacherRequestBodySource) &&
+    !/learningEvents|learningEventBindings/.test(superTeacherLocalGrounding) &&
     !/learningEvents|learningEventBindings/.test(learnerContextContractSource) &&
-    /learnerContext:\s*currentContext/.test(superTeacherRequestBodySource) &&
+    /buildLocalGroundingBundle\(decision\.intent, currentContext\)/.test(superTeacherSessionProvider) &&
     /learnerContextSchema[\s\S]*?\.strict\(\)[\s\S]*?superTeacherRequestSchema[\s\S]*?\.strict\(\)/.test(
       learnerContextContractSource,
     ),
-  "Sofia derives and sends a strict allowlisted context that cannot include learningEvents or learningEventBindings sentinels",
+  "Sofia derives a strict browser-local allowlisted context that cannot include learningEvents or learningEventBindings sentinels",
 );
 
 const myDataSummarySource = sourceSection(
@@ -4465,10 +4464,12 @@ check(
     /taskSetDigest:\s*taskSetDigestSchema/.test(superTeacherContracts) &&
     /learnerContextSchema[\s\S]*?\.strict\(\)[\s\S]*?\.superRefine/.test(superTeacherContracts) &&
     !/taskEvidence|firstResponse|responseText/.test(superTeacherContextConstructionSource) &&
-    /body:\s*JSON\.stringify\(\{[\s\S]*?protocolVersion:[\s\S]*?consent:\s*true,[\s\S]*?question:\s*trimmed,[\s\S]*?learnerContext:\s*currentContext,[\s\S]*?\}\)/.test(
-      superTeacherSessionProvider,
-    ),
-  "Super Teacher derives and sends a strict minimal summary without raw diagnostic answers or writing",
+    /buildLocalGroundingBundle\(decision\.intent, currentContext\)/.test(superTeacherSessionProvider) &&
+    !/fetch\(|XMLHttpRequest|sendBeacon/.test(superTeacherSessionProvider) &&
+    /export function createLocalTeacherResponse/.test(superTeacherDeterministicResponder) &&
+    /modelAttempted:\s*false/.test(superTeacherDeterministicResponder) &&
+    !/fetch\(|XMLHttpRequest|sendBeacon/.test(superTeacherDeterministicResponder),
+  "Super Teacher derives a strict minimal summary and keeps deterministic explanation browser-local",
 );
 check(
   /export const superTeacherResponseSchema = z[\s\S]*?safeLocalHrefSchema[\s\S]*?bilibiliHrefSchema[\s\S]*?sourceBoundary:[\s\S]*?\.strict\(\);/.test(
@@ -4476,28 +4477,27 @@ check(
   ) &&
     /const validatedAnswer = superTeacherResponseSchema\.safeParse\(answer\)/.test(superTeacherRoute) &&
     /Response\.json\(validatedAnswer\.data/.test(superTeacherRoute) &&
-    /const validatedPayload = superTeacherResponseSchema\.safeParse\(payload\)/.test(superTeacherSessionProvider) &&
+    /const validatedPayload = superTeacherResponseSchema\.safeParse\(response\)/.test(superTeacherSessionProvider) &&
     /response:\s*validatedPayload\.data/.test(superTeacherSessionProvider),
   "Super Teacher validates the complete strict response schema on both server and client",
 );
 const superTeacherSubmitSource = sourceSection(
   superTeacherSessionProvider,
   "async function submitQuestion",
-  "function abortCurrentRequest",
+  "async function clearConversation",
 );
 check(
-  /Consent is scoped to one validated submission attempt[\s\S]*setConsent\(false\);[\s\S]*const userTurn/.test(
-    superTeacherSubmitSource,
-  ),
-  "Sofia consumes consent for each validated submission attempt",
+  /createLocalTeacherResponse\([\s\S]*const userTurn[\s\S]*const assistantTurn[\s\S]*turns: \[\.\.\.current\.turns, userTurn, assistantTurn\]/.test(superTeacherSubmitSource) &&
+    !/fetch\(|setConsent|consent: true/.test(superTeacherSubmitSource),
+  "Sofia creates one validated local user-and-assistant pair without a server submission",
 );
 check(
   /银行卡\|银行卡号\|支付账号/.test(superTeacherPolicy) &&
     /digits\.length >= 13 && digits\.length <= 25/.test(superTeacherPolicy) &&
     /if \(containsSensitiveData\(trimmed\)\)/.test(superTeacherSubmitSource) &&
     superTeacherSubmitSource.indexOf("containsSensitiveData(trimmed)") < superTeacherSubmitSource.indexOf("const userTurn") &&
-    superTeacherSubmitSource.indexOf("containsSensitiveData(trimmed)") < superTeacherSubmitSource.indexOf('fetch("/api/super-teacher"'),
-  "Super Teacher blocks bank-card and long payment-number patterns before local save or network send",
+    !/fetch\(/.test(superTeacherSubmitSource),
+  "Super Teacher blocks bank-card and long payment-number patterns before local save and performs no network send",
 );
 check(
   /basePlan\.provenance\.cycleId === cycle\.cycleId/.test(superTeacherLocalContext) &&
@@ -4683,8 +4683,10 @@ check(
 );
 check(
   /clerkMiddleware/.test(proxyScript) &&
+    /createRouteMatcher/.test(proxyScript) &&
+    /await auth\.protect\(\)/.test(proxyScript) &&
     /authorizedParties: getClerkAuthorizedParties\(\)/.test(proxyScript) &&
-    /VERCEL_ENV !== "production"/.test(clerkConfig) &&
+    /vercelEnvironment === "production"[\s\S]*"production"[\s\S]*vercelEnvironment === "preview" \|\| vercelEnvironment === "development"[\s\S]*"development"/.test(clerkConfig) &&
     /"https:\/\/sufeiya\.cn"/.test(clerkConfig) &&
     /"https:\/\/www\.sufeiya\.cn"/.test(clerkConfig) &&
     /signInUrl: "\/sign-in"/.test(proxyScript) &&
@@ -4694,7 +4696,7 @@ check(
     /"frame-ancestors": \["none"\]/.test(proxyScript) &&
     /"\/__clerk\/\(\.\*\)"/.test(proxyScript) &&
     !/frontendApiProxy/.test(proxyScript),
-  "proxy uses Clerk strict CSP, production authorized parties, and request context without an unverified Frontend API proxy",
+  "proxy centrally protects learner routes and uses Clerk strict CSP, environment-bound instances, and production authorized parties",
 );
 check(
   /X-Sufeiya-Account-Mode[\s\S]*clerk-access-local-learning-data/.test(proxyScript) &&
@@ -4702,6 +4704,15 @@ check(
   "application responses distinguish configured Clerk sessions from the fail-closed configuration state",
 );
 check(/Sofia智能老师/.test(superTeacherPage), "Sofia AI Teacher has a dedicated Next.js application page");
+check(
+  /const \{ isLoaded, isSignedIn \} = useAuth\(\)/.test(superTeacherAccessBoundary) &&
+    /if \(!isLoaded \|\| !isSignedIn\) return <SofiaPublicPage/.test(superTeacherAccessBoundary) &&
+    /isLoaded && isSignedIn \? \([\s\S]*<SuperTeacherSessionProvider>[\s\S]*<SofiaFloatingAssistant/.test(superTeacherAccessBoundary) &&
+    /未登录时不会读取或显示这个浏览器/.test(superTeacherPublicAccess) &&
+    !/localStorage|sessionStorage|useSuperTeacherSession/.test(superTeacherPublicAccess) &&
+    /clerkState\.configured[\s\S]*SofiaAccessBoundary[\s\S]*SofiaUnavailableBoundary/.test(siteShell),
+  "signed-out Sofia surfaces render a public teaser without mounting or reading the local learner session",
+);
 check(/Sofia智能老师/.test(legacyContent), "generated Next.js legacy content uses the Sofia AI Teacher name");
 check(!/苏肥鸭超级智能老师|超级智能老师|超级老师/.test(legacyContent), "generated Next.js legacy content has no retired teacher name");
 check(
@@ -4717,9 +4728,9 @@ check(
   "generated legacy content has no stale account-deferral claims",
 );
 check(
-  /历史对话不发送给模型/.test(superTeacherConversation) &&
-    !/history\s*:/.test(superTeacherSubmitSource),
-  "Super Teacher discloses and enforces no model history forwarding",
+  /不会发送到本站服务端、Clerk 或外部模型/.test(superTeacherConversation) &&
+    !/fetch\(|history\s*:/.test(superTeacherSubmitSource),
+  "Super Teacher discloses and enforces browser-local deterministic processing",
 );
 const floatingCloseSource = sourceSection(
   superTeacherFloatingAssistant,
@@ -4733,10 +4744,14 @@ check(
   "floating Sofia assistant uses a native modal dialog",
 );
 check(
-  /abortCurrentRequest\(\)/.test(floatingCloseSource) &&
-    /revokeConsent\(\)/.test(floatingCloseSource) &&
-    /dialog\.close\(\)/.test(floatingCloseSource),
-  "closing the floating Sofia assistant aborts the request and revokes consent",
+  /aria-label="关闭 Sofia智能老师介绍"/.test(superTeacherPublicAccess) &&
+    /\.headerActions button:not\(\.closeButton\):first-child/.test(superTeacherFloatingStyles),
+  "the mobile public Sofia dialog keeps its only close control visible",
+);
+check(
+  /dialog\.close\(\)/.test(floatingCloseSource) &&
+    !/abortCurrentRequest|revokeConsent/.test(floatingCloseSource),
+  "closing the browser-local floating Sofia assistant closes the native dialog without a pending network request",
 );
 check(
   /data-voice-enabled="false"/.test(superTeacherFloatingAssistant) &&
@@ -4758,16 +4773,26 @@ check(
   "Super Teacher POST requires a Clerk user before authenticated-user rate limiting and model access",
 );
 check(
-  /SUPER_TEACHER_STATUS_PROTOCOL = "sufeiya_super_teacher_status_v2"/.test(superTeacherContracts) &&
+  /evaluateReleaseSurface\("sofia_first_party_text_processing"\)/.test(superTeacherRoute) &&
+    /if \(!firstPartyProcessing\.enabled\)[\s\S]*student_data_processing_not_approved/.test(superTeacherRoute) &&
+    superTeacherRoute.indexOf("student_data_processing_not_approved") < superTeacherRoute.indexOf("await request.text()"),
+  "Super Teacher POST fails closed before reading a body while first-party student-data processing is not approved",
+);
+check(
+  /SUPER_TEACHER_STATUS_PROTOCOL = "sufeiya_super_teacher_status_v3"/.test(superTeacherContracts) &&
     /interactionProtocolVersion: SUPER_TEACHER_PROTOCOL/.test(superTeacherStatus) &&
     /gateAStaticClaimSources/.test(superTeacherContracts) &&
     /buildSuperTeacherStatusResponse\(\)/.test(superTeacherRoute) &&
-    /teacherSurfaceAccess: "public"/.test(superTeacherStatus) &&
-    /modelSubmitAccess: "clerk_authenticated"/.test(superTeacherStatus) &&
+    /teacherSurfaceAccess: "public_teaser"/.test(superTeacherStatus) &&
+    /interactiveTeacherAccess: "clerk_authenticated"/.test(superTeacherStatus) &&
+    /localManualExplanationEnabled: true/.test(superTeacherStatus) &&
+    /firstPartyServerProcessingEnabled: firstPartyProcessing\.enabled/.test(superTeacherStatus) &&
+    /externalModelProcessingEnabled: modelStatus\.enabled/.test(superTeacherStatus) &&
+    /disabled_pending_first_party_processing_approval/.test(superTeacherStatus) &&
     /learningPageAccess: "clerk_protected"/.test(superTeacherStatus) &&
     /learningDataStorage: "browser_local_not_account_bound"/.test(superTeacherStatus) &&
     /clerk-access-local-learning-data/.test(superTeacherRoute),
-  "Super Teacher status separates the public surface, authenticated model submission, protected learning pages, and browser-local data",
+  "Super Teacher status separates the public teaser, authenticated local interaction, disabled server/model processing, and browser-local data",
 );
 check(
   /invokeTeacherModel[\s\S]*materializeApprovedModelSelection/.test(superTeacherResponder) &&

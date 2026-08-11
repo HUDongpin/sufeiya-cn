@@ -28,12 +28,12 @@ export function SuperTeacherClient() {
             <Link className={styles.backLink} href="/workspace">← 返回学习工作台</Link>
             <p className={styles.eyebrow}>SOFIA AI TEACHER · GATE A</p>
             <h1 id="super-teacher-title">Sofia智能老师</h1>
-            <p className={styles.heroLead}>支持受控大模型调用的 AI 学习助手，解释“为什么先练这个”并逐句显示来源；每条回答都会标明是否实际调用模型。它不是 Sofia 真人实时通话，也不是 Duolingo 或 DET 官方评分员。</p>
+            <p className={styles.heroLead}>当前以浏览器内确定性规则解释“为什么先练这个”，并逐句显示冻结来源；问题和学习摘要不发送到本站服务端或外部模型。它不是 Sofia 真人实时通话，也不是 Duolingo 或 DET 官方评分员。</p>
           </div>
           <dl className={styles.heroFacts}>
-            <div><dt>回答范围</dt><dd>本机证据、计划、推荐与原创任务</dd></div>
-            <div><dt>DET 官方语料</dt><dd>0 条准入 · 审核前不回答规则事实</dd></div>
-            <div><dt>使用边界</dt><dd>18+ 本机确认 · 学习数据不自动绑定账户</dd></div>
+            <div><dt>当前回答模式</dt><dd>本机有来源解释 · Qwen 未启用</dd></div>
+            <div><dt>DET / RAG</dt><dd>0 / 0 准入 · 来源不足时停止</dd></div>
+            <div><dt>数据边界</dt><dd>浏览器本机处理 · 不绑定 Clerk 账户</dd></div>
           </dl>
         </div>
       </section>
@@ -41,13 +41,14 @@ export function SuperTeacherClient() {
       <section className={styles.workspace} aria-label="Sofia智能老师工作区">
         <aside className={styles.contextPanel}>
           <p className={styles.panelKicker}>CURRENT CONTEXT</p>
-          <h2>它只读取最小化学习摘要</h2>
+          <h2>登录后只读取当前设备的字段最小化摘要</h2>
           <p className={styles.contextSummary}>{ready ? contextSummary : "正在读取本机学习摘要…"}</p>
           <ul className={styles.contextList}>
             <li><span>准入</span><p>先在演示性初筛页完成 18+ 本机确认与六项任务</p></li>
             <li><span>身份</span><p>AI 学习助手，不是 Sofia 真人实时通话或官方评分员</p></li>
-            <li><span>发送</span><p>优先能力、证据数量、计划与推荐摘要</p></li>
-            <li><span>不发送</span><p>姓名、写作答案、录音、打卡自由文本</p></li>
+            <li><span>本机处理</span><p>优先能力、证据数量、计划、推荐与闭环状态</p></li>
+            <li><span>不发送</span><p>问题、摘要、姓名、写作答案、录音与打卡自由文本均不离开浏览器</p></li>
+            <li><span>共享设备</span><p>Clerk 只控制访问；本机记录不按账户分区。换人前请导出或清除本机数据。</p></li>
             <li><span>安全写入</span><p>{safeWriteLockSupported ? "浏览器写入锁可用，防止跨标签页覆盖" : "浏览器写入锁不可用，智能问答保持只读"}</p></li>
             <li><span>不提供</span><p>正式诊断、分数预测、真题机经、考试中协助</p></li>
           </ul>

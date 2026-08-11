@@ -17,6 +17,7 @@ export function AuthPage({ eyebrow, title, lead, children }: { eyebrow: string; 
             <div className="auth-privacy-note">
               <strong>账户与学习数据边界</strong>
               <p>登录不会自动迁移、上传或绑定当前浏览器中的计划、练习草稿、专注记录、复盘或 Sofia 对话；这些数据仍只保存在本机，也不会自动跨设备同步。</p>
+              <p><strong>共享设备提示：</strong>这是设备工作区，不是账户工作区。同一浏览器中下一位已登录使用者可能读取这台设备保留的记录；交接设备前请前往“我的本机数据”导出或明确清除。</p>
             </div>
           </div>
           <div className="auth-component-wrap">{children}</div>

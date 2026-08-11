@@ -3,7 +3,12 @@ import { randomUUID } from "node:crypto";
 
 import { auth } from "@clerk/nextjs/server";
 
-import { getClerkRuntimeState } from "@/lib/auth/clerk-config";
+import {
+  getClerkRuntimeState,
+  hasApplicationJsonContentType,
+  isSameOriginBrowserRequest,
+} from "@/lib/auth/clerk-config";
+import { evaluateReleaseSurface } from "@/lib/release-governance";
 import {
   superTeacherRequestSchema,
   superTeacherResponseSchema,
@@ -35,28 +40,20 @@ function json(data: unknown, init?: ResponseInit) {
   });
 }
 
-function isSameOrigin(request: Request) {
-  const origin = request.headers.get("origin");
-  if (!origin) return process.env.NODE_ENV !== "production";
-  try {
-    const forwardedHost = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
-    const requestHost = forwardedHost || request.headers.get("host") || new URL(request.url).host;
-    return new URL(origin).host === requestHost;
-  } catch {
-    return false;
-  }
-}
-
 export async function GET() {
   return json(buildSuperTeacherStatusResponse());
 }
 
 export async function POST(request: Request) {
   const requestId = randomUUID();
-  if (!isSameOrigin(request)) {
+  if (!isSameOriginBrowserRequest(request)) {
     return json({ error: "origin_not_allowed", requestId }, { status: 403 });
   }
+  if (!hasApplicationJsonContentType(request)) {
+    return json({ error: "unsupported_media_type", requestId }, { status: 415 });
+  }
 
+  const firstPartyProcessing = evaluateReleaseSurface("sofia_first_party_text_processing");
   const clerkState = getClerkRuntimeState();
   if (!clerkState.configured) {
     return json({ error: "account_service_unavailable", requestId }, { status: 503 });
@@ -64,6 +61,9 @@ export async function POST(request: Request) {
   const { userId } = await auth();
   if (!userId) {
     return json({ error: "authentication_required", requestId }, { status: 401 });
+  }
+  if (!firstPartyProcessing.enabled) {
+    return json({ error: "student_data_processing_not_approved", requestId }, { status: 503 });
   }
 
   const declaredLength = Number(request.headers.get("content-length") ?? "0");

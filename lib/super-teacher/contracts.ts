@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const SUPER_TEACHER_PROTOCOL = "sufeiya_super_teacher_v1" as const;
-export const SUPER_TEACHER_STATUS_PROTOCOL = "sufeiya_super_teacher_status_v2" as const;
+export const SUPER_TEACHER_STATUS_PROTOCOL = "sufeiya_super_teacher_status_v3" as const;
 
 export const skillSchema = z.enum(["Reading", "Listening", "Writing", "Speaking", "Balanced"]);
 
@@ -24,7 +24,10 @@ export const superTeacherStatusResponseSchema = z.object({
   protocolVersion: z.literal(SUPER_TEACHER_STATUS_PROTOCOL),
   interactionProtocolVersion: z.literal(SUPER_TEACHER_PROTOCOL),
   status: z.literal("gate_a_limited"),
-  answerMode: z.enum(["grounded_ai_with_manual_fallback", "manual_grounded_fallback"]),
+  answerMode: z.enum(["grounded_ai_with_local_manual_fallback", "local_manual_grounded"]),
+  localManualExplanationEnabled: z.literal(true),
+  firstPartyServerProcessingEnabled: z.boolean(),
+  externalModelProcessingEnabled: z.boolean(),
   modelGenerationEnabled: z.boolean(),
   modelConfigurationPresent: z.boolean(),
   modelProvider: z.enum(["gateway", "dashscope"]).nullable(),
@@ -37,8 +40,9 @@ export const superTeacherStatusResponseSchema = z.object({
     blockedDecisionIds: z.array(z.string().regex(/^[a-z][a-z0-9_]{2,79}$/)).max(100),
     blockedBindingIds: z.array(z.string().regex(/^[a-z][a-z0-9_.]{2,159}$/)).max(100),
   }).strict(),
-  teacherSurfaceAccess: z.literal("public"),
-  modelSubmitAccess: z.literal("clerk_authenticated"),
+  teacherSurfaceAccess: z.literal("public_teaser"),
+  interactiveTeacherAccess: z.literal("clerk_authenticated"),
+  modelSubmitAccess: z.enum(["clerk_authenticated", "disabled_pending_first_party_processing_approval"]),
   learningPageAccess: z.literal("clerk_protected"),
   learningDataStorage: z.literal("browser_local_not_account_bound"),
   sourceBoundary: z.object({
@@ -72,13 +76,31 @@ export const superTeacherStatusResponseSchema = z.object({
   }
   if (
     status.modelGenerationEnabled !== (status.releaseGovernance.status === "approved") ||
-    status.modelGenerationEnabled !== (status.answerMode === "grounded_ai_with_manual_fallback") ||
+    status.modelGenerationEnabled !== (status.answerMode === "grounded_ai_with_local_manual_fallback") ||
+    status.modelGenerationEnabled !== status.externalModelProcessingEnabled ||
     (status.modelGenerationEnabled && !status.modelConfigurationPresent)
   ) {
     context.addIssue({
       code: "custom",
       message: "model generation, answer mode, configuration, and release governance are inconsistent",
       path: ["modelGenerationEnabled"],
+    });
+  }
+  if (status.externalModelProcessingEnabled && !status.firstPartyServerProcessingEnabled) {
+    context.addIssue({
+      code: "custom",
+      message: "external model processing requires approved first-party server processing",
+      path: ["externalModelProcessingEnabled"],
+    });
+  }
+  const expectedSubmitAccess = status.firstPartyServerProcessingEnabled
+    ? "clerk_authenticated"
+    : "disabled_pending_first_party_processing_approval";
+  if (status.modelSubmitAccess !== expectedSubmitAccess) {
+    context.addIssue({
+      code: "custom",
+      message: "submit access does not match first-party server processing governance",
+      path: ["modelSubmitAccess"],
     });
   }
 });

@@ -41,6 +41,8 @@ type ClerkEnvironment = {
   VERCEL_ENV?: string;
 };
 
+type RequestBoundary = Pick<Request, "headers" | "url">;
+
 function publishableKeyType(value: string | undefined): ClerkInstanceType | null {
   const match = value?.match(/^pk_(test|live)_([A-Za-z0-9_-]+)$/);
   if (!match) return null;
@@ -85,7 +87,45 @@ export function getClerkRuntimeState(environment: ClerkEnvironment = process.env
     return { configured: false, instanceType: null, reason: "instance_mismatch" };
   }
 
+  const vercelEnvironment = environment.VERCEL_ENV?.trim();
+  if (vercelEnvironment) {
+    const requiredType = vercelEnvironment === "production"
+      ? "production"
+      : vercelEnvironment === "preview" || vercelEnvironment === "development"
+        ? "development"
+        : null;
+    if (!requiredType || publishableType !== requiredType) {
+      return { configured: false, instanceType: null, reason: "instance_mismatch" };
+    }
+  }
+
   return { configured: true, instanceType: publishableType, reason: "configured" };
+}
+
+export function isSameOriginBrowserRequest(request: RequestBoundary) {
+  const serializedOrigin = request.headers.get("origin");
+  if (!serializedOrigin) return false;
+
+  try {
+    const origin = new URL(serializedOrigin);
+    const requestOrigin = new URL(request.url).origin;
+    if (
+      origin.username ||
+      origin.password ||
+      origin.pathname !== "/" ||
+      origin.search ||
+      origin.hash
+    ) return false;
+    return origin.origin === requestOrigin;
+  } catch {
+    return false;
+  }
+}
+
+export function hasApplicationJsonContentType(request: Pick<RequestBoundary, "headers">) {
+  const contentType = request.headers.get("content-type");
+  if (!contentType) return false;
+  return contentType.split(";", 1)[0]?.trim().toLowerCase() === "application/json";
 }
 
 export function isClerkProtectedPathname(pathname: string) {

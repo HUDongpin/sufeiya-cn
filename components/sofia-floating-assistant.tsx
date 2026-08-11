@@ -19,8 +19,6 @@ export function SofiaFloatingAssistant() {
     sessionReadIssue,
     contextSummary,
     clearConversation,
-    abortCurrentRequest,
-    revokeConsent,
   } = useSuperTeacherSession();
   const [open, setOpen] = useState(false);
   const launcherRef = useRef<HTMLButtonElement | null>(null);
@@ -82,16 +80,12 @@ export function SofiaFloatingAssistant() {
   }
 
   function closeAssistant() {
-    abortCurrentRequest();
-    revokeConsent();
     const dialog = dialogRef.current;
     if (dialog?.open) dialog.close();
     else setOpen(false);
   }
 
   function handleDialogClose() {
-    abortCurrentRequest();
-    revokeConsent();
     setOpen(false);
     window.requestAnimationFrame(() => launcherRef.current?.focus());
   }

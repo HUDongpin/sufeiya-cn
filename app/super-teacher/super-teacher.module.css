@@ -607,6 +607,27 @@
   background: white;
 }
 
+.localProcessingNotice {
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border: 1px solid rgba(16, 44, 41, 0.12);
+  border-radius: 14px;
+  display: grid;
+  gap: 3px;
+  background: var(--color-sage);
+}
+
+.localProcessingNotice strong {
+  color: var(--color-ink);
+  font-size: 12px;
+}
+
+.localProcessingNotice small {
+  color: var(--color-muted);
+  font-size: 10px;
+  line-height: 1.55;
+}
+
 .gateMessage {
   margin: 14px 0 0;
   color: var(--color-muted);
@@ -990,7 +1011,7 @@
 }
 
 .dialogSuggestions button {
-  min-height: 38px;
+  min-height: 44px;
   padding: 7px 11px;
   font-size: 10px;
 }
@@ -1047,7 +1068,7 @@
 }
 
 .dialogChatPanel .citations a {
-  min-height: 38px;
+  min-height: 44px;
   border-radius: 11px;
 }
 
@@ -1109,5 +1130,134 @@
   .dialogComposer .composerFooter button {
     width: auto;
     min-height: 44px;
+  }
+}
+
+@media (max-height: 560px) {
+  .dialogChatPanel {
+    min-height: 560px;
+  }
+
+  .dialogConversation {
+    min-height: 230px;
+  }
+
+  .dialogComposer {
+    padding-bottom: 14px;
+  }
+
+  .dialogComposer .localProcessingNotice small {
+    display: block;
+  }
+}
+
+.accessGate {
+  width: min(calc(100% - 48px), var(--container));
+  margin: 0 auto;
+  padding: clamp(56px, 7vw, 96px) 0 clamp(88px, 10vw, 148px);
+  display: grid;
+  grid-template-columns: minmax(0, 0.7fr) minmax(0, 1fr);
+  align-items: start;
+  gap: clamp(42px, 7vw, 96px);
+}
+
+.accessGateCopy h2 {
+  margin: 0;
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: clamp(38px, 5vw, 62px);
+  font-weight: 600;
+  letter-spacing: -0.05em;
+  line-height: 1.12;
+}
+
+.accessGateCopy > p:not(.panelKicker) {
+  max-width: 620px;
+  margin: 24px 0 0;
+  color: var(--color-muted);
+  font-size: 16px;
+  line-height: 1.85;
+}
+
+.accessActions {
+  margin-top: 28px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.accessActions a {
+  min-height: 48px;
+  padding: 11px 18px;
+  border: 1px solid rgba(16, 44, 41, 0.16);
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-ink);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.accessActions a:first-child {
+  border-color: var(--color-ink);
+  background: var(--color-ink);
+  color: white;
+}
+
+.accessCards {
+  display: grid;
+  gap: 14px;
+}
+
+.accessCards article {
+  padding: clamp(22px, 3vw, 32px);
+  border: 1px solid rgba(16, 44, 41, 0.12);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.8);
+  box-shadow: 0 18px 48px rgba(16, 44, 41, 0.06);
+}
+
+.accessCards span {
+  color: var(--color-accent-deep);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+}
+
+.accessCards h3 {
+  margin: 10px 0 0;
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: 25px;
+  letter-spacing: -0.035em;
+}
+
+.accessCards p {
+  margin: 9px 0 0;
+  color: var(--color-muted);
+  font-size: 13px;
+  line-height: 1.75;
+}
+
+@media (max-width: 860px) {
+  .accessGate {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 660px) {
+  .accessGate {
+    width: min(calc(100% - 32px), var(--container));
+  }
+
+  .accessActions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .accessActions a {
+    width: 100%;
   }
 }

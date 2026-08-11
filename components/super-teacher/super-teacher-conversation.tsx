@@ -41,7 +41,7 @@ function modeLabel(response: SuperTeacherResponse) {
     case "ai_grounded":
       return "AI 选排 · 仅使用服务器批准主张";
     case "manual_grounded":
-      return response.modelAttempted ? "模型不可用 · 已切换有来源备用回答" : "有来源备用回答";
+      return response.modelAttempted ? "模型不可用 · 已切换有来源备用回答" : "本机有来源解释 · 未调用模型";
     case "policy_refusal":
       return "安全边界 · 未调用模型";
     case "handoff":
@@ -62,18 +62,15 @@ export function SuperTeacherConversation({
     safeWriteLockSupported,
     session,
     learnerContext,
-    consent,
     input,
     submitting,
     error,
     notice,
     sessionReadIssue,
-    setConsent,
     setInput,
     setHandoffOpen,
     submitQuestion,
     clearConversation,
-    abortCurrentRequest,
   } = useSuperTeacherSession();
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const conversationEndRef = useRef<HTMLDivElement | null>(null);
@@ -206,7 +203,7 @@ export function SuperTeacherConversation({
                     ),
                   )}
                 </div>
-                <small className={styles.receipt}>request_id: {turn.response.requestId} · DET/RAG 准入：0 / 0</small>
+                <small className={styles.receipt}>本机 request_id: {turn.response.requestId} · DET/RAG 准入：0 / 0</small>
               </div>
             </article>
           ),
@@ -216,8 +213,8 @@ export function SuperTeacherConversation({
           <article className={`${styles.message} ${styles.assistantMessage}`}>
             <TeacherAvatar />
             <div>
-              <span className={styles.messageMeta}>正在核对来源</span>
-              <p className={styles.loadingText}>只在当前白名单内组织回答…</p>
+              <span className={styles.messageMeta}>正在本机核对来源</span>
+              <p className={styles.loadingText}>只在当前浏览器与冻结白名单内组织回答…</p>
             </div>
           </article>
         ) : null}
@@ -225,18 +222,10 @@ export function SuperTeacherConversation({
       </div>
 
       <div className={`${styles.composer}${compact ? ` ${styles.dialogComposer}` : ""}`}>
-        <label className={styles.consentRow}>
-          <input
-            type="checkbox"
-            checked={consent}
-            onChange={(event) => setConsent(event.currentTarget.checked)}
-            disabled={!safeWriteLockSupported || !learnerContext || Boolean(sessionReadIssue)}
-          />
-          <span>
-            <strong>我同意本次发送</strong>
-            <small>模型问答需要已登录账户；我的提问和去标识化学习摘要会发送到本站服务端，只有允许的问题且生产开关已批准启用时才会再发送给模型服务。此勾选只对下一次提交有效；不要粘贴敏感信息，历史对话不发送给模型。</small>
-          </span>
-        </label>
+        <div className={styles.localProcessingNotice} role="note">
+          <strong>本机解释模式</strong>
+          <small>当前问题与字段最小化学习摘要只在这个浏览器内处理并保存；不会发送到本站服务端、Clerk 或外部模型。请仍不要粘贴敏感信息。</small>
+        </div>
         <form
           onSubmit={(event) => {
             event.preventDefault();
@@ -256,16 +245,12 @@ export function SuperTeacherConversation({
           />
           <div className={styles.composerFooter}>
             <span>{input.length} / 600</span>
-            {submitting ? (
-              <button type="button" className={styles.stopButton} onClick={abortCurrentRequest}>停止等待</button>
-            ) : (
-              <button
-                type="submit"
-                disabled={!input.trim() || !safeWriteLockSupported || !learnerContext || Boolean(sessionReadIssue)}
-              >
-                核对来源并回答
-              </button>
-            )}
+            <button
+              type="submit"
+              disabled={submitting || !input.trim() || !safeWriteLockSupported || !learnerContext || Boolean(sessionReadIssue)}
+            >
+              {submitting ? "正在本机核对…" : "在本机核对并回答"}
+            </button>
           </div>
         </form>
         {!learnerContext ? (

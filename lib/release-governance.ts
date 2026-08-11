@@ -7,6 +7,7 @@ export const APPROVED_PLAN_SHA256 = "6ad237bf7433134961c2b4f9de4cb0f055391b9179e
 
 export const RELEASE_SURFACES = [
   "local_teaching_review_demo",
+  "sofia_first_party_text_processing",
   "sofia_external_text_model",
   "sofia_voice_output",
   "sofia_microphone_input",
@@ -78,6 +79,7 @@ const releaseControlSchema = z.object({
 
 const surfaceRequirementsSchema = z.object({
   local_teaching_review_demo: z.array(controlIdSchema).min(1),
+  sofia_first_party_text_processing: z.array(controlIdSchema).min(1),
   sofia_external_text_model: z.array(controlIdSchema).min(1),
   sofia_voice_output: z.array(controlIdSchema).min(1),
   sofia_microphone_input: z.array(controlIdSchema).min(1),

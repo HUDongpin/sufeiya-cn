@@ -16,18 +16,150 @@ import {
   installClerkTestingLogRedaction,
 } from "./clerk-development-config";
 
+const SOFIA_WORKSPACE_KEY = "sufeiya_workspace_v1";
+const SOFIA_CHAT_KEY = "sufeiya_super_teacher_v1";
+
+const sofiaDiagnosticEvidence = [
+  {
+    taskId: "diagnostic-reading-library-v1",
+    taskVersion: "v1",
+    skill: "Reading",
+    responseType: "single_choice",
+    constructTag: "purpose_from_supporting_details",
+    contentHash: "f1c71d28d6e9b3ebe8b4c29fa5cec52c20b83d737b57f0bc98e15e15f97decd7",
+    status: "completed",
+    evidenceStatus: "evidence_limited",
+    qualityFlags: [],
+    attempts: 1,
+    firstResponse: "b",
+    resultType: "first_response_matched",
+  },
+  {
+    taskId: "diagnostic-reading-newsletter-v1",
+    taskVersion: "v1",
+    skill: "Reading",
+    responseType: "single_choice",
+    constructTag: "cause_from_text_structure",
+    contentHash: "8b5feb0e382ea0ffe016ab64f17edb30b8467b40fccf5d8b96d3e2bb74ba44ca",
+    status: "completed",
+    evidenceStatus: "evidence_limited",
+    qualityFlags: [],
+    attempts: 1,
+    firstResponse: "b",
+    resultType: "first_response_matched",
+  },
+  {
+    taskId: "diagnostic-listening-science-club-v1",
+    taskVersion: "v1",
+    skill: "Listening",
+    responseType: "single_choice_audio",
+    constructTag: "schedule_change_detail",
+    contentHash: "882abc23a7376b27a0d53e2a4d7b6eb10480bd7b618002fe3e6704922ea67308",
+    status: "completed",
+    evidenceStatus: "evidence_limited",
+    qualityFlags: [],
+    attempts: 1,
+    firstResponse: "b",
+    resultType: "first_response_matched",
+  },
+  {
+    taskId: "diagnostic-listening-language-lab-v1",
+    taskVersion: "v1",
+    skill: "Listening",
+    responseType: "single_choice_audio",
+    constructTag: "time_and_location_integration",
+    contentHash: "be827c7ed66ed510a9b94aafdd16b35f445c82e14034bce6c971a29b5a8200cd",
+    status: "completed",
+    evidenceStatus: "evidence_limited",
+    qualityFlags: [],
+    attempts: 1,
+    firstResponse: "b",
+    resultType: "first_response_matched",
+  },
+  {
+    taskId: "diagnostic-speaking-learning-skill-v1",
+    taskVersion: "v1",
+    skill: "Speaking",
+    responseType: "timed_self_report",
+    constructTag: "task_coverage_and_connected_thoughts_self_report",
+    contentHash: "8d40b58172fbd68371784db6caa74a57e37e480c288f64fca9fc1a772d9acdf9",
+    status: "completed",
+    evidenceStatus: "evidence_limited",
+    qualityFlags: [],
+  },
+  {
+    taskId: "diagnostic-writing-learning-place-v1",
+    taskVersion: "v1",
+    skill: "Writing",
+    responseType: "timed_local_text",
+    constructTag: "task_response_structure_self_review",
+    contentHash: "83cef1ddc39ff2a78e76fcb89de376c63fe7f6e859e1a3bf16e14b97652b3f85",
+    status: "completed",
+    evidenceStatus: "evidence_limited",
+    qualityFlags: [],
+  },
+] as const;
+
+function createSofiaWorkspaceFixture() {
+  return {
+    schemaVersion: 1,
+    journey: {
+      protocolVersion: "gate_a_local_v1",
+      activeCycle: {
+        protocolVersion: "gate_a_local_v1",
+        cycleId: "cycle-clerk-e2e-1",
+        status: "in_progress",
+        diagnosticSessionId: "diagnostic-clerk-e2e-1",
+      },
+      diagnostic: {
+        protocolVersion: "gate_a_local_v1",
+        diagnosticProtocolVersion: "gate_a_diagnostic_evidence_v1",
+        taskSetVersion: "gate_a_original_6_v1",
+        taskSetDigest: "c1b2922ca96677665690bf790281be2438a016bbbe0d9f85478685af3c8dfc2c",
+        cycleId: "cycle-clerk-e2e-1",
+        diagnosticSessionId: "diagnostic-clerk-e2e-1",
+        status: "completed",
+        adultConfirmed: true,
+        devicePrecheck: { storageStatus: "available" },
+        learnerConfirmedPriority: true,
+        prioritySkill: "Writing",
+        priorityBasis: "open_response_coverage_gap",
+        evidenceSufficiency: "evidence_limited",
+        evidenceConfidence: "medium",
+        automatedScoreProduced: false,
+        formalDiagnosisProduced: false,
+        taskEvidence: sofiaDiagnosticEvidence,
+      },
+    },
+  };
+}
+
+const emptySofiaSession = {
+  protocolVersion: "sufeiya_super_teacher_v1",
+  revision: 0,
+  turns: [],
+  handoffRequests: [],
+} as const;
+
 type SmokeStage =
   | "testing-token handoff"
   | "Vercel hosted protection bootstrap"
   | "Development instance revalidation"
   | "user-count baseline"
-  | "signed-out route protection"
+  | "signed-out route navigation"
+  | "signed-out route redirect"
+  | "signed-out Clerk UI"
   | "browser runtime instance binding"
+  | "temporary synthetic identifier preflight"
   | "temporary synthetic user creation"
+  | "temporary synthetic user visibility"
   | "real Clerk sign-in"
   | "authenticated workspace"
   | "authenticated teaching-review demo"
+  | "authenticated Sofia local explanation"
+  | "authenticated Sofia landscape dialog"
   | "Clerk sign-out"
+  | "post-sign-out Sofia privacy"
   | "post-sign-out route protection";
 
 type ClerkCleanupState = {
@@ -191,13 +323,15 @@ test("a temporary Development user can traverse the protected smoke path and is 
     stage = "user-count baseline";
     cleanupState.baselineUserCount = await client.users.getCount();
 
-    stage = "signed-out route protection";
+    stage = "signed-out route navigation";
     await setupClerkTestingToken({
       page,
       options: { frontendApiUrl: keyPair.frontendApiHost },
     });
     await page.goto("/workspace", { waitUntil: "domcontentloaded" });
+    stage = "signed-out route redirect";
     await page.waitForURL((url) => url.pathname === "/sign-in");
+    stage = "signed-out Clerk UI";
     await expect(page.locator(".cl-signIn-root")).toBeVisible();
 
     stage = "browser runtime instance binding";
@@ -213,7 +347,7 @@ test("a temporary Development user can traverse the protected smoke path and is 
     );
     expect(browserRuntimeMatchesVerifiedInstance).toBe(true);
 
-    stage = "temporary synthetic user creation";
+    stage = "temporary synthetic identifier preflight";
     const uniqueSuffix = randomUUID().replaceAll("-", "");
     const temporaryEmail = `sufeiya-e2e+clerk_test_${uniqueSuffix}@example.com`;
     const temporaryPassword = `S7!${randomBytes(24).toString("base64url")}`;
@@ -226,6 +360,7 @@ test("a temporary Development user can traverse the protected smoke path and is 
       throw new Error("temporary identifier collision");
     }
 
+    stage = "temporary synthetic user creation";
     cleanupState.creationAttempted = true;
     const temporaryUser = await client.users.createUser({
       emailAddress: [temporaryEmail],
@@ -237,6 +372,7 @@ test("a temporary Development user can traverse the protected smoke path and is 
     });
     cleanupState.temporaryUserId = temporaryUser.id;
 
+    stage = "temporary synthetic user visibility";
     await expect.poll(async () => ({
       exactTemporaryUserCount: await client.users.getCount({ userId: [cleanupState.temporaryUserId!] }),
       totalUserCount: await client.users.getCount(),
@@ -282,10 +418,207 @@ test("a temporary Development user can traverse the protected smoke path and is 
     await expect(page.locator('[data-teaching-review-demo="gate_a_local_only"]')).toBeVisible();
     await expect(page.getByRole("heading", { level: 1, name: "教研复核演示台" })).toBeVisible();
 
+    stage = "authenticated Sofia local explanation";
+    const sofiaQuestion = `为什么先练这个？（Clerk E2E ${uniqueSuffix.slice(0, 8)}）`;
+    await page.evaluate(
+      ({ chatKey, chatSession, workspace, workspaceKey }) => {
+        window.localStorage.setItem(workspaceKey, JSON.stringify(workspace));
+        window.localStorage.setItem(chatKey, JSON.stringify(chatSession));
+      },
+      {
+        chatKey: SOFIA_CHAT_KEY,
+        chatSession: emptySofiaSession,
+        workspace: createSofiaWorkspaceFixture(),
+        workspaceKey: SOFIA_WORKSPACE_KEY,
+      },
+    );
+
+    const superTeacherPosts: string[] = [];
+    page.on("request", (request) => {
+      const requestUrl = new URL(request.url());
+      if (request.method() === "POST" && requestUrl.pathname === "/api/super-teacher") {
+        superTeacherPosts.push(request.url());
+      }
+    });
+
+    await page.goto("/super-teacher", { waitUntil: "domcontentloaded" });
+    await expect(page).toHaveURL((url) => url.pathname === "/super-teacher");
+    await expect(page.getByRole("heading", { level: 1, name: "Sofia智能老师" })).toBeVisible();
+    await expect(page.getByRole("heading", {
+      level: 2,
+      name: "问一个与当前学习有关的问题",
+    })).toBeVisible();
+    await expect(page.getByText("Writing 写作 · 6 / 6 项本机诊断任务证据", { exact: true })).toBeVisible();
+
+    const pageConversation = page.locator('section[aria-labelledby="conversation-title"]');
+    const pageQuestionInput = pageConversation.getByRole("textbox", { name: "输入学习问题" });
+    await expect(pageQuestionInput).toBeEnabled();
+    await pageQuestionInput.fill(sofiaQuestion);
+    await pageConversation.getByRole("button", { name: "在本机核对并回答" }).click();
+
+    const pageConversationLog = pageConversation.locator('[aria-live="polite"]');
+    await expect(pageConversationLog).toHaveAttribute("aria-busy", "false");
+    await expect(pageConversationLog.locator("article")).toHaveCount(2);
+    await expect(pageConversationLog.getByText(sofiaQuestion, { exact: true })).toHaveCount(1);
+    await expect(pageConversationLog.getByText("本机有来源解释 · 未调用模型", { exact: true })).toHaveCount(1);
+    await expect(pageConversationLog.getByRole("link", { name: /^来源：/ }).first()).toBeVisible();
+    await expect(pageConversation.getByRole("status")).toContainText(
+      "问题和学习摘要没有发送到本站服务端或外部模型",
+    );
+
+    await expect.poll(async () => {
+      const rawSession = await page.evaluate(
+        (chatKey) => window.localStorage.getItem(chatKey),
+        SOFIA_CHAT_KEY,
+      );
+      if (!rawSession) return null;
+      const storedSession = JSON.parse(rawSession) as {
+        protocolVersion?: string;
+        revision?: number;
+        handoffRequests?: unknown[];
+        turns?: Array<{
+          createdAt?: string;
+          role?: string;
+          text?: string;
+          response?: {
+            claims?: Array<{ citations?: unknown[] }>;
+            mode?: string;
+            modelAttempted?: boolean;
+          };
+        }>;
+      };
+      const turns = storedSession.turns ?? [];
+      const userTurn = turns[0];
+      const assistantTurn = turns[1];
+      return {
+        protocolVersion: storedSession.protocolVersion,
+        revision: storedSession.revision,
+        turnCount: turns.length,
+        roles: turns.map((turn) => turn.role),
+        question: userTurn?.text,
+        responseMode: assistantTurn?.response?.mode,
+        modelAttempted: assistantTurn?.response?.modelAttempted,
+        hasCitation: Boolean(
+          assistantTurn?.response?.claims?.some((claim) => Boolean(claim.citations?.length)),
+        ),
+        sharedCreatedAt: Boolean(
+          userTurn?.createdAt && userTurn.createdAt === assistantTurn?.createdAt,
+        ),
+        orphanUserTurnCount: turns.filter(
+          (turn, index) => turn.role === "user" && turns[index + 1]?.role !== "assistant",
+        ).length,
+        assistantWithoutUserCount: turns.filter(
+          (turn, index) => turn.role === "assistant" && turns[index - 1]?.role !== "user",
+        ).length,
+        handoffRequestCount: storedSession.handoffRequests?.length,
+      };
+    }).toEqual({
+      protocolVersion: "sufeiya_super_teacher_v1",
+      revision: 1,
+      turnCount: 2,
+      roles: ["user", "assistant"],
+      question: sofiaQuestion,
+      responseMode: "manual_grounded",
+      modelAttempted: false,
+      hasCitation: true,
+      sharedCreatedAt: true,
+      orphanUserTurnCount: 0,
+      assistantWithoutUserCount: 0,
+      handoffRequestCount: 0,
+    });
+    expect(superTeacherPosts).toEqual([]);
+
+    stage = "authenticated Sofia landscape dialog";
+    await page.setViewportSize({ width: 812, height: 375 });
+    await page.goto("/resources", { waitUntil: "domcontentloaded" });
+    const sofiaLauncher = page.getByRole("button", { name: "打开 Sofia智能老师对话" });
+    await expect(sofiaLauncher).toBeVisible();
+    await sofiaLauncher.click();
+
+    const sofiaDialog = page.getByRole("dialog", { name: "Sofia智能老师" });
+    await expect(sofiaDialog).toBeVisible();
+    const closeSofiaDialog = sofiaDialog.getByRole("button", { name: "关闭 Sofia智能老师对话" });
+    await expect(closeSofiaDialog).toBeInViewport();
+
+    const dialogQuestionInput = sofiaDialog.getByRole("textbox", { name: "输入学习问题" });
+    await dialogQuestionInput.scrollIntoViewIfNeeded();
+    await expect(dialogQuestionInput).toBeEnabled();
+    await expect(dialogQuestionInput).toBeInViewport();
+    await dialogQuestionInput.fill("怎样验证我真的有进步？");
+
+    const dialogSubmit = sofiaDialog.getByRole("button", { name: "在本机核对并回答" });
+    await dialogSubmit.scrollIntoViewIfNeeded();
+    await expect(dialogSubmit).toBeEnabled();
+    await expect(dialogSubmit).toBeInViewport();
+
+    const fullPageLink = sofiaDialog.getByRole("link", { name: /打开完整页面与人工支持/ });
+    await fullPageLink.scrollIntoViewIfNeeded();
+    await expect(fullPageLink).toBeInViewport();
+    await expect(closeSofiaDialog).toBeInViewport();
+
+    const landscapeDialogGeometry = await sofiaDialog.evaluate((dialog) => {
+      const bounds = dialog.getBoundingClientRect();
+      return {
+        top: bounds.top,
+        bottom: bounds.bottom,
+        clientHeight: dialog.clientHeight,
+        scrollHeight: dialog.scrollHeight,
+        overflowY: window.getComputedStyle(dialog).overflowY,
+      };
+    });
+    expect(landscapeDialogGeometry.top).toBeGreaterThanOrEqual(0);
+    expect(landscapeDialogGeometry.bottom).toBeLessThanOrEqual(376);
+    expect(landscapeDialogGeometry.scrollHeight).toBeGreaterThan(landscapeDialogGeometry.clientHeight);
+    expect(landscapeDialogGeometry.overflowY).toMatch(/auto|scroll/);
+    await closeSofiaDialog.click();
+    await expect(sofiaDialog).not.toBeVisible();
+    await expect(sofiaLauncher).toBeFocused();
+    expect(superTeacherPosts).toEqual([]);
+
     stage = "Clerk sign-out";
     await page.goto("/", { waitUntil: "domcontentloaded" });
     await clerk.loaded({ page });
     await clerk.signOut({ page });
+
+    stage = "post-sign-out Sofia privacy";
+    await page.addInitScript(
+      ({ chatKey, workspaceKey }) => {
+        const trackedWindow = window as Window & {
+          __sufeiyaPrivateStorageReads?: string[];
+        };
+        trackedWindow.__sufeiyaPrivateStorageReads = [];
+        const originalGetItem = Storage.prototype.getItem;
+        Storage.prototype.getItem = function getTrackedPrivateItem(key: string) {
+          if (
+            this === window.localStorage
+            && (key === chatKey || key === workspaceKey)
+          ) {
+            trackedWindow.__sufeiyaPrivateStorageReads?.push(key);
+          }
+          return originalGetItem.call(this, key);
+        };
+      },
+      { chatKey: SOFIA_CHAT_KEY, workspaceKey: SOFIA_WORKSPACE_KEY },
+    );
+    await page.goto("/super-teacher", { waitUntil: "domcontentloaded" });
+    await expect(page).toHaveURL((url) => url.pathname === "/super-teacher");
+    await expect(page.getByRole("heading", { level: 2, name: "登录后继续本机学习对话。" })).toBeVisible();
+    await expect(page.getByText(sofiaQuestion, { exact: true })).toHaveCount(0);
+    await expect(page.getByRole("textbox", { name: "输入学习问题" })).toHaveCount(0);
+    const publicPagePrivateReads = await page.evaluate(() => (
+      window as Window & { __sufeiyaPrivateStorageReads?: string[] }
+    ).__sufeiyaPrivateStorageReads ?? []);
+    expect(publicPagePrivateReads).toEqual([]);
+    const retainedLocalQuestion = await page.evaluate((chatKey) => {
+      const rawSession = window.localStorage.getItem(chatKey);
+      if (!rawSession) return null;
+      const storedSession = JSON.parse(rawSession) as {
+        turns?: Array<{ role?: string; text?: string }>;
+      };
+      return storedSession.turns?.find((turn) => turn.role === "user")?.text ?? null;
+    }, SOFIA_CHAT_KEY);
+    expect(retainedLocalQuestion).toBe(sofiaQuestion);
+    expect(superTeacherPosts).toEqual([]);
 
     stage = "post-sign-out route protection";
     await page.goto("/workspace", { waitUntil: "domcontentloaded" });

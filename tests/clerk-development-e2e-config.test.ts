@@ -22,9 +22,9 @@ function developmentPublishableKey(host = "safe-example.clerk.accounts.dev") {
 describe("Clerk Development E2E configuration", () => {
   it("uses loopback by default and only accepts a canonical HTTPS hosted Vercel override", () => {
     assert.deepEqual(getClerkDevelopmentE2ETarget({}), {
-      baseURL: "http://127.0.0.1:3210",
+      baseURL: "http://localhost:3210",
       hosted: false,
-      readinessURL: "http://127.0.0.1:3210/assets/sufeiya-mark.png",
+      readinessURL: "http://localhost:3210/assets/sufeiya-mark.png",
     });
     assert.deepEqual(getClerkDevelopmentE2ETarget({
       SUFEIYA_CLERK_E2E_BASE_URL: "https://sufeiya-clerk-preview.vercel.app",

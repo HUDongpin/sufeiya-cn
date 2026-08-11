@@ -444,7 +444,11 @@
       "gate_a_local_demo",
       "clerk_access_boundary"
     ],
+    "sofia_first_party_text_processing": [
+      "server_student_data_processing"
+    ],
     "sofia_external_text_model": [
+      "server_student_data_processing",
       "external_text_model_supplier_selection",
       "external_text_model_data_flow",
       "external_text_model_retention_deletion",

@@ -300,6 +300,13 @@ describe("Super Teacher source admission", () => {
     assert.equal(payload.protocolVersion, SUPER_TEACHER_STATUS_PROTOCOL);
     assert.equal(payload.interactionProtocolVersion, SUPER_TEACHER_PROTOCOL);
     assert.equal(superTeacherStatusResponseSchema.safeParse(payload).success, true);
+    assert.equal(payload.answerMode, "local_manual_grounded");
+    assert.equal(payload.teacherSurfaceAccess, "public_teaser");
+    assert.equal(payload.interactiveTeacherAccess, "clerk_authenticated");
+    assert.equal(payload.localManualExplanationEnabled, true);
+    assert.equal(payload.firstPartyServerProcessingEnabled, false);
+    assert.equal(payload.externalModelProcessingEnabled, false);
+    assert.equal(payload.modelSubmitAccess, "disabled_pending_first_party_processing_approval");
     assert.equal("claimSourcesAdmitted" in payload.sourceBoundary, false);
     assert.equal(payload.sourceBoundary.gateAStaticClaimSources, 10);
   });

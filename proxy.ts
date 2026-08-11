@@ -1,9 +1,10 @@
-import { clerkMiddleware } from "@clerk/nextjs/server";
+import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { type NextFetchEvent, type NextRequest, NextResponse } from "next/server";
 
 import {
   getClerkAuthorizedParties,
   getClerkRuntimeState,
+  isClerkProtectedPathname,
 } from "@/lib/auth/clerk-config";
 
 const unconfiguredContentSecurityPolicy = [
@@ -21,10 +22,14 @@ const unconfiguredContentSecurityPolicy = [
 ].join("; ");
 
 const clerkState = getClerkRuntimeState();
+const isProtectedRoute = createRouteMatcher(
+  (request) => isClerkProtectedPathname(request.nextUrl.pathname),
+);
 
 const configuredClerkProxy = clerkState.configured
   ? clerkMiddleware(
-      () => {
+      async (auth, request) => {
+        if (isProtectedRoute(request)) await auth.protect();
         const response = NextResponse.next();
         response.headers.set("X-Sufeiya-Account-Mode", "clerk-access-local-learning-data");
         return response;
@@ -52,6 +57,20 @@ const configuredClerkProxy = clerkState.configured
 
 export default function proxy(request: NextRequest, event: NextFetchEvent) {
   if (configuredClerkProxy) return configuredClerkProxy(request, event);
+
+  if (isProtectedRoute(request)) {
+    return new NextResponse("Account service unavailable.", {
+      status: 503,
+      headers: {
+        "Cache-Control": "private, no-store, max-age=0",
+        "Content-Security-Policy": unconfiguredContentSecurityPolicy,
+        "Content-Type": "text/plain; charset=utf-8",
+        "X-Content-Type-Options": "nosniff",
+        "X-Robots-Tag": "noindex, nofollow",
+        "X-Sufeiya-Account-Mode": "clerk-unconfigured",
+      },
+    });
+  }
 
   const response = NextResponse.next();
   response.headers.set("Content-Security-Policy", unconfiguredContentSecurityPolicy);

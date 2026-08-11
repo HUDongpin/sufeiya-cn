@@ -55,6 +55,7 @@ describe("versioned release decision register", () => {
     assert.equal(text.blockedControlIds.includes("external_text_model_supplier_selection"), false);
     assert.deepEqual(text.blockedBindingIds, []);
     assert.deepEqual(text.blockedControlIds, [
+      "server_student_data_processing",
       "external_text_model_data_flow",
       "external_text_model_retention_deletion",
       "external_provider_region_cross_border",

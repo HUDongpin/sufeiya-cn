@@ -93,7 +93,7 @@ export function getClerkDevelopmentE2ETarget(
     throw new Error("SUFEIYA_CLERK_E2E_PORT must be an unprivileged TCP port.");
   }
 
-  const baseURL = `http://127.0.0.1:${requestedPort}`;
+  const baseURL = `http://localhost:${requestedPort}`;
   return Object.freeze({
     baseURL,
     hosted: false,

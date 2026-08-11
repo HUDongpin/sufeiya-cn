@@ -4,8 +4,10 @@ import Script from "next/script";
 import type { ReactNode } from "react";
 
 import { ClerkAccountControls } from "@/components/clerk-account-controls";
-import { SofiaFloatingAssistant } from "@/components/sofia-floating-assistant";
-import { SuperTeacherSessionProvider } from "@/components/super-teacher/super-teacher-session-provider";
+import {
+  SofiaAccessBoundary,
+  SofiaUnavailableBoundary,
+} from "@/components/sofia-access-boundary";
 import { getClerkRuntimeState } from "@/lib/auth/clerk-config";
 import { navItems, type NavigationKey } from "@/lib/site";
 
@@ -152,12 +154,12 @@ export function SiteShell({
   sofiaSurface: SofiaSurface;
   children: ReactNode;
 }) {
-  const content = sofiaSurface === "none" ? children : (
-    <SuperTeacherSessionProvider>
-      {children}
-      {sofiaSurface === "floating" ? <SofiaFloatingAssistant /> : null}
-    </SuperTeacherSessionProvider>
-  );
+  const clerkState = getClerkRuntimeState();
+  const content = sofiaSurface === "none"
+    ? children
+    : clerkState.configured
+      ? <SofiaAccessBoundary surface={sofiaSurface}>{children}</SofiaAccessBoundary>
+      : <SofiaUnavailableBoundary surface={sofiaSurface}>{children}</SofiaUnavailableBoundary>;
 
   return (
     <>

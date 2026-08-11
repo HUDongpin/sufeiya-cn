@@ -13,11 +13,11 @@ import {
 } from "react";
 
 import {
-  SUPER_TEACHER_PROTOCOL,
   superTeacherResponseSchema,
   type LearnerContext,
   type SuperTeacherResponse,
 } from "@/lib/super-teacher/contracts";
+import { createLocalTeacherResponse } from "@/lib/super-teacher/deterministic-responder";
 import {
   emptySession,
   MAX_STORED_TURNS,
@@ -31,7 +31,8 @@ import {
   type UserTurn,
 } from "@/lib/super-teacher/client-session";
 import { deriveLearnerContext } from "@/lib/super-teacher/local-context";
-import { containsSensitiveData } from "@/lib/super-teacher/policy";
+import { buildLocalGroundingBundle } from "@/lib/super-teacher/local-grounding";
+import { classifyTeacherQuestion, containsSensitiveData } from "@/lib/super-teacher/policy";
 
 const WORKSPACE_KEY = "sufeiya_workspace_v1";
 
@@ -42,10 +43,6 @@ const skillLabels: Record<string, string> = {
   Speaking: "Speaking 口语",
   Balanced: "综合训练",
 };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
 
 function readLearnerContext(): LearnerContext | undefined {
   try {
@@ -66,7 +63,6 @@ type SuperTeacherSessionValue = {
   safeWriteLockSupported: boolean;
   session: LocalSession;
   learnerContext?: LearnerContext;
-  consent: boolean;
   input: string;
   submitting: boolean;
   error: string;
@@ -74,15 +70,12 @@ type SuperTeacherSessionValue = {
   sessionReadIssue?: SessionReadIssue;
   handoffOpen: boolean;
   contextSummary: string;
-  setConsent: Dispatch<SetStateAction<boolean>>;
   setInput: Dispatch<SetStateAction<string>>;
   setHandoffOpen: Dispatch<SetStateAction<boolean>>;
   submitQuestion: (question: string) => Promise<SuperTeacherResponse | undefined>;
   clearConversation: () => Promise<void>;
   createHandoffRequest: () => Promise<void>;
   copyHandoffRequest: () => Promise<void>;
-  abortCurrentRequest: () => void;
-  revokeConsent: () => void;
 };
 
 const SuperTeacherSessionContext = createContext<SuperTeacherSessionValue | null>(null);
@@ -92,14 +85,12 @@ export function SuperTeacherSessionProvider({ children }: { children: ReactNode 
   const [safeWriteLockSupported, setSafeWriteLockSupported] = useState(false);
   const [session, setSession] = useState<LocalSession>(emptySession);
   const [learnerContext, setLearnerContext] = useState<LearnerContext>();
-  const [consent, setConsent] = useState(false);
   const [input, setInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [sessionReadIssue, setSessionReadIssue] = useState<SessionReadIssue>();
   const [handoffOpen, setHandoffOpen] = useState(false);
-  const abortRef = useRef<AbortController | null>(null);
   const sessionRef = useRef<LocalSession>(emptySession());
 
   useEffect(() => {
@@ -124,7 +115,6 @@ export function SuperTeacherSessionProvider({ children }: { children: ReactNode 
     });
     return () => {
       window.cancelAnimationFrame(frame);
-      abortRef.current?.abort();
     };
   }, []);
 
@@ -133,18 +123,16 @@ export function SuperTeacherSessionProvider({ children }: { children: ReactNode 
       if (event.key === WORKSPACE_KEY || event.key === null) {
         const nextContext = readLearnerContext();
         setLearnerContext(nextContext);
-        setConsent(false);
         setNotice(
           nextContext
-            ? "另一标签页中的学习闭环已经变化；当前摘要已更新，本次发送同意已撤销。"
-            : "另一标签页中的学习闭环已经变化；当前摘要不再满足同轮校验，发送权限已撤销。",
+            ? "另一标签页中的学习闭环已经变化；当前本机摘要已更新。"
+            : "另一标签页中的学习闭环已经变化；当前摘要不再满足同轮校验。",
         );
       }
       if (event.key === SUPER_TEACHER_CHAT_KEY || event.key === null) {
         const stored = readSession(window.localStorage);
         if (!storedSessionMatches(stored, sessionRef.current)) {
           setSessionReadIssue("concurrent_change");
-          setConsent(false);
           setNotice("另一标签页中的本机对话已经变化；为避免覆盖，新写入已停止。请刷新核对，或明确清除后重新开始。");
         }
       }
@@ -163,7 +151,6 @@ export function SuperTeacherSessionProvider({ children }: { children: ReactNode 
         const stored = readSession(window.localStorage);
         if (!storedSessionMatches(stored, sessionRef.current)) {
           setSessionReadIssue("concurrent_change");
-          setConsent(false);
           setNotice("本机对话已在另一个页面发生变化；当前页面已切换为只读，未覆盖原记录。");
           return false;
         }
@@ -203,15 +190,10 @@ export function SuperTeacherSessionProvider({ children }: { children: ReactNode 
       setError("当前浏览器不支持安全本机写入锁；本次没有保存、发送或调用模型。");
       return undefined;
     }
-    if (!consent) {
-      setError("请先勾选数据发送说明，再使用智能问答。你也可以直接选择“继续但不使用 AI”。");
-      return undefined;
-    }
     const currentContext = readLearnerContext();
     setLearnerContext(currentContext);
     if (!currentContext?.adultConfirmed) {
-      setConsent(false);
-      setError("请先到演示性初筛页完成 18+ 本机确认和六项任务；当前不会发送问题或调用模型。");
+      setError("请先到演示性初筛页完成 18+ 本机确认和六项任务；当前不会保存问题、发送数据或调用模型。");
       return undefined;
     }
     if (!trimmed || trimmed.length > 600 || submitting) return undefined;
@@ -220,93 +202,52 @@ export function SuperTeacherSessionProvider({ children }: { children: ReactNode 
       return undefined;
     }
 
-    // Consent is scoped to one validated submission attempt, regardless of
-    // whether the local write, network request, or provider response succeeds.
-    setConsent(false);
-
-    const userTurn: UserTurn = {
-      id: uid("user"),
-      role: "user",
-      text: trimmed,
-      createdAt: new Date().toISOString(),
-    };
-    if (!(await commitSession((current) => ({
-      ...current,
-      turns: [...current.turns, userTurn].slice(-MAX_STORED_TURNS),
-    })))) return undefined;
-
-    setInput("");
     setSubmitting(true);
-    const controller = new AbortController();
-    abortRef.current = controller;
-
     try {
-      const response = await fetch("/api/super-teacher", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        cache: "no-store",
-        signal: controller.signal,
-        body: JSON.stringify({
-          protocolVersion: SUPER_TEACHER_PROTOCOL,
-          consent: true,
-          question: trimmed,
-          learnerContext: currentContext,
-        }),
+      const decision = classifyTeacherQuestion(trimmed);
+      const bundle = buildLocalGroundingBundle(decision.intent, currentContext);
+      const response = createLocalTeacherResponse({
+        decision,
+        bundle,
+        learnerContext: currentContext,
+        requestId: window.crypto.randomUUID(),
       });
-      const payload = (await response.json()) as unknown;
-      if (!response.ok) {
-        if (response.status === 401) {
-          throw new Error("请先登录账户，再发送这次 Sofia 智能问答；本机学习记录不会因登录自动上传。");
-        }
-        if (response.status === 503) {
-          throw new Error("账户服务暂不可用，智能问答保持关闭；你仍可继续非 AI 学习路径。");
-        }
-        if (response.status === 429 && isRecord(payload) && typeof payload.retryAfterSeconds === "number") {
-          throw new Error(`请求较频繁，请约 ${Math.ceil(payload.retryAfterSeconds / 60)} 分钟后再试。`);
-        }
-        throw new Error("当前无法生成回答。你仍可继续非 AI 学习路径或请求人工帮助。");
-      }
-      const validatedPayload = superTeacherResponseSchema.safeParse(payload);
+      const validatedPayload = superTeacherResponseSchema.safeParse(response);
       if (!validatedPayload.success) throw new Error("返回内容未通过页面校验，请改走非 AI 路径。");
+      const createdAt = new Date().toISOString();
+      const userTurn: UserTurn = {
+        id: uid("user"),
+        role: "user",
+        text: trimmed,
+        createdAt,
+      };
       const assistantTurn: AssistantTurn = {
         id: uid("assistant"),
         role: "assistant",
         response: validatedPayload.data,
-        createdAt: new Date().toISOString(),
+        createdAt,
       };
-      await commitSession((current) => ({
+      const committed = await commitSession((current) => ({
         ...current,
-        turns: [...current.turns, assistantTurn].slice(-MAX_STORED_TURNS),
+        turns: [...current.turns, userTurn, assistantTurn].slice(-MAX_STORED_TURNS),
       }));
+      if (!committed) return undefined;
+      setInput("");
+      setNotice("已在当前浏览器内核对冻结来源并生成回答；问题和学习摘要没有发送到本站服务端或外部模型。");
       if (validatedPayload.data.handoffRecommended || validatedPayload.data.mode === "handoff") {
         setHandoffOpen(true);
       }
       return validatedPayload.data;
     } catch (caught) {
-      if (caught instanceof DOMException && caught.name === "AbortError") {
-        setNotice("已停止等待；提问没有形成新的回答。你可以继续非 AI 学习路径。");
-      } else {
-        setError(caught instanceof Error ? caught.message : "当前无法生成回答，请稍后再试。");
-      }
+      setError(caught instanceof Error ? caught.message : "当前无法在本机生成回答，请稍后再试。");
       return undefined;
     } finally {
-      if (abortRef.current === controller) abortRef.current = null;
       setSubmitting(false);
     }
   }
 
-  function abortCurrentRequest() {
-    abortRef.current?.abort();
-  }
-
-  function revokeConsent() {
-    setConsent(false);
-  }
-
   async function clearConversation() {
     if (!window.confirm("确定清除这个浏览器中的 Sofia智能老师对话和未发送人工请求吗？学习闭环数据不会被删除；此操作无法撤销。")) return;
-    abortCurrentRequest();
-    setConsent(false);
     if (!navigator.locks?.request) {
       setError("当前浏览器无法取得安全写入锁；原对话未被清除。请使用最新版浏览器后重试。");
       return;
@@ -381,7 +322,6 @@ export function SuperTeacherSessionProvider({ children }: { children: ReactNode 
         safeWriteLockSupported,
         session,
         learnerContext,
-        consent,
         input,
         submitting,
         error,
@@ -389,15 +329,12 @@ export function SuperTeacherSessionProvider({ children }: { children: ReactNode 
         sessionReadIssue,
         handoffOpen,
         contextSummary,
-        setConsent,
         setInput,
         setHandoffOpen,
         submitQuestion,
         clearConversation,
         createHandoffRequest,
         copyHandoffRequest,
-        abortCurrentRequest,
-        revokeConsent,
       }}
     >
       {children}

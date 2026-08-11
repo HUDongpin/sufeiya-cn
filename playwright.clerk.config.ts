@@ -70,7 +70,7 @@ export default defineConfig({
   timeout: 180_000,
   workers: 1,
   webServer: target.hosted ? undefined : {
-    command: `npm run start -- --hostname 127.0.0.1 --port ${requestedPort}`,
+    command: `npm run start -- --hostname localhost --port ${requestedPort}`,
     cwd: repositoryRoot,
     reuseExistingServer: false,
     stderr: "ignore",
