@@ -2,7 +2,12 @@ import { randomBytes, randomUUID } from "node:crypto";
 
 import { clerk, setupClerkTestingToken } from "@clerk/testing/playwright";
 import { createClerkClient } from "@clerk/backend";
-import { expect, test } from "@playwright/test";
+import {
+  expect,
+  test,
+  type Request as PlaywrightRequest,
+  type Response as PlaywrightResponse,
+} from "@playwright/test";
 
 import {
   assertCanonicalClerkApiEnvironment,
@@ -153,6 +158,18 @@ type SmokeStage =
   | "temporary synthetic identifier preflight"
   | "temporary synthetic user creation"
   | "temporary synthetic user visibility"
+  | "anonymous Clerk-free 404 navigation"
+  | "anonymous Clerk-free 404 title hydration"
+  | "anonymous Clerk-free 404 heading hydration"
+  | "anonymous Clerk-free 404 robots metadata"
+  | "anonymous Clerk-free 404 account links"
+  | "anonymous Clerk-free 404 Sofia absence"
+  | "anonymous Clerk-free 404 script hydration"
+  | "anonymous Clerk-free 404 network isolation"
+  | "anonymous 404 full-document Clerk navigation"
+  | "anonymous 404 Clerk document response"
+  | "anonymous 404 Clerk account-mode response"
+  | "anonymous 404 Clerk strict-CSP response"
   | "real Clerk sign-in"
   | "authenticated workspace"
   | "authenticated teaching-review demo"
@@ -323,11 +340,164 @@ test("a temporary Development user can traverse the protected smoke path and is 
     stage = "user-count baseline";
     cleanupState.baselineUserCount = await client.users.getCount();
 
-    stage = "signed-out route navigation";
     await setupClerkTestingToken({
       page,
       options: { frontendApiUrl: keyPair.frontendApiHost },
     });
+
+    stage = "anonymous Clerk-free 404 navigation";
+    const anonymousForbiddenNetworkTargets = new Set<string>();
+    const anonymousNextScriptFailures: string[] = [];
+    const anonymousNextScriptStatuses = new Map<string, number>();
+    const recordAnonymousRequest = (request: PlaywrightRequest) => {
+      const requestUrl = new URL(request.url());
+      const isDirectClerkRequest =
+        requestUrl.hostname === keyPair.frontendApiHost
+        || requestUrl.hostname === "clerk-telemetry.com"
+        || requestUrl.hostname.endsWith(".clerk.accounts.dev")
+        || requestUrl.hostname === "clerk.com"
+        || requestUrl.hostname.endsWith(".clerk.com")
+        || /clerk\.browser\.js|\/@clerk\//i.test(requestUrl.pathname);
+      const isApplicationClerkRequest =
+        requestUrl.origin === new URL(target.baseURL).origin
+        && (
+          requestUrl.pathname === "/__clerk"
+          || requestUrl.pathname.startsWith("/__clerk/")
+          || requestUrl.pathname === "/api/super-teacher"
+          || requestUrl.pathname.startsWith("/api/super-teacher/")
+        );
+      if (isDirectClerkRequest) {
+        anonymousForbiddenNetworkTargets.add(
+          `external-clerk:${requestUrl.origin}${requestUrl.pathname}`,
+        );
+      } else if (isApplicationClerkRequest) {
+        anonymousForbiddenNetworkTargets.add(`application:${requestUrl.pathname}`);
+      }
+    };
+    const recordAnonymousRequestFailure = (request: PlaywrightRequest) => {
+      const requestPath = new URL(request.url()).pathname;
+      if (requestPath.startsWith("/_next/static/") && requestPath.endsWith(".js")) {
+        anonymousNextScriptFailures.push(requestPath);
+      }
+    };
+    const recordAnonymousResponse = (response: PlaywrightResponse) => {
+      const requestPath = new URL(response.url()).pathname;
+      if (requestPath.startsWith("/_next/static/") && requestPath.endsWith(".js")) {
+        anonymousNextScriptStatuses.set(requestPath, response.status());
+      }
+    };
+    page.on("request", recordAnonymousRequest);
+    page.on("requestfailed", recordAnonymousRequestFailure);
+    page.on("response", recordAnonymousResponse);
+    try {
+      const anonymousResponse = await page.goto(
+        "/__codex_clerk_free_404/nested-route",
+        { waitUntil: "domcontentloaded" },
+      );
+      expect(anonymousResponse?.status()).toBe(404);
+      const anonymousHeaders = anonymousResponse?.headers() ?? {};
+      expect(anonymousHeaders["x-sufeiya-account-mode"]).toBe("anonymous-no-clerk");
+      expect(anonymousHeaders["content-security-policy"]).toContain(
+        "script-src 'self' 'unsafe-inline'",
+      );
+      expect(anonymousHeaders["content-security-policy"]).toContain("script-src-attr 'none'");
+      expect(anonymousHeaders["content-security-policy"]).not.toMatch(
+        /nonce-|strict-dynamic|clerk/i,
+      );
+
+      stage = "anonymous Clerk-free 404 title hydration";
+      await expect(page).toHaveTitle("页面没有找到｜苏肥鸭多邻国");
+
+      stage = "anonymous Clerk-free 404 heading hydration";
+      await expect(page.getByRole("heading", {
+        level: 1,
+        name: "这一页暂时没有学习任务。",
+      })).toHaveCount(1);
+
+      stage = "anonymous Clerk-free 404 robots metadata";
+      const anonymousRobotsPolicies = await page.locator('meta[name="robots"]')
+        .evaluateAll((metas) => metas.map((meta) => (
+          (meta as HTMLMetaElement).content
+        )));
+      expect(anonymousRobotsPolicies.length).toBeGreaterThan(0);
+      expect(anonymousRobotsPolicies.every((policy) => /\bnoindex\b/i.test(policy))).toBe(true);
+
+      stage = "anonymous Clerk-free 404 account links";
+      await expect(page.getByRole("link", { name: "登录", exact: true })).toHaveAttribute(
+        "href",
+        "/sign-in",
+      );
+      await expect(page.getByRole("link", { name: "登录", exact: true })).toHaveAttribute(
+        "target",
+        "_top",
+      );
+      await expect(page.getByRole("link", { name: "登录", exact: true })).toHaveAttribute(
+        "data-full-document-navigation-ready",
+        "true",
+      );
+      await expect(page.getByRole("link", { name: "注册", exact: true })).toHaveAttribute(
+        "href",
+        "/sign-up",
+      );
+      await expect(page.getByRole("link", { name: "注册", exact: true })).toHaveAttribute(
+        "target",
+        "_top",
+      );
+
+      stage = "anonymous Clerk-free 404 Sofia absence";
+      await expect(page.getByRole("button", { name: /打开 Sofia智能老师对话/ })).toHaveCount(0);
+
+      stage = "anonymous Clerk-free 404 script hydration";
+      const anonymousNextScriptPaths = await page.locator('script[src*="/_next/static/"]')
+        .evaluateAll((scripts) => [...new Set(scripts
+          .filter((script) => !(script as HTMLScriptElement).noModule)
+          .map((script) => new URL((script as HTMLScriptElement).src).pathname))].sort());
+      expect(anonymousNextScriptPaths.length).toBeGreaterThan(0);
+      await expect.poll(() => anonymousNextScriptPaths.map((path) => (
+        anonymousNextScriptStatuses.get(path) ?? null
+      ))).toEqual(anonymousNextScriptPaths.map(() => 200));
+      expect(anonymousNextScriptFailures).toEqual([]);
+
+      stage = "anonymous Clerk-free 404 network isolation";
+      expect([...anonymousForbiddenNetworkTargets].sort()).toEqual([]);
+    } finally {
+      page.off("request", recordAnonymousRequest);
+      page.off("requestfailed", recordAnonymousRequestFailure);
+      page.off("response", recordAnonymousResponse);
+    }
+
+    stage = "anonymous 404 full-document Clerk navigation";
+    const clerkHandoffDocuments: PlaywrightResponse[] = [];
+    const recordClerkHandoffDocument = (response: PlaywrightResponse) => {
+      if (response.request().resourceType() === "document") {
+        clerkHandoffDocuments.push(response);
+      }
+    };
+    page.on("response", recordClerkHandoffDocument);
+    try {
+      await page.getByRole("link", { name: "登录", exact: true }).click();
+      await page.waitForURL((url) => url.pathname === "/sign-in");
+
+      stage = "anonymous 404 Clerk document response";
+      const signInDocument = [...clerkHandoffDocuments].reverse().find((response) => (
+        new URL(response.url()).pathname === "/sign-in" && response.status() === 200
+      ));
+      expect(signInDocument?.status()).toBe(200);
+      const signInHeaders = signInDocument?.headers() ?? {};
+
+      stage = "anonymous 404 Clerk account-mode response";
+      expect(signInHeaders["x-sufeiya-account-mode"]).toBe(
+        "clerk-access-local-learning-data",
+      );
+
+      stage = "anonymous 404 Clerk strict-CSP response";
+      expect(signInHeaders["content-security-policy"]).toMatch(/nonce-[^;' ]+/);
+      expect(signInHeaders["content-security-policy"]).toContain("strict-dynamic");
+    } finally {
+      page.off("response", recordClerkHandoffDocument);
+    }
+
+    stage = "signed-out route navigation";
     await page.goto("/workspace", { waitUntil: "domcontentloaded" });
     stage = "signed-out route redirect";
     await page.waitForURL((url) => url.pathname === "/sign-in");
