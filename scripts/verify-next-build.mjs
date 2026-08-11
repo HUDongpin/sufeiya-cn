@@ -8,11 +8,13 @@ const read = (path) => readFile(join(root, path), "utf8");
 const appNotFoundHtmlPath = ".next/server/app/_not-found.html";
 const pagesNotFoundHtmlPath = ".next/server/pages/404.html";
 const clientReferenceManifestPath = ".next/server/app/_not-found/page_client-reference-manifest.js";
+const buildManifestPath = ".next/server/app/_not-found/page/build-manifest.json";
 
-const [appNotFoundHtml, pagesNotFoundHtml, clientReferenceManifest] = await Promise.all([
+const [appNotFoundHtml, pagesNotFoundHtml, clientReferenceManifest, buildManifest] = await Promise.all([
   read(appNotFoundHtmlPath),
   read(pagesNotFoundHtmlPath),
   read(clientReferenceManifestPath),
+  read(buildManifestPath),
 ]);
 
 const forbiddenBuildPatterns = [
@@ -50,9 +52,14 @@ for (const [path, html] of [
 assertNoForbiddenContent(clientReferenceManifest, clientReferenceManifestPath);
 
 const chunkPaths = new Set();
-for (const html of [appNotFoundHtml, pagesNotFoundHtml]) {
-  for (const match of html.matchAll(/\/_next\/static\/chunks\/[^"'\\<>\s]+\.js/g)) {
-    chunkPaths.add(match[0].replace("/_next/", ".next/"));
+for (const artifact of [
+  appNotFoundHtml,
+  pagesNotFoundHtml,
+  clientReferenceManifest,
+  buildManifest,
+]) {
+  for (const match of artifact.matchAll(/(?:\/_next\/)?(static\/chunks\/[^"'\\<>\s]+\.js)/g)) {
+    chunkPaths.add(`.next/${match[1]}`);
   }
 }
 
