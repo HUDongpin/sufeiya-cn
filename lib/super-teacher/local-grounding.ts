@@ -70,8 +70,8 @@ function dynamicSources(context?: LearnerContext): GroundingSource[] {
   if (context.plan) {
     const focus = skillLabels[context.plan.focusSkill];
     const task = context.plan.currentTaskSkill
-      ? `当前任务能力是 ${skillLabels[context.plan.currentTaskSkill]}。`
-      : "当前任务能力尚未形成。";
+      ? `当前任务技能是 ${skillLabels[context.plan.currentTaskSkill]}。`
+      : "当前任务技能尚未形成。";
     const time = context.plan.dailyMinutes ? `每日可用时间为 ${context.plan.dailyMinutes} 分钟。` : "未提供每日可用时间。";
     sources.push({
       id: "learner-local-plan",

@@ -1126,6 +1126,8 @@
     const box = document.querySelector("[data-practice-binding-status]");
     const title = box?.querySelector("[data-practice-binding-title]");
     const copy = box?.querySelector("[data-practice-binding-copy]");
+    const checkInLink = document.querySelector("[data-practice-checkin-link]");
+    if (checkInLink) checkInLink.hidden = true;
     if (!catalog || !box || !title || !copy) return;
     const context = resolvePracticeTaskContext(catalog.skill, exerciseId);
     if (receipt) {
@@ -1145,6 +1147,31 @@
               : "当前质量条件不足，暂不推进闭环")
           : "已绑定计划任务，但不是本轮推荐所指向的闭环任务"} · completion_receipt_id: ${receipt.completionReceiptId}。它不是能力、分数或防篡改证明。`
         : `当前为独立练习 · completion_receipt_id: ${receipt.completionReceiptId}。记录会保存在本机，但不推进七步闭环。`;
+      const recommendationChain = completedRecommendationChain();
+      const canContinueClosedLoop = Boolean(
+        checkInLink &&
+        context?.task &&
+        receipt.evidenceStatus === "evidence_limited" &&
+        recommendationChain &&
+        practiceReceiptMatchesJourneyScope({
+          receipt,
+          task: context.task,
+          cycle: recommendationChain.cycle,
+          recommendation: recommendationChain.recommendation,
+          plan: recommendationChain.plan,
+        }),
+      );
+      if (canContinueClosedLoop) {
+        const fragment = new URLSearchParams({
+          plan_id: recommendationChain.plan.planId,
+          task_id: context.task.taskId,
+          completion_receipt_id: receipt.completionReceiptId,
+          cycle_id: recommendationChain.cycle.cycleId,
+          recommendation_id: recommendationChain.recommendation.recommendationId,
+        });
+        checkInLink.href = `/check-in#${fragment.toString()}`;
+        checkInLink.hidden = false;
+      }
       return;
     }
     if (context) {
@@ -1398,6 +1425,15 @@
     const list = document.querySelector("[data-today-tasks]");
     const tasks = getTodayTasks();
     const completed = tasks.filter(isTaskComplete).length;
+    const planBoundary = document.querySelector("[data-today-plan-boundary]");
+    if (planBoundary) {
+      const diagnosticInProgress = state.journey?.activeCycle?.status === "in_progress" && state.journey?.diagnostic?.status === "in_progress";
+      planBoundary.textContent = state.plan
+        ? "以下任务来自当前 7 天计划；完成来源会分开显示。"
+        : diagnosticInProgress
+          ? "新诊断已经开始，旧计划已归档；以下是独立练习，不推进当前闭环。"
+          : "当前尚无 7 天计划；以下是独立练习，不推进诊断闭环。";
+    }
     updateHeroProgress();
     if (!list) return;
     clearChildren(list);
@@ -2415,6 +2451,7 @@
         )
         .map((task) => [task.taskId, task])).values()];
     };
+    const currentCheckInCandidates = checkInCandidateTasks();
     checkInCandidateTasks().forEach((task) => {
       const option = document.createElement("option");
       option.value = task.taskId;
@@ -2428,6 +2465,56 @@
     const savedQuestionStatus = saved.questionStatus || "";
     const savedRadio = checkinForm.querySelector(`input[name="questionStatus"][value="${savedQuestionStatus}"]`);
     if (savedRadio) savedRadio.checked = true;
+
+    const recommendationChainAtEntry = completedRecommendationChain();
+    const closedLoopEntryCandidates = recommendationChainAtEntry
+      ? currentCheckInCandidates.flatMap((task) => {
+          const practiceReceipt = qualifyingPracticeReceiptForTask(task);
+          return practiceReceipt && practiceReceiptMatchesJourneyScope({
+            receipt: practiceReceipt,
+            task,
+            cycle: recommendationChainAtEntry.cycle,
+            recommendation: recommendationChainAtEntry.recommendation,
+            plan: recommendationChainAtEntry.plan,
+          })
+            ? [{ task, practiceReceipt }]
+            : [];
+        })
+      : [];
+    const fragmentText = window.location.hash.replace(/^#/, "");
+    const fragmentParams = new URLSearchParams(fragmentText);
+    const fragmentRequested = fragmentText.length > 0;
+    const fragmentEntry = fragmentRequested && recommendationChainAtEntry
+      ? closedLoopEntryCandidates.find(({ task, practiceReceipt }) =>
+          fragmentParams.get("plan_id") === recommendationChainAtEntry.plan.planId &&
+          fragmentParams.get("task_id") === task.taskId &&
+          fragmentParams.get("completion_receipt_id") === practiceReceipt.completionReceiptId &&
+          fragmentParams.get("cycle_id") === recommendationChainAtEntry.cycle.cycleId &&
+          fragmentParams.get("recommendation_id") === recommendationChainAtEntry.recommendation.recommendationId,
+        ) || null
+      : null;
+    const savedHasSubstantiveContent = Boolean(
+      saved.linkedTaskId ||
+      saved.didText ||
+      saved.evidenceText ||
+      saved.questionStatus ||
+      saved.questionText ||
+      saved.checkInId,
+    );
+    const automaticEntry = !fragmentRequested && closedLoopEntryCandidates.length === 1
+      ? closedLoopEntryCandidates[0]
+      : null;
+    const contextualEntry = fragmentEntry || automaticEntry;
+    let contextualEntryMode = null;
+    let contextualEntryNotice = null;
+    if (contextualEntry && !savedHasSubstantiveContent && linkedTaskId) {
+      linkedTaskId.value = contextualEntry.task.taskId;
+      contextualEntryMode = fragmentEntry ? "fragment" : "unique_current_receipt";
+    } else if (fragmentRequested && !fragmentEntry) {
+      contextualEntryNotice = "打卡入口参数未通过当前计划、推荐与练习回执的本机核对；没有自动关联任务。";
+    } else if (fragmentEntry && savedHasSubstantiveContent && saved.linkedTaskId !== fragmentEntry.task.taskId) {
+      contextualEntryNotice = "已检测到刚完成的推荐练习，但今天已有另一份打卡草稿或记录；为避免静默覆盖，本页保留原内容，请手动核对任务。";
+    }
 
     const readCheckin = () => ({
       date,
@@ -2448,13 +2535,13 @@
         { ...record, archivedAt: new Date().toISOString(), archivedReason: reason },
       ];
     };
-    const selectedTask = () => checkInCandidateTasks().find((task) => task.taskId === linkedTaskId?.value) || null;
+    const selectedTask = () => currentCheckInCandidates.find((task) => task.taskId === linkedTaskId?.value) || null;
     const renderLinkedEvidenceStatus = () => {
       if (!linkedEvidenceStatus) return;
       const task = selectedTask();
       if (!task) {
         linkedEvidenceStatus.dataset.evidenceClass = "not_linked";
-        linkedEvidenceStatus.textContent = "未关联任务的记录可以作为独立复盘，但不会进入当前七步闭环。";
+        linkedEvidenceStatus.textContent = contextualEntryNotice || "未关联任务的记录可以作为独立复盘，但不会进入当前七步闭环。";
         return;
       }
       const practiceReceipt = qualifyingPracticeReceiptForTask(task);
@@ -2473,7 +2560,10 @@
       }
       if (practiceReceipt) {
         linkedEvidenceStatus.dataset.evidenceClass = "practice_receipt";
-        linkedEvidenceStatus.textContent = `练习记录已就绪：${skillLabels[task.skill] || task.skill} · ${practiceReceipt.completionReceiptId}`;
+        const carriedFromPractice = contextualEntryMode && contextualEntry?.task.taskId === task.taskId;
+        linkedEvidenceStatus.textContent = carriedFromPractice
+          ? `已从${contextualEntryMode === "fragment" ? "刚完成的" : "本轮唯一合格的"}推荐练习带入：${skillLabels[task.skill] || task.skill} · ${practiceReceipt.completionReceiptId}`
+          : `练习记录已就绪：${skillLabels[task.skill] || task.skill} · ${practiceReceipt.completionReceiptId}`;
         return;
       }
       const insufficientReceipt = practiceReceiptForTask(task);

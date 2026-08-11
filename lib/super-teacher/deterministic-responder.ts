@@ -174,7 +174,7 @@ export function buildApprovedFallback(
           bundle,
           task
             ? `当前计划把“${task}”作为可执行任务，用来把 ${planFocus ?? priority ?? "这个重点"} 变成一次可以留下证据的练习。`
-            : `当前 7 天计划以 ${planFocus} 为重点，把学习者确认的选择转成可编辑任务。`,
+            : `当前 7 天计划以 ${planFocus} 为重点，把学习者确认的选择转成具体任务；调整计划设置后可以重新生成。`,
           ["learner-local-plan", "learner-local-recommendation", "sufeiya-plan-method-v1"],
         ));
       }
@@ -192,7 +192,7 @@ export function buildApprovedFallback(
         headline: planFocus ? `你的计划当前以 ${planFocus} 为重点` : "当前还没有可解释的 7 天计划",
         claims: context?.plan
           ? [
-              claim(bundle, `这份计划把你确认的重点和每日可用时间转成可编辑任务；${context.plan.currentTaskSkill ? `当前读取到的任务能力是 ${skillLabels[context.plan.currentTaskSkill]}。` : "当前任务能力尚未形成。"}`, ["learner-local-plan", "sufeiya-plan-method-v1"]),
+              claim(bundle, `这份计划把你确认的重点和每日可用时间转成具体任务，调整计划设置后可以重新生成；${context.plan.currentTaskSkill ? `当前读取到的任务技能是 ${skillLabels[context.plan.currentTaskSkill]}。` : "当前任务技能尚未形成。"}`, ["learner-local-plan", "sufeiya-plan-method-v1"]),
               claim(bundle, "计划与演示初筛回链，但不会把学习者选择改写成自动诊断结论。", ["sufeiya-plan-method-v1", "sufeiya-diagnostic-boundary-v1"]),
             ]
           : [claim(bundle, "我没有读取到当前本机计划；请先完成演示初筛，再生成 7 天计划。", ["sufeiya-plan-method-v1", "sufeiya-diagnostic-boundary-v1"])],

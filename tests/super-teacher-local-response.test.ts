@@ -63,6 +63,11 @@ describe("Sofia browser-local deterministic response", () => {
       serverBundle.sources.map((source) => source.id),
     );
     assert.deepEqual(localBundle.resources, serverBundle.resources);
+    for (const bundle of [localBundle, serverBundle]) {
+      const planSource = bundle.sources.find((source) => source.id === "learner-local-plan");
+      assert.ok(planSource?.content.includes("当前任务技能是 Writing 写作。"));
+      assert.equal(planSource?.content.includes("当前任务能力"), false);
+    }
 
     const originalFetch = globalThis.fetch;
     let fetchCalls = 0;

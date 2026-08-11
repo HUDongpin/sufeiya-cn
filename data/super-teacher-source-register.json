@@ -18,7 +18,7 @@
       "href": "/plan",
       "sourceClass": "first_party_product_policy",
       "admissionStatus": "product_policy_allowed",
-      "content": "7 天计划把学习者确认的优先能力和每日可用时间转成可编辑任务。计划必须回链当前演示诊断会话；学习者可以修改选择，系统不能把计划解释成自动能力判断。",
+      "content": "7 天计划把学习者确认的优先项和每日可用时间转成具体任务。学习者可以调整计划设置后重新生成；改变本轮诊断确认的优先方向需要重新开始诊断。当前不支持逐条直接编辑每日任务，系统不能把计划解释成自动能力判断。",
       "allowedIntents": ["why_priority", "explain_plan", "explain_limits"]
     },
     {

@@ -1755,6 +1755,28 @@
     state.journey.retest = null;
     state.journey.planUpdate = null;
   };
+  const retireCurrentPlanForNewDiagnostic = ({ supersededAt, reason }) => {
+    const currentPlan = state.plan;
+    if (!currentPlan) return { status: "no_current_plan" };
+    if (
+      typeof currentPlan.planId !== "string" ||
+      !currentPlan.planId ||
+      state.planHistory.some((plan) => plan?.planId === currentPlan.planId)
+    ) {
+      return { status: "plan_history_conflict" };
+    }
+    state.planHistory = [
+      ...state.planHistory,
+      {
+        ...currentPlan,
+        status: "superseded",
+        supersededAt,
+        supersededReason: reason,
+      },
+    ];
+    state.plan = null;
+    return { status: "retired", planId: currentPlan.planId };
+  };
 
   const buildDiagnosticReport = (diagnostic) => {
     const taskEvidence = terminalDiagnosticEvidence(diagnostic);
@@ -1810,7 +1832,11 @@
     if (speaking?.status !== "completed" || speaking?.timerCompleted !== true || speakingChecks < 3) openResponseGaps.push("Speaking");
     const evidenceGapCandidates = unique([...objectiveEvidenceGaps, ...openResponseGaps]);
 
-    if (evidenceGapCandidates.length > 1) {
+    if (completedEvidence.length === 0) {
+      priorityCandidates = ["Reading", "Listening", "Writing", "Speaking"];
+      priorityBasis = "learner_confirmation_after_multiple_gaps";
+      priorityExplanation = "本轮没有形成任何完成证据；系统不据此判断能力，请由你选择下一条先补证的任务方向。";
+    } else if (evidenceGapCandidates.length > 1) {
       priorityCandidates = evidenceGapCandidates;
       priorityBasis = "learner_confirmation_after_multiple_gaps";
       priorityExplanation = `${evidenceGapCandidates.map((skill) => skillLabels[skill]).join("、")} 同时存在任务缺项、证据质量或开放作答覆盖缺口；系统不使用隐藏排序，请由你确认先补哪一项。`;
@@ -1849,14 +1875,22 @@
     if (!patterns.length && readingCompleted.length === 2 && listeningInterpretable.length === 2) {
       patterns.push("四项可解释客观任务的第一次选择均与预设答案一致；这仍不足以推出稳定能力或 DET 分数。");
     }
-    if (writing) patterns.push(`Writing 留下 ${writingWords} 个英文词与 ${writingChecks} / 3 项自查；没有自动语言评价。`);
-    if (speaking) patterns.push(`Speaking 记录 ${Number(speaking.durationSeconds || 0)} 秒计时与 ${speakingChecks} / 3 项自查；没有录音。`);
+    if (completedEvidence.length === 0) {
+      patterns.push("本轮六项任务均被记录为跳过、不可用或证据不足，没有形成可解释的完成证据；缺失不按零分处理。");
+    }
+    patterns.push(
+      writing?.status === "completed"
+        ? `Writing 留下 ${writingWords} 个英文词与 ${writingChecks} / 3 项自查；没有自动语言评价。`
+        : "Writing 未形成完成证据；缺失不按零分处理，也不推断写作能力。",
+    );
+    patterns.push(
+      speaking?.status === "completed"
+        ? `Speaking 记录 ${Number(speaking.durationSeconds || 0)} 秒计时与 ${speakingChecks} / 3 项自查；没有录音。`
+        : "Speaking 未形成完成证据；缺失不按零分处理，也不推断口语能力。",
+    );
 
     const qualityFlags = unique(taskEvidence.flatMap((item) => (Array.isArray(item.qualityFlags) ? item.qualityFlags : [])));
     const quality = qualityFlags.map((flag) => qualityFlagLabels[flag] || `证据质量标记：${flag}`);
-    if (!quality.includes(qualityFlagLabels.open_response_not_human_reviewed)) {
-      quality.push(qualityFlagLabels.open_response_not_human_reviewed);
-    }
     quality.push(
       confidence === "medium"
         ? "中等只表示本轮六项任务覆盖较完整，不表示语言能力达到中等或任何官方等级。"
@@ -1887,12 +1921,16 @@
         Speaking: {
           label: "Speaking · 口语",
           headline: speaking?.status === "completed" ? `${Number(speaking.durationSeconds || 0)} 秒计时已留证` : "未形成完整计时证据",
-          detail: `自查 ${speakingChecks} / 3；不录音，不评价发音或流利度。`,
+          detail: speaking?.status === "completed"
+            ? `自查 ${speakingChecks} / 3；不录音，不评价发音或流利度。`
+            : "跳过、不可用或未满足完成条件；缺失不按零分处理。",
         },
         Writing: {
           label: "Writing · 写作",
-          headline: writing ? `${writingWords} 词本机作答` : "未形成写作证据",
-          detail: `自查 ${writingChecks} / 3；未经人工审核，不评价语言水平。`,
+          headline: writing?.status === "completed" ? `${writingWords} 词本机作答` : "未形成写作完成证据",
+          detail: writing?.status === "completed"
+            ? `自查 ${writingChecks} / 3；未经人工审核，不评价语言水平。`
+            : "跳过、不可用或未满足完成条件；缺失不按零分处理。",
         },
       },
     };
@@ -2139,7 +2177,11 @@
       const title = document.createElement("strong");
       title.textContent = skillLabels[skill];
       const note = document.createElement("small");
-      note.textContent = report.priorityCandidates.length > 1 ? "证据并列，由你确认先后顺序" : priorityBasisLabels[report.priorityBasis] || "下一条证据优先项";
+      note.textContent = report.completedEvidenceTaskCount === 0
+        ? "没有完成证据，由你选择下一条补证任务"
+        : report.priorityCandidates.length > 1
+          ? "存在多个证据缺口，由你确认先后顺序"
+          : priorityBasisLabels[report.priorityBasis] || "下一条证据优先项";
       copy.append(title, note);
       label.append(input, copy);
       priorityOptions?.append(label);
@@ -2153,7 +2195,9 @@
       setText("[data-diagnostic-id]", diagnostic.diagnosticSessionId);
       setText(
         "[data-diagnostic-result-copy]",
-        `已完成 ${diagnostic.completedEvidenceTaskCount} 项任务证据，并由学习者确认下一步先关注 ${skillLabels[diagnostic.prioritySkill]}。这不是自动能力诊断。`,
+        diagnostic.completedEvidenceTaskCount === 0
+          ? `本轮没有形成完成证据；学习者只选择下一步先补 ${skillLabels[diagnostic.prioritySkill]} 的任务证据。这不是自动能力诊断，缺失不按零分处理。`
+          : `已形成 ${diagnostic.completedEvidenceTaskCount} 项完成证据，并由学习者确认下一步先关注 ${skillLabels[diagnostic.prioritySkill]}。这不是自动能力诊断。`,
       );
       setText("[data-diagnostic-receipt-sufficiency]", diagnostic.evidenceSufficiency === "evidence_limited" ? "evidence_limited · 证据有限" : "evidence_insufficient · 证据不足");
       setText("[data-diagnostic-priority]", skillLabels[diagnostic.prioritySkill]);
@@ -2359,12 +2403,20 @@
       }
       const previousCycle = activeCycle();
       const hasDownstream = previousCycle && [previousCycle.basePlanId, previousCycle.recommendationId, previousCycle.checkInId, previousCycle.reviewId, previousCycle.peerHelpId, previousCycle.retestId].some(Boolean);
-      if (hasDownstream && !window.confirm("开始新一轮诊断会关闭当前未完成闭环的后续连接，并仅归档不含作文原文或首答内容的证据摘要；旧计划本身仍保留。确定继续吗？")) return;
+      if (hasDownstream && !window.confirm("开始新一轮诊断会关闭当前未完成闭环的后续连接，并仅归档不含作文原文或首答内容的证据摘要；当前计划将作为历史保留，不再显示为当前计划。确定继续吗？")) return;
       const outcome = await withExclusiveJourneyWrite(async () => {
         const snapshot = snapshotState();
         archiveSupersededCycle();
         const diagnosticSessionId = makeId("diagnostic");
         const createdAt = isoNow();
+        const retiredPlan = retireCurrentPlanForNewDiagnostic({
+          supersededAt: createdAt,
+          reason: "learner_started_new_gate_a_evidence_pack",
+        });
+        if (retiredPlan.status === "plan_history_conflict") {
+          state = snapshot;
+          return retiredPlan;
+        }
         const cycle = {
           cycleId: makeId("cycle"),
           protocolVersion: PROTOCOL_VERSION,
@@ -2438,6 +2490,8 @@
           ? "当前浏览器无法取得安全写入锁，新诊断会话未建立。"
           : outcome.status === "persist_failed"
             ? "当前无法保存，新诊断会话未建立，原本机记录保持不变。"
+            : outcome.status === "plan_history_conflict"
+              ? "当前计划与历史计划出现重复标识；为避免覆盖，本次新诊断未建立。请先导出本机数据后再处理。"
             : outcome.status === "stale"
               ? "本机记录已在另一个页面发生变化；新诊断会话未建立，请刷新后重试。"
               : "学习事件链未通过核对；新诊断会话未建立。";
@@ -2928,15 +2982,34 @@
     });
 
     document.querySelectorAll("[data-diagnostic-restart]").forEach((button) => {
-      button.addEventListener("click", () => {
-        if (!window.confirm("重新开始会归档当前会话的任务状态与质量摘要（不含作文原文或首答内容），并清除本轮尚未完成的后续连接；旧计划本身仍保留。确定继续吗？")) return;
-        const snapshot = JSON.parse(JSON.stringify(state));
-        archiveSupersededCycle();
-        state.journey.activeCycle = null;
-        state.journey.diagnostic = null;
-        resetDiagnosticDownstream();
-        if (!persist()) {
-          state = snapshot;
+      button.addEventListener("click", async () => {
+        if (!window.confirm("重新开始会归档当前会话的任务状态与质量摘要（不含作文原文或首答内容），并清除本轮尚未完成的后续连接；当前计划将转入历史，不再显示为当前计划。确定继续吗？")) return;
+        const outcome = await withExclusiveJourneyWrite(async () => {
+          const snapshot = snapshotState();
+          archiveSupersededCycle();
+          const retiredPlan = retireCurrentPlanForNewDiagnostic({
+            supersededAt: isoNow(),
+            reason: "learner_restarted_gate_a_evidence_pack",
+          });
+          if (retiredPlan.status === "plan_history_conflict") {
+            state = snapshot;
+            return retiredPlan;
+          }
+          state.journey.activeCycle = null;
+          state.journey.diagnostic = null;
+          resetDiagnosticDownstream();
+          if (!persist()) {
+            state = snapshot;
+            return { status: "persist_failed" };
+          }
+          return { status: "saved" };
+        });
+        if (outcome.status !== "saved") {
+          if (message) message.textContent = outcome.status === "plan_history_conflict"
+            ? "当前计划与历史计划出现重复标识；为避免覆盖，本轮没有重新开始。请先导出本机数据后再处理。"
+            : outcome.status === "persist_failed"
+              ? "当前无法保存；原诊断、计划与闭环记录保持不变。"
+              : "当前浏览器无法取得安全写入锁；原诊断、计划与闭环记录保持不变。";
           return;
         }
         clearDiagnosticTimer();
@@ -3089,7 +3162,13 @@
     }
     choiceButtons.forEach((button) => { button.disabled = true; });
     if (receipt) receipt.hidden = false;
-    if (start) start.hidden = recommendation.status !== "accepted";
+    if (start) {
+      const acceptedPrimaryRoute = recommendation.status === "accepted" && isSafeLocalRoute(recommendation.primary?.route)
+        ? recommendation.primary.route
+        : null;
+      start.hidden = !acceptedPrimaryRoute;
+      if (acceptedPrimaryRoute) start.href = acceptedPrimaryRoute;
+    }
     setText("[data-recommendation-id]", recommendation.recommendationId);
     setText("[data-recommendation-plan-id]", recommendation.planId);
     setText("[data-recommendation-binding-id]", recommendation.evidenceBinding?.bindingId || "未形成");
@@ -3333,13 +3412,16 @@
     const chain = validateCycleEvidence();
     const peerHelp = chain.peerHelp;
     const receipt = document.querySelector("[data-community-receipt]");
+    const next = document.querySelector("[data-community-next]");
     if (!chain.peerHelpComplete) {
       if (receipt) receipt.hidden = true;
+      if (next) next.hidden = true;
       return;
     }
     const radio = document.querySelector(`input[name="peerHelpStatus"][value="${peerHelp.status}"]`);
     if (radio) radio.checked = true;
     if (receipt) receipt.hidden = false;
+    if (next) next.hidden = false;
     setText("[data-community-status]", peerHelpLabels[peerHelp.status]);
     setText("[data-community-id]", peerHelp.peerHelpId);
     setText("[data-community-value]", peerHelp.status);
@@ -3826,8 +3908,8 @@
   };
 
   const journeyDefinitions = [
-    { key: "diagnostic", title: "完成六任务诊断证据包", copy: "先完成设备预检，再依次留下六项原创任务证据与学习者确认的优先项。", route: "/diagnostic" },
-    { key: "plan", title: "生成可编辑的 7 天计划", copy: "把学习者确认的重点与每天可用时间变成具体任务。", route: "/plan" },
+    { key: "diagnostic", title: "让六项诊断任务形成终态", copy: "逐项完成，或明确记录跳过、不可用；缺失不按零分处理，再由学习者确认下一条优先项。", route: "/diagnostic" },
+    { key: "plan", title: "生成 7 天计划", copy: "把学习者确认的重点与每天可用时间变成具体任务；调整计划设置后可重新生成。", route: "/plan" },
     { key: "recommendation", title: "接受或明确跳过推荐", copy: "查看原因、时长、来源与验证方式，再保存自己的选择。", route: "/recommendations" },
     { key: "checkin", title: "保存证据式打卡", copy: "同时写清做了什么、一条学习证据和仍待解决的问题。", route: "/check-in" },
     { key: "review", title: "由学习者确认复盘", copy: "核对刚才的打卡内容，确认准确或返回修正。", route: "/review" },
@@ -3847,8 +3929,18 @@
       chain.updateComplete,
     ];
     let previousComplete = true;
+    const completedEvidenceCount = Number.isInteger(diagnostic?.completedEvidenceTaskCount)
+      ? diagnostic.completedEvidenceTaskCount
+      : terminalDiagnosticEvidence(diagnostic).filter((item) => item.status === "completed").length;
+    const diagnosticLabel = completedEvidenceCount === 0
+      ? "六项终态已记录 · 0 项形成完成证据"
+      : completedEvidenceCount < DIAGNOSTIC_TASK_IDS.length
+        ? `六项终态已记录 · ${completedEvidenceCount} 项形成完成证据`
+        : diagnostic?.evidenceSufficiency === "evidence_insufficient"
+          ? "6 / 6 项完成 · 证据质量不足"
+          : "6 / 6 项完成 · 证据有限";
     const labels = [
-      diagnostic?.evidenceSufficiency === "evidence_insufficient" ? "六任务完成，证据不足" : "六任务完成，证据有限",
+      diagnosticLabel,
       "计划已连接",
       recommendation?.status === "skipped" ? "已明确跳过" : "已接受",
       "打卡已保存",

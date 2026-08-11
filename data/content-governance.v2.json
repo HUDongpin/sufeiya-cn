@@ -67,7 +67,7 @@
     {
       "id": "sufeiya-plan-method-v1",
       "register_section": "claim_source",
-      "record_payload_sha256": "5114183a5d92570bca3eaaa6a1e7a1537d6fbcb525f9bd9fc6221270761fec22",
+      "record_payload_sha256": "6427d91ddff794798ff98f68e07fb254f444317fd978f51735ece10ea2326f02",
       "source_class": "owner_confirmed_scope",
       "claim_verification_status": "owner_confirmed",
       "catalog_coverage_status": "unassessed",

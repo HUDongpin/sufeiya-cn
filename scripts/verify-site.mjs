@@ -1784,6 +1784,7 @@ check(/name="didText"[\s\S]*name="evidenceText"[\s\S]*name="questionStatus"/.tes
 check(/data-checkin-receipt[\s\S]*data-checkin-id[\s\S]*data-checkin-plan-id/.test(await read("check-in.html")), "check-in page exposes check_in_id and plan_id receipts");
 check(/id="review-form"[\s\S]*name="learnerConfirmed"[\s\S]*data-review-id/.test(await read("review.html")), "review page requires a distinct learner confirmation and review_id");
 check(/value="used"[\s\S]*value="declined"[\s\S]*value="not_needed"[\s\S]*value="unavailable"/.test(await read("community.html")), "community page exposes all four valid voluntary states");
+check(/href="\/retest" data-community-next hidden/.test(await read("community.html")), "community keeps the retest action hidden until a voluntary state is validly saved");
 check(/data-retest-panel="Reading"[\s\S]*data-retest-panel="Listening"[\s\S]*data-retest-panel="Writing"[\s\S]*data-retest-panel="Speaking"/.test(await read("retest.html")), "retest page contains four original parallel task modes");
 check(/data-retest-id[\s\S]*data-updated-plan-id[\s\S]*data-superseded-plan-id/.test(await read("retest.html")), "retest page exposes retest and updated-plan chain receipts");
 check(/data-retest-skill-label[\s\S]*type="hidden"[^>]*name="retestSkill"[\s\S]*data-retest-same-skill[\s\S]*data-retest-parallel-pair/.test(await read("retest.html")), "retest target is locked and exposes auditable same-skill evidence");
@@ -1797,8 +1798,14 @@ for (const [file, exerciseId] of [
   ["practice-speaking.html", "speaking-skill-v1"],
 ]) {
   const page = await read(file);
-  check(new RegExp(`data-exercise-id="${exerciseId}"[\\s\\S]*data-practice-binding-status`).test(page), `${file} exposes its versioned binding and receipt status`);
+  check(new RegExp(`data-exercise-id="${exerciseId}"[\\s\\S]*data-practice-binding-status[\\s\\S]*data-practice-checkin-link hidden`).test(page), `${file} exposes its versioned binding, receipt status, and default-hidden contextual check-in action`);
 }
+check(
+  /data-listening-audio aria-label="Listening 原创英文材料；完整播放后可形成练习回执"/.test(await read("practice-listening.html")) &&
+    /data-retest-listening-audio aria-label="Listening 平行微复测英文材料；需完整播放后再提交"/.test(await read("retest.html")),
+  "practice and parallel-retest Listening audio controls have task-specific accessible names",
+);
+check(/data-today-plan-boundary/.test(await read("today.html")), "today page exposes whether tasks come from the current plan or independent practice");
 check(/data-export-workspace[\s\S]*data-clear-workspace[\s\S]*data-clear-super-teacher[\s\S]*data-clear-teaching-review-demo[\s\S]*data-clear-all-sufeiya/.test(await read("my-data.html")), "data page supports all-data export and three separately scoped namespace clears");
 check(/sufeiya_workspace_v1/.test(workspaceScript), "workspace uses one versioned local-storage namespace");
 check(/sufeiya_workspace_v1/.test(journeyScript), "journey shares the versioned workspace namespace");
@@ -2037,7 +2044,76 @@ const diagnosticWritingBeforeInputSource = sourceSection(
   'writingInput?.addEventListener("beforeinput"',
   'panel.querySelector("[data-writing-finish]")',
 );
+const renderDiagnosticReportSource = sourceSection(journeyScript, "const renderDiagnosticReport", "const renderDiagnostic =");
 const renderDiagnosticSource = sourceSection(journeyScript, "const renderDiagnostic =", "const refreshDiagnosticVoices");
+const retireCurrentPlanSource = sourceSection(
+  journeyScript,
+  "const retireCurrentPlanForNewDiagnostic",
+  "const buildDiagnosticReport",
+);
+const diagnosticStartSource = sourceSection(
+  journeyScript,
+  'startForm?.addEventListener("submit"',
+  'document.querySelectorAll("[data-diagnostic-task]")',
+);
+const diagnosticRestartSource = sourceSection(
+  journeyScript,
+  'document.querySelectorAll("[data-diagnostic-restart]")',
+  'document.addEventListener("visibilitychange"',
+);
+const evaluateJourneySource = sourceSection(journeyScript, "const evaluateJourney", "const renderCycleEvidenceLedger");
+const retireCurrentPlanHarness = (() => {
+  try {
+    return runInNewContext(
+      `(() => {
+        let state;
+        ${retireCurrentPlanSource}
+        return {
+          evaluate(nextState, options) {
+            state = JSON.parse(JSON.stringify(nextState));
+            const result = retireCurrentPlanForNewDiagnostic(options);
+            return { result, state };
+          },
+        };
+      })()`,
+    );
+  } catch {
+    return null;
+  }
+})();
+checkExecutable(
+  "starting a new diagnostic retires exactly one current plan without deleting its history",
+  () => {
+    if (!retireCurrentPlanHarness) return false;
+    const currentPlan = { planId: "plan-current", status: "active", days: [] };
+    const retired = retireCurrentPlanHarness.evaluate(
+      { plan: currentPlan, planHistory: [{ planId: "plan-older", status: "superseded", days: [] }] },
+      { supersededAt: "2026-08-12T00:00:00.000Z", reason: "learner_started_new_gate_a_evidence_pack" },
+    );
+    const conflict = retireCurrentPlanHarness.evaluate(
+      { plan: currentPlan, planHistory: [{ ...currentPlan, status: "superseded" }] },
+      { supersededAt: "2026-08-12T00:00:00.000Z", reason: "learner_started_new_gate_a_evidence_pack" },
+    );
+    return retired.result.status === "retired" &&
+      retired.state.plan === null &&
+      retired.state.planHistory.length === 2 &&
+      retired.state.planHistory[1].planId === currentPlan.planId &&
+      retired.state.planHistory[1].status === "superseded" &&
+      retired.state.planHistory[1].supersededReason === "learner_started_new_gate_a_evidence_pack" &&
+      conflict.result.status === "plan_history_conflict" &&
+      conflict.state.plan?.planId === currentPlan.planId &&
+      conflict.state.planHistory.length === 1;
+  },
+);
+check(
+  /const createdAt = isoNow\(\)[\s\S]*retireCurrentPlanForNewDiagnostic\([\s\S]*learner_started_new_gate_a_evidence_pack[\s\S]*state = snapshot;[\s\S]*appendLearningEvent\("learning_cycle\.started"[\s\S]*state = snapshot;[\s\S]*if \(!persist\(\)\) \{[\s\S]*state = snapshot;/.test(
+    diagnosticStartSource,
+  ) &&
+    /withExclusiveJourneyWrite[\s\S]*retireCurrentPlanForNewDiagnostic\([\s\S]*learner_restarted_gate_a_evidence_pack[\s\S]*state = snapshot;[\s\S]*if \(!persist\(\)\) \{[\s\S]*state = snapshot;/.test(
+      diagnosticRestartSource,
+    ),
+  "new-diagnostic start and restart retire the current plan inside rollback-safe exclusive writes",
+);
 check(
   diagnosticPage.includes(
     `data-diagnostic-app data-task-set-version="gate_a_original_6_v1" data-task-set-digest="${expectedDiagnosticTaskSetDigest}"`,
@@ -2107,6 +2183,29 @@ check(
     /resumed_after_reload/.test(journeyScript) &&
     /open_response_not_human_reviewed/.test(journeyScript),
   "diagnostic flow records text-alternative, playback, availability, reload, and human-review quality flags",
+);
+check(
+  /if \(completedEvidence\.length === 0\) \{[\s\S]*priorityCandidates = \["Reading", "Listening", "Writing", "Speaking"\][\s\S]*本轮没有形成任何完成证据/.test(
+    diagnosticReportSource,
+  ) &&
+    /本轮六项任务均被记录为跳过、不可用或证据不足，没有形成可解释的完成证据；缺失不按零分处理/.test(
+      diagnosticReportSource,
+    ) &&
+    /writing\?\.status === "completed"[\s\S]*Writing 未形成完成证据；缺失不按零分处理/.test(diagnosticReportSource) &&
+    /speaking\?\.status === "completed"[\s\S]*Speaking 未形成完成证据；缺失不按零分处理/.test(diagnosticReportSource) &&
+    !/quality\.includes\(qualityFlagLabels\.open_response_not_human_reviewed\)/.test(diagnosticReportSource) &&
+    /diagnostic\.completedEvidenceTaskCount === 0[\s\S]*本轮没有形成完成证据[\s\S]*缺失不按零分处理/.test(
+      renderDiagnosticReportSource,
+    ) &&
+    !/`已完成 \$\{diagnostic\.completedEvidenceTaskCount\} 项任务证据/.test(renderDiagnosticReportSource),
+  "an all-terminal zero-evidence diagnostic is described as missing evidence rather than completed work or zero ability",
+);
+check(
+  /completedEvidenceCount === 0[\s\S]*六项终态已记录 · 0 项形成完成证据[\s\S]*completedEvidenceCount < DIAGNOSTIC_TASK_IDS\.length[\s\S]*项形成完成证据[\s\S]*6 \/ 6 项完成 · 证据质量不足/.test(
+    evaluateJourneySource,
+  ) &&
+    !/六任务完成，证据不足/.test(evaluateJourneySource),
+  "workspace journey labels distinguish terminal task states from completed evidence counts",
 );
 check(
   /DIAGNOSTIC_TASK_SET_VERSION = "gate_a_original_6_v1"/.test(journeyScript) &&
@@ -4394,6 +4493,56 @@ check(
   "Next.js public learning-events, workspace, and journey runtimes exactly match their authoritative source files",
 );
 
+const renderPracticeBindingSource = sourceSection(workspaceScript, "const renderPracticeBindingStatus", "const practiceRoot");
+const checkInSetupSource = sourceSection(workspaceScript, 'const checkinForm = document.querySelector("#checkin-form")', "const clearNamespace");
+const renderTodaySource = sourceSection(workspaceScript, "const renderToday", "renderToday();");
+const recommendationReceiptSource = sourceSection(journeyScript, "const renderRecommendationReceipt", "const setupRecommendations");
+const renderCommunitySource = sourceSection(journeyScript, "const renderCommunity", "const setupCommunity");
+check(
+  /checkInLink\.hidden = true/.test(renderPracticeBindingSource) &&
+    /receipt\.evidenceStatus === "evidence_limited"/.test(renderPracticeBindingSource) &&
+    /practiceReceiptMatchesJourneyScope\([\s\S]*completion_receipt_id[\s\S]*cycle_id[\s\S]*recommendation_id/.test(
+      renderPracticeBindingSource,
+    ) &&
+    /checkInLink\.href = `\/check-in#\$\{fragment\.toString\(\)\}`[\s\S]*checkInLink\.hidden = false/.test(
+      renderPracticeBindingSource,
+    ),
+  "only a qualifying current closed-loop practice receipt exposes a fragment-bound contextual check-in action",
+);
+check(
+  /window\.location\.hash\.replace\(\/\^#\//.test(checkInSetupSource) &&
+    /fragmentParams\.get\("plan_id"\) === recommendationChainAtEntry\.plan\.planId/.test(checkInSetupSource) &&
+    /fragmentParams\.get\("task_id"\) === task\.taskId/.test(checkInSetupSource) &&
+    /fragmentParams\.get\("completion_receipt_id"\) === practiceReceipt\.completionReceiptId/.test(checkInSetupSource) &&
+    /fragmentParams\.get\("cycle_id"\) === recommendationChainAtEntry\.cycle\.cycleId/.test(checkInSetupSource) &&
+    /fragmentParams\.get\("recommendation_id"\) === recommendationChainAtEntry\.recommendation\.recommendationId/.test(
+      checkInSetupSource,
+    ) &&
+    /!fragmentRequested && closedLoopEntryCandidates\.length === 1/.test(checkInSetupSource) &&
+    /savedHasSubstantiveContent[\s\S]*为避免静默覆盖/.test(checkInSetupSource) &&
+    /打卡入口参数未通过当前计划、推荐与练习回执的本机核对；没有自动关联任务/.test(checkInSetupSource) &&
+    /practiceReceiptMatchesJourneyScope\([\s\S]*pendingClosedLoop[\s\S]*receiptMatchesClosedLoop/.test(checkInSetupSource),
+  "check-in revalidates every fragment identifier, preserves existing drafts, and only auto-selects one qualifying current receipt",
+);
+check(
+  /recommendation\.status === "accepted" && isSafeLocalRoute\(recommendation\.primary\?\.route\)[\s\S]*start\.href = acceptedPrimaryRoute/.test(
+    recommendationReceiptSource,
+  ) && /data-recommendation-start hidden>开始已接受的主任务/.test(await read("recommendations.html")),
+  "an accepted recommendation starts its exact validated primary practice route",
+);
+check(
+  /data-today-plan-boundary/.test(await read("today.html")) &&
+    /state\.plan[\s\S]*以下任务来自当前 7 天计划[\s\S]*新诊断已经开始，旧计划已归档[\s\S]*独立练习，不推进当前闭环/.test(
+      renderTodaySource,
+    ),
+  "today explicitly distinguishes the current plan from independent fallback practice",
+);
+check(
+  ![workspaceScript, journeyScript, await read("workspace.html"), await read("scripts/generate-pages.mjs"), superTeacherResponder, superTeacherDeterministicResponder, JSON.stringify(await read("data/super-teacher-source-register.json"))]
+    .some((source) => /可编辑任务|可编辑的每日任务|生成可编辑的 7 天计划/.test(source)),
+  "active plan UI and Sofia grounding do not claim direct per-task editing before that control exists",
+);
+
 const communitySetupSource = sourceSection(journeyScript, "const setupCommunity", "const showRetestPanel");
 check(
   /const downstreamSealed = Boolean\([\s\S]*cycle\.retestId[\s\S]*cycle\.updatedPlanId[\s\S]*state\.journey\.retest\?\.cycleId === cycle\.cycleId[\s\S]*state\.journey\.planUpdate\?\.cycleId === cycle\.cycleId/.test(
@@ -4404,6 +4553,13 @@ check(
     ) &&
     /const before = snapshotState\(\)[\s\S]*if \(!persist\(\)\) \{[\s\S]*state = before;/.test(communitySetupSource),
   "community freezes after a retest or updated plan and rolls back a failed save",
+);
+check(
+  /const next = document\.querySelector\("\[data-community-next\]"\)/.test(renderCommunitySource) &&
+    /if \(!chain\.peerHelpComplete\) \{[\s\S]*next\.hidden = true;[\s\S]*return;/.test(renderCommunitySource) &&
+    /if \(next\) next\.hidden = false/.test(renderCommunitySource) &&
+    /if \(!persist\(\)\) \{[\s\S]*state = before;[\s\S]*return;[\s\S]*renderCommunity\(\)/.test(communitySetupSource),
+  "community reveals retest only after a centrally valid persisted peer-help receipt",
 );
 
 const recommendationSetupSource = sourceSection(journeyScript, "const setupRecommendations", "const peerHelpLabels");
