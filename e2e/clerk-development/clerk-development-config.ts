@@ -57,6 +57,8 @@ const CLERK_TESTING_HANDOFF_ERROR =
 
 const CLERK_IDEMPOTENT_MUTATION_RETRY_DELAYS_MS = [1_000, 2_500] as const;
 const CLERK_IDEMPOTENT_MUTATION_MAX_RETRY_AFTER_MS = 10_000;
+const CLERK_EXACT_DELETION_ABSENCE_POLL_DELAYS_MS = [0, 1_000, 2_500, 5_000] as const;
+const CLERK_EXACT_USER_RECOVERY_OBSERVATION_DELAYS_MS = [0, 1_000, 2_500, 5_000] as const;
 const CLERK_NETWORK_FAILURE_PATTERN =
   /(?:^fetch failed$|^terminated$|network\s*(?:error|request failed)|socket hang up|\b(?:ECONNRESET|ECONNREFUSED|EHOSTUNREACH|ENETUNREACH|ETIMEDOUT|EAI_AGAIN|ENOTFOUND|UND_ERR_[A-Z_]+)\b)/i;
 
@@ -109,6 +111,130 @@ export async function retryClerkIdempotentMutation<T>(
       await sleep(Math.max(fallbackDelayMs, retryAfterMs));
     }
   }
+}
+
+export type ClerkExactUserDeletionFailurePhase =
+  | "delete_call"
+  | "delete_ack"
+  | "exact_absence";
+
+export class ClerkExactUserDeletionError extends Error {
+  readonly phase: ClerkExactUserDeletionFailurePhase;
+
+  constructor(phase: ClerkExactUserDeletionFailurePhase) {
+    super(`Clerk Development exact-user cleanup failed during ${phase}.`);
+    this.name = "ClerkExactUserDeletionError";
+    this.phase = phase;
+  }
+}
+
+export type ClerkExactUserDeletionDependencies = Readonly<{
+  deleteUser: (userId: string) => Promise<Readonly<{ id: string }>>;
+  getExactUserCount: (userId: string) => Promise<number>;
+  sleep?: (milliseconds: number) => Promise<void>;
+}>;
+
+export type ClerkExactUserDeletionResult =
+  | "delete_acknowledged"
+  | "exact_absence_verified_after_unacknowledged_delete";
+
+function exactUserCountRecognized(value: number) {
+  return Number.isSafeInteger(value) && value >= 0 && value <= 1;
+}
+
+function canonicalClerkUserId(value: string) {
+  return value === value.trim() && /^user_[A-Za-z0-9_-]{1,249}$/.test(value);
+}
+
+export async function recoverClerkExactUserDuringCreationUncertainty<
+  ExactUser extends Readonly<{ id: string }>,
+>(
+  listExactUsers: () => Promise<readonly ExactUser[]>,
+  sleep: (milliseconds: number) => Promise<void> = (milliseconds) => (
+    new Promise<void>((resolve) => setTimeout(resolve, milliseconds))
+  ),
+): Promise<ExactUser | null> {
+  for (const delayMs of CLERK_EXACT_USER_RECOVERY_OBSERVATION_DELAYS_MS) {
+    if (delayMs > 0) await sleep(delayMs);
+    const exactUsers = await listExactUsers();
+    if (!Array.isArray(exactUsers) || exactUsers.length > 1) {
+      throw new Error("Clerk Development exact-user recovery was ambiguous.");
+    }
+    if (exactUsers.length === 1) {
+      const recoveredUserId = exactUsers[0]?.id;
+      if (typeof recoveredUserId !== "string" || !canonicalClerkUserId(recoveredUserId)) {
+        throw new Error("Clerk Development exact-user recovery returned an invalid identity.");
+      }
+      return exactUsers[0] ?? null;
+    }
+  }
+  return null;
+}
+
+export async function deleteClerkExactUserWithVerification(
+  userId: string,
+  dependencies: ClerkExactUserDeletionDependencies,
+): Promise<ClerkExactUserDeletionResult> {
+  if (!canonicalClerkUserId(userId)) {
+    throw new ClerkExactUserDeletionError("delete_call");
+  }
+
+  const sleep = dependencies.sleep ?? ((milliseconds: number) => (
+    new Promise<void>((resolve) => setTimeout(resolve, milliseconds))
+  ));
+  try {
+    const deleted = await retryClerkIdempotentMutation(
+      () => dependencies.deleteUser(userId),
+      sleep,
+    );
+    const deletionResponse: unknown = deleted;
+    if (
+      !deletionResponse
+      || typeof deletionResponse !== "object"
+      || !("id" in deletionResponse)
+      || deletionResponse.id !== userId
+    ) {
+      throw new ClerkExactUserDeletionError("delete_ack");
+    }
+  } catch (error) {
+    if (error instanceof ClerkExactUserDeletionError) throw error;
+
+    let exactCount: number;
+    try {
+      exactCount = await retryClerkIdempotentMutation(
+        () => dependencies.getExactUserCount(userId),
+        sleep,
+      );
+    } catch {
+      throw new ClerkExactUserDeletionError("exact_absence");
+    }
+    if (!exactUserCountRecognized(exactCount)) {
+      throw new ClerkExactUserDeletionError("exact_absence");
+    }
+    if (exactCount === 0) return "exact_absence_verified_after_unacknowledged_delete";
+    throw new ClerkExactUserDeletionError("delete_call");
+  }
+
+  for (let attempt = 0; attempt < CLERK_EXACT_DELETION_ABSENCE_POLL_DELAYS_MS.length; attempt += 1) {
+    const delayMs = CLERK_EXACT_DELETION_ABSENCE_POLL_DELAYS_MS[attempt];
+    if (delayMs > 0) await sleep(delayMs);
+
+    let exactCount: number;
+    try {
+      exactCount = await retryClerkIdempotentMutation(
+        () => dependencies.getExactUserCount(userId),
+        sleep,
+      );
+    } catch {
+      throw new ClerkExactUserDeletionError("exact_absence");
+    }
+    if (!exactUserCountRecognized(exactCount)) {
+      throw new ClerkExactUserDeletionError("exact_absence");
+    }
+    if (exactCount === 0) return "delete_acknowledged";
+  }
+
+  throw new ClerkExactUserDeletionError("exact_absence");
 }
 
 export function getClerkDevelopmentE2ETarget(

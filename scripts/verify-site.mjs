@@ -1849,6 +1849,7 @@ await checkExecutableAsync(
 const practice = await read("practice.html");
 const planPage = await read("plan.html");
 const reviewPage = await read("review.html");
+const communityPage = await read("community.html");
 const retestPage = await read("retest.html");
 const practiceTargets = [...practice.matchAll(/class="practice-launch-grid"[\s\S]*?<\/div>/g)]
   .flatMap((match) => [...match[0].matchAll(/href="([^"]+)"/g)].map((link) => link[1]));
@@ -1875,8 +1876,17 @@ check(/data-focus-time[\s\S]*data-focus-stop/.test(await read("focus.html")), "f
 check(/name="didText"[\s\S]*name="evidenceText"[\s\S]*name="questionStatus"/.test(await read("check-in.html")), "check-in page collects action, evidence, and question state");
 check(/data-checkin-receipt[\s\S]*data-checkin-id[\s\S]*data-checkin-plan-id/.test(await read("check-in.html")), "check-in page exposes check_in_id and plan_id receipts");
 check(/id="review-form"[\s\S]*name="learnerConfirmed"[\s\S]*data-review-id/.test(reviewPage), "review page requires a distinct learner confirmation and review_id");
-check(/value="used"[\s\S]*value="declined"[\s\S]*value="not_needed"[\s\S]*value="unavailable"/.test(await read("community.html")), "community page exposes all four valid voluntary states");
-check(/href="\/retest" data-community-next hidden/.test(await read("community.html")), "community keeps the retest action hidden until a voluntary state is validly saved");
+check(/value="used"[\s\S]*value="declined"[\s\S]*value="not_needed"[\s\S]*value="unavailable"/.test(communityPage), "community page exposes all four valid voluntary states");
+check(/href="\/retest" data-community-next hidden/.test(communityPage), "community keeps the retest action hidden until a voluntary state is validly saved");
+check(
+  /data-community-privacy-preview[^>]*aria-labelledby="community-preview-title"[\s\S]*本机最小可见信息预览[\s\S]*data-community-preview-skill[\s\S]*data-community-preview-completion[\s\S]*没有上传、没有加入小组、没有分享给任何人[\s\S]*data-community-preview-confirmation[^>]*hidden[\s\S]*name="localPreviewConfirmed"/.test(
+    communityPage,
+  ) &&
+    /冻结合成演示经验卡 · 非真实学员材料/.test(communityPage) &&
+    /used 仍只表示已查看合成演示经验卡/.test(communityPage) &&
+    !/已加入真实小组|已分享给小组|真实同伴已看到|导师在线/.test(communityPage),
+  "community presents a local-only two-field preview, explicit non-sharing boundary, and non-retroactive used semantics",
+);
 check(/data-retest-panel="Reading"[\s\S]*data-retest-panel="Listening"[\s\S]*data-retest-panel="Writing"[\s\S]*data-retest-panel="Speaking"/.test(retestPage), "retest page contains four original parallel task modes");
 check(/data-retest-id[\s\S]*data-updated-plan-id[\s\S]*data-superseded-plan-id/.test(retestPage), "retest page exposes retest and updated-plan chain receipts");
 check(/data-retest-skill-label[\s\S]*type="hidden"[^>]*name="retestSkill"[\s\S]*data-retest-same-skill[\s\S]*data-retest-parallel-pair/.test(retestPage), "retest target is locked and exposes auditable same-skill evidence");
@@ -4938,6 +4948,16 @@ const todayPlanScheduleSource = sourceSection(workspaceScript, "const todayPlanS
 const resolveTodayTaskContextSource = sourceSection(workspaceScript, "const resolveTodayTaskContext", "const getTodayTasks");
 const renderTodaySource = sourceSection(workspaceScript, "const renderToday", "renderToday();");
 const recommendationReceiptSource = sourceSection(journeyScript, "const renderRecommendationReceipt", "const setupRecommendations");
+const communityPreviewBuilderSource = sourceSection(
+  journeyScript,
+  "const buildCommunityVisibilityPreview",
+  "const renderCommunityVisibilityPreview",
+);
+const communityPreviewRendererSource = sourceSection(
+  journeyScript,
+  "const renderCommunityVisibilityPreview",
+  "const setupReview",
+);
 const renderCommunitySource = sourceSection(journeyScript, "const renderCommunity", "const setupCommunity");
 check(
   /todayPlanScheduleRecognized\(state\.plan, state\)/.test(resolvePracticeTaskContextSource) &&
@@ -5077,6 +5097,31 @@ check(
 
 const communitySetupSource = sourceSection(journeyScript, "const setupCommunity", "const showRetestPanel");
 check(
+  /chain\?\.reviewComplete !== true/.test(communityPreviewBuilderSource) &&
+    /isRecord\(chain\?\.linkedPracticeTask\)/.test(communityPreviewBuilderSource) &&
+    /isRecord\(chain\?\.linkedPracticeReceipt\)/.test(communityPreviewBuilderSource) &&
+    /\["Reading", "Listening", "Writing", "Speaking"\]\.includes\(skill\)/.test(communityPreviewBuilderSource) &&
+    /linkedPracticeReceipt\.status !== "completed"/.test(communityPreviewBuilderSource) &&
+    /linkedPracticeReceipt\.skill !== skill/.test(communityPreviewBuilderSource) &&
+    /diagnostic\?\.prioritySkill !== skill/.test(communityPreviewBuilderSource) &&
+    /taskCategory: skillLabels\[skill\]/.test(communityPreviewBuilderSource) &&
+    /completionStatus: "已完成本机原创练习并确认复盘"/.test(communityPreviewBuilderSource) &&
+    !/(didText|evidenceText|questionText|nickname|email|cycleId|diagnosticSessionId|planId|checkInId|peerHelpId|completedAt|createdAt|updatedAt)/.test(
+      communityPreviewBuilderSource,
+    ),
+  "community preview is a fail-closed two-field allowlist projection from the centrally validated chain",
+);
+check(
+  /const preview = buildCommunityVisibilityPreview\(chain\)/.test(communityPreviewRendererSource) &&
+    /root\.dataset\.previewState = "unavailable"/.test(communityPreviewRendererSource) &&
+    /root\.dataset\.previewState = "ready"/.test(communityPreviewRendererSource) &&
+    /没有上传、没有加入小组、没有分享给任何人，也没有匹配真人/.test(communityPreviewRendererSource) &&
+    /renderCommunityVisibilityPreview\(chain\)/.test(renderCommunitySource) &&
+    /本机最小可见信息预览/.test(await read("README.md")) &&
+    /预览本身不写入本机状态、不生成 ID 或事件，也不发送网络请求/.test(await read("README.md")),
+  "community renders the production allowlist projection without claiming a real group or persisted sharing setting",
+);
+check(
   /const downstreamSealed = Boolean\([\s\S]*cycle\.retestId[\s\S]*cycle\.updatedPlanId[\s\S]*state\.journey\.retest\?\.cycleId === cycle\.cycleId[\s\S]*state\.journey\.planUpdate\?\.cycleId === cycle\.cycleId/.test(
     communitySetupSource,
   ) &&
@@ -5085,6 +5130,19 @@ check(
     ) &&
     /const before = snapshotState\(\)[\s\S]*if \(!persist\(\)\) \{[\s\S]*state = before;/.test(communitySetupSource),
   "community freezes after a retest or updated plan and rolls back a failed save",
+);
+check(
+  /const previewConfirmationInput = form\.elements\.localPreviewConfirmed/.test(communitySetupSource) &&
+    /selected === "used" && !previewConfirmationInput\?\.checked[\s\S]*本机预览[\s\S]*previewConfirmationInput\?\.focus\(\);[\s\S]*return;/.test(
+      communitySetupSource,
+    ) &&
+    communitySetupSource.indexOf('selected === "used" && !previewConfirmationInput?.checked') <
+      communitySetupSource.indexOf('makeId("peer-help")') &&
+    /source: "synthetic_demo_card_v1"[\s\S]*learnerChoice: true[\s\S]*realCommunityUsed: false/.test(
+      communitySetupSource,
+    ) &&
+    !/(participationMode|visibilityScope|localPreviewConfirmed:)/.test(communitySetupSource),
+  "community requires an explicit ephemeral local-preview confirmation before used while preserving the exact peerHelp schema",
 );
 check(
   /const next = document\.querySelector\("\[data-community-next\]"\)/.test(renderCommunitySource) &&

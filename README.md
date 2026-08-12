@@ -67,7 +67,7 @@ Qwen 后端已按 2026-08-11 最新的 Alibaba Cloud 官方 DashScope/OpenAI 兼
 - `/focus`：15 / 25 / 45 分钟专注计时器；
 - `/check-in`：保存“做了什么 + 学习证据 + 问题”的 `check_in_id`；
 - `/review`：由学习者另行核对并生成 `review_id`；
-- `/community`：合成经验卡与 `used / declined / not_needed / unavailable` 四种自愿状态；
+- `/community`：从中央核验闭环只读派生“任务类别 + 完成状态”的本机最小可见信息预览，并提供一张冻结合成经验卡与 `used / declined / not_needed / unavailable` 四种自愿状态；
 - `/retest`：原创平行微任务、`retest_id` 与学习者确认的 `updated_plan_id`；
 - `/teaching-review-demo`：Clerk 保护且由发布治理放行的 Gate A 本机教研复核演示；只读查看严格回链的临时轮次证据，并把修订建议与升级说明保存为独立本机草稿；
 - `/my-data`：三个本机命名空间的数据统计与原始保全导出、学习工作区的可验证备份恢复，以及按命名空间定向清除；
@@ -85,6 +85,7 @@ Qwen 后端已按 2026-08-11 最新的 Alibaba Cloud 官方 DashScope/OpenAI 兼
 具有当前邀请资格的 18+ 成人内测账户可以使用：
 
 - 通过同一 `cycle_id` 串联的 Gate A 演示闭环：六任务诊断证据包 → 计划 → 推荐 → 证据式打卡 → 学习者确认 → 自愿互助状态 → 平行微复测 → 更新计划；
+- 在互助选择前查看未来成人邀请制小组最多可见的两项本机预览：经白名单映射的任务类别与固定完成状态。预览本身不写入本机状态、不生成 ID 或事件，也不发送网络请求；姓名与账户信息、内部 ID、能力分与诊断结论、首答、作文、录音、打卡自由文本、问题、Sofia 对话和联系方式始终不进入预览。`used` 仍只表示查看了冻结合成经验卡，`realCommunityUsed` 始终为 `false`，不代表已加入、发布或分享给真实社区；
 - 在工作台集中核对 `diagnostic_session_id → plan_id → recommendation_id → check_in_id → review_id → peer_help_id/status → retest_id → updated_plan_id`；未通过前序回链的节点不会提前显示，临时更新计划单独标记为等待具备资质的人工确认；
 - 在本轮回执之后查看最近最多 10 轮的本机历史与 `base_plan_id → updated_plan_id` 重点对照；历史按结束时间最新在前，同一 `cycle_id` 重复记录全部失败关闭，仍在上方显示的当前轮次不会重复列入历史。每一轮都重新核对完整域 ID 链、`gate_a_original_6_v1` 任务集与摘要、能力方向、计划来源、里程碑 UTC 时间顺序、匿名事件绑定和该轮事件片段；只有“本机闭环已完成”或明确“待具备资格人员复核”的记录可进入投影，二者不会合并计数或混用文案；
 - 在工作台查看同源、只读、无缓存的 Gate 0 脱敏汇总；接口异常、协议漂移、超时或字段不完整时按“未通过”处理，不公开 29 项问题文本、负责人、证据、控制映射或复审日期，也不把登录与功能实现计为批准；

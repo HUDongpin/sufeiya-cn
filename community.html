@@ -102,10 +102,10 @@
       <div>
         <a class="study-back" href="/workspace">← 返回学习工作台</a>
         <p class="page-label"><span>06</span>自愿社区互助</p>
-        <h1 id="study-page-title">需要就使用，<br />不需要也不影响学习。</h1>
-        <p>真实社区、导师与陌生人互动尚未开放。本页只用一张明确标注的合成演示经验卡，验证学习者能主动选择使用、谢绝、不需要或暂不可用。</p>
+        <h1 id="study-page-title">先看清会展示什么，<br />再决定是否使用。</h1>
+        <p>真实社区、导师与陌生人互动尚未开放。本页只在当前浏览器预览未来成人邀请制小组最多可见的两项摘要，并用一张明确标注的合成演示经验卡验证自愿选择。</p>
       </div>
-      <aside><strong>四种状态都不会阻断闭环</strong><span>数据只保存在当前浏览器，不上传。</span></aside>
+      <aside><strong>不上传 · 不入组 · 四种状态都可继续</strong><span>数据只保存在当前浏览器，不上传。</span></aside>
     </div>
     <div class="study-nav-wrap">
   <nav class="study-tool-nav" aria-label="七步学习闭环">
@@ -118,14 +118,23 @@
   </section>
     <section class="single-tool-section journey-tool-section" aria-labelledby="community-title"><div class="single-tool-inner narrow-tool">
       <header class="tool-panel-header"><div><span>06</span><div><p>互助选择</p><h2 id="community-title">记录你的自愿状态</h2></div></div><small data-community-status>尚未选择</small></header>
-      <article class="demo-peer-card"><span>合成演示经验卡 · 非真实学员材料</span><h3>先把口语回答写成三行提纲</h3><p>“我会先写主题、一个原因和一个例子，再开始 60 秒练习。这样做只是我的个人练习方式，不代表官方规则，也不保证适合每个人。”</p><small>来源：Gate A 合成示例；不含姓名、成绩、截图或可识别经历。</small></article>
+      <section class="community-privacy-preview" data-community-privacy-preview data-preview-state="waiting" aria-labelledby="community-preview-title" hidden>
+        <header><div><span>LOCAL VISIBILITY PREVIEW</span><h3 id="community-preview-title">本机最小可见信息预览</h3></div><strong>仅本机预览</strong></header>
+        <div class="community-preview-grid">
+          <article><span>若未来开放，可见</span><dl><div><dt>任务类别</dt><dd data-community-preview-skill>等待当前闭环</dd></div><div><dt>完成状态</dt><dd data-community-preview-completion>等待学习者确认复盘</dd></div></dl></article>
+          <article><span>不会进入预览</span><ul><li>姓名、账户标识与各类 ID</li><li>能力分、诊断结论与考试日期</li><li>作文、录音、首答与打卡自由文本</li><li>待解决问题、Sofia 对话与联系方式</li></ul></article>
+        </div>
+        <p data-community-preview-boundary>本次只在当前浏览器生成预览；没有上传、没有加入小组、没有分享给任何人，也没有创建真实小组成员。</p>
+      </section>
+      <article class="demo-peer-card"><span>冻结合成演示经验卡 · 非真实学员材料</span><h3>先把口语回答写成三行提纲</h3><p>“我会先写主题、一个原因和一个例子，再开始 60 秒练习。这样做只是我的个人练习方式，不代表官方规则，也不保证适合每个人。”</p><small>来源：Gate A 合成示例；不含姓名、成绩、截图或可识别经历，也不表示真实社区已有学员。</small></article>
       <form id="community-form" class="journey-form community-form" novalidate>
         <fieldset><legend>这一步如何记录？</legend>
-          <label><input type="radio" name="peerHelpStatus" value="used" /><span><strong>已使用</strong><small>我查看了上方演示经验卡。</small></span></label>
+          <label><input type="radio" name="peerHelpStatus" value="used" /><span><strong>已查看演示经验卡</strong><small>我看过上方固定合成卡，并已了解本机预览边界；这不代表加入或分享。</small></span></label>
           <label><input type="radio" name="peerHelpStatus" value="declined" /><span><strong>谢绝</strong><small>我今天不想使用社区互助。</small></span></label>
           <label><input type="radio" name="peerHelpStatus" value="not_needed" /><span><strong>不需要</strong><small>我能继续个人计划，不需要互助。</small></span></label>
           <label><input type="radio" name="peerHelpStatus" value="unavailable" /><span><strong>暂不可用</strong><small>真实社区尚未开放，记录系统状态。</small></span></label>
         </fieldset>
+        <label class="consent-check community-preview-confirmation" data-community-preview-confirmation hidden><input type="checkbox" name="localPreviewConfirmed" /><span><strong>我确认这只是本机预览</strong><small>不会加入真实小组、发送学习数据或让其他人看到；保存后 used 仍只表示已查看合成演示经验卡。</small></span></label>
         <button class="button button-ink" type="submit">保存互助状态
   <svg viewBox="0 0 24 24" aria-hidden="true">
     <path d="M5 12h13M14 7l5 5-5 5" />
