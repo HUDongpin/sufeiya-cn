@@ -1523,6 +1523,17 @@ check(!/id="plan-form"/.test(workspace), "workspace is an entry page and does no
 check(!/name="reading-answer"/.test(workspace), "workspace does not embed an English exercise");
 check(!/data-focus-time/.test(workspace), "workspace does not embed the focus timer");
 check(!/id="checkin-form"/.test(workspace), "workspace does not embed the check-in form");
+check(
+  (workspace.match(/data-next-cycle-admission(?:[\s=>])/g) || []).length === 1 &&
+    (workspace.match(/data-next-cycle-admission-status(?:[\s=>])/g) || []).length === 1 &&
+    (workspace.match(/data-next-cycle-start(?:[\s=>])/g) || []).length === 1 &&
+    (workspace.match(/data-next-cycle-recovery(?:[\s=>])/g) || []).length === 1 &&
+    /data-next-cycle-admission data-state="hidden" hidden/.test(workspace) &&
+    /data-next-cycle-admission-status role="status" aria-live="polite" aria-atomic="true"/.test(workspace) &&
+    /href="\/diagnostic\?intent=next-cycle" data-next-cycle-start hidden/.test(workspace) &&
+    /href="\/my-data" data-next-cycle-recovery hidden/.test(workspace),
+  "workspace exposes one default-hidden, polite next-cycle admission region with exact intent and recovery routes",
+);
 const journeyTargets = [...workspace.matchAll(/class="journey-grid"[\s\S]*?<\/ol>/g)]
   .flatMap((match) => [...match[0].matchAll(/href="([^"]+)"/g)].map((link) => link[1]));
 check(
@@ -2232,11 +2243,6 @@ const diagnosticRestartSource = sourceSection(
 const diagnosticCommitNewSource = sourceSection(
   journeyScript,
   "const commitNewDiagnostic",
-  "const commitDiagnosticRestart",
-);
-const diagnosticCommitRestartSource = sourceSection(
-  journeyScript,
-  "const commitDiagnosticRestart",
   "const buildDiagnosticReport",
 );
 const evaluateJourneySource = sourceSection(journeyScript, "const evaluateJourney", "const renderCycleEvidenceLedger");
@@ -2284,15 +2290,13 @@ checkExecutable(
   },
 );
 check(
-  /withExclusiveJourneyWrite[\s\S]*workspaceAppendCapacity[\s\S]*const snapshot = snapshotState\(\);[\s\S]*const candidate = snapshotState\(\);[\s\S]*archiveSupersededCycle\(candidate\)[\s\S]*const createdAt = isoNow\(\)[\s\S]*retireCurrentPlanForNewDiagnostic\([\s\S]*learner_started_new_gate_a_evidence_pack[\s\S]*\}, candidate\)[\s\S]*appendLearningEvent\("learning_cycle\.started"[\s\S]*\}, candidate\)[\s\S]*workspaceCandidateCapacity\(candidate\)[\s\S]*state = candidate[\s\S]*if \(!persist\(\)\) \{[\s\S]*state = snapshot;/.test(
+  /withExclusiveJourneyWrite[\s\S]*if \(!persistedStateIsFresh\(\)\) return \{ status: "stale" \};[\s\S]*enforceNextGateACycleAdmission\(state, "开始下一轮"\)[\s\S]*const snapshot = snapshotState\(\);[\s\S]*const candidate = snapshotState\(\);[\s\S]*archiveSupersededCycle\(candidate\)[\s\S]*const createdAt = isoNow\(\)[\s\S]*retireCurrentPlanForNewDiagnostic\([\s\S]*learner_started_new_gate_a_evidence_pack[\s\S]*\}, candidate\)[\s\S]*appendLearningEvent\("learning_cycle\.started"[\s\S]*\}, candidate\)[\s\S]*workspaceCandidateCapacity\(candidate\)[\s\S]*state = candidate[\s\S]*if \(!persist\(\)\) \{[\s\S]*state = snapshot;/.test(
     diagnosticCommitNewSource,
   ) &&
-    /withExclusiveJourneyWrite[\s\S]*workspaceAppendCapacity[\s\S]*const snapshot = snapshotState\(\);[\s\S]*const candidate = snapshotState\(\);[\s\S]*archiveSupersededCycle\(candidate\)[\s\S]*retireCurrentPlanForNewDiagnostic\([\s\S]*learner_restarted_gate_a_evidence_pack[\s\S]*\}, candidate\)[\s\S]*workspaceCandidateCapacity\(candidate\)[\s\S]*state = candidate[\s\S]*if \(!persist\(\)\) \{[\s\S]*state = snapshot;/.test(
-      diagnosticCommitRestartSource,
-    ) &&
     /const outcome = await commitNewDiagnostic\(\{/.test(diagnosticStartSource) &&
-    /const outcome = await commitDiagnosticRestart\(\)/.test(diagnosticRestartSource),
-  "new-diagnostic start and restart retire the current plan inside rollback-safe exclusive writes",
+    /inspectNextGateACycleAdmission\(state\)[\s\S]*diagnosticNextCycleIntent = true[\s\S]*renderDiagnostic\(\)/.test(diagnosticRestartSource) &&
+    !/commitDiagnosticRestart\(\)/.test(diagnosticRestartSource),
+  "new-diagnostic submission rejects stale storage before retiring the current plan while restart intent remains zero-write",
 );
 check(
   diagnosticPage.includes(
@@ -4800,13 +4804,34 @@ check(
   "workspace append writers reserve exact plan, receipt, focus, check-in history, and event deltas before committing",
 );
 check(
-  /planHistory: state\.plan \? 1 : 0,[\s\S]*supersededCycles: activeCycle\(\)\?\.diagnosticSessionId \? 1 : 0,[\s\S]*learningEvents: 1/.test(
-    journeyScript,
-  ) &&
+  /const nextGateACycleRequiredAdditions = \(candidateState = state\) =>[\s\S]*planHistory: candidateState\?\.plan \? 2 : 1,[\s\S]*journeyHistory: 1,[\s\S]*practiceReceipts: 1,[\s\S]*learningEvents: 6,[\s\S]*checkIns:[\s\S]*checkInHistory:[\s\S]*supersededCycles:[\s\S]*taskProgress: 2,[\s\S]*bindingAliases: 11/.test(journeyScript) &&
+    /const inspectNextGateACycleAdmission = \(candidateState = state\) =>[\s\S]*inspectWorkspaceCapacity\(candidateState\)[\s\S]*inspectWorkspaceAppendCapacity\(candidateState, additions\)/.test(journeyScript) &&
+    /const admission = enforceNextGateACycleAdmission\(state, "开始下一轮"\)/.test(diagnosticCommitNewSource) &&
     /planHistory: 1,[\s\S]*journeyHistory: 1,[\s\S]*learningEvents: provisional \? 0 : 1/.test(journeyScript) &&
     (journeyScript.match(/workspaceAppendCapacity\(\{ learningEvents: 1 \}\)/g) || []).length === 2 &&
     /workspaceCandidateCapacity\(candidate\)/.test(journeyScript),
-  "journey composite writers preflight diagnostic archive, plan/history close, recommendation, retest, and event capacity",
+  "journey composite writers reserve a complete next cycle and still preflight close, recommendation, retest, and candidate capacity",
+);
+const nextCycleAdmissionRenderSource = sourceSection(
+  journeyScript,
+  "const renderNextCycleAdmission",
+  "const renderJourneyDashboard",
+);
+check(
+  /if \(!completed\)[\s\S]*root\.hidden = true;[\s\S]*root\.dataset\.state = "hidden"/.test(nextCycleAdmissionRenderSource) &&
+    /admission\.status === "ready"[\s\S]*root\.dataset\.state = "ready"[\s\S]*startLink\.hidden = false[\s\S]*startLink\.href = "\/diagnostic\?intent=next-cycle"[\s\S]*recoveryLink\.hidden = true/.test(
+      nextCycleAdmissionRenderSource,
+    ) &&
+    /root\.dataset\.state = blocked \? "capacity-blocked" : "invalid"[\s\S]*startLink\.hidden = true[\s\S]*recoveryLink\.hidden = false/.test(
+      nextCycleAdmissionRenderSource,
+    ) &&
+    /renderNextCycleAdmission\(!next && completedCount === journeyDefinitions\.length\)/.test(journeyScript),
+  "next-cycle admission renders only for an exact completed journey and keeps ready versus recovery actions exclusive",
+);
+check(
+  /\.storage-warning a\s*\{[\s\S]*min-height:\s*44px;[\s\S]*display:\s*inline-flex;[\s\S]*overflow-wrap:\s*anywhere/.test(styles) &&
+    /@media \(max-width:\s*820px\)[\s\S]*\.next-cycle-admission[\s\S]*grid-template-columns:\s*1fr/.test(styles),
+  "capacity recovery and next-cycle admission retain 44px touch access and single-column narrow-screen layout",
 );
 check(
   /cycleHasSealedDownstream\(state, currentCycle\)/.test(workspaceScript) &&
@@ -4849,8 +4874,9 @@ check(
     /status:\s*"cycle_conflict"/.test(journeyScript) &&
     !/supersededCycles\s*=\s*\[\.\.\.existing, receipt\]\.slice/.test(journeyScript) &&
     /const archiveSupersededCycle = \(targetState = state\) =>/.test(journeyScript) &&
-    (journeyScript.match(/const archiveOutcome = archiveSupersededCycle\(candidate\);/g) || []).length === 2 &&
-    (journeyScript.match(/superseded_cycle_capacity/g) || []).length >= 4,
+    (journeyScript.match(/const archiveOutcome = archiveSupersededCycle\(candidate\);/g) || []).length === 1 &&
+    (journeyScript.match(/superseded_cycle_capacity/g) || []).length >= 2 &&
+    /supersededCycles: candidateState\?\.journey\?\.activeCycle\?\.diagnosticSessionId \? 1 : 0/.test(journeyScript),
   "superseded diagnostic receipts retain ledger coverage and fail closed at one shared 64-cycle capacity",
 );
 check(
@@ -5184,8 +5210,14 @@ check(
 check(
   /navigator\.locks\?\.request/.test(journeyScript) &&
     /navigator\.locks\.request\(`\$\{STORAGE_KEY\}:sealed-write`, \{ mode: "exclusive" \}/.test(journeyScript) &&
-    /latest\.updatedAt === state\.updatedAt/.test(journeyScript),
-  "sealed journey receipts use an exclusive browser lock plus a fresh-state compare",
+    /let rawStoredValue = null/.test(journeyScript) &&
+    /const raw = window\.localStorage\.getItem\(STORAGE_KEY\);[\s\S]*rawStoredValue = raw/.test(journeyScript) &&
+    /const nextRaw = JSON\.stringify\(state\);[\s\S]*window\.localStorage\.setItem\(STORAGE_KEY, nextRaw\);[\s\S]*rawStoredValue = nextRaw/.test(
+      journeyScript,
+    ) &&
+    /return window\.localStorage\.getItem\(STORAGE_KEY\) === rawStoredValue/.test(journeyScript) &&
+    /state = validation\.candidate;[\s\S]*rawStoredValue = candidateRaw/.test(journeyScript),
+  "sealed journey receipts use an exclusive browser lock plus a byte-exact persisted-state compare",
 );
 
 check(
