@@ -6441,10 +6441,53 @@
   };
 
   const peerHelpLabels = {
-    used: "已使用演示经验卡",
+    used: "已查看演示经验卡",
     declined: "谢绝社区互助",
     not_needed: "本轮不需要互助",
     unavailable: "真实社区暂不可用",
+  };
+
+  const buildCommunityVisibilityPreview = (chain) => {
+    if (
+      chain?.reviewComplete !== true ||
+      !isRecord(chain?.linkedPracticeTask) ||
+      !isRecord(chain?.linkedPracticeReceipt)
+    ) return null;
+    const skill = chain.linkedPracticeTask.skill;
+    if (
+      !["Reading", "Listening", "Writing", "Speaking"].includes(skill) ||
+      chain.linkedPracticeReceipt.status !== "completed" ||
+      chain.linkedPracticeReceipt.skill !== skill ||
+      chain.diagnostic?.prioritySkill !== skill
+    ) return null;
+    return Object.freeze({
+      taskCategory: skillLabels[skill],
+      completionStatus: "已完成本机原创练习并确认复盘",
+    });
+  };
+
+  const renderCommunityVisibilityPreview = (chain) => {
+    const root = document.querySelector("[data-community-privacy-preview]");
+    if (!root) return;
+    root.hidden = false;
+    const preview = buildCommunityVisibilityPreview(chain);
+    if (!preview) {
+      root.dataset.previewState = "unavailable";
+      setText("[data-community-preview-skill]", "暂不能生成安全预览");
+      setText("[data-community-preview-completion]", "等待同一轮学习者确认复盘");
+      setText(
+        "[data-community-preview-boundary]",
+        "当前严格闭环尚未完成，因此没有生成任何可见摘要；没有上传、没有加入小组、没有分享给任何人，也没有匹配真人。",
+      );
+      return;
+    }
+    root.dataset.previewState = "ready";
+    setText("[data-community-preview-skill]", preview.taskCategory);
+    setText("[data-community-preview-completion]", preview.completionStatus);
+    setText(
+      "[data-community-preview-boundary]",
+      "本次只在当前浏览器生成预览；没有上传、没有加入小组、没有分享给任何人，也没有匹配真人。",
+    );
   };
 
   const setupReview = () => {
@@ -6559,6 +6602,7 @@
 
   const renderCommunity = () => {
     const chain = validateCycleEvidence();
+    renderCommunityVisibilityPreview(chain);
     const peerHelp = chain.peerHelp;
     const receipt = document.querySelector("[data-community-receipt]");
     const next = document.querySelector("[data-community-next]");
@@ -6574,14 +6618,28 @@
     setText("[data-community-status]", peerHelpLabels[peerHelp.status]);
     setText("[data-community-id]", peerHelp.peerHelpId);
     setText("[data-community-value]", peerHelp.status);
-    setText("[data-community-message]", "自愿状态已保存在本机；四种选择都不会降低服务或阻断闭环。");
+    setText(
+      "[data-community-message]",
+      peerHelp.status === "used"
+        ? "自愿状态已保存在本机；used 只表示已查看合成演示经验卡，没有加入或分享给真实社区。"
+        : "自愿状态已保存在本机；四种选择都不会降低服务或阻断闭环。",
+    );
   };
 
   const setupCommunity = () => {
     const form = document.querySelector("#community-form");
     if (!form) return;
     const chain = validateCycleEvidence();
+    renderCommunityVisibilityPreview(chain);
     const cycle = chain.cycle;
+    const previewConfirmation = form.querySelector("[data-community-preview-confirmation]");
+    const previewConfirmationInput = form.elements.localPreviewConfirmed;
+    const syncCommunityPreviewConfirmation = () => {
+      const selected = form.querySelector('input[name="peerHelpStatus"]:checked')?.value;
+      const needsConfirmation = selected === "used";
+      if (previewConfirmation) previewConfirmation.hidden = !needsConfirmation;
+      if (!needsConfirmation && previewConfirmationInput) previewConfirmationInput.checked = false;
+    };
     const gateReady = Boolean(cycle?.status === "in_progress" && chain.reviewComplete);
     const downstreamSealed = Boolean(
       cycle &&
@@ -6592,6 +6650,7 @@
     );
     if (downstreamSealed) {
       renderCommunity();
+      if (previewConfirmation) previewConfirmation.hidden = true;
       form.querySelectorAll("input, button").forEach((control) => {
         control.disabled = true;
       });
@@ -6600,6 +6659,7 @@
       return;
     }
     if (!gateReady) {
+      if (previewConfirmation) previewConfirmation.hidden = true;
       form.querySelectorAll("input, button").forEach((control) => {
         control.disabled = true;
       });
@@ -6608,6 +6668,10 @@
       return;
     }
     renderCommunity();
+    syncCommunityPreviewConfirmation();
+    form.querySelectorAll('input[name="peerHelpStatus"]').forEach((control) => {
+      control.addEventListener("change", syncCommunityPreviewConfirmation);
+    });
     form.addEventListener("submit", (event) => {
       event.preventDefault();
       const selected = form.querySelector('input[name="peerHelpStatus"]:checked')?.value;
@@ -6615,6 +6679,11 @@
       if (!VALID_PEER_HELP_STATES.has(selected)) {
         if (message) message.textContent = "请选择一种自愿状态后再保存。";
         form.querySelector('input[name="peerHelpStatus"]')?.focus();
+        return;
+      }
+      if (selected === "used" && !previewConfirmationInput?.checked) {
+        if (message) message.textContent = "请先确认这只是本机预览，不会加入真实小组或发送学习数据。";
+        previewConfirmationInput?.focus();
         return;
       }
       const latestChain = validateCycleEvidence();

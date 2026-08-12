@@ -91,6 +91,7 @@ interface JourneyWriterHarness {
   commitDiagnosticRestart(): Promise<MutableRecord>;
   commitJourneyPlanClose(focusSkill: string): Promise<MutableRecord>;
   validateCycleEvidence(): MutableRecord;
+  buildCommunityVisibilityPreview(chain: MutableRecord): MutableRecord | null;
   recommendationItems(): MutableRecord[];
   createRecommendationBinding(chain: MutableRecord, primary: MutableRecord, createdAt: string): MutableRecord | null;
   buildDiagnosticReport(diagnostic: unknown): MutableRecord;
@@ -388,6 +389,10 @@ async function loadJourneyWriterHarness(): Promise<JourneyWriterHarness> {
     commitDiagnosticRestart,
     commitJourneyPlanClose,
     validateCycleEvidence: () => JSON.parse(JSON.stringify(validateCycleEvidence())),
+    buildCommunityVisibilityPreview: (chain) => {
+      const preview = buildCommunityVisibilityPreview(chain);
+      return preview ? JSON.parse(JSON.stringify(preview)) : null;
+    },
     recommendationItems: () => JSON.parse(JSON.stringify(recommendationItems())),
     createRecommendationBinding: (chain, primary, createdAt) => createRecommendationBinding(chain, primary, createdAt),
     buildDiagnosticReport: (diagnostic) => JSON.parse(JSON.stringify(buildDiagnosticReport(diagnostic))),
@@ -3052,6 +3057,7 @@ describe("production writer capacity transactions", () => {
   it("runs the actual check-in writer for fresh/no-op and the 255→256/256 archive boundary", async () => {
     const harness = await loadWorkspaceWriterHarness({ pathname: "/check-in" });
     const date = "2026-08-12";
+    harness.setNow("2026-08-12T08:00:00.000Z");
     const values = {
       date,
       linkedTaskId: "",
@@ -3443,6 +3449,71 @@ describe("production writer capacity transactions", () => {
       }
       assert.equal(harness.getRaw(), rawBefore, kind);
       assert.equal(harness.backup.canonicalJson(harness.getState()), stateBefore, kind);
+    }
+  });
+});
+
+describe("community visibility preview production projection", () => {
+  it("projects only the four allowlisted task categories and one fixed completion state", async () => {
+    const writer = await loadJourneyWriterHarness();
+    const labels: Record<string, string> = {
+      Reading: "Reading · 阅读",
+      Listening: "Listening · 听力",
+      Writing: "Writing · 写作",
+      Speaking: "Speaking · 口语",
+    };
+
+    for (const [skill, taskCategory] of Object.entries(labels)) {
+      const chain: MutableRecord = {
+        reviewComplete: true,
+        diagnostic: { prioritySkill: skill, privateSentinel: `DIAGNOSTIC-${skill}` },
+        linkedPracticeTask: { skill, taskId: `TASK-ID-${skill}`, title: `TASK-TITLE-${skill}` },
+        linkedPracticeReceipt: {
+          skill,
+          status: "completed",
+          completionReceiptId: `RECEIPT-ID-${skill}`,
+          privateSentinel: `RECEIPT-${skill}`,
+        },
+        checkIn: {
+          didText: `DID-TEXT-${skill}`,
+          evidenceText: `EVIDENCE-TEXT-${skill}`,
+          questionText: `QUESTION-TEXT-${skill}`,
+        },
+        profile: { nickname: `NICKNAME-${skill}`, examDate: "2026-08-12" },
+      };
+      const before = JSON.stringify(chain);
+      const result = writer.buildCommunityVisibilityPreview(chain);
+      assert.deepEqual(hostClone(result), {
+        taskCategory,
+        completionStatus: "已完成本机原创练习并确认复盘",
+      });
+      assert.equal(JSON.stringify(chain), before, `${skill}: projection must not mutate its input`);
+      const serialized = JSON.stringify(result);
+      for (const forbidden of ["TASK-ID", "TASK-TITLE", "RECEIPT-ID", "DID-TEXT", "EVIDENCE-TEXT", "QUESTION-TEXT", "NICKNAME", "privateSentinel"]) {
+        assert.equal(serialized.includes(forbidden), false, `${skill}: preview leaked ${forbidden}`);
+      }
+    }
+  });
+
+  it("fails closed for an incomplete chain, unknown category, unfinished receipt, or mismatched skill", async () => {
+    const writer = await loadJourneyWriterHarness();
+    const valid: MutableRecord = {
+      reviewComplete: true,
+      diagnostic: { prioritySkill: "Reading" },
+      linkedPracticeTask: { skill: "Reading" },
+      linkedPracticeReceipt: { skill: "Reading", status: "completed" },
+    };
+    const cases = [
+      { ...valid, reviewComplete: false },
+      { ...valid, linkedPracticeTask: { skill: "Unknown" }, linkedPracticeReceipt: { skill: "Unknown", status: "completed" }, diagnostic: { prioritySkill: "Unknown" } },
+      { ...valid, linkedPracticeReceipt: { skill: "Reading", status: "in_progress" } },
+      { ...valid, linkedPracticeReceipt: { skill: "Writing", status: "completed" } },
+      { ...valid, diagnostic: { prioritySkill: "Listening" } },
+      { ...valid, linkedPracticeTask: null },
+      { ...valid, linkedPracticeReceipt: null },
+    ];
+    for (const candidate of cases) {
+      assert.equal(writer.buildCommunityVisibilityPreview(candidate), null);
     }
   });
 });

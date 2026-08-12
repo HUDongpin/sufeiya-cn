@@ -8,13 +8,16 @@ import {
   assertCleanClerkTestingInitialEnvironment,
   assertMatchingDevelopmentClerkInstance,
   assertVerifiedClerkTestingHandoff,
+  ClerkExactUserDeletionError,
   getClerkDevelopmentKeyPair,
   combineClerkE2EFailures,
   createClerkTestingHandoffAttestation,
+  deleteClerkExactUserWithVerification,
   getClerkDevelopmentE2ETarget,
   installClerkTestingLogRedaction,
   isRetryableClerkIdempotentMutationError,
   getVercelHostedProtectionBypass,
+  recoverClerkExactUserDuringCreationUncertainty,
   retryClerkIdempotentMutation,
 } from "../e2e/clerk-development/clerk-development-config";
 
@@ -296,6 +299,196 @@ describe("Clerk Development E2E configuration", () => {
       (error) => error === overBudgetRetryAfterError,
     );
     assert.equal(calls, 1);
+  });
+
+  it("deletes only one exact Clerk user and verifies absence across response loss or propagation delay", async () => {
+    const exactUserId = "user_synthetic_cleanup";
+    let deleteCalls = 0;
+    let countCalls = 0;
+    const successfulResult = await deleteClerkExactUserWithVerification(exactUserId, {
+      deleteUser: async (userId) => {
+        deleteCalls += 1;
+        assert.equal(userId, exactUserId);
+        return { id: userId };
+      },
+      getExactUserCount: async (userId) => {
+        countCalls += 1;
+        assert.equal(userId, exactUserId);
+        return 0;
+      },
+      sleep: async () => assert.fail("an acknowledged deletion that is absent must not wait"),
+    });
+    assert.equal(successfulResult, "delete_acknowledged");
+    assert.equal(deleteCalls, 1);
+    assert.equal(countCalls, 1);
+
+    deleteCalls = 0;
+    countCalls = 0;
+    const responseLossDelays: number[] = [];
+    const responseLossResult = await deleteClerkExactUserWithVerification(exactUserId, {
+      deleteUser: async () => {
+        deleteCalls += 1;
+        if (deleteCalls === 1) throw new Error("fetch failed");
+        throw clerkApiError(404);
+      },
+      getExactUserCount: async () => {
+        countCalls += 1;
+        return 0;
+      },
+      sleep: async (milliseconds) => {
+        responseLossDelays.push(milliseconds);
+      },
+    });
+    assert.equal(responseLossResult, "exact_absence_verified_after_unacknowledged_delete");
+    assert.equal(deleteCalls, 2);
+    assert.equal(countCalls, 1);
+    assert.deepEqual(responseLossDelays, [1_000]);
+
+    const propagationCounts = [1, 1, 0];
+    const propagationDelays: number[] = [];
+    const propagationResult = await deleteClerkExactUserWithVerification(exactUserId, {
+      deleteUser: async () => ({ id: exactUserId }),
+      getExactUserCount: async () => propagationCounts.shift() ?? 0,
+      sleep: async (milliseconds) => {
+        propagationDelays.push(milliseconds);
+      },
+    });
+    assert.equal(propagationResult, "delete_acknowledged");
+    assert.deepEqual(propagationDelays, [1_000, 2_500]);
+
+    let transientCountCalls = 0;
+    const transientCountDelays: number[] = [];
+    const transientCountResult = await deleteClerkExactUserWithVerification(exactUserId, {
+      deleteUser: async () => ({ id: exactUserId }),
+      getExactUserCount: async () => {
+        transientCountCalls += 1;
+        if (transientCountCalls === 1) throw new Error("socket hang up");
+        return 0;
+      },
+      sleep: async (milliseconds) => {
+        transientCountDelays.push(milliseconds);
+      },
+    });
+    assert.equal(transientCountResult, "delete_acknowledged");
+    assert.equal(transientCountCalls, 2);
+    assert.deepEqual(transientCountDelays, [1_000]);
+
+    await assert.rejects(
+      deleteClerkExactUserWithVerification(exactUserId, {
+        deleteUser: async () => ({ id: "user_different" }),
+        getExactUserCount: async () => assert.fail("a mismatched acknowledgement must fail closed"),
+        sleep: async () => undefined,
+      }),
+      (error) => error instanceof ClerkExactUserDeletionError && error.phase === "delete_ack",
+    );
+
+    await assert.rejects(
+      deleteClerkExactUserWithVerification(exactUserId, {
+        deleteUser: async () => {
+          throw clerkApiError(403);
+        },
+        getExactUserCount: async () => 1,
+        sleep: async () => undefined,
+      }),
+      (error) => error instanceof ClerkExactUserDeletionError && error.phase === "delete_call",
+    );
+
+    const permanentPresenceDelays: number[] = [];
+    await assert.rejects(
+      deleteClerkExactUserWithVerification(exactUserId, {
+        deleteUser: async () => ({ id: exactUserId }),
+        getExactUserCount: async () => 1,
+        sleep: async (milliseconds) => {
+          permanentPresenceDelays.push(milliseconds);
+        },
+      }),
+      (error) => error instanceof ClerkExactUserDeletionError && error.phase === "exact_absence",
+    );
+    assert.deepEqual(permanentPresenceDelays, [1_000, 2_500, 5_000]);
+
+    for (const invalidCount of [-1, 2, Number.NaN, 0.5]) {
+      await assert.rejects(
+        deleteClerkExactUserWithVerification(exactUserId, {
+          deleteUser: async () => ({ id: exactUserId }),
+          getExactUserCount: async () => invalidCount,
+          sleep: async () => undefined,
+        }),
+        (error) => error instanceof ClerkExactUserDeletionError && error.phase === "exact_absence",
+      );
+    }
+
+    const sensitiveSentinel = "sensitive-user-or-token-sentinel";
+    await assert.rejects(
+      deleteClerkExactUserWithVerification(exactUserId, {
+        deleteUser: async () => {
+          throw new Error(sensitiveSentinel);
+        },
+        getExactUserCount: async () => 1,
+        sleep: async () => undefined,
+      }),
+      (error) => (
+        error instanceof ClerkExactUserDeletionError
+        && error.phase === "delete_call"
+        && !error.message.includes(sensitiveSentinel)
+        && !JSON.stringify(error).includes(sensitiveSentinel)
+      ),
+    );
+
+    let invalidIdentityDeleteCalled = false;
+    await assert.rejects(
+      deleteClerkExactUserWithVerification(" user_not_exact ", {
+        deleteUser: async () => {
+          invalidIdentityDeleteCalled = true;
+          return { id: exactUserId };
+        },
+        getExactUserCount: async () => 0,
+      }),
+      (error) => error instanceof ClerkExactUserDeletionError && error.phase === "delete_call",
+    );
+    assert.equal(invalidIdentityDeleteCalled, false);
+  });
+
+  it("observes delayed exact-user visibility without guessing or accepting an ambiguous identity", async () => {
+    const observedBatches = [
+      [],
+      [],
+      [{ id: "user_delayed_synthetic", marker: true }],
+    ];
+    const delays: number[] = [];
+    const recovered = await recoverClerkExactUserDuringCreationUncertainty(
+      async () => observedBatches.shift() ?? [],
+      async (milliseconds) => {
+        delays.push(milliseconds);
+      },
+    );
+    assert.deepEqual(recovered, { id: "user_delayed_synthetic", marker: true });
+    assert.deepEqual(delays, [1_000, 2_500]);
+
+    let absenceObservations = 0;
+    const absent = await recoverClerkExactUserDuringCreationUncertainty(
+      async () => {
+        absenceObservations += 1;
+        return [];
+      },
+      async () => undefined,
+    );
+    assert.equal(absent, null);
+    assert.equal(absenceObservations, 4);
+
+    await assert.rejects(
+      recoverClerkExactUserDuringCreationUncertainty(async () => ([
+        { id: "user_first" },
+        { id: "user_second" },
+      ]), async () => undefined),
+      /ambiguous/,
+    );
+    await assert.rejects(
+      recoverClerkExactUserDuringCreationUncertainty(
+        async () => ([{ id: "not-a-clerk-user-id" }]),
+        async () => undefined,
+      ),
+      /invalid identity/,
+    );
   });
 
   it("accepts one syntactically valid Development key pair without exposing it", () => {

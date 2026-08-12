@@ -16,12 +16,15 @@ import {
   assertCanonicalClerkApiEnvironment,
   assertMatchingDevelopmentClerkInstance,
   assertVerifiedClerkTestingHandoff,
+  ClerkExactUserDeletionError,
   CLERK_E2E_API_URL,
   CLERK_E2E_API_VERSION,
+  deleteClerkExactUserWithVerification,
   getClerkDevelopmentE2ETarget,
   getClerkDevelopmentKeyPair,
   getVercelHostedProtectionBypass,
   installClerkTestingLogRedaction,
+  recoverClerkExactUserDuringCreationUncertainty,
   retryClerkIdempotentMutation,
 } from "./clerk-development-config";
 
@@ -99,7 +102,10 @@ type SmokeStage =
   | "authenticated Gate A evidence check-in"
   | "authenticated Gate A sealed check-in revision protection"
   | "authenticated Gate A learner review"
+  | "authenticated Gate A community preview"
   | "authenticated Gate A community decision"
+  | "authenticated Gate A community receipt"
+  | "authenticated Gate A community network isolation"
   | "authenticated Gate A Reading retest"
   | "authenticated Gate A updated plan"
   | "authenticated Gate A completed workspace"
@@ -140,15 +146,23 @@ type ClerkCleanupState = {
 
 let clerkCleanupState: ClerkCleanupState | null = null;
 
+type ClerkCleanupPhase =
+  | "identity_recovery"
+  | "delete_call"
+  | "delete_ack"
+  | "exact_absence"
+  | "baseline_count";
+
 test.describe.configure({ mode: "serial" });
 
 test.afterEach("remove the exact synthetic Development user", async ({ context }, testInfo) => {
-  testInfo.setTimeout(60_000);
+  testInfo.setTimeout(120_000);
   const cleanupState = clerkCleanupState;
   clerkCleanupState = null;
   if (!cleanupState) return;
 
   let cleanupFailure: Error | null = null;
+  let cleanupPhase: ClerkCleanupPhase = "identity_recovery";
   let contextTeardownFailure: Error | null = null;
   try {
     if (cleanupState.creationAttempted) {
@@ -156,39 +170,100 @@ test.afterEach("remove the exact synthetic Development user", async ({ context }
         throw new Error("cleanup identity unavailable");
       }
 
-      if (cleanupState.temporaryUserId === null) {
-        const recoveredUsers = await cleanupState.client.users.getUserList({
-          externalId: [cleanupState.temporaryExternalId],
-          limit: 2,
-        });
-        if (recoveredUsers.data.length > 1) throw new Error("cleanup identity ambiguous");
-        cleanupState.temporaryUserId = recoveredUsers.data[0]?.id ?? null;
+      cleanupPhase = "identity_recovery";
+      const recoveredSyntheticUser = await recoverClerkExactUserDuringCreationUncertainty(
+        async () => {
+          const recoveredUsers = await retryClerkIdempotentMutation(() => (
+            cleanupState.client.users.getUserList({
+              externalId: [cleanupState.temporaryExternalId!],
+              limit: 2,
+            })
+          ));
+          return recoveredUsers.data;
+        },
+      );
+      if (
+        recoveredSyntheticUser !== null
+        && cleanupState.temporaryUserId !== null
+        && recoveredSyntheticUser.id !== cleanupState.temporaryUserId
+      ) {
+        throw new Error("cleanup recovered identity mismatch");
       }
+      cleanupState.temporaryUserId = recoveredSyntheticUser?.id ?? cleanupState.temporaryUserId;
 
-      if (cleanupState.temporaryUserId !== null) {
-        const deleted = await cleanupState.client.users.deleteUser(cleanupState.temporaryUserId);
-        if (deleted.id !== cleanupState.temporaryUserId) {
-          throw new Error("exact deletion not acknowledged");
+      if (recoveredSyntheticUser !== null) {
+        if (
+          recoveredSyntheticUser.externalId !== cleanupState.temporaryExternalId
+          || recoveredSyntheticUser.privateMetadata.sufeiyaSyntheticClerkE2E !== true
+        ) {
+          throw new Error("cleanup synthetic identity boundary mismatch");
+        }
+      } else if (cleanupState.temporaryUserId !== null) {
+        const recoveredById = await recoverClerkExactUserDuringCreationUncertainty(
+          async () => {
+            const recoveredUsers = await retryClerkIdempotentMutation(() => (
+              cleanupState.client.users.getUserList({
+                userId: [cleanupState.temporaryUserId!],
+                limit: 2,
+              })
+            ));
+            return recoveredUsers.data;
+          },
+        );
+        if (recoveredById !== null) {
+          if (
+            recoveredById.id !== cleanupState.temporaryUserId
+            || recoveredById.externalId !== cleanupState.temporaryExternalId
+            || recoveredById.privateMetadata.sufeiyaSyntheticClerkE2E !== true
+          ) {
+            throw new Error("cleanup synthetic identity boundary mismatch");
+          }
+        } else {
+          cleanupState.temporaryUserId = null;
         }
       }
 
-      await expect.poll(async () => ({
-        exactExternalIdCount: await cleanupState.client.users.getCount({
-          externalId: [cleanupState.temporaryExternalId!],
-        }),
-        exactTemporaryUserCount: cleanupState.temporaryUserId === null
+      if (cleanupState.temporaryUserId !== null) {
+        cleanupPhase = "delete_call";
+        await deleteClerkExactUserWithVerification(cleanupState.temporaryUserId, {
+          deleteUser: (userId) => cleanupState.client.users.deleteUser(userId),
+          getExactUserCount: (userId) => cleanupState.client.users.getCount({ userId: [userId] }),
+        });
+      }
+
+      cleanupPhase = "exact_absence";
+      for (const observationDelayMs of [0, 5_000] as const) {
+        if (observationDelayMs > 0) {
+          await new Promise<void>((resolve) => setTimeout(resolve, observationDelayMs));
+        }
+        const exactExternalIdCount = await retryClerkIdempotentMutation(() => (
+          cleanupState.client.users.getCount({ externalId: [cleanupState.temporaryExternalId!] })
+        ));
+        const exactTemporaryUserCount = cleanupState.temporaryUserId === null
           ? 0
-          : await cleanupState.client.users.getCount({ userId: [cleanupState.temporaryUserId] }),
-        totalUserCount: await cleanupState.client.users.getCount(),
-      }), { timeout: 15_000 }).toEqual({
-        exactExternalIdCount: 0,
-        exactTemporaryUserCount: 0,
-        totalUserCount: cleanupState.baselineUserCount,
-      });
+          : await retryClerkIdempotentMutation(() => (
+            cleanupState.client.users.getCount({ userId: [cleanupState.temporaryUserId!] })
+          ));
+        expect({ exactExternalIdCount, exactTemporaryUserCount }).toEqual({
+          exactExternalIdCount: 0,
+          exactTemporaryUserCount: 0,
+        });
+      }
+
+      cleanupPhase = "baseline_count";
+      for (const observationDelayMs of [0, 2_500] as const) {
+        if (observationDelayMs > 0) {
+          await new Promise<void>((resolve) => setTimeout(resolve, observationDelayMs));
+        }
+        expect(await retryClerkIdempotentMutation(
+          () => cleanupState.client.users.getCount(),
+        )).toBe(cleanupState.baselineUserCount);
+      }
     }
-  } catch {
+  } catch (error) {
+    if (error instanceof ClerkExactUserDeletionError) cleanupPhase = error.phase;
     cleanupFailure = new Error(
-      "Clerk Development smoke cleanup failed: exact temporary-user deletion or baseline restoration could not be verified.",
+      `Clerk Development smoke cleanup failed during ${cleanupPhase}; no identity details were retained.`,
     );
   }
 
@@ -292,8 +367,8 @@ test("a temporary Development user can traverse the protected smoke path and is 
 
     stage = "Development instance revalidation";
     const [instance, domains] = await Promise.all([
-      client.instance.get(),
-      client.domains.list(),
+      retryClerkIdempotentMutation(() => client.instance.get()),
+      retryClerkIdempotentMutation(() => client.domains.list()),
     ]);
     assertMatchingDevelopmentClerkInstance(keyPair, {
       environmentType: instance.environmentType,
@@ -301,7 +376,9 @@ test("a temporary Development user can traverse the protected smoke path and is 
     });
 
     stage = "user-count baseline";
-    cleanupState.baselineUserCount = await client.users.getCount();
+    cleanupState.baselineUserCount = await retryClerkIdempotentMutation(
+      () => client.users.getCount(),
+    );
 
     await setupClerkTestingToken({
       page,
@@ -945,13 +1022,15 @@ test("a temporary Development user can traverse the protected smoke path and is 
     await expect(page.locator("[data-checkin-evidence-status]"))
       .toHaveAttribute("data-evidence-class", "practice_receipt");
     const savedCheckInDidText = "完成了本轮绑定的阅读练习并核对答案。";
+    const savedCheckInEvidenceText = "能够从短文细节判断图书馆改造支持不同学习方式。";
+    const transientCheckInQuestionText = "这段暂存问题应在选择暂时没有后被清除。";
     const checkInDidText = checkInForm.locator('textarea[name="didText"]');
     await checkInDidText.fill(savedCheckInDidText);
-    await checkInForm.locator('textarea[name="evidenceText"]').fill("能够从短文细节判断图书馆改造支持不同学习方式。");
+    await checkInForm.locator('textarea[name="evidenceText"]').fill(savedCheckInEvidenceText);
     const checkInQuestion = checkInForm.locator('textarea[name="questionText"]');
     await checkInForm.locator('input[name="questionStatus"][value="has_question"]').check();
     await expect(checkInForm.locator("[data-question-wrap]")).toBeVisible();
-    await checkInQuestion.fill("这段暂存问题应在选择暂时没有后被清除。");
+    await checkInQuestion.fill(transientCheckInQuestionText);
     await checkInForm.locator('input[name="questionStatus"][value="none"]').check();
     await expect(checkInForm.locator("[data-question-wrap]")).toBeHidden();
     await checkInForm.getByRole("button", { name: "保存证据式打卡" }).click();
@@ -1022,6 +1101,84 @@ test("a temporary Development user can traverse the protected smoke path and is 
     await expect(page.locator("[data-review-receipt]")).toBeVisible();
     await expect(page.locator("[data-review-status]")).toHaveText("学习者已确认");
     await expectNonemptyText(page.locator("[data-review-id]"));
+    const workspaceBeforeCommunityPreview = await readWorkspaceByteSnapshot();
+    const communityPrivateState = await page.evaluate((workspaceKey) => {
+      const parsed = JSON.parse(window.localStorage.getItem(workspaceKey) || "null") as {
+        journey?: {
+          activeCycle?: {
+            basePlanId?: string | null;
+            checkInId?: string | null;
+            cycleId?: string | null;
+            diagnosticSessionId?: string | null;
+            recommendationId?: string | null;
+            reviewId?: string | null;
+          };
+        };
+      } | null;
+      const cycle = parsed?.journey?.activeCycle;
+      const cycleIds = [
+        cycle?.cycleId,
+        cycle?.diagnosticSessionId,
+        cycle?.basePlanId,
+        cycle?.recommendationId,
+        cycle?.checkInId,
+        cycle?.reviewId,
+      ].filter((value): value is string => typeof value === "string" && value.length > 0);
+      const privateIds = new Set<string>();
+      const collectIdValues = (value: unknown, key = "") => {
+        if (typeof value === "string") {
+          if (/id$/i.test(key) && value.length > 0) privateIds.add(value);
+          return;
+        }
+        if (Array.isArray(value)) {
+          value.forEach((item) => collectIdValues(item, key));
+          return;
+        }
+        if (value && typeof value === "object") {
+          Object.entries(value).forEach(([entryKey, entryValue]) => {
+            collectIdValues(entryValue, entryKey);
+          });
+        }
+      };
+      collectIdValues(parsed);
+      return { cycleIds, privateIds: [...privateIds].sort() };
+    }, SOFIA_WORKSPACE_KEY);
+    expect(communityPrivateState.cycleIds).toHaveLength(6);
+    expect(new Set(communityPrivateState.cycleIds).size).toBe(6);
+    expect(communityPrivateState.privateIds.length).toBeGreaterThan(communityPrivateState.cycleIds.length);
+
+    const forbiddenCommunityInteractionRequests: string[] = [];
+    const communityApplicationOrigin = new URL(target.baseURL).origin;
+    const recordCommunityInteractionRequest = (request: PlaywrightRequest) => {
+      const requestUrl = new URL(request.url());
+      const resourceType = request.resourceType();
+      const isClerkInfrastructure =
+        requestUrl.hostname === keyPair.frontendApiHost
+        || requestUrl.hostname === "clerk-telemetry.com"
+        || requestUrl.hostname.endsWith(".clerk.accounts.dev")
+        || requestUrl.hostname === "clerk.com"
+        || requestUrl.hostname.endsWith(".clerk.com")
+        || (
+          requestUrl.origin === communityApplicationOrigin
+          && (requestUrl.pathname === "/__clerk" || requestUrl.pathname.startsWith("/__clerk/"))
+        );
+      if (
+        !isClerkInfrastructure
+        && (
+          !["GET", "HEAD", "OPTIONS"].includes(request.method())
+          || (
+            requestUrl.origin !== communityApplicationOrigin
+            && (resourceType === "fetch" || resourceType === "xhr" || resourceType === "websocket")
+          )
+        )
+      ) {
+        forbiddenCommunityInteractionRequests.push(
+          `${request.method()}:${resourceType}:${requestUrl.origin}${requestUrl.pathname}`,
+        );
+      }
+    };
+    page.on("request", recordCommunityInteractionRequest);
+
     const communityLink = page.locator("[data-review-next]");
     await expect(communityLink).toBeVisible();
     const [communityResponse] = await Promise.all([
@@ -1034,13 +1191,80 @@ test("a temporary Development user can traverse the protected smoke path and is 
     expect(communityResponse.status()).toBe(200);
     expect(communityResponse.headers()["x-sufeiya-beta-access"]).toBe("approved");
 
+    stage = "authenticated Gate A community preview";
+    const communityPreview = page.locator("[data-community-privacy-preview]");
+    await expect(communityPreview).toBeVisible();
+    await expect(communityPreview).toHaveAttribute("data-preview-state", "ready");
+    await expect(page.locator("[data-community-preview-skill]")).toHaveText("Reading · 阅读");
+    await expect(page.locator("[data-community-preview-completion]"))
+      .toHaveText("已完成本机原创练习并确认复盘");
+    const communityPreviewBoundary = page.locator("[data-community-preview-boundary]");
+    await expect(communityPreviewBoundary).toContainText("没有上传");
+    await expect(communityPreviewBoundary).toContainText("没有加入小组");
+    await expect(communityPreviewBoundary).toContainText("没有分享给任何人");
+
+    const communityBodyText = await page.locator("body").textContent();
+    expect(communityBodyText).not.toBeNull();
+    for (const privateValue of [
+      savedCheckInDidText,
+      savedCheckInEvidenceText,
+      transientCheckInQuestionText,
+      ...communityPrivateState.privateIds,
+    ]) {
+      expect(communityBodyText).not.toContain(privateValue);
+    }
+    expect(await readWorkspaceByteSnapshot()).toEqual(workspaceBeforeCommunityPreview);
+
     stage = "authenticated Gate A community decision";
     const communityForm = page.locator("#community-form");
-    await communityForm.locator('input[name="peerHelpStatus"][value="declined"]').check();
-    await communityForm.getByRole("button", { name: "保存互助状态" }).click();
+    const communityUsed = communityForm.locator('input[name="peerHelpStatus"][value="used"]');
+    const localPreviewConfirmation = communityForm.locator('input[name="localPreviewConfirmed"]');
+    const communitySubmit = communityForm.getByRole("button", { name: "保存互助状态" });
+    await expect(communityForm.getByText("已查看演示经验卡", { exact: true })).toBeVisible();
+    await communityUsed.check();
+    await expect(page.locator("[data-community-preview-confirmation]")).toBeVisible();
+    await expect(localPreviewConfirmation).not.toBeChecked();
+    expect(await readWorkspaceByteSnapshot()).toEqual(workspaceBeforeCommunityPreview);
+
+    await communitySubmit.click();
+    await expect(localPreviewConfirmation).toBeFocused();
+    await expect(page.locator("[data-community-message]")).toContainText("请先确认这只是本机预览");
+    await expect(page.locator("[data-community-receipt]")).toBeHidden();
+    expect(await readWorkspaceByteSnapshot()).toEqual(workspaceBeforeCommunityPreview);
+
+    await localPreviewConfirmation.check();
+    expect(await readWorkspaceByteSnapshot()).toEqual(workspaceBeforeCommunityPreview);
+    await communitySubmit.click();
+
+    stage = "authenticated Gate A community receipt";
     await expect(page.locator("[data-community-receipt]")).toBeVisible();
-    await expect(page.locator("[data-community-value]")).toHaveText("declined");
-    await expectNonemptyText(page.locator("[data-community-id]"));
+    await expect(page.locator("[data-community-value]")).toHaveText("used");
+    const peerHelpId = await expectNonemptyText(page.locator("[data-community-id]"));
+    await expect(page.locator("[data-community-message]")).toContainText("used 只表示已查看合成演示经验卡");
+    await expect(page.locator("[data-community-message]")).toContainText("没有加入或分享");
+    const savedPeerHelp = await page.evaluate((workspaceKey) => {
+      const parsed = JSON.parse(window.localStorage.getItem(workspaceKey) || "null") as {
+        journey?: { peerHelp?: Record<string, unknown> | null };
+      } | null;
+      return parsed?.journey?.peerHelp ?? null;
+    }, SOFIA_WORKSPACE_KEY);
+    expect(savedPeerHelp).not.toBeNull();
+    expect(savedPeerHelp).toEqual({
+      createdAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+      cycleId: communityPrivateState.cycleIds[0],
+      learnerChoice: true,
+      peerHelpId,
+      planId: communityPrivateState.cycleIds[2],
+      realCommunityUsed: false,
+      reviewId: communityPrivateState.cycleIds[5],
+      source: "synthetic_demo_card_v1",
+      status: "used",
+      updatedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+    });
+
+    stage = "authenticated Gate A community network isolation";
+    expect(forbiddenCommunityInteractionRequests).toEqual([]);
+    page.off("request", recordCommunityInteractionRequest);
     const retestLink = page.locator("[data-community-next]");
     await expect(retestLink).toBeVisible();
     const [retestResponse] = await Promise.all([
