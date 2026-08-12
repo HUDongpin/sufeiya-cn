@@ -5,6 +5,7 @@ import { createClerkClient } from "@clerk/backend";
 import {
   expect,
   test,
+  type Locator,
   type Request as PlaywrightRequest,
   type Response as PlaywrightResponse,
 } from "@playwright/test";
@@ -23,128 +24,6 @@ import {
 
 const SOFIA_WORKSPACE_KEY = "sufeiya_workspace_v1";
 const SOFIA_CHAT_KEY = "sufeiya_super_teacher_v1";
-
-const sofiaDiagnosticEvidence = [
-  {
-    taskId: "diagnostic-reading-library-v1",
-    taskVersion: "v1",
-    skill: "Reading",
-    responseType: "single_choice",
-    constructTag: "purpose_from_supporting_details",
-    contentHash: "f1c71d28d6e9b3ebe8b4c29fa5cec52c20b83d737b57f0bc98e15e15f97decd7",
-    status: "completed",
-    evidenceStatus: "evidence_limited",
-    qualityFlags: [],
-    attempts: 1,
-    firstResponse: "b",
-    resultType: "first_response_matched",
-  },
-  {
-    taskId: "diagnostic-reading-newsletter-v1",
-    taskVersion: "v1",
-    skill: "Reading",
-    responseType: "single_choice",
-    constructTag: "cause_from_text_structure",
-    contentHash: "8b5feb0e382ea0ffe016ab64f17edb30b8467b40fccf5d8b96d3e2bb74ba44ca",
-    status: "completed",
-    evidenceStatus: "evidence_limited",
-    qualityFlags: [],
-    attempts: 1,
-    firstResponse: "b",
-    resultType: "first_response_matched",
-  },
-  {
-    taskId: "diagnostic-listening-science-club-v1",
-    taskVersion: "v1",
-    skill: "Listening",
-    responseType: "single_choice_audio",
-    constructTag: "schedule_change_detail",
-    contentHash: "882abc23a7376b27a0d53e2a4d7b6eb10480bd7b618002fe3e6704922ea67308",
-    status: "completed",
-    evidenceStatus: "evidence_limited",
-    qualityFlags: [],
-    attempts: 1,
-    firstResponse: "b",
-    resultType: "first_response_matched",
-  },
-  {
-    taskId: "diagnostic-listening-language-lab-v1",
-    taskVersion: "v1",
-    skill: "Listening",
-    responseType: "single_choice_audio",
-    constructTag: "time_and_location_integration",
-    contentHash: "be827c7ed66ed510a9b94aafdd16b35f445c82e14034bce6c971a29b5a8200cd",
-    status: "completed",
-    evidenceStatus: "evidence_limited",
-    qualityFlags: [],
-    attempts: 1,
-    firstResponse: "b",
-    resultType: "first_response_matched",
-  },
-  {
-    taskId: "diagnostic-speaking-learning-skill-v1",
-    taskVersion: "v1",
-    skill: "Speaking",
-    responseType: "timed_self_report",
-    constructTag: "task_coverage_and_connected_thoughts_self_report",
-    contentHash: "8d40b58172fbd68371784db6caa74a57e37e480c288f64fca9fc1a772d9acdf9",
-    status: "completed",
-    evidenceStatus: "evidence_limited",
-    qualityFlags: [],
-  },
-  {
-    taskId: "diagnostic-writing-learning-place-v1",
-    taskVersion: "v1",
-    skill: "Writing",
-    responseType: "timed_local_text",
-    constructTag: "task_response_structure_self_review",
-    contentHash: "83cef1ddc39ff2a78e76fcb89de376c63fe7f6e859e1a3bf16e14b97652b3f85",
-    status: "completed",
-    evidenceStatus: "evidence_limited",
-    qualityFlags: [],
-  },
-] as const;
-
-function createSofiaWorkspaceFixture() {
-  return {
-    schemaVersion: 1,
-    journey: {
-      protocolVersion: "gate_a_local_v1",
-      activeCycle: {
-        protocolVersion: "gate_a_local_v1",
-        cycleId: "cycle-clerk-e2e-1",
-        status: "in_progress",
-        diagnosticSessionId: "diagnostic-clerk-e2e-1",
-      },
-      diagnostic: {
-        protocolVersion: "gate_a_local_v1",
-        diagnosticProtocolVersion: "gate_a_diagnostic_evidence_v1",
-        taskSetVersion: "gate_a_original_6_v1",
-        taskSetDigest: "c1b2922ca96677665690bf790281be2438a016bbbe0d9f85478685af3c8dfc2c",
-        cycleId: "cycle-clerk-e2e-1",
-        diagnosticSessionId: "diagnostic-clerk-e2e-1",
-        status: "completed",
-        adultConfirmed: true,
-        devicePrecheck: { storageStatus: "available" },
-        learnerConfirmedPriority: true,
-        prioritySkill: "Writing",
-        priorityBasis: "open_response_coverage_gap",
-        evidenceSufficiency: "evidence_limited",
-        evidenceConfidence: "medium",
-        automatedScoreProduced: false,
-        formalDiagnosisProduced: false,
-        taskEvidence: sofiaDiagnosticEvidence,
-      },
-    },
-  };
-}
-
-const emptySofiaSession = {
-  protocolVersion: "sufeiya_super_teacher_v1",
-  revision: 0,
-  turns: [],
-  handoffRequests: [],
-} as const;
 
 type SmokeStage =
   | "testing-token handoff"
@@ -189,7 +68,21 @@ type SmokeStage =
   | "real Clerk sign-in runtime"
   | "real Clerk sign-in session"
   | "signed-in uninvited session claim refresh"
-  | "authenticated workspace"
+  | "authenticated Gate A fresh workspace"
+  | "authenticated Gate A diagnostic preflight"
+  | "authenticated Gate A first Reading evidence"
+  | "authenticated Gate A remaining task skips"
+  | "authenticated Gate A priority confirmation"
+  | "authenticated Gate A plan"
+  | "authenticated Gate A recommendation"
+  | "authenticated Gate A bound Reading practice"
+  | "authenticated Gate A evidence check-in"
+  | "authenticated Gate A learner review"
+  | "authenticated Gate A community decision"
+  | "authenticated Gate A Reading retest"
+  | "authenticated Gate A updated plan"
+  | "authenticated Gate A completed workspace"
+  | "authenticated Gate A local-state integrity"
   | "authenticated teaching-review demo"
   | "authenticated Sofia local explanation"
   | "authenticated Sofia landscape dialog"
@@ -309,6 +202,19 @@ test("a temporary Development user can traverse the protected smoke path and is 
   };
   clerkCleanupState = cleanupState;
   let stage: SmokeStage = "testing-token handoff";
+  const forceRefreshClerkSessionToken = async () => page.evaluate(async () => {
+    const runtime = (window as Window & {
+      Clerk?: { session?: { getToken(options: { skipCache: boolean }): Promise<string | null> } };
+    }).Clerk;
+    if (!runtime?.session) return "session_unavailable" as const;
+    try {
+      return await runtime.session.getToken({ skipCache: true })
+        ? "token_refreshed" as const
+        : "token_missing" as const;
+    } catch {
+      return "refresh_rejected" as const;
+    }
+  });
 
   try {
     if (vercelProtectionBypass) {
@@ -592,14 +498,10 @@ test("a temporary Development user can traverse the protected smoke path and is 
     });
 
     stage = "signed-in uninvited session claim refresh";
-    const refreshedUninvitedSessionClaim = await page.evaluate(async () => {
-      const runtime = (window as Window & {
-        Clerk?: { session?: { getToken(options: { skipCache: boolean }): Promise<string | null> } };
-      }).Clerk;
-      if (!runtime?.session) return false;
-      return Boolean(await runtime.session.getToken({ skipCache: true }));
-    });
-    expect(refreshedUninvitedSessionClaim).toBe(true);
+    await expect.poll(forceRefreshClerkSessionToken, {
+      intervals: [1_000, 2_000, 5_000, 10_000],
+      timeout: 30_000,
+    }).toBe("token_refreshed");
 
     stage = "signed-in uninvited Sofia local-data isolation";
     await page.evaluate(
@@ -730,20 +632,30 @@ test("a temporary Development user can traverse the protected smoke path and is 
     });
 
     stage = "temporary synthetic signed session claim refresh";
-    const refreshedSessionClaim = await page.evaluate(async () => {
-      const runtime = (window as Window & {
-        Clerk?: { session?: { getToken(options: { skipCache: boolean }): Promise<string | null> } };
-      }).Clerk;
-      if (!runtime?.session) return false;
-      return Boolean(await runtime.session.getToken({ skipCache: true }));
-    });
-    expect(refreshedSessionClaim).toBe(true);
+    await expect.poll(forceRefreshClerkSessionToken, {
+      intervals: [1_000, 2_000, 5_000, 10_000],
+      timeout: 30_000,
+    }).toBe("token_refreshed");
 
-    stage = "authenticated workspace";
-    await page.goto("/workspace", { waitUntil: "domcontentloaded" });
+    const gotoApprovedRoute = async (pathname: string) => {
+      const response = await page.goto(pathname, { waitUntil: "domcontentloaded" });
+      expect(response?.status()).toBe(200);
+      expect(response?.headers()["x-sufeiya-beta-access"]).toBe("approved");
+      await expect(page).toHaveURL((url) => url.pathname === new URL(pathname, target.baseURL).pathname);
+      return response;
+    };
+    const expectNonemptyText = async (locator: Locator) => {
+      await expect(locator).toHaveText(/\S+/);
+      return (await locator.textContent())!.trim();
+    };
+
+    stage = "authenticated Gate A fresh workspace";
+    await gotoApprovedRoute("/workspace");
     await expect(page).toHaveURL((url) => url.pathname === "/workspace");
     await expect(page.locator("main.workspace-page")).toBeVisible();
     await expect(page.getByRole("heading", { level: 1, name: /沿着一条闭环/ })).toBeVisible();
+    await expect(page.locator("[data-journey-summary]")).toHaveText("0 / 7 步已留证");
+    await expect(page.locator("[data-cycle-ledger]")).toHaveAttribute("data-cycle-state", "empty");
     await expect(page.locator("[data-cycle-history]")).toBeVisible();
     await expect(page.getByRole("heading", {
       level: 2,
@@ -761,26 +673,348 @@ test("a temporary Development user can traverse the protected smoke path and is 
     await expect(page.locator("[data-source-rag-eligible]")).toHaveText("0");
     await expect(page.locator('[data-source-criterion="exam-version"]')).toHaveText("10 / 15");
 
+    stage = "authenticated Gate A diagnostic preflight";
+    await gotoApprovedRoute("/diagnostic");
+    await expect(page.locator("[data-device-storage]")).toHaveText("可用 · 本机保存");
+    await expect(page.locator("[data-device-lock]")).toHaveText("支持 · 防跨页覆盖");
+    const diagnosticStartForm = page.locator("#diagnostic-start-form");
+    for (const confirmation of [
+      "adultConfirmed",
+      "localBoundaryConfirmed",
+      "noScoreConfirmed",
+      "environmentConfirmed",
+    ]) {
+      await diagnosticStartForm.locator(`input[name="${confirmation}"]`).check();
+    }
+    await diagnosticStartForm.locator('input[name="keyboardCheck"]').fill("E2E");
+    await diagnosticStartForm.locator("[data-audio-test]").click();
+    await diagnosticStartForm.locator('input[name="audioOutput"][value="heard"]').check();
+    await diagnosticStartForm.getByRole("button", { name: "开始六项原创任务" }).click();
+    await expect(page.locator("[data-diagnostic-status]")).toHaveText("六项任务进行中");
+    await expect(page.locator('[data-diagnostic-task][data-task-id="diagnostic-reading-library-v1"]')).toBeVisible();
+
+    stage = "authenticated Gate A first Reading evidence";
+    const firstReadingTask = page.locator(
+      '[data-diagnostic-task][data-task-id="diagnostic-reading-library-v1"]',
+    );
+    await firstReadingTask.locator('input[type="radio"][value="b"]').check();
+    await firstReadingTask.locator("[data-diagnostic-submit-task]").click();
+    await expect(page.locator('[data-diagnostic-step="diagnostic-reading-library-v1"] [data-step-state]'))
+      .toHaveText("已留证");
+
+    stage = "authenticated Gate A remaining task skips";
+    page.on("dialog", (dialog) => {
+      expect(dialog.type()).toBe("confirm");
+      expect(dialog.message()).toContain("不会被记作零分");
+      void dialog.accept();
+    });
+    const skippedDiagnosticTaskIds = [
+      "diagnostic-reading-newsletter-v1",
+      "diagnostic-listening-science-club-v1",
+      "diagnostic-listening-language-lab-v1",
+      "diagnostic-speaking-learning-skill-v1",
+      "diagnostic-writing-learning-place-v1",
+    ];
+    for (const [index, taskId] of skippedDiagnosticTaskIds.entries()) {
+      const task = page.locator(`[data-diagnostic-task][data-task-id="${taskId}"]`);
+      await expect(task).toBeVisible();
+      await task.locator("[data-diagnostic-skip-task]:visible").click();
+      if (index < skippedDiagnosticTaskIds.length - 1) {
+        await expect(page.locator(`[data-diagnostic-step="${taskId}"] [data-step-state]`))
+          .toHaveText("已跳过");
+      }
+    }
+    await expect(page.locator("[data-diagnostic-report]")).toBeVisible();
+    await expect(page.locator("[data-report-summary]")).toContainText(
+      "六项任务已有 6 项终态，其中 1 项形成完成证据",
+    );
+
+    stage = "authenticated Gate A priority confirmation";
+    const diagnosticPriorityForm = page.locator("#diagnostic-priority-form");
+    await diagnosticPriorityForm.locator('input[name="prioritySkill"][value="Reading"]').check();
+    await diagnosticPriorityForm.locator('input[name="learnerConfirmedPriority"]').check();
+    await diagnosticPriorityForm.getByRole("button", { name: "确认并生成诊断回执" }).click();
+    await expect(page.locator("[data-diagnostic-result]")).toBeVisible();
+    await expect(page.locator("[data-diagnostic-priority]")).toHaveText("Reading · 阅读");
+    await expect(page.locator("[data-diagnostic-receipt-sufficiency]"))
+      .toHaveText("evidence_insufficient · 证据不足");
+    const diagnosticSessionId = await expectNonemptyText(page.locator("[data-diagnostic-id]"));
+    expect(diagnosticSessionId).toMatch(/^diagnostic-/);
+
+    stage = "authenticated Gate A plan";
+    await gotoApprovedRoute("/plan");
+    const planForm = page.locator("#plan-form");
+    await expect(planForm.locator('select[name="focusSkill"]')).toBeDisabled();
+    await expect(planForm.locator('select[name="focusSkill"]')).toHaveValue("Reading");
+    await planForm.locator('select[name="dailyMinutes"]').selectOption("15");
+    await planForm.getByRole("button", { name: "生成 7 天计划" }).click();
+    await expect(page.locator("[data-plan-result]")).toBeVisible();
+    await expect(page.locator("[data-plan-summary]")).toContainText("每天 15 分钟 · 重点：Reading · 阅读");
+    const planNext = page.locator("[data-plan-next]");
+    await expect(planNext).toBeVisible();
+    await expect(planNext).toHaveAttribute("href", "/recommendations");
+    await expect(planNext.locator("[data-plan-next-label]")).toHaveText("下一步：查看内容推荐");
+
+    stage = "authenticated Gate A recommendation";
+    const [recommendationsResponse] = await Promise.all([
+      page.waitForResponse((response) => (
+        response.request().resourceType() === "document"
+        && new URL(response.url()).pathname === "/recommendations"
+      )),
+      planNext.click(),
+    ]);
+    expect(recommendationsResponse.status()).toBe(200);
+    expect(recommendationsResponse.headers()["x-sufeiya-beta-access"]).toBe("approved");
+    await expect(page).toHaveURL((url) => url.pathname === "/recommendations");
+    await expect(page.locator("[data-recommendation-ready]")).toBeVisible();
+    await expect(page.locator(".recommendation-card.is-primary")).toContainText("Reading");
+    await page.locator("[data-accept-recommendation]").click();
+    await expect(page.locator("[data-recommendation-receipt]")).toBeVisible();
+    await expect(page.locator("[data-recommendation-status]")).toHaveText("已接受主任务");
+    const recommendationId = await expectNonemptyText(page.locator("[data-recommendation-id]"));
+    const recommendationPlanId = await expectNonemptyText(page.locator("[data-recommendation-plan-id]"));
+    await expectNonemptyText(page.locator("[data-recommendation-binding-id]"));
+    const recommendationStart = page.locator("[data-recommendation-start]");
+    await expect(recommendationStart).toBeVisible();
+    await expect(recommendationStart).toHaveAttribute(
+      "href",
+      /\/practice-reading\?plan_id=[^&]+&task_id=[^&]+/,
+    );
+    const [practiceResponse] = await Promise.all([
+      page.waitForResponse((response) => (
+        response.request().resourceType() === "document"
+        && new URL(response.url()).pathname === "/practice-reading"
+      )),
+      recommendationStart.click(),
+    ]);
+    expect(practiceResponse.status()).toBe(200);
+    expect(practiceResponse.headers()["x-sufeiya-beta-access"]).toBe("approved");
+    await expect(page).toHaveURL((url) => url.pathname === "/practice-reading");
+
+    stage = "authenticated Gate A bound Reading practice";
+    const practiceBinding = page.locator("[data-practice-binding-status]");
+    await expect(practiceBinding).toHaveAttribute("data-binding-status", "bound_cycle_task");
+    await expect(page.locator("[data-practice-binding-title]")).toContainText("已绑定本轮主推荐任务");
+    await page.locator('input[name="reading-answer"][value="b"]').check();
+    await page.locator("[data-check-reading]").click();
+    await expect(practiceBinding).toHaveAttribute("data-binding-status", "bound_cycle_receipt");
+    await expect(page.locator("[data-practice-binding-title]")).toHaveText("本机练习回执已生成");
+    const checkInLink = page.locator("[data-practice-checkin-link]");
+    await expect(checkInLink).toBeVisible();
+    await expect(checkInLink).toHaveAttribute(
+      "href",
+      /\/check-in#plan_id=.*completion_receipt_id=.*cycle_id=.*recommendation_id=.*/,
+    );
+    const [checkInResponse] = await Promise.all([
+      page.waitForResponse((response) => (
+        response.request().resourceType() === "document"
+        && new URL(response.url()).pathname === "/check-in"
+      )),
+      checkInLink.click(),
+    ]);
+    expect(checkInResponse.status()).toBe(200);
+    expect(checkInResponse.headers()["x-sufeiya-beta-access"]).toBe("approved");
+    await expect(page).toHaveURL((url) => url.pathname === "/check-in");
+
+    stage = "authenticated Gate A evidence check-in";
+    const checkInForm = page.locator("#checkin-form");
+    await expect(checkInForm.locator("[data-linked-task]")).not.toHaveValue("");
+    await expect(page.locator("[data-checkin-evidence-status]"))
+      .toHaveAttribute("data-evidence-class", "practice_receipt");
+    await checkInForm.locator('textarea[name="didText"]').fill("完成了本轮绑定的阅读练习并核对答案。");
+    await checkInForm.locator('textarea[name="evidenceText"]').fill("能够从短文细节判断图书馆改造支持不同学习方式。");
+    await checkInForm.locator('input[name="questionStatus"][value="none"]').check();
+    await checkInForm.getByRole("button", { name: "保存证据式打卡" }).click();
+    await expect(checkInForm).not.toHaveAttribute("aria-busy", "true");
+    await expect(page.locator("[data-checkin-receipt]")).toBeVisible();
+    await expect(page.locator("[data-checkin-evidence-class]")).toContainText("practice_receipt");
+    await expectNonemptyText(page.locator("[data-checkin-practice-receipt-id]"));
+    const reviewLink = page.locator("[data-checkin-review-link]");
+    await expect(reviewLink).toBeVisible();
+    const [reviewResponse] = await Promise.all([
+      page.waitForResponse((response) => (
+        response.request().resourceType() === "document"
+        && new URL(response.url()).pathname === "/review"
+      )),
+      reviewLink.click(),
+    ]);
+    expect(reviewResponse.status()).toBe(200);
+    expect(reviewResponse.headers()["x-sufeiya-beta-access"]).toBe("approved");
+
+    stage = "authenticated Gate A learner review";
+    await expect(page.locator("[data-review-ready]")).toBeVisible();
+    const reviewForm = page.locator("#review-form");
+    await reviewForm.locator('input[name="learnerConfirmed"]').check();
+    await reviewForm.getByRole("button", { name: "确认这份复盘" }).click();
+    await expect(page.locator("[data-review-receipt]")).toBeVisible();
+    await expect(page.locator("[data-review-status]")).toHaveText("学习者已确认");
+    await expectNonemptyText(page.locator("[data-review-id]"));
+    const communityLink = page.locator("[data-review-next]");
+    await expect(communityLink).toBeVisible();
+    const [communityResponse] = await Promise.all([
+      page.waitForResponse((response) => (
+        response.request().resourceType() === "document"
+        && new URL(response.url()).pathname === "/community"
+      )),
+      communityLink.click(),
+    ]);
+    expect(communityResponse.status()).toBe(200);
+    expect(communityResponse.headers()["x-sufeiya-beta-access"]).toBe("approved");
+
+    stage = "authenticated Gate A community decision";
+    const communityForm = page.locator("#community-form");
+    await communityForm.locator('input[name="peerHelpStatus"][value="declined"]').check();
+    await communityForm.getByRole("button", { name: "保存互助状态" }).click();
+    await expect(page.locator("[data-community-receipt]")).toBeVisible();
+    await expect(page.locator("[data-community-value]")).toHaveText("declined");
+    await expectNonemptyText(page.locator("[data-community-id]"));
+    const retestLink = page.locator("[data-community-next]");
+    await expect(retestLink).toBeVisible();
+    const [retestResponse] = await Promise.all([
+      page.waitForResponse((response) => (
+        response.request().resourceType() === "document"
+        && new URL(response.url()).pathname === "/retest"
+      )),
+      retestLink.click(),
+    ]);
+    expect(retestResponse.status()).toBe(200);
+    expect(retestResponse.headers()["x-sufeiya-beta-access"]).toBe("approved");
+
+    stage = "authenticated Gate A Reading retest";
+    await expect(page.locator("[data-retest-skill-label]")).toHaveText("Reading · 阅读");
+    await expect(page.locator("[data-retest-skill]")).toHaveValue("Reading");
+    const retestForm = page.locator("#retest-form");
+    await retestForm.locator('input[name="retestReading"][value="b"]').check();
+    await retestForm.getByRole("button", { name: "保存本次平行任务证据" }).click();
+    await expect(page.locator("[data-retest-result]")).toBeVisible();
+    await expect(page.locator("[data-retest-target-skill]")).toHaveText("Reading");
+    await expect(page.locator("[data-retest-same-skill]")).toHaveText("true · 已由代码核对");
+    await expectNonemptyText(page.locator("[data-retest-id]"));
+
+    stage = "authenticated Gate A updated plan";
+    const planUpdateForm = page.locator("#plan-update-form");
+    await expect(planUpdateForm).toBeVisible();
+    await planUpdateForm.locator('select[name="nextFocusSkill"]').selectOption("Reading");
+    await planUpdateForm.locator('input[name="learnerConfirmed"]').check();
+    await planUpdateForm.getByRole("button", { name: "生成更新后的 7 天计划" }).click();
+    const planUpdateReceipt = page.locator("[data-plan-update-receipt]");
+    const planUpdateCompletionTitle = page.locator("[data-plan-update-completion-title]");
+    await expect(planUpdateReceipt).toBeVisible();
+    await expect(planUpdateCompletionTitle).toHaveText("本机演示闭环已关闭");
+    await expect(planUpdateCompletionTitle).toBeFocused();
+    await expect(page.locator("[data-plan-update-completion-copy]"))
+      .toContainText("这不是正式 Gate A PASS、能力增长证明或教师确认");
+    const updatedPlanId = await expectNonemptyText(page.locator("[data-updated-plan-id]"));
+    const supersededPlanId = await expectNonemptyText(page.locator("[data-superseded-plan-id]"));
+    expect(updatedPlanId).not.toBe(supersededPlanId);
+    expect(supersededPlanId).toBe(recommendationPlanId);
+
+    stage = "authenticated Gate A completed workspace";
+    await gotoApprovedRoute("/workspace");
+    await expect(page.locator("[data-journey-summary]")).toHaveText("7 / 7 步已留证");
+    await expect(page.locator("[data-cycle-ledger]")).toHaveAttribute("data-cycle-state", "complete");
+    await expect(page.locator("[data-cycle-ledger-status]")).toHaveText("7 / 7 步已留证");
+    await expect(page.locator('[data-cycle-ledger-row][data-state="recorded"]')).toHaveCount(8);
+    await expect(page.locator("[data-journey-next-title]")).toHaveText("本轮 Gate A 闭环已完成");
+    await expect(page.locator("[data-cycle-history-summary]")).toHaveText(
+      "当前轮次只在上方本轮回执中显示，历史区不重复列出",
+    );
+
+    stage = "authenticated Gate A local-state integrity";
+    const gateAState = await page.evaluate((workspaceKey) => {
+      const rawState = window.localStorage.getItem(workspaceKey);
+      if (!rawState) return null;
+      const state = JSON.parse(rawState) as {
+        schemaVersion?: number;
+        planHistory?: Array<{ planId?: string; status?: string }>;
+        learningEvents?: Array<{ eventType?: string }>;
+        journey?: {
+          protocolVersion?: string;
+          activeCycle?: Record<string, unknown>;
+          diagnostic?: {
+            completedEvidenceTaskCount?: number;
+            prioritySkill?: string;
+            taskEvidence?: Array<{ status?: string }>;
+          };
+          history?: Array<Record<string, unknown>>;
+          recommendation?: { recommendationId?: string };
+          planUpdate?: { supersedesPlanId?: string; updatedPlanId?: string };
+        };
+      };
+      const cycle = state.journey?.activeCycle ?? {};
+      const evidence = state.journey?.diagnostic?.taskEvidence ?? [];
+      const history = state.journey?.history ?? [];
+      return {
+        schemaVersion: state.schemaVersion,
+        protocolVersion: state.journey?.protocolVersion,
+        cycleStatus: cycle.status,
+        diagnosticSessionId: cycle.diagnosticSessionId,
+        prioritySkill: state.journey?.diagnostic?.prioritySkill,
+        completedEvidenceTaskCount: state.journey?.diagnostic?.completedEvidenceTaskCount,
+        evidenceCount: evidence.length,
+        evidenceStatuses: evidence.map((item) => item.status),
+        cycleIds: [
+          cycle.cycleId,
+          cycle.diagnosticSessionId,
+          cycle.basePlanId,
+          cycle.recommendationId,
+          cycle.checkInId,
+          cycle.reviewId,
+          cycle.peerHelpId,
+          cycle.retestId,
+          cycle.updatedPlanId,
+        ],
+        recommendationId: state.journey?.recommendation?.recommendationId,
+        planUpdate: state.journey?.planUpdate,
+        planHistory: state.planHistory,
+        historyStatuses: history.map((item) => item.status),
+        historyCycleIds: history.map((item) => item.cycleId),
+        eventTypes: (state.learningEvents ?? []).map((event) => event.eventType),
+      };
+    }, SOFIA_WORKSPACE_KEY);
+    expect(gateAState).not.toBeNull();
+    expect(gateAState).toMatchObject({
+      schemaVersion: 1,
+      protocolVersion: "gate_a_local_v1",
+      cycleStatus: "completed",
+      diagnosticSessionId,
+      prioritySkill: "Reading",
+      completedEvidenceTaskCount: 1,
+      evidenceCount: 6,
+      evidenceStatuses: ["completed", "skipped", "skipped", "skipped", "skipped", "skipped"],
+      recommendationId,
+      planUpdate: {
+        supersedesPlanId: supersededPlanId,
+        updatedPlanId,
+      },
+      eventTypes: [
+        "learning_cycle.started",
+        "recommendation.decided",
+        "practice_attempt.finalized",
+        "check_in.committed",
+        "retest.completed",
+        "learning_cycle.completed",
+      ],
+    });
+    expect(gateAState!.cycleIds).toHaveLength(9);
+    expect(gateAState!.cycleIds.every((id) => typeof id === "string" && id.length > 0)).toBe(true);
+    expect(new Set(gateAState!.cycleIds).size).toBe(9);
+    expect(gateAState!.planHistory).toContainEqual(expect.objectContaining({
+      planId: supersededPlanId,
+      status: "superseded",
+    }));
+    expect(gateAState!.historyStatuses).toEqual(["completed"]);
+    expect(gateAState!.historyCycleIds).toEqual([gateAState!.cycleIds[0]]);
+
     stage = "authenticated teaching-review demo";
-    await page.goto("/teaching-review-demo", { waitUntil: "domcontentloaded" });
-    await expect(page).toHaveURL((url) => url.pathname === "/teaching-review-demo");
+    await gotoApprovedRoute("/teaching-review-demo");
     await expect(page.locator('[data-teaching-review-demo="gate_a_local_only"]')).toBeVisible();
     await expect(page.getByRole("heading", { level: 1, name: "教研复核演示台" })).toBeVisible();
 
     stage = "authenticated Sofia local explanation";
     const sofiaQuestion = `为什么先练这个？（Clerk E2E ${uniqueSuffix.slice(0, 8)}）`;
-    await page.evaluate(
-      ({ chatKey, chatSession, workspace, workspaceKey }) => {
-        window.localStorage.setItem(workspaceKey, JSON.stringify(workspace));
-        window.localStorage.setItem(chatKey, JSON.stringify(chatSession));
-      },
-      {
-        chatKey: SOFIA_CHAT_KEY,
-        chatSession: emptySofiaSession,
-        workspace: createSofiaWorkspaceFixture(),
-        workspaceKey: SOFIA_WORKSPACE_KEY,
-      },
-    );
+    expect(await page.evaluate((chatKey) => window.localStorage.getItem(chatKey), SOFIA_CHAT_KEY))
+      .toBeNull();
 
     const superTeacherPosts: string[] = [];
     page.on("request", (request) => {
@@ -790,14 +1024,13 @@ test("a temporary Development user can traverse the protected smoke path and is 
       }
     });
 
-    await page.goto("/super-teacher", { waitUntil: "domcontentloaded" });
-    await expect(page).toHaveURL((url) => url.pathname === "/super-teacher");
+    await gotoApprovedRoute("/super-teacher");
     await expect(page.getByRole("heading", { level: 1, name: "Sofia智能老师" })).toBeVisible();
     await expect(page.getByRole("heading", {
       level: 2,
       name: "问一个与当前学习有关的问题",
     })).toBeVisible();
-    await expect(page.getByText("Writing 写作 · 6 / 6 项本机诊断任务证据", { exact: true })).toBeVisible();
+    await expect(page.getByText("Reading 阅读 · 1 / 6 项本机诊断任务证据", { exact: true })).toBeVisible();
 
     const pageConversation = page.locator('section[aria-labelledby="conversation-title"]');
     const pageQuestionInput = pageConversation.getByRole("textbox", { name: "输入学习问题" });

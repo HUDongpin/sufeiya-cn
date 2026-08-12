@@ -2443,13 +2443,13 @@ button {
   width: min(100%, var(--container));
   margin: 0 auto;
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   border-left: 1px solid var(--color-border);
 }
 
 .study-tool-nav a {
   min-height: 76px;
-  padding: 14px 20px;
+  padding: 14px 12px;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -2465,9 +2465,38 @@ button {
   font-size: 9px;
 }
 
-.study-tool-nav a[aria-current="page"] {
+.study-tool-nav a[aria-current="step"],
+.study-support-nav a[aria-current="page"] {
   background: var(--color-sage);
   color: var(--color-ink);
+}
+
+.study-support-nav {
+  width: min(100%, var(--container));
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: auto repeat(3, minmax(0, 1fr));
+  border-top: 1px solid var(--color-border);
+  border-left: 1px solid var(--color-border);
+}
+
+.study-support-label,
+.study-support-nav a {
+  min-height: 48px;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  border-right: 1px solid var(--color-border);
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.study-support-label {
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
 }
 
 .single-tool-section,
@@ -4292,6 +4321,10 @@ button:disabled {
     border-top: 1px solid var(--color-border);
   }
 
+  .study-support-nav {
+    width: calc(100% - 36px);
+  }
+
   .study-tool-nav a {
     min-height: 64px;
     border-bottom: 1px solid var(--color-border);
@@ -4381,6 +4414,23 @@ button:disabled {
   .study-tool-nav {
     width: calc(100% - 32px);
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .study-support-nav {
+    width: calc(100% - 32px);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .study-support-label {
+    min-height: 38px;
+    grid-column: 1 / -1;
+  }
+
+  .study-support-nav a {
+    min-height: 52px;
+    padding-inline: 10px;
+    justify-content: center;
+    text-align: center;
   }
 
   .study-tool-nav a:last-child {
@@ -5780,6 +5830,17 @@ button:disabled {
   margin: 0;
   color: var(--color-muted);
   font-size: 11px;
+  line-height: 1.7;
+}
+
+.review-success-message {
+  margin: 24px 0 0;
+  padding: 18px 22px;
+  border-left: 3px solid var(--color-accent);
+  background: var(--color-sage);
+  color: var(--color-ink);
+  font-size: 14px;
+  font-weight: 700;
   line-height: 1.7;
 }
 

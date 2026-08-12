@@ -929,6 +929,8 @@
     const result = document.querySelector("[data-plan-result]");
     const list = document.querySelector("[data-plan-days]");
     const status = document.querySelector("[data-plan-status]");
+    const next = document.querySelector("[data-plan-next]");
+    const nextLabel = document.querySelector("[data-plan-next-label]");
     if (!empty || !result || !list) return;
     if (!state.plan) {
       empty.hidden = false;
@@ -947,6 +949,10 @@
       const examCopy = state.plan.examDate ? ` · 距预计考试 ${Math.max(0, Math.ceil((new Date(`${state.plan.examDate}T12:00:00`) - new Date()) / 86400000))} 天` : "";
       summary.textContent = `每天 ${state.plan.dailyMinutes} 分钟 · 重点：${skillLabels[state.plan.focusSkill]}${examCopy}`;
     }
+    const linkedPlan = completedPlanChain();
+    const continuesCurrentCycle = linkedPlan?.plan?.planId === state.plan.planId;
+    if (next) next.href = continuesCurrentCycle ? "/recommendations" : "/today";
+    if (nextLabel) nextLabel.textContent = continuesCurrentCycle ? "下一步：查看内容推荐" : "查看今日任务";
     clearChildren(list);
     state.plan.days.forEach((day, index) => {
       const item = document.createElement("li");
