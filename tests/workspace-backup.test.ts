@@ -84,11 +84,13 @@ interface JourneyWriterHarness {
   freshState(): MutableRecord;
   getState(): MutableRecord;
   getRaw(): string | null;
+  setPersistedRaw(raw: string): void;
   setState(next: MutableRecord): void;
   setNow(value: string): void;
+  inspectNextGateACycleAdmission(candidate?: MutableRecord): MutableRecord;
+  nextGateACycleRequiredAdditions(candidate?: MutableRecord): MutableRecord;
   validateCandidate(candidate: unknown): Promise<MutableRecord>;
   commitNewDiagnostic(input: MutableRecord): Promise<MutableRecord>;
-  commitDiagnosticRestart(): Promise<MutableRecord>;
   commitJourneyPlanClose(focusSkill: string): Promise<MutableRecord>;
   validateCycleEvidence(): MutableRecord;
   buildCommunityVisibilityPreview(chain: MutableRecord): MutableRecord | null;
@@ -382,12 +384,14 @@ async function loadJourneyWriterHarness(): Promise<JourneyWriterHarness> {
     setState: (next) => {
       state = JSON.parse(JSON.stringify(next));
       storageWritable = true;
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      rawStoredValue = JSON.stringify(state);
+      window.localStorage.setItem(STORAGE_KEY, rawStoredValue);
     },
     validateCandidate: validateWorkspaceBackupCandidate,
     commitNewDiagnostic,
-    commitDiagnosticRestart,
     commitJourneyPlanClose,
+    inspectNextGateACycleAdmission: (candidate) => JSON.parse(JSON.stringify(inspectNextGateACycleAdmission(candidate || state))),
+    nextGateACycleRequiredAdditions: (candidate) => JSON.parse(JSON.stringify(nextGateACycleRequiredAdditions(candidate || state))),
     validateCycleEvidence: () => JSON.parse(JSON.stringify(validateCycleEvidence())),
     buildCommunityVisibilityPreview: (chain) => {
       const preview = buildCommunityVisibilityPreview(chain);
@@ -402,7 +406,7 @@ async function loadJourneyWriterHarness(): Promise<JourneyWriterHarness> {
   );
   assert.notEqual(instrumented, journeySource, "journey writer instrumentation anchor must exist");
   await vm.runInContext(instrumented, context, { filename: "journey.js" });
-  const exposed = sandbox.__journeyWriterHarness as Omit<JourneyWriterHarness, "backup" | "learningEvents" | "getRaw"> | undefined;
+  const exposed = sandbox.__journeyWriterHarness as Omit<JourneyWriterHarness, "backup" | "learningEvents" | "getRaw" | "setPersistedRaw"> | undefined;
   const backup = sandbox.SufeiyaWorkspaceBackup as BackupRuntime | undefined;
   const learningEvents = sandbox.SufeiyaLearningEvents as LearningEventsRuntime | undefined;
   assert.ok(exposed && backup && learningEvents);
@@ -411,6 +415,7 @@ async function loadJourneyWriterHarness(): Promise<JourneyWriterHarness> {
     backup,
     learningEvents,
     getRaw: storage.raw,
+    setPersistedRaw: (raw: string) => storage.setItem("sufeiya_workspace_v1", raw),
     setNow: (value: string) => {
       const parsed = NativeDate.parse(value);
       assert.ok(Number.isFinite(parsed), `controlled journey clock requires an ISO timestamp: ${value}`);
@@ -3160,7 +3165,7 @@ describe("production writer capacity transactions", () => {
     assert.equal(harness.backup.canonicalJson(harness.getState()), terminalState);
   });
 
-  it("starts from the strict fresh journey root and gates new-diagnostic/restart composite writers before mutation", async () => {
+  it("starts from the strict fresh journey root and gates successive new-diagnostic writers before mutation", async () => {
     const harness = await loadJourneyWriterHarness();
     const fresh = harness.freshState();
     assert.deepEqual(Object.keys(asRecord(fresh.journey)).sort(), [
@@ -3192,16 +3197,6 @@ describe("production writer capacity transactions", () => {
     assert.equal((asRecord(harness.getState().journey).supersededCycles as unknown[]).length, 1);
     assert.equal((harness.getState().learningEvents as unknown[]).length, 2);
 
-    const restartState = harness.getState();
-    restartState.plan = expiredActivePlanFixture().plan;
-    asRecord(restartState.plan).planId = "plan-expired-restart-v1";
-    harness.setState(restartState);
-    const restarted = await harness.commitDiagnosticRestart();
-    assert.equal(restarted.status, "saved");
-    assert.equal((harness.getState().planHistory as unknown[]).length, 2);
-    assert.equal((asRecord(harness.getState().journey).supersededCycles as unknown[]).length, 2);
-    assert.equal(asRecord(harness.getState().journey).activeCycle, null);
-
     const capacityBase = harness.getState();
     for (const [field, current, mutate] of [
       ["planHistory", 64, (candidate: MutableRecord) => { candidate.planHistory = Array.from({ length: 64 }, () => null); }],
@@ -3229,20 +3224,6 @@ describe("production writer capacity transactions", () => {
       assert.equal(harness.backup.canonicalJson(harness.getState()), stateBefore, field);
     }
 
-    const restartBlocked = hostClone(capacityBase);
-    restartBlocked.planHistory = Array.from({ length: 64 }, () => null);
-    restartBlocked.plan = expiredActivePlanFixture().plan;
-    const active = startedCycleFixture();
-    asRecord(restartBlocked.journey).activeCycle = active.cycle;
-    asRecord(restartBlocked.journey).diagnostic = active.diagnostic;
-    harness.setState(restartBlocked);
-    const restartRaw = harness.getRaw();
-    const restartCanonical = harness.backup.canonicalJson(harness.getState());
-    const restartRejected = await harness.commitDiagnosticRestart();
-    assert.equal(restartRejected.status, "capacity_reached");
-    assert.equal(restartRejected.field, "planHistory");
-    assert.equal(harness.getRaw(), restartRaw);
-    assert.equal(harness.backup.canonicalJson(harness.getState()), restartCanonical);
   });
 
   it("closes one strict production journey with one plan-history, history, and event append", async () => {
@@ -3339,16 +3320,16 @@ describe("production writer capacity transactions", () => {
     assert.equal(writer.backup.canonicalJson(writer.getState()), stateBefore);
   });
 
-  it("runs the actual new-diagnostic writer at 211→212 events and rejects 212→213 atomically", async () => {
+  it("runs the actual new-diagnostic writer at 206→207 and reserves the remaining five-event close budget", async () => {
     const writer = await loadJourneyWriterHarness();
     const validation = await loadJourneyValidationHarness();
     const preCloseTemplate = await strictJourneyPreCloseFixture(writer, validation);
-    const before = await strictMixedSupersededEventCollection(writer, validation, preCloseTemplate, 37, 63);
-    assert.equal((before.learningEvents as unknown[]).length, 211);
+    const before = await strictMixedSupersededEventCollection(writer, validation, preCloseTemplate, 36, 62);
+    assert.equal((before.learningEvents as unknown[]).length, 206);
     assert.equal((await validation.validateCandidate(before)).ok, true);
     assert.equal(writer.backup.inspectWorkspaceCapacity(before).status, "ready");
     writer.setState(before);
-    writer.setNow(new Date(Date.parse(STRICT_CYCLE_TIMES.createdAt) + 63 * 86_400_000).toISOString());
+    writer.setNow(new Date(Date.parse(STRICT_CYCLE_TIMES.createdAt) + 62 * 86_400_000).toISOString());
     const outcome = await writer.commitNewDiagnostic({
       audioOutputStatus: "heard",
       mp3Supported: true,
@@ -3356,17 +3337,14 @@ describe("production writer capacity transactions", () => {
     });
     const after = writer.getState();
     assert.equal(outcome.status, "saved");
-    assert.equal(Buffer.byteLength(writer.backup.canonicalJson(before), "utf8"), 1_031_986);
-    assert.equal((after.learningEvents as unknown[]).length, 212);
-    assert.equal(Buffer.byteLength(writer.backup.canonicalJson(after), "utf8"), 1_035_362);
-    assert.equal(workspaceTreeNodeCount(after), 30_027);
+    assert.equal((after.learningEvents as unknown[]).length, 207);
     assert.equal(writer.backup.inspectWorkspaceCapacity(after).status, "ready");
     assert.equal((await validation.validateCandidate(after)).ok, true);
     assert.equal((await writer.backup.createEnvelope(after)).status, "ready");
 
     const rawBefore = writer.getRaw();
     const stateBefore = writer.backup.canonicalJson(writer.getState());
-    writer.setNow(new Date(Date.parse(STRICT_CYCLE_TIMES.createdAt) + 64 * 86_400_000).toISOString());
+    writer.setNow(new Date(Date.parse(STRICT_CYCLE_TIMES.createdAt) + 63 * 86_400_000).toISOString());
     const rejected = await writer.commitNewDiagnostic({
       audioOutputStatus: "heard",
       mp3Supported: true,
@@ -3374,10 +3352,133 @@ describe("production writer capacity transactions", () => {
     });
     assert.equal(rejected.status, "capacity_reached");
     assert.equal(rejected.field, "learningEvents");
-    assert.equal(rejected.current, 212);
+    assert.equal(rejected.current, 207);
+    assert.equal(rejected.required, 6);
     assert.equal(rejected.limit, 212);
     assert.equal(writer.getRaw(), rawBefore);
     assert.equal(writer.backup.canonicalJson(writer.getState()), stateBefore);
+  });
+
+  it("admits only a complete next-cycle count budget before any diagnostic mutation", async () => {
+    const writer = await loadJourneyWriterHarness();
+    const validation = await loadJourneyValidationHarness();
+    const preCloseTemplate = await strictJourneyPreCloseFixture(writer, validation);
+    writer.setNow(STRICT_CYCLE_TIMES.closeAt);
+    assert.equal((await writer.commitJourneyPlanClose(String(asRecord(preCloseTemplate.profile).focusSkill))).status, "saved");
+    const closedTemplate = writer.getState();
+
+    const beforeNineteenth = await strictPreCloseAfterTerminalCycles(
+      writer, validation, closedTemplate, preCloseTemplate, 18,
+    );
+    writer.setState(beforeNineteenth);
+    writer.setNow(new Date(Date.parse(STRICT_CYCLE_TIMES.closeAt) + 18 * 86_400_000).toISOString());
+    assert.equal((await writer.commitJourneyPlanClose(String(asRecord(beforeNineteenth.profile).focusSkill))).status, "saved");
+    const nineteenth = writer.getState();
+    const historyBlocked = writer.inspectNextGateACycleAdmission(nineteenth);
+    assert.equal(historyBlocked.status, "capacity_reached");
+    assert.equal(historyBlocked.field, "journeyHistory");
+    assert.equal(historyBlocked.current, 19);
+    assert.equal(historyBlocked.required, 1);
+    assert.equal(historyBlocked.limit, 19);
+    const historyRaw = writer.getRaw();
+    const historyState = writer.backup.canonicalJson(writer.getState());
+    const historyRejected = await writer.commitNewDiagnostic({
+      audioOutputStatus: "heard",
+      mp3Supported: true,
+      speechSupported: true,
+    });
+    assert.equal(historyRejected.status, "capacity_reached");
+    assert.equal(historyRejected.field, "journeyHistory");
+    assert.equal(writer.getRaw(), historyRaw);
+    assert.equal(writer.backup.canonicalJson(writer.getState()), historyState);
+
+    const eventNearLimit = await strictMixedSupersededEventCollection(
+      writer, validation, preCloseTemplate, 36, 63,
+    );
+    assert.equal((eventNearLimit.learningEvents as unknown[]).length, 207);
+    assert.equal((await validation.validateCandidate(eventNearLimit)).ok, true);
+    writer.setState(eventNearLimit);
+    const eventBlocked = writer.inspectNextGateACycleAdmission(eventNearLimit);
+    assert.equal(eventBlocked.status, "capacity_reached");
+    assert.equal(eventBlocked.field, "learningEvents");
+    assert.equal(eventBlocked.current, 207);
+    assert.equal(eventBlocked.required, 6);
+    assert.equal(eventBlocked.limit, 212);
+    const eventRaw = writer.getRaw();
+    const eventState = writer.backup.canonicalJson(writer.getState());
+    const eventRejected = await writer.commitNewDiagnostic({
+      audioOutputStatus: "heard",
+      mp3Supported: true,
+      speechSupported: true,
+    });
+    assert.equal(eventRejected.status, "capacity_reached");
+    assert.equal(eventRejected.field, "learningEvents");
+    assert.equal(writer.getRaw(), eventRaw);
+    assert.equal(writer.backup.canonicalJson(writer.getState()), eventState);
+
+    writer.setNow("2026-08-12T12:00:00.000Z");
+    const fresh = writer.freshState();
+    const additions = writer.nextGateACycleRequiredAdditions(fresh);
+    assert.deepEqual(hostClone(additions), {
+      planHistory: 1,
+      journeyHistory: 1,
+      practiceReceipts: 1,
+      learningEvents: 6,
+      checkIns: 1,
+      checkInHistory: 0,
+      supersededCycles: 0,
+      taskProgress: 2,
+      bindingAliases: 11,
+    });
+    assert.equal(writer.inspectNextGateACycleAdmission(fresh).status, "ready");
+
+    const todayDraft = hostClone(fresh);
+    asRecord(todayDraft.checkIns)["2026-08-12"] = {
+      checkInId: null,
+      date: "2026-08-12",
+      didText: "",
+      evidenceClass: "draft_unclassified",
+      evidenceText: "",
+      learnerConfirmedReview: false,
+      linkedTaskId: "",
+      practiceAttemptId: null,
+      practiceReceipt: null,
+      questionStatus: "has_question",
+      questionText: "",
+      reviewedAt: null,
+      reviewId: null,
+      status: "draft",
+      taskCompletionReceiptId: null,
+      updatedAt: "2026-08-12T12:00:00.000Z",
+    };
+    assert.equal((await validation.validateCandidate(todayDraft)).ok, true);
+    const draftAdditions = writer.nextGateACycleRequiredAdditions(todayDraft);
+    assert.equal(draftAdditions.checkIns, 0);
+    assert.equal(draftAdditions.checkInHistory, 0);
+
+    const todaySaved = expiredActivePlanFixture();
+    assert.equal((await validation.validateCandidate(todaySaved)).ok, true);
+    const savedAdditions = writer.nextGateACycleRequiredAdditions(todaySaved);
+    assert.equal(savedAdditions.checkIns, 0);
+    assert.equal(savedAdditions.checkInHistory, 1);
+
+    writer.setState(fresh);
+    const staleStateBefore = writer.backup.canonicalJson(writer.getState());
+    const baselineRaw = writer.getRaw();
+    assert.equal(baselineRaw, JSON.stringify(fresh));
+    const concurrent = hostClone(fresh);
+    concurrent.updatedAt = new Date(Date.parse(String(fresh.updatedAt)) + 1_000).toISOString();
+    const concurrentRaw = JSON.stringify(concurrent);
+    assert.notEqual(concurrentRaw, baselineRaw);
+    writer.setPersistedRaw(concurrentRaw);
+    const staleRejected = await writer.commitNewDiagnostic({
+      audioOutputStatus: "heard",
+      mp3Supported: true,
+      speechSupported: true,
+    });
+    assert.equal(staleRejected.status, "stale");
+    assert.equal(writer.getRaw(), concurrentRaw);
+    assert.equal(writer.backup.canonicalJson(writer.getState()), staleStateBefore);
   });
 
   it("documents remaining byte headroom after the conservative 212-event governance boundary", async () => {

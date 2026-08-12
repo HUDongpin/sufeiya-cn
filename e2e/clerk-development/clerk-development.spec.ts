@@ -110,6 +110,7 @@ type SmokeStage =
   | "authenticated Gate A updated plan"
   | "authenticated Gate A completed workspace"
   | "authenticated Gate A local-state integrity"
+  | "authenticated Gate A next-cycle admission intent"
   | "authenticated Gate A restorable backup export"
   | `authenticated Gate A restorable backup export rejected (${string})`
   | "authenticated Gate A restorable backup continuity projection"
@@ -128,6 +129,8 @@ type SmokeStage =
   | "synthetic capacity UI probe only — standalone practice, not 7/7 evidence"
   | "synthetic capacity UI probe only — focus terminal, not 7/7 evidence"
   | "synthetic capacity UI probe only — focus start, not 7/7 evidence"
+  | "synthetic capacity UI probe only — focus start rejection, not 7/7 evidence"
+  | "synthetic capacity UI probe only — focus start restore, not 7/7 evidence"
   | "authenticated teaching-review demo"
   | "authenticated Sofia local explanation"
   | "authenticated Sofia landscape dialog"
@@ -1420,6 +1423,130 @@ test("a temporary Development user can traverse the protected smoke path and is 
     expect(gateAState!.historyCycleIds).toEqual([gateAState!.cycleIds[0]]);
     expect(gateAState!.eventChain).toHaveLength(6);
     expect(gateAState!.eventHeadHash).toMatch(/^[a-f0-9]{64}$/);
+
+    stage = "authenticated Gate A next-cycle admission intent";
+    const completedWorkspaceMainCta = page.locator("[data-journey-next-link]");
+    await expect(completedWorkspaceMainCta).toBeVisible();
+    await expect(completedWorkspaceMainCta).toHaveAttribute("href", "/plan");
+    const nextCycleAdmission = page.locator("[data-next-cycle-admission]");
+    const nextCycleAdmissionStatus = page.locator("[data-next-cycle-admission-status]");
+    const nextCycleStart = page.locator("[data-next-cycle-start]");
+    await expect(nextCycleAdmission).toBeVisible();
+    await expect(nextCycleAdmission).toHaveAttribute("data-state", "ready");
+    await expect(nextCycleAdmissionStatus).toHaveAttribute("role", "status");
+    await expect(nextCycleAdmissionStatus).toContainText(
+      "可容纳下一轮至少 6 条学习事件和 1 条闭环历史",
+    );
+    await expect(nextCycleStart).toBeVisible();
+    await expect(nextCycleStart).toHaveAttribute(
+      "href",
+      /^\/diagnostic(?:\?intent=next-cycle)?$/,
+    );
+    expect(await page.evaluate(
+      (workspaceKey) => window.localStorage.getItem(workspaceKey),
+      SOFIA_WORKSPACE_KEY,
+    )).toBe(gateAState!.rawState);
+    await Promise.all([
+      page.waitForURL((url) => url.pathname === "/diagnostic"),
+      nextCycleStart.click(),
+    ]);
+    await expect(page.locator("[data-diagnostic-preflight]")).toBeVisible();
+    await expect(page.locator("[data-diagnostic-report]")).toBeHidden();
+    expect(await page.evaluate(
+      (workspaceKey) => window.localStorage.getItem(workspaceKey),
+      SOFIA_WORKSPACE_KEY,
+    )).toBe(gateAState!.rawState);
+
+    const nextCycleDiagnosticStartForm = page.locator("#diagnostic-start-form");
+    for (const confirmation of [
+      "adultConfirmed",
+      "localBoundaryConfirmed",
+      "noScoreConfirmed",
+      "environmentConfirmed",
+    ]) {
+      await nextCycleDiagnosticStartForm.locator(`input[name="${confirmation}"]`).check();
+    }
+    await nextCycleDiagnosticStartForm.locator('input[name="keyboardCheck"]').fill("NEXT");
+    await nextCycleDiagnosticStartForm
+      .locator('input[name="audioOutput"][value="heard"]')
+      .check();
+    const nextCycleConfirmationPromise = page.waitForEvent("dialog");
+    const nextCycleSubmitPromise = nextCycleDiagnosticStartForm
+      .getByRole("button", { name: "开始六项原创任务" })
+      .click();
+    const nextCycleConfirmation = await nextCycleConfirmationPromise;
+    expect(nextCycleConfirmation.type()).toBe("confirm");
+    expect(nextCycleConfirmation.message()).toContain("把当前轮与计划保留为只读历史");
+    await nextCycleConfirmation.accept();
+    await nextCycleSubmitPromise;
+    await expect(page.locator("[data-diagnostic-status]")).toHaveText("六项任务进行中");
+    await expect(page.locator(
+      '[data-diagnostic-task][data-task-id="diagnostic-reading-library-v1"]',
+    )).toBeVisible();
+    const nextCycleCommitted = await page.evaluate((workspaceKey) => {
+      const rawState = window.localStorage.getItem(workspaceKey);
+      if (!rawState) return null;
+      const state = JSON.parse(rawState) as {
+        planHistory?: Array<{ planId?: string; status?: string }>;
+        learningEvents?: Array<{ eventType?: string }>;
+        journey?: {
+          activeCycle?: Record<string, unknown>;
+          diagnostic?: { status?: string };
+          history?: Array<{ cycleId?: string }>;
+          supersededCycles?: Array<{ cycleId?: string }>;
+        };
+      };
+      return {
+        rawState,
+        activeCycle: state.journey?.activeCycle ?? null,
+        diagnosticStatus: state.journey?.diagnostic?.status ?? null,
+        historyCycleIds: (state.journey?.history ?? []).map((item) => item.cycleId),
+        supersededCycleIds: (state.journey?.supersededCycles ?? []).map((item) => item.cycleId),
+        planHistory: state.planHistory ?? [],
+        eventTypes: (state.learningEvents ?? []).map((event) => event.eventType),
+      };
+    }, SOFIA_WORKSPACE_KEY);
+    expect(nextCycleCommitted).not.toBeNull();
+    expect(nextCycleCommitted!.rawState).not.toBe(gateAState!.rawState);
+    expect(nextCycleCommitted!.activeCycle).toMatchObject({
+      status: "in_progress",
+      basePlanId: null,
+      recommendationId: null,
+      checkInId: null,
+      reviewId: null,
+      peerHelpId: null,
+      retestId: null,
+      updatedPlanId: null,
+    });
+    expect(nextCycleCommitted!.activeCycle?.cycleId).not.toBe(gateAState!.cycleIds[0]);
+    expect(nextCycleCommitted!.diagnosticStatus).toBe("in_progress");
+    expect(nextCycleCommitted!.historyCycleIds).toEqual([gateAState!.cycleIds[0]]);
+    expect(nextCycleCommitted!.supersededCycleIds).toContain(gateAState!.cycleIds[0]);
+    expect(nextCycleCommitted!.planHistory).toContainEqual(expect.objectContaining({
+      planId: gateAState!.cycleIds[8],
+      status: "superseded",
+    }));
+    expect(nextCycleCommitted!.eventTypes).toEqual([
+      ...gateAState!.eventTypes,
+      "learning_cycle.started",
+    ]);
+    expect(nextCycleCommitted!.eventTypes).toHaveLength(7);
+
+    await page.evaluate(({ workspaceKey, workspaceRaw }) => {
+      window.localStorage.setItem(workspaceKey, workspaceRaw);
+    }, {
+      workspaceKey: SOFIA_WORKSPACE_KEY,
+      workspaceRaw: gateAState!.rawState,
+    });
+    await gotoApprovedRoute("/workspace");
+    await expect(page.locator("[data-journey-summary]")).toHaveText("7 / 7 步已留证");
+    await expect(page.locator("[data-cycle-ledger]")).toHaveAttribute("data-cycle-state", "complete");
+    await expect(page.locator("[data-next-cycle-admission]")).toHaveAttribute("data-state", "ready");
+    expect(await page.evaluate(
+      (workspaceKey) => window.localStorage.getItem(workspaceKey),
+      SOFIA_WORKSPACE_KEY,
+    )).toBe(gateAState!.rawState);
+
     stage = "authenticated Gate A restorable backup export";
     await gotoApprovedRoute("/my-data");
     const adjacentNamespaceSentinels = {
@@ -1912,6 +2039,7 @@ test("a temporary Development user can traverse the protected smoke path and is 
     const expectFocusedCapacityAlert = async (
       label: string,
       current: number,
+      required: number | null,
       limit: number,
     ) => {
       const alert = page.locator("[data-workspace-capacity-alert]");
@@ -1919,9 +2047,15 @@ test("a temporary Development user can traverse the protected smoke path and is 
       await expect(alert).toHaveAttribute("role", "alert");
       await expect(alert).toHaveAttribute("tabindex", "-1");
       await expect(alert).toBeFocused();
-      await expect(alert).toContainText(
-        `${label}当前 ${current} 条，安全上限 ${limit} 条`,
-      );
+      if (required !== null) {
+        await expect(alert).toContainText(`${label}当前 ${current} 条`);
+        await expect(alert).toContainText(`完成下一轮至少还需要 ${required} 条`);
+        await expect(alert).toContainText(`安全上限 ${limit} 条`);
+      } else {
+        await expect(alert).toContainText(
+          `${label}当前 ${current} 条，安全上限 ${limit} 条`,
+        );
+      }
       await expect(alert).toContainText("不会静默删除");
       await expect(alert.getByRole("link", { name: /前往我的本机数据/ }))
         .toHaveAttribute("href", "/my-data");
@@ -1968,6 +2102,23 @@ test("a temporary Development user can traverse the protected smoke path and is 
     ));
     const journeyCapacityRaw = JSON.stringify(journeyCapacityWorkspace);
     await replaceWorkspaceRaw(journeyCapacityRaw);
+    await gotoApprovedRoute("/workspace");
+    const blockedNextCycleAdmission = page.locator("[data-next-cycle-admission]");
+    const blockedNextCycleAdmissionStatus = page.locator("[data-next-cycle-admission-status]");
+    await expect(blockedNextCycleAdmission).toBeVisible();
+    await expect(blockedNextCycleAdmission).toHaveAttribute("data-state", "capacity-blocked");
+    await expect(blockedNextCycleAdmissionStatus).toHaveAttribute("role", "status");
+    await expect(blockedNextCycleAdmissionStatus).toContainText("历史计划当前 64 条");
+    await expect(blockedNextCycleAdmissionStatus).toContainText("完成下一轮至少还需要 2 条");
+    await expect(blockedNextCycleAdmissionStatus).toContainText("安全上限 64 条");
+    await expect(page.locator("[data-next-cycle-start]")).toBeHidden();
+    const blockedNextCycleRecovery = page.locator("[data-next-cycle-recovery]");
+    await expect(blockedNextCycleRecovery).toBeVisible();
+    await expect(blockedNextCycleRecovery).toHaveAttribute("href", "/my-data");
+    expect(await page.evaluate(
+      (workspaceKey) => window.localStorage.getItem(workspaceKey),
+      SOFIA_WORKSPACE_KEY,
+    )).toBe(journeyCapacityRaw);
     await gotoApprovedRoute("/diagnostic");
     expect(await page.evaluate(
       (workspaceKey) => window.localStorage.getItem(workspaceKey),
@@ -1978,14 +2129,16 @@ test("a temporary Development user can traverse the protected smoke path and is 
       name: "重新完成一轮任务",
     });
     await expect(restartCompletedDiagnostic).toBeVisible();
-    const restartDiagnosticDialogPromise = page.waitForEvent("dialog");
-    const restartDiagnosticClick = restartCompletedDiagnostic.click();
-    const restartDiagnosticDialog = await restartDiagnosticDialogPromise;
-    expect(restartDiagnosticDialog.type()).toBe("confirm");
-    expect(restartDiagnosticDialog.message()).toContain("当前计划将转入历史");
-    await restartDiagnosticDialog.accept();
-    await restartDiagnosticClick;
-    await expectFocusedCapacityAlert("历史计划", 64, 64);
+    let unexpectedRestartDialogCount = 0;
+    const dismissUnexpectedRestartDialog = (dialog: Dialog) => {
+      unexpectedRestartDialogCount += 1;
+      void dialog.dismiss();
+    };
+    page.on("dialog", dismissUnexpectedRestartDialog);
+    await restartCompletedDiagnostic.click();
+    page.off("dialog", dismissUnexpectedRestartDialog);
+    expect(unexpectedRestartDialogCount).toBe(0);
+    await expectFocusedCapacityAlert("历史计划", 64, 2, 64);
     const journeyCapacityAfter = await page.evaluate(
       (workspaceKey) => window.localStorage.getItem(workspaceKey),
       SOFIA_WORKSPACE_KEY,
@@ -2042,7 +2195,7 @@ test("a temporary Development user can traverse the protected smoke path and is 
       (JSON.parse(practiceCapacityBaselineRaw) as SyntheticCapacityWorkspace).practiceReceipts,
     )).toHaveLength(256);
     await syntheticReadingSubmit.click();
-    await expectFocusedCapacityAlert("练习回执", 256, 256);
+    await expectFocusedCapacityAlert("练习回执", 256, null, 256);
     await expect(page.locator("[data-reading-feedback]"))
       .toContainText("本次练习回执未写入");
     await expect(syntheticCorrectReadingOption).toBeEnabled();
@@ -2115,7 +2268,7 @@ test("a temporary Development user can traverse the protected smoke path and is 
     await expect(focusState).toHaveText("正在专注");
     await expect(focusStop).toBeEnabled();
     await focusStop.click();
-    await expectFocusedCapacityAlert("专注记录", 512, 512);
+    await expectFocusedCapacityAlert("专注记录", 512, null, 512);
     await expect(focusAnnouncement).toContainText("本轮专注记录未写入");
     expect(await page.evaluate(
       (workspaceKey) => window.localStorage.getItem(workspaceKey),
@@ -2150,8 +2303,9 @@ test("a temporary Development user can traverse the protected smoke path and is 
     )).toBe(focusStartCapacityRaw);
     await expect(focusStart).toHaveText("开始专注");
     await expect(focusStart).toBeEnabled();
+    stage = "synthetic capacity UI probe only — focus start rejection, not 7/7 evidence";
     await focusStart.click();
-    await expectFocusedCapacityAlert("专注记录", 512, 512);
+    await expectFocusedCapacityAlert("专注记录", 512, null, 512);
     await expect(focusAnnouncement).toContainText("新专注计时未写入");
     expect(await page.evaluate(
       (workspaceKey) => window.localStorage.getItem(workspaceKey),
@@ -2160,6 +2314,7 @@ test("a temporary Development user can traverse the protected smoke path and is 
     await expect(focusStart).toBeEnabled();
     await expect(focusStop).toBeDisabled();
     await expect(focusReset).toBeEnabled();
+    stage = "synthetic capacity UI probe only — focus start restore, not 7/7 evidence";
     await restoreVerifiedGateAWorkspace();
 
     await page.evaluate(({ chatKey, teachingReviewKey }) => {

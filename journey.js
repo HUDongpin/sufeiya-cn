@@ -471,6 +471,7 @@
   let state = freshState();
   let storageWritable = true;
   let storageWarningShown = false;
+  let rawStoredValue = null;
 
   const acquireSharedWorkspaceWriterLease = () => {
     if (window.__sufeiyaWorkspaceWriterLease?.ready) return window.__sufeiyaWorkspaceWriterLease.ready;
@@ -570,6 +571,7 @@
   const loadState = () => {
     try {
       const raw = window.localStorage.getItem(STORAGE_KEY);
+      rawStoredValue = raw;
       if (!raw) return;
       const normalized = normalizeState(JSON.parse(raw));
       if (!normalized) {
@@ -597,7 +599,9 @@
     if (!storageWritable) return false;
     state.updatedAt = isoNow();
     try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      const nextRaw = JSON.stringify(state);
+      window.localStorage.setItem(STORAGE_KEY, nextRaw);
+      rawStoredValue = nextRaw;
       return true;
     } catch {
       storageWritable = false;
@@ -611,14 +615,20 @@
   const CAPACITY_FIELD_LABELS = Object.freeze({
     planHistory: "历史计划",
     journeyHistory: "闭环历史",
+    taskProgress: "任务进度",
     practiceReceipts: "练习回执",
     learningEvents: "学习事件",
+    checkIns: "打卡记录",
     checkInHistory: "打卡历史",
     focusSessions: "专注记录",
     supersededCycles: "中止诊断摘要",
+    bindingAliases: "事件别名",
   });
   const capacityResultMessage = (result, noun = "本次操作") => {
     if (result?.status === "capacity_reached" && Number.isInteger(result.current) && Number.isInteger(result.limit)) {
+      if (Number.isInteger(result.required) && result.required > 0) {
+        return `${noun}未写入：${CAPACITY_FIELD_LABELS[result.field] || result.field}当前 ${result.current} 条；完成下一轮至少还需要 ${result.required} 条；安全上限 ${result.limit} 条。`;
+      }
       return `${noun}未写入：${CAPACITY_FIELD_LABELS[result.field] || result.field}当前 ${result.current} 条，安全上限 ${result.limit} 条。`;
     }
     if (result?.code === "workspace_too_large") return `${noun}未写入：当前工作区 canonical JSON 已超过 1 MiB 可恢复上限。`;
@@ -658,6 +668,61 @@
     presentCapacityFailure(failure);
     return failure;
   };
+  const nextGateACycleRequiredAdditions = (candidateState = state) => {
+    const date = keyForDate(new Date());
+    const checkIns = candidateState?.checkIns || {};
+    const hasCheckInForDate = Object.hasOwn(checkIns, date);
+    const hasSavedCheckInForDate = Boolean(hasCheckInForDate && checkIns[date]?.checkInId);
+    return Object.freeze({
+      planHistory: candidateState?.plan ? 2 : 1,
+      journeyHistory: 1,
+      practiceReceipts: 1,
+      learningEvents: 6,
+      checkIns: hasCheckInForDate ? 0 : 1,
+      checkInHistory: hasSavedCheckInForDate ? 1 : 0,
+      supersededCycles: candidateState?.journey?.activeCycle?.diagnosticSessionId ? 1 : 0,
+      taskProgress: 2,
+      bindingAliases: 11,
+    });
+  };
+  const inspectNextGateACycleAdmission = (candidateState = state) => {
+    if (!workspaceBackupRuntime?.inspectWorkspaceCapacity || !workspaceBackupRuntime?.inspectWorkspaceAppendCapacity) {
+      return { status: "capacity_invalid", code: "capacity_runtime_unavailable", additions: null };
+    }
+    const current = workspaceBackupRuntime.inspectWorkspaceCapacity(candidateState);
+    if (current.status !== "ready") {
+      return {
+        ...current,
+        status: "capacity_invalid",
+        code: current.code || "workspace_capacity_invalid",
+        additions: null,
+      };
+    }
+    const additions = nextGateACycleRequiredAdditions(candidateState);
+    const result = workspaceBackupRuntime.inspectWorkspaceAppendCapacity(candidateState, additions);
+    if (result.status === "ready") {
+      return {
+        status: "ready",
+        code: "next_cycle_count_capacity_ready",
+        additions,
+        workspaceBytes: result.workspaceBytes,
+      };
+    }
+    const capacityReached = result.status === "capacity_reached";
+    return {
+      ...result,
+      status: capacityReached ? "capacity_reached" : "capacity_invalid",
+      code: result.code || "workspace_capacity_invalid",
+      required: result.field ? additions[result.field] : undefined,
+      additions,
+    };
+  };
+  const enforceNextGateACycleAdmission = (candidateState = state, noun = "开始下一轮") => {
+    const result = inspectNextGateACycleAdmission(candidateState);
+    if (result.status === "ready") return result;
+    presentCapacityFailure(result, noun);
+    return result;
+  };
   const workspaceCandidateCapacity = (candidate) => {
     if (!workspaceBackupRuntime?.inspectWorkspaceCapacity) {
       return { status: "capacity_invalid", code: "capacity_runtime_unavailable" };
@@ -681,9 +746,7 @@
   const persistedStateIsFresh = () => {
     if (!storageWritable) return false;
     try {
-      const raw = window.localStorage.getItem(STORAGE_KEY);
-      const latest = raw ? normalizeState(JSON.parse(raw)) : null;
-      return Boolean(latest && latest.updatedAt === state.updatedAt);
+      return window.localStorage.getItem(STORAGE_KEY) === rawStoredValue;
     } catch {
       return false;
     }
@@ -4336,6 +4399,7 @@
       }
       if (window.localStorage.getItem(STORAGE_KEY) !== candidateRaw) return { status: "concurrent_write" };
       state = validation.candidate;
+      rawStoredValue = candidateRaw;
       learningLedgerStatus = restoredLedgerStatus;
       storageWritable = Boolean(workspaceWriterLeaseAvailable);
       return { status: "synchronized" };
@@ -4842,12 +4906,9 @@
     viewportMode = window.innerWidth >= 820 ? "desktop_or_tablet" : "mobile_lightweight",
     networkAtStart = navigator.onLine ? "online" : "offline",
   }) => withExclusiveJourneyWrite(async () => {
-    const appendCapacity = workspaceAppendCapacity({
-      planHistory: state.plan ? 1 : 0,
-      supersededCycles: activeCycle()?.diagnosticSessionId ? 1 : 0,
-      learningEvents: 1,
-    });
-    if (appendCapacity.status !== "ready") return appendCapacity;
+    if (!persistedStateIsFresh()) return { status: "stale" };
+    const admission = enforceNextGateACycleAdmission(state, "开始下一轮");
+    if (admission.status !== "ready") return admission;
     const snapshot = snapshotState();
     const candidate = snapshotState();
     const archiveOutcome = archiveSupersededCycle(candidate);
@@ -4937,40 +4998,6 @@
     }
     return { status: "saved" };
   });
-  const commitDiagnosticRestart = () => withExclusiveJourneyWrite(async () => {
-    const appendCapacity = workspaceAppendCapacity({
-      planHistory: state.plan ? 1 : 0,
-      supersededCycles: activeCycle()?.diagnosticSessionId ? 1 : 0,
-    });
-    if (appendCapacity.status !== "ready") return appendCapacity;
-    const snapshot = snapshotState();
-    const candidate = snapshotState();
-    const archiveOutcome = archiveSupersededCycle(candidate);
-    if (!["archived", "not_applicable"].includes(archiveOutcome.status)) {
-      return {
-        status: archiveOutcome.status === "capacity_reached"
-          ? "superseded_cycle_capacity"
-          : "superseded_cycle_conflict",
-      };
-    }
-    const retiredPlan = retireCurrentPlanForNewDiagnostic({
-      supersededAt: isoNow(),
-      reason: "learner_restarted_gate_a_evidence_pack",
-    }, candidate);
-    if (retiredPlan.status === "plan_history_conflict") return retiredPlan;
-    candidate.journey.activeCycle = null;
-    candidate.journey.diagnostic = null;
-    resetDiagnosticDownstream(candidate);
-    const candidateCapacity = workspaceCandidateCapacity(candidate);
-    if (candidateCapacity.status !== "ready") return candidateCapacity;
-    state = candidate;
-    if (!persist()) {
-      state = snapshot;
-      return { status: "persist_failed" };
-    }
-    return { status: "saved" };
-  });
-
   const buildDiagnosticReport = (diagnostic) => {
     const taskEvidence = terminalDiagnosticEvidence(diagnostic);
     const bySkill = (skill) => taskEvidence.filter((item) => item.skill === skill);
@@ -5133,6 +5160,7 @@
   let diagnosticWritingSaveTimer = null;
   let diagnosticSpeechToken = null;
   let diagnosticVoices = [];
+  let diagnosticNextCycleIntent = false;
   const diagnosticAudioPositions = new WeakMap();
   const clearDiagnosticTimer = () => {
     window.clearInterval(diagnosticTimerId);
@@ -5404,6 +5432,14 @@
     const runner = document.querySelector("[data-diagnostic-runner]");
     const reportNode = document.querySelector("[data-diagnostic-report]");
     const diagnostic = state.journey.diagnostic;
+    if (diagnosticNextCycleIntent && hasCurrentDiagnosticShape(diagnostic)) {
+      if (preflight) preflight.hidden = false;
+      if (runner) runner.hidden = true;
+      if (reportNode) reportNode.hidden = true;
+      setText("[data-diagnostic-status]", "准备下一轮 · 尚未写入");
+      clearDiagnosticTimer();
+      return;
+    }
     if (!hasCurrentDiagnosticShape(diagnostic)) {
       if (preflight) preflight.hidden = false;
       if (runner) runner.hidden = true;
@@ -5500,6 +5536,9 @@
     const startForm = document.querySelector("#diagnostic-start-form");
     const priorityForm = document.querySelector("#diagnostic-priority-form");
     const message = document.querySelector("[data-diagnostic-message]");
+    const intentParams = new URLSearchParams(window.location.search);
+    const nextCycleIntentRequested =
+      intentParams.getAll("intent").length === 1 && intentParams.get("intent") === "next-cycle";
     const storageAvailable = (() => {
       if (!storageWritable) return false;
       const probeKey = `sufeiya_storage_probe_${Date.now()}`;
@@ -5521,6 +5560,15 @@
     refreshDiagnosticVoices();
     window.speechSynthesis?.addEventListener?.("voiceschanged", refreshDiagnosticVoices);
     const restoredDiagnostic = state.journey.diagnostic;
+    if (nextCycleIntentRequested && hasCurrentDiagnosticShape(restoredDiagnostic)) {
+      const admission = inspectNextGateACycleAdmission(state);
+      if (admission.status === "ready") {
+        diagnosticNextCycleIntent = true;
+        if (message) message.textContent = "下一轮设备预检已打开；当前诊断、计划、历史与事件尚未改写。完成确认并提交后，才会原子建立新一轮。";
+      } else {
+        presentCapacityFailure(admission, "准备下一轮");
+      }
+    }
     if (hasCurrentDiagnosticShape(restoredDiagnostic) && restoredDiagnostic.status === "in_progress") {
       const restoredEvidence = diagnosticEvidenceById(restoredDiagnostic, restoredDiagnostic.activeTaskId);
       if (restoredEvidence?.timer?.startedAt && !restoredEvidence.qualityFlags?.includes("resumed_after_reload")) {
@@ -5598,7 +5646,12 @@
       }
       const previousCycle = activeCycle();
       const hasDownstream = previousCycle && [previousCycle.basePlanId, previousCycle.recommendationId, previousCycle.checkInId, previousCycle.reviewId, previousCycle.peerHelpId, previousCycle.retestId].some(Boolean);
-      if (hasDownstream && !window.confirm("开始新一轮诊断会关闭当前未完成闭环的后续连接，并仅归档不含作文原文或首答内容的证据摘要；当前计划将作为历史保留，不再显示为当前计划。确定继续吗？")) return;
+      if (hasDownstream) {
+        const confirmationCopy = ["completed", "provisional_pending_human_review"].includes(previousCycle.status)
+          ? "开始新一轮诊断会把当前轮与计划保留为只读历史，再建立新的本机轮次；不会复制作文原文、首答或打卡自由文本。确定继续吗？"
+          : "开始新一轮诊断会关闭当前未完成闭环的后续连接，并仅归档不含作文原文或首答内容的证据摘要；当前计划将作为历史保留，不再显示为当前计划。确定继续吗？";
+        if (!window.confirm(confirmationCopy)) return;
+      }
       const outcome = await commitNewDiagnostic({
         audioOutputStatus,
         mp3Supported,
@@ -5610,7 +5663,7 @@
           : outcome.status === "capacity_invalid"
             ? invalidCapacityMessage("新诊断会话")
             : outcome.status === "capacity_reached"
-              ? capacityFailureMessage("新诊断会话")
+              ? capacityFailureMessage("新诊断会话", outcome)
           : outcome.status === "superseded_cycle_capacity"
             ? `本机已保留 ${SUPERSEDED_CYCLE_LIMIT} 轮中止诊断摘要；${capacityFailureMessage("本次新诊断")}`
             : outcome.status === "superseded_cycle_conflict"
@@ -5625,6 +5678,7 @@
         return;
       }
       startForm.reset();
+      diagnosticNextCycleIntent = false;
       renderDiagnostic();
       focusDiagnosticTarget(document.querySelector("[data-diagnostic-task]:not([hidden]) h3"));
     });
@@ -6125,29 +6179,21 @@
     });
 
     document.querySelectorAll("[data-diagnostic-restart]").forEach((button) => {
-      button.addEventListener("click", async () => {
-        if (!window.confirm("重新开始会归档当前会话的任务状态与质量摘要（不含作文原文或首答内容），并清除本轮尚未完成的后续连接；当前计划将转入历史，不再显示为当前计划。确定继续吗？")) return;
-        const outcome = await commitDiagnosticRestart();
-        if (outcome.status !== "saved") {
-          if (message) message.textContent = outcome.status === "capacity_invalid"
-            ? invalidCapacityMessage("本次诊断重启")
-            : outcome.status === "capacity_reached"
-              ? capacityFailureMessage("本次诊断重启")
-            : outcome.status === "superseded_cycle_capacity"
-            ? `本机已保留 ${SUPERSEDED_CYCLE_LIMIT} 轮中止诊断摘要；${capacityFailureMessage("本次诊断重启")}`
-            : outcome.status === "superseded_cycle_conflict"
-              ? "当前轮次标识已出现在中止摘要中；为避免覆盖，本次重新开始已停止。请先导出本机数据后核对。"
-            : outcome.status === "plan_history_conflict"
-            ? "当前计划与历史计划出现重复标识；为避免覆盖，本轮没有重新开始。请先导出本机数据后再处理。"
-            : outcome.status === "persist_failed"
-              ? "当前无法保存；原诊断、计划与闭环记录保持不变。"
-              : "当前浏览器无法取得安全写入锁；原诊断、计划与闭环记录保持不变。";
+      button.addEventListener("click", () => {
+        const admission = inspectNextGateACycleAdmission(state);
+        if (admission.status !== "ready") {
+          presentCapacityFailure(admission, "准备下一轮");
+          if (message) message.textContent = admission.status === "capacity_invalid"
+            ? invalidCapacityMessage("准备下一轮")
+            : capacityFailureMessage("准备下一轮", admission);
           return;
         }
         clearDiagnosticTimer();
         window.clearTimeout(diagnosticWritingSaveTimer);
         diagnosticWritingSaveTimer = null;
         stopDiagnosticPlayback();
+        diagnosticNextCycleIntent = true;
+        if (message) message.textContent = "下一轮设备预检已打开；当前诊断、计划、历史与事件尚未改写。完成确认并提交后，才会原子建立新一轮。";
         renderDiagnostic();
         focusDiagnosticTarget(document.querySelector("#preflight-title"));
       });
@@ -7657,6 +7703,46 @@
     }
   };
 
+  const renderNextCycleAdmission = (completed) => {
+    const root = document.querySelector("[data-next-cycle-admission]");
+    if (!root) return;
+    const statusNode = root.querySelector("[data-next-cycle-admission-status]");
+    const startLink = root.querySelector("[data-next-cycle-start]");
+    const recoveryLink = root.querySelector("[data-next-cycle-recovery]");
+    if (!completed) {
+      root.hidden = true;
+      root.dataset.state = "hidden";
+      if (startLink) startLink.hidden = true;
+      if (recoveryLink) recoveryLink.hidden = true;
+      return;
+    }
+    root.hidden = false;
+    const admission = storageWritable && workspaceWriterLeaseAvailable
+      ? inspectNextGateACycleAdmission(state)
+      : { status: "capacity_invalid", code: "workspace_writer_unavailable", additions: null };
+    if (admission.status === "ready") {
+      root.dataset.state = "ready";
+      if (statusNode) {
+        statusNode.textContent = "当前本机计数空间可容纳下一轮至少 6 条学习事件和 1 条闭环历史；仅打开预检不会改写本轮记录，每一步仍会按实际文件大小与结构严格核对。";
+      }
+      if (startLink) {
+        startLink.hidden = false;
+        startLink.href = "/diagnostic?intent=next-cycle";
+      }
+      if (recoveryLink) recoveryLink.hidden = true;
+      return;
+    }
+    const blocked = admission.status === "capacity_reached";
+    root.dataset.state = blocked ? "capacity-blocked" : "invalid";
+    if (startLink) startLink.hidden = true;
+    if (recoveryLink) recoveryLink.hidden = false;
+    if (statusNode) {
+      statusNode.textContent = blocked && Number.isInteger(admission.current) && Number.isInteger(admission.limit)
+        ? `${CAPACITY_FIELD_LABELS[admission.field] || admission.field}当前 ${admission.current} 条；完成下一轮至少还需要 ${admission.required} 条；安全上限 ${admission.limit} 条。本轮记录保持不变，暂不能开始下一轮。`
+        : "当前本机学习工作区未通过下一轮可恢复容量核对；本轮记录保持不变。请先导出原始保全 JSON，再核对或明确清除学习工作区。";
+    }
+  };
+
   const renderJourneyDashboard = () => {
     if (!document.querySelector("[data-journey-list]")) return;
     const chain = validateCycleEvidence();
@@ -7690,6 +7776,7 @@
       link.href = next?.route || "/plan";
       link.textContent = next ? "继续下一步 →" : "查看更新后的计划 →";
     }
+    renderNextCycleAdmission(!next && completedCount === journeyDefinitions.length);
     renderCycleEvidenceLedger(chain);
     renderCycleHistory();
   };
