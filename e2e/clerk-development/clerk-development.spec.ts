@@ -102,9 +102,15 @@ type SmokeStage =
   | "authenticated Gate A evidence check-in"
   | "authenticated Gate A sealed check-in revision protection"
   | "authenticated Gate A learner review"
+  | "authenticated Gate A learner review transaction"
+  | "authenticated Gate A learner review idempotency"
   | "authenticated Gate A community preview"
   | "authenticated Gate A community decision"
   | "authenticated Gate A community receipt"
+  | "authenticated Gate A community idempotency"
+  | "authenticated Gate A community mutable choice"
+  | "authenticated Gate A community final choice"
+  | "authenticated Gate A community downstream seal"
   | "authenticated Gate A community network isolation"
   | "authenticated Gate A Reading retest"
   | "authenticated Gate A updated plan"
@@ -818,6 +824,51 @@ test("a temporary Development user can traverse the protected smoke path and is 
         }),
       };
     }, SOFIA_WORKSPACE_KEY);
+    const holdSealedWriteForPendingObservation = async () => {
+      await page.evaluate(async (workspaceKey) => {
+        const scopedWindow = window as Window & typeof globalThis & {
+          __sufeiyaE2EReleaseSealedWrite?: () => void;
+        };
+        if (scopedWindow.__sufeiyaE2EReleaseSealedWrite) {
+          throw new Error("sealed-write observation lock is already held");
+        }
+        let markAcquired: (() => void) | null = null;
+        const acquired = new Promise<void>((resolve) => {
+          markAcquired = resolve;
+        });
+        const request = navigator.locks.request(
+          `${workspaceKey}:sealed-write`,
+          { mode: "exclusive" },
+          async (lock) => {
+            if (!lock) throw new Error("sealed-write observation lock was unavailable");
+            let release: (() => void) | null = null;
+            const held = new Promise<void>((resolve) => {
+              release = resolve;
+            });
+            scopedWindow.__sufeiyaE2EReleaseSealedWrite = () => release?.();
+            markAcquired?.();
+            await held;
+          },
+        );
+        void request.catch(() => undefined);
+        await acquired;
+      }, SOFIA_WORKSPACE_KEY);
+
+      let released = false;
+      return async () => {
+        if (released) return;
+        released = true;
+        await page.evaluate(() => {
+          const scopedWindow = window as Window & typeof globalThis & {
+            __sufeiyaE2EReleaseSealedWrite?: () => void;
+          };
+          const release = scopedWindow.__sufeiyaE2EReleaseSealedWrite;
+          if (!release) throw new Error("sealed-write observation release is unavailable");
+          delete scopedWindow.__sufeiyaE2EReleaseSealedWrite;
+          release();
+        });
+      };
+    };
 
     stage = "authenticated Gate A fresh workspace";
     await gotoApprovedRoute("/workspace");
@@ -1099,11 +1150,61 @@ test("a temporary Development user can traverse the protected smoke path and is 
     stage = "authenticated Gate A learner review";
     await expect(page.locator("[data-review-ready]")).toBeVisible();
     const reviewForm = page.locator("#review-form");
-    await reviewForm.locator('input[name="learnerConfirmed"]').check();
-    await reviewForm.getByRole("button", { name: "确认这份复盘" }).click();
+    const reviewConfirmation = reviewForm.locator('input[name="learnerConfirmed"]');
+    const reviewSubmit = reviewForm.getByRole("button", { name: "确认这份复盘" });
+    const workspaceBeforeReview = await readWorkspaceByteSnapshot();
+    await reviewConfirmation.check();
+    expect(await readWorkspaceByteSnapshot()).toEqual(workspaceBeforeReview);
+
+    stage = "authenticated Gate A learner review transaction";
+    const releaseReviewWrite = await holdSealedWriteForPendingObservation();
+    const reviewSubmitClick = reviewSubmit.click();
+    try {
+      await expect(reviewForm).toHaveAttribute("data-commit-state", "pending");
+      await expect(reviewForm).toHaveAttribute("aria-busy", "true");
+      await expect(reviewConfirmation).toBeDisabled();
+      await expect(reviewSubmit).toBeDisabled();
+      expect(await readWorkspaceByteSnapshot()).toEqual(workspaceBeforeReview);
+    } finally {
+      await releaseReviewWrite();
+    }
+    await reviewSubmitClick;
     await expect(page.locator("[data-review-receipt]")).toBeVisible();
     await expect(page.locator("[data-review-status]")).toHaveText("学习者已确认");
-    await expectNonemptyText(page.locator("[data-review-id]"));
+    await expect(reviewForm).toHaveAttribute("data-commit-state", "saved");
+    await expect(reviewForm).not.toHaveAttribute("aria-busy", "true");
+    const reviewId = await expectNonemptyText(page.locator("[data-review-id]"));
+    const workspaceAfterReview = await readWorkspaceByteSnapshot();
+    expect(workspaceAfterReview.raw).not.toBe(workspaceBeforeReview.raw);
+
+    stage = "authenticated Gate A learner review idempotency";
+    await reviewForm.evaluate((form) => (form as HTMLFormElement).requestSubmit());
+    await expect(page.locator("[data-review-message]")).toContainText(
+      "没有生成第二份 review_id",
+    );
+    await expect(page.locator("[data-review-id]")).toHaveText(reviewId);
+    const reviewReplayState = await page.evaluate((workspaceKey) => {
+      const parsed = JSON.parse(window.localStorage.getItem(workspaceKey) || "null") as {
+        checkIns?: Record<string, { reviewId?: string | null }>;
+        journey?: {
+          activeCycle?: { reviewId?: string | null };
+          review?: { reviewId?: string | null } | null;
+        };
+      } | null;
+      return {
+        activeCycleReviewId: parsed?.journey?.activeCycle?.reviewId ?? null,
+        checkInReviewIds: Object.values(parsed?.checkIns ?? {})
+          .map((checkIn) => checkIn.reviewId)
+          .filter((value): value is string => typeof value === "string" && value.length > 0),
+        receiptReviewId: parsed?.journey?.review?.reviewId ?? null,
+      };
+    }, SOFIA_WORKSPACE_KEY);
+    expect(reviewReplayState).toEqual({
+      activeCycleReviewId: reviewId,
+      checkInReviewIds: [reviewId],
+      receiptReviewId: reviewId,
+    });
+    expect(await readWorkspaceByteSnapshot()).toEqual(workspaceAfterReview);
     const workspaceBeforeCommunityPreview = await readWorkspaceByteSnapshot();
     const communityPrivateState = await page.evaluate((workspaceKey) => {
       const parsed = JSON.parse(window.localStorage.getItem(workspaceKey) || "null") as {
@@ -1237,7 +1338,19 @@ test("a temporary Development user can traverse the protected smoke path and is 
 
     await localPreviewConfirmation.check();
     expect(await readWorkspaceByteSnapshot()).toEqual(workspaceBeforeCommunityPreview);
-    await communitySubmit.click();
+    const releaseCommunityWrite = await holdSealedWriteForPendingObservation();
+    const communitySubmitClick = communitySubmit.click();
+    try {
+      await expect(communityForm).toHaveAttribute("data-commit-state", "pending");
+      await expect(communityForm).toHaveAttribute("aria-busy", "true");
+      await expect(communityUsed).toBeDisabled();
+      await expect(localPreviewConfirmation).toBeDisabled();
+      await expect(communitySubmit).toBeDisabled();
+      expect(await readWorkspaceByteSnapshot()).toEqual(workspaceBeforeCommunityPreview);
+    } finally {
+      await releaseCommunityWrite();
+    }
+    await communitySubmitClick;
 
     stage = "authenticated Gate A community receipt";
     await expect(page.locator("[data-community-receipt]")).toBeVisible();
@@ -1245,12 +1358,25 @@ test("a temporary Development user can traverse the protected smoke path and is 
     const peerHelpId = await expectNonemptyText(page.locator("[data-community-id]"));
     await expect(page.locator("[data-community-message]")).toContainText("used 只表示已查看合成演示经验卡");
     await expect(page.locator("[data-community-message]")).toContainText("没有加入或分享");
-    const savedPeerHelp = await page.evaluate((workspaceKey) => {
+    type PeerHelpReceiptState = {
+      createdAt: string;
+      cycleId: string;
+      learnerChoice: boolean;
+      peerHelpId: string;
+      planId: string;
+      realCommunityUsed: boolean;
+      reviewId: string;
+      source: string;
+      status: string;
+      updatedAt: string;
+    };
+    const readPeerHelpReceipt = () => page.evaluate((workspaceKey) => {
       const parsed = JSON.parse(window.localStorage.getItem(workspaceKey) || "null") as {
-        journey?: { peerHelp?: Record<string, unknown> | null };
+        journey?: { peerHelp?: PeerHelpReceiptState | null };
       } | null;
       return parsed?.journey?.peerHelp ?? null;
     }, SOFIA_WORKSPACE_KEY);
+    const savedPeerHelp = await readPeerHelpReceipt();
     expect(savedPeerHelp).not.toBeNull();
     expect(savedPeerHelp).toEqual({
       createdAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
@@ -1264,10 +1390,54 @@ test("a temporary Development user can traverse the protected smoke path and is 
       status: "used",
       updatedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
     });
+    if (!savedPeerHelp) throw new Error("saved peer-help receipt is unavailable");
+    const workspaceAfterInitialPeerHelp = await readWorkspaceByteSnapshot();
 
-    stage = "authenticated Gate A community network isolation";
-    expect(forbiddenCommunityInteractionRequests).toEqual([]);
-    page.off("request", recordCommunityInteractionRequest);
+    stage = "authenticated Gate A community idempotency";
+    await communitySubmit.click();
+    await expect(page.locator("[data-community-message]")).toContainText(
+      "没有生成第二份 peer_help_id，也没有改写时间戳",
+    );
+    await expect(page.locator("[data-community-id]")).toHaveText(peerHelpId);
+    expect(await readPeerHelpReceipt()).toEqual(savedPeerHelp);
+    expect(await readWorkspaceByteSnapshot()).toEqual(workspaceAfterInitialPeerHelp);
+
+    stage = "authenticated Gate A community mutable choice";
+    await page.waitForTimeout(5);
+    const communityDeclined = communityForm.locator(
+      'input[name="peerHelpStatus"][value="declined"]',
+    );
+    await communityDeclined.check();
+    await expect(page.locator("[data-community-preview-confirmation]")).toBeHidden();
+    await expect(localPreviewConfirmation).not.toBeChecked();
+    await communitySubmit.click();
+    await expect(page.locator("[data-community-value]")).toHaveText("declined");
+    const declinedPeerHelp = await readPeerHelpReceipt();
+    expect(declinedPeerHelp).not.toBeNull();
+    expect(declinedPeerHelp).toMatchObject({
+      createdAt: savedPeerHelp.createdAt,
+      peerHelpId,
+      status: "declined",
+    });
+    expect(declinedPeerHelp?.updatedAt).not.toBe(savedPeerHelp.updatedAt);
+
+    stage = "authenticated Gate A community final choice";
+    await page.waitForTimeout(5);
+    await communityUsed.check();
+    await expect(page.locator("[data-community-preview-confirmation]")).toBeVisible();
+    await localPreviewConfirmation.check();
+    await communitySubmit.click();
+    await expect(page.locator("[data-community-value]")).toHaveText("used");
+    await expect(page.locator("[data-community-id]")).toHaveText(peerHelpId);
+    const finalPeerHelp = await readPeerHelpReceipt();
+    expect(finalPeerHelp).not.toBeNull();
+    expect(finalPeerHelp).toMatchObject({
+      createdAt: savedPeerHelp.createdAt,
+      peerHelpId,
+      status: "used",
+    });
+    expect(finalPeerHelp?.updatedAt).not.toBe(declinedPeerHelp?.updatedAt);
+
     const retestLink = page.locator("[data-community-next]");
     await expect(retestLink).toBeVisible();
     const [retestResponse] = await Promise.all([
@@ -1289,7 +1459,37 @@ test("a temporary Development user can traverse the protected smoke path and is 
     await expect(page.locator("[data-retest-result]")).toBeVisible();
     await expect(page.locator("[data-retest-target-skill]")).toHaveText("Reading");
     await expect(page.locator("[data-retest-same-skill]")).toHaveText("true · 已由代码核对");
-    await expectNonemptyText(page.locator("[data-retest-id]"));
+    const retestId = await expectNonemptyText(page.locator("[data-retest-id]"));
+
+    stage = "authenticated Gate A community downstream seal";
+    const workspaceAfterRetest = await readWorkspaceByteSnapshot();
+    await gotoApprovedRoute("/community");
+    await expect(communityForm).toHaveAttribute("data-commit-state", "saved");
+    await expect(communityForm).not.toHaveAttribute("aria-busy", "true");
+    await expect(page.locator("[data-community-status]")).toHaveText("互助状态已封存");
+    await expect(page.locator("[data-community-message]")).toContainText(
+      "互助状态不能再覆盖",
+    );
+    await expect(page.locator("[data-community-id]")).toHaveText(peerHelpId);
+    await expect(page.locator("[data-community-value]")).toHaveText("used");
+    const sealedCommunityControls = await communityForm.locator("input, button").all();
+    expect(sealedCommunityControls.length).toBeGreaterThan(0);
+    for (const control of sealedCommunityControls) await expect(control).toBeDisabled();
+    await communityForm.evaluate((form) => {
+      form.dispatchEvent(new SubmitEvent("submit", { bubbles: true, cancelable: true }));
+    });
+    await page.waitForTimeout(50);
+    expect(await readWorkspaceByteSnapshot()).toEqual(workspaceAfterRetest);
+
+    await gotoApprovedRoute("/retest");
+    await expect(page.locator("[data-retest-result]")).toBeVisible();
+    await expect(page.locator("[data-retest-id]")).toHaveText(retestId);
+    await expect(page.locator("#plan-update-form")).toBeVisible();
+    expect(await readWorkspaceByteSnapshot()).toEqual(workspaceAfterRetest);
+
+    stage = "authenticated Gate A community network isolation";
+    expect(forbiddenCommunityInteractionRequests).toEqual([]);
+    page.off("request", recordCommunityInteractionRequest);
 
     stage = "authenticated Gate A updated plan";
     const planUpdateForm = page.locator("#plan-update-form");
@@ -1316,6 +1516,11 @@ test("a temporary Development user can traverse the protected smoke path and is 
     await expect(page.locator("[data-cycle-ledger-status]")).toHaveText("7 / 7 步已留证");
     await expect(page.locator('[data-cycle-ledger-row][data-state="recorded"]')).toHaveCount(8);
     await expect(page.locator("[data-journey-next-title]")).toHaveText("本轮 Gate A 闭环已完成");
+    const completedWorkspacePrimaryAction = page.locator("[data-journey-next-link]");
+    await expect(completedWorkspacePrimaryAction).toBeVisible();
+    await expect(completedWorkspacePrimaryAction).toHaveAttribute("href", "/plan");
+    await expect(page.locator("[data-provisional-handoff]")).toBeHidden();
+    await expect(page.locator("[data-next-cycle-admission]")).toBeVisible();
     await expect(page.locator("[data-cycle-history-summary]")).toHaveText(
       "当前轮次只在上方本轮回执中显示，历史区不重复列出",
     );
