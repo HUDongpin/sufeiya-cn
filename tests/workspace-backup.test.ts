@@ -66,6 +66,11 @@ interface WorkspaceWriterHarness {
   getRaw(): string | null;
   getLastCapacityCandidate(): MutableRecord | null;
   setState(next: MutableRecord): void;
+  setNow(value: string): void;
+  resolveTodayTaskContext(candidateState?: MutableRecord, date?: string): MutableRecord;
+  todayTaskHref(task: MutableRecord, context: MutableRecord): string;
+  checkInPlanIdForDate(input: MutableRecord): string | null;
+  checkInReflectionTaskForDate(input: MutableRecord): MutableRecord | null;
   commitPlanRegeneration(profile: MutableRecord): Promise<MutableRecord>;
   commitChoicePracticeCompletion(input: MutableRecord): Promise<MutableRecord>;
   commitCheckInRecord(input: MutableRecord): Promise<MutableRecord>;
@@ -237,9 +242,20 @@ async function loadWorkspaceWriterHarness({
   search = "",
 }: { pathname?: string; search?: string } = {}): Promise<WorkspaceWriterHarness> {
   const storage = productionVmStorage();
+  const NativeDate = Date;
+  let currentTime = NativeDate.now();
+  class ControlledDate extends NativeDate {
+    constructor(value?: string | number) {
+      super(value === undefined ? currentTime : value);
+    }
+
+    static now(): number {
+      return currentTime;
+    }
+  }
   const sandbox: MutableRecord = {
     Blob,
-    Date,
+    Date: ControlledDate,
     Error,
     URL,
     URLSearchParams,
@@ -264,10 +280,12 @@ async function loadWorkspaceWriterHarness({
   const context = vm.createContext(sandbox);
   vm.runInContext(runtimeSource, context, { filename: "workspace-backup.js" });
   vm.runInContext(learningEventsSource, context, { filename: "learning-events.js" });
-  const instrumented = workspaceSource.replace(
+  const withCapacityProbe = workspaceSource.replace(
     "  const workspaceCandidateCapacity = (candidate) => {",
     "  const workspaceCandidateCapacity = (candidate) => {\n    window.__lastWorkspaceCapacityCandidate = JSON.parse(JSON.stringify(candidate));",
-  ).replace(
+  );
+  assert.notEqual(withCapacityProbe, workspaceSource, "workspace capacity instrumentation anchor must exist");
+  const instrumented = withCapacityProbe.replace(
     '  window.addEventListener("storage", (event) => {',
     `  window.__workspaceWriterHarness = {
     freshState: () => JSON.parse(JSON.stringify(freshState())),
@@ -281,6 +299,12 @@ async function loadWorkspaceWriterHarness({
       workspaceStateRecognized = true;
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     },
+    resolveTodayTaskContext: (candidateState, date) => JSON.parse(JSON.stringify(
+      resolveTodayTaskContext(candidateState === undefined ? state : candidateState, date),
+    )),
+    todayTaskHref,
+    checkInPlanIdForDate,
+    checkInReflectionTaskForDate,
     commitPlanRegeneration,
     commitChoicePracticeCompletion,
     commitCheckInRecord,
@@ -289,12 +313,21 @@ async function loadWorkspaceWriterHarness({
   };
   window.addEventListener("storage", (event) => {`,
   );
-  assert.notEqual(instrumented, workspaceSource, "workspace writer instrumentation anchor must exist");
+  assert.notEqual(instrumented, withCapacityProbe, "workspace writer instrumentation anchor must exist");
   await vm.runInContext(instrumented, context, { filename: "workspace.js" });
   const exposed = sandbox.__workspaceWriterHarness as Omit<WorkspaceWriterHarness, "backup" | "getRaw"> | undefined;
   const backup = sandbox.SufeiyaWorkspaceBackup as BackupRuntime | undefined;
   assert.ok(exposed && backup);
-  return { ...exposed, backup, getRaw: storage.raw };
+  return {
+    ...exposed,
+    backup,
+    getRaw: storage.raw,
+    setNow: (value: string) => {
+      const parsed = NativeDate.parse(value);
+      assert.ok(Number.isFinite(parsed), `controlled workspace clock requires an ISO timestamp: ${value}`);
+      currentTime = parsed;
+    },
+  };
 }
 
 async function loadJourneyWriterHarness(): Promise<JourneyWriterHarness> {
@@ -1393,6 +1426,7 @@ async function appendJourneyDomainEvent(
 async function strictJourneyPreCloseFixture(
   writer: JourneyWriterHarness,
   validation: JourneyValidationHarness,
+  { stopAfterPractice = false }: { stopAfterPractice?: boolean } = {},
 ): Promise<MutableRecord> {
   const started = startedCycleFixture();
   const candidate = started.candidate;
@@ -1526,6 +1560,10 @@ async function strictJourneyPreCloseFixture(
     { receipt, recommendation },
     STRICT_CYCLE_TIMES.practiceCompletedAt,
   );
+  if (stopAfterPractice) {
+    writer.setState(candidate);
+    return candidate;
+  }
 
   const checkInId = "check-in-strict-cycle-v1";
   const checkIn: MutableRecord = {
@@ -2618,6 +2656,283 @@ describe("sealed writer lineage guards", () => {
       guards.sealedCurrentCycleCheckIn(state, { ...record, cycleId: null, checkInId: "standalone-check-in" }),
       false,
     );
+  });
+});
+
+describe("Today provenance and cross-date check-in production contracts", () => {
+  it("resolves current, absent, future, expired, gap, malformed, and ambiguous plan days without borrowing provenance", async () => {
+    const harness = await loadWorkspaceWriterHarness({ pathname: "/today" });
+    const fresh = harness.freshState();
+    const absent = harness.resolveTodayTaskContext(fresh, "2026-08-12");
+    assert.equal(absent.source, "standalone_no_plan");
+    assert.equal(absent.planId, null);
+    assert.equal(
+      JSON.stringify((absent.tasks as MutableRecord[]).map((task) => task.taskId)),
+      JSON.stringify([
+        "default-2026-08-12-reading",
+        "default-2026-08-12-writing",
+        "default-2026-08-12-reflection",
+      ]),
+    );
+
+    const active = expiredActivePlanFixture();
+    harness.setState(active);
+    const current = harness.resolveTodayTaskContext(active, "2026-08-03");
+    assert.equal(current.source, "current_plan_day");
+    assert.equal(current.planId, asRecord(active.plan).planId);
+    const currentTasks = current.tasks as MutableRecord[];
+    assert.equal(currentTasks.length, 3);
+    assert.ok(currentTasks.every((task) => task.date === "2026-08-03"));
+    const core = currentTasks.find((task) => task.skill === "Writing");
+    assert.ok(core);
+    const boundHref = harness.todayTaskHref(core, current);
+    assert.match(boundHref, /^\/practice-writing\?plan_id=/);
+    assert.match(boundHref, /&task_id=/);
+    const warmup = currentTasks.find((task) => task.skill === "General");
+    assert.ok(warmup);
+    assert.equal(harness.todayTaskHref(warmup, current), "/practice");
+
+    const future = harness.resolveTodayTaskContext(active, "2026-07-31");
+    assert.equal(future.source, "standalone_plan_future");
+    assert.equal(future.planId, null);
+    assert.equal(harness.todayTaskHref((future.tasks as MutableRecord[])[0], future), "/practice-reading");
+    const expired = harness.resolveTodayTaskContext(active, "2026-08-12");
+    assert.equal(expired.source, "standalone_plan_expired");
+    assert.equal(expired.planId, null);
+
+    const gap = hostClone(active);
+    asRecord(gap.plan).days = (asRecord(gap.plan).days as MutableRecord[]).filter((day) => day.date !== "2026-08-03");
+    assert.equal(harness.resolveTodayTaskContext(gap, "2026-08-03").source, "standalone_plan_date_gap");
+
+    const truncatedElsewhere = hostClone(active);
+    asRecord(truncatedElsewhere.plan).days = (asRecord(truncatedElsewhere.plan).days as MutableRecord[])
+      .filter((day) => day.date !== "2026-08-07");
+    const truncatedCurrent = harness.resolveTodayTaskContext(truncatedElsewhere, "2026-08-03");
+    assert.equal(truncatedCurrent.source, "standalone_plan_unavailable");
+    assert.equal(truncatedCurrent.planId, null);
+    assert.ok((truncatedCurrent.tasks as MutableRecord[])
+      .every((task) => !harness.todayTaskHref(task, truncatedCurrent).includes("plan_id=")));
+
+    const emptyDay = hostClone(active);
+    const emptyMatch = (asRecord(emptyDay.plan).days as MutableRecord[]).find((day) => day.date === "2026-08-03");
+    assert.ok(emptyMatch);
+    emptyMatch.tasks = [];
+    const empty = harness.resolveTodayTaskContext(emptyDay, "2026-08-03");
+    assert.equal(empty.source, "standalone_plan_day_invalid");
+    assert.equal((empty.tasks as MutableRecord[]).length, 3);
+
+    const wrongDate = hostClone(active);
+    const wrongDateMatch = (asRecord(wrongDate.plan).days as MutableRecord[]).find((day) => day.date === "2026-08-03");
+    assert.ok(wrongDateMatch);
+    asRecord((wrongDateMatch.tasks as MutableRecord[])[0]).date = "2026-08-04";
+    assert.equal(harness.resolveTodayTaskContext(wrongDate, "2026-08-03").source, "standalone_plan_day_invalid");
+
+    const duplicate = hostClone(active);
+    const duplicateMatch = (asRecord(duplicate.plan).days as MutableRecord[]).find((day) => day.date === "2026-08-03");
+    assert.ok(duplicateMatch);
+    (asRecord(duplicate.plan).days as MutableRecord[]).push(hostClone(duplicateMatch));
+    assert.equal(harness.resolveTodayTaskContext(duplicate, "2026-08-03").source, "standalone_plan_day_invalid");
+
+    const crossDayTaskAlias = hostClone(active);
+    const aliasedDays = asRecord(crossDayTaskAlias.plan).days as MutableRecord[];
+    asRecord((asRecord(aliasedDays[1]).tasks as MutableRecord[])[0]).taskId =
+      asRecord((asRecord(aliasedDays[0]).tasks as MutableRecord[])[0]).taskId;
+    const aliased = harness.resolveTodayTaskContext(crossDayTaskAlias, "2026-08-03");
+    assert.equal(aliased.source, "standalone_plan_unavailable");
+    assert.equal(aliased.planId, null);
+    assert.ok((aliased.tasks as MutableRecord[]).every((task) => !harness.todayTaskHref(task, aliased).includes("plan_id=")));
+
+    const canonicalPlanDrifts: Array<[string, (candidate: MutableRecord) => void]> = [
+      ["missing provenance", (candidate) => {
+        delete asRecord(candidate.plan).provenance;
+      }],
+      ["wrong core-skill sequence", (candidate) => {
+        const day = asRecord((asRecord(candidate.plan).days as MutableRecord[])[2]);
+        day.coreSkill = "Speaking";
+      }],
+      ["wrong core route", (candidate) => {
+        const day = asRecord((asRecord(candidate.plan).days as MutableRecord[])[2]);
+        asRecord((day.tasks as MutableRecord[])[1]).route = "/practice-speaking";
+      }],
+      ["wrong content hash", (candidate) => {
+        const day = asRecord((asRecord(candidate.plan).days as MutableRecord[])[2]);
+        asRecord(asRecord((day.tasks as MutableRecord[])[1]).contentRef).contentHash = "f".repeat(64);
+      }],
+      ["non-canonical task id", (candidate) => {
+        const day = asRecord((asRecord(candidate.plan).days as MutableRecord[])[2]);
+        asRecord((day.tasks as MutableRecord[])[1]).taskId = "forged-reading-task";
+      }],
+      ["daily minutes mismatch", (candidate) => {
+        const day = asRecord((asRecord(candidate.plan).days as MutableRecord[])[2]);
+        asRecord((day.tasks as MutableRecord[])[0]).durationMinutes = 7;
+      }],
+      ["history plan-id collision", (candidate) => {
+        const current = asRecord(candidate.plan);
+        candidate.planHistory = [{ ...hostClone(current), status: "superseded" }];
+      }],
+      ["history task-id collision", (candidate) => {
+        const current = asRecord(candidate.plan);
+        const historical = hostClone(current);
+        historical.planId = "historical-plan-with-task-alias";
+        historical.status = "superseded";
+        candidate.planHistory = [historical];
+      }],
+    ];
+    for (const [label, mutate] of canonicalPlanDrifts) {
+      const candidate = hostClone(active);
+      mutate(candidate);
+      const fallback = harness.resolveTodayTaskContext(candidate, "2026-08-03");
+      assert.equal(fallback.source, "standalone_plan_unavailable", label);
+      assert.equal(fallback.planId, null, label);
+      harness.setState(candidate);
+      assert.ok(
+        (fallback.tasks as MutableRecord[]).every((task) => !harness.todayTaskHref(task, fallback).includes("plan_id=")),
+        label,
+      );
+    }
+    harness.setState(active);
+  });
+
+  it("rejects a stale-date check-in inside the actual writer with byte-for-byte zero mutation", async () => {
+    const harness = await loadWorkspaceWriterHarness({ pathname: "/check-in" });
+    harness.setState(harness.freshState());
+    harness.setNow("2026-08-13T00:00:01.000Z");
+    const rawBefore = harness.getRaw();
+    const stateBefore = harness.backup.canonicalJson(harness.getState());
+    const outcome = await harness.commitCheckInRecord({
+      date: "2026-08-12",
+      values: {
+        date: "2026-08-12",
+        linkedTaskId: "",
+        didText: "Completed a careful independent review.",
+        evidenceText: "Saved a specific local learning note.",
+        questionStatus: "none",
+        questionText: "",
+      },
+      cycleEligible: false,
+      cycleId: null,
+      planId: null,
+      diagnosticSessionId: null,
+      recommendationId: null,
+      linkedPracticeReceipt: null,
+      reflectionTask: null,
+    });
+    assert.equal(outcome.status, "date_changed");
+    assert.equal(harness.getRaw(), rawBefore);
+    assert.equal(harness.backup.canonicalJson(harness.getState()), stateBefore);
+  });
+
+  it("keeps current-plan independent reflection ownership and uses a default Reflection only for cross-date receipts", async () => {
+    const harness = await loadWorkspaceWriterHarness({ pathname: "/check-in" });
+    const current = expiredActivePlanFixture();
+    const plan = asRecord(current.plan);
+    const currentDate = String(plan.startDate);
+    const currentContext = harness.resolveTodayTaskContext(current, currentDate);
+    assert.equal(currentContext.source, "current_plan_day");
+    assert.equal(
+      harness.checkInPlanIdForDate({ cycleEligible: false, activeCycle: null, date: currentDate, candidateState: current }),
+      plan.planId,
+    );
+    const currentReflection = harness.checkInReflectionTaskForDate({
+      date: currentDate,
+      linkedPracticeReceipt: null,
+      candidateState: current,
+    });
+    assert.ok(currentReflection);
+    assert.equal(currentReflection.taskId, `${String(plan.planId)}-${currentDate}-reflection`);
+
+    const reviewDate = String(asRecord((plan.days as MutableRecord[])[1]).date);
+    const scheduledDate = String(asRecord((plan.days as MutableRecord[])[0]).date);
+    const crossDateReflection = harness.checkInReflectionTaskForDate({
+      date: reviewDate,
+      linkedPracticeReceipt: { taskDate: scheduledDate },
+      candidateState: current,
+    });
+    assert.ok(crossDateReflection);
+    assert.equal(crossDateReflection.taskId, `default-${reviewDate}-reflection`);
+    assert.equal(
+      harness.checkInPlanIdForDate({ cycleEligible: false, activeCycle: null, date: "2026-08-12", candidateState: current }),
+      null,
+    );
+  });
+
+  it("preserves the scheduled task date while the actual cross-date check-in and Reflection use the review date", async () => {
+    const validation = await loadJourneyValidationHarness();
+    const journeyWriter = await loadJourneyWriterHarness();
+    const ready = await strictJourneyPreCloseFixture(journeyWriter, validation, { stopAfterPractice: true });
+    const harness = await loadWorkspaceWriterHarness({ pathname: "/check-in" });
+    harness.setState(ready);
+    harness.setNow(STRICT_CYCLE_TIMES.checkInAt);
+    const context = harness.resolveTodayTaskContext(ready, "2026-08-12");
+    assert.equal(context.source, "standalone_plan_expired");
+    const reflection = (context.tasks as MutableRecord[]).find((task) => task.skill === "Reflection");
+    assert.ok(reflection);
+    const receipt = Object.values(asRecord(ready.practiceReceipts))[0] as MutableRecord;
+    const scheduledTaskDate = receipt.taskDate;
+    assert.notEqual(scheduledTaskDate, "2026-08-12");
+    const cycle = asRecord(asRecord(ready.journey).activeCycle);
+    const outcome = await harness.commitCheckInRecord({
+      date: "2026-08-12",
+      values: {
+        date: "2026-08-12",
+        linkedTaskId: receipt.taskId,
+        didText: "Completed the linked reading task carefully.",
+        evidenceText: "Saved the exact local practice receipt as evidence.",
+        questionStatus: "none",
+        questionText: "",
+      },
+      cycleEligible: true,
+      cycleId: cycle.cycleId,
+      planId: cycle.basePlanId,
+      diagnosticSessionId: cycle.diagnosticSessionId,
+      recommendationId: cycle.recommendationId,
+      linkedPracticeReceipt: receipt,
+      reflectionTask: reflection,
+    });
+    assert.equal(outcome.status, "saved");
+    const candidate = harness.getState();
+    const checkIn = asRecord(asRecord(candidate.checkIns)["2026-08-12"]);
+    assert.equal(checkIn.date, "2026-08-12");
+    assert.equal(asRecord(checkIn.practiceReceipt).taskDate, scheduledTaskDate);
+    assert.equal(asRecord(candidate.practiceReceipts)[String(receipt.completionReceiptId)] &&
+      asRecord(asRecord(candidate.practiceReceipts)[String(receipt.completionReceiptId)]).taskDate, scheduledTaskDate);
+    const reflectionProgress = asRecord(asRecord(candidate.taskProgress)[String(reflection.taskId)]);
+    assert.equal(reflectionProgress.completionClass, "workflow_receipt");
+    assert.equal((candidate.learningEvents as MutableRecord[]).filter((event) => event.eventType === "check_in.committed").length, 1);
+    const strict = await validation.validateCandidate(candidate);
+    assert.equal(strict.ok, true, String(strict.code || "cross-date candidate rejected"));
+    const envelope = await harness.backup.createEnvelope(candidate);
+    assert.equal(envelope.status, "ready");
+
+    const wrongReflection = hostClone(candidate);
+    delete asRecord(wrongReflection.taskProgress)[String(reflection.taskId)];
+    const planReflection = (asRecord(wrongReflection.plan).days as MutableRecord[])
+      .flatMap((day) => day.tasks as MutableRecord[])
+      .find((task) => task.skill === "Reflection") as MutableRecord;
+    asRecord(wrongReflection.taskProgress)[String(planReflection.taskId)] = reflectionProgress;
+    asRecord(asRecord(wrongReflection.taskProgress)[String(planReflection.taskId)]).workflowReceipt = {
+      ...asRecord(reflectionProgress.workflowReceipt),
+      taskId: planReflection.taskId,
+    };
+    const rejected = await validation.validateCandidate(wrongReflection);
+    assert.notEqual(rejected.status, "ready");
+
+    const sameDayDefaultReflection = hostClone(candidate);
+    const defaultReflectionId = `default-${String(checkIn.date)}-reflection`;
+    delete asRecord(sameDayDefaultReflection.taskProgress)[String(reflection.taskId)];
+    asRecord(sameDayDefaultReflection.taskProgress)[defaultReflectionId] = {
+      ...reflectionProgress,
+      workflowReceipt: {
+        ...asRecord(reflectionProgress.workflowReceipt),
+        taskId: defaultReflectionId,
+      },
+    };
+    asRecord(asRecord(sameDayDefaultReflection.checkIns)[String(checkIn.date)]).practiceReceipt = {
+      ...asRecord(checkIn.practiceReceipt),
+      taskDate: checkIn.date,
+    };
+    const rejectedSameDayDefault = await validation.validateCandidate(sameDayDefaultReflection);
+    assert.notEqual(rejectedSameDayDefault.status, "ready");
   });
 });
 

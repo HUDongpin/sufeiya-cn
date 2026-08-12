@@ -22,11 +22,13 @@ import {
   getClerkDevelopmentKeyPair,
   getVercelHostedProtectionBypass,
   installClerkTestingLogRedaction,
+  retryClerkIdempotentMutation,
 } from "./clerk-development-config";
 
 const SOFIA_WORKSPACE_KEY = "sufeiya_workspace_v1";
 const SOFIA_CHAT_KEY = "sufeiya_super_teacher_v1";
 const TEACHING_REVIEW_DEMO_KEY = "sufeiya_teaching_review_demo_v1";
+const CLERK_BROWSER_BOOT_TIMEOUT_MS = 60_000;
 
 const canonicalJson = (value: unknown): string => {
   if (value === null || typeof value === "boolean" || typeof value === "number") {
@@ -436,8 +438,11 @@ test("a temporary Development user can traverse the protected smoke path and is 
     };
     page.on("response", recordClerkHandoffDocument);
     try {
-      await page.getByRole("link", { name: "登录", exact: true }).click();
-      await page.waitForURL((url) => url.pathname === "/sign-in");
+      const signInNavigation = page.waitForURL((url) => url.pathname === "/sign-in", {
+        waitUntil: "domcontentloaded",
+      });
+      await page.getByRole("link", { name: "登录", exact: true }).click({ noWaitAfter: true });
+      await signInNavigation;
 
       stage = "anonymous 404 Clerk document response";
       const signInDocument = [...clerkHandoffDocuments].reverse().find((response) => (
@@ -464,7 +469,9 @@ test("a temporary Development user can traverse the protected smoke path and is 
     stage = "signed-out route redirect";
     await page.waitForURL((url) => url.pathname === "/sign-in");
     stage = "signed-out Clerk UI";
-    await expect(page.locator(".cl-signIn-root")).toBeVisible();
+    await expect(page.locator(".cl-signIn-root")).toBeVisible({
+      timeout: CLERK_BROWSER_BOOT_TIMEOUT_MS,
+    });
 
     stage = "signed-out invitation-only registration";
     await page.goto("/sign-up", { waitUntil: "domcontentloaded" });
@@ -656,14 +663,16 @@ test("a temporary Development user can traverse the protected smoke path and is 
     });
 
     stage = "temporary synthetic invitation approval";
-    await client.users.updateUserMetadata(temporaryUser.id, {
-      publicMetadata: {
-        sufeiyaBetaAccess: {
-          protocolVersion: "sufeiya_invite_only_beta_v1",
-          status: "approved",
+    await retryClerkIdempotentMutation(() => (
+      client.users.updateUserMetadata(temporaryUser.id, {
+        publicMetadata: {
+          sufeiyaBetaAccess: {
+            protocolVersion: "sufeiya_invite_only_beta_v1",
+            status: "approved",
+          },
         },
-      },
-    });
+      })
+    ));
 
     stage = "temporary synthetic invitation visibility";
     await expect.poll(async () => {
@@ -2141,7 +2150,9 @@ test("a temporary Development user can traverse the protected smoke path and is 
     stage = "post-sign-out route protection";
     await page.goto("/workspace", { waitUntil: "domcontentloaded" });
     await page.waitForURL((url) => url.pathname === "/sign-in");
-    await expect(page.locator(".cl-signIn-root")).toBeVisible();
+    await expect(page.locator(".cl-signIn-root")).toBeVisible({
+      timeout: CLERK_BROWSER_BOOT_TIMEOUT_MS,
+    });
   } catch {
     throw new Error(`Clerk Development smoke failed during ${stage}.`);
   }

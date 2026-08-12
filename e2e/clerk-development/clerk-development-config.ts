@@ -1,5 +1,6 @@
 import { Buffer } from "node:buffer";
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { isClerkAPIResponseError } from "@clerk/backend/errors";
 
 type ClerkDevelopmentEnvironment = {
   [key: string]: string | undefined;
@@ -54,8 +55,61 @@ const CLERK_TESTING_BOOTSTRAP_ERROR =
 const CLERK_TESTING_HANDOFF_ERROR =
   "Clerk Development E2E requires the verified project-based setup handoff before any user operation.";
 
+const CLERK_IDEMPOTENT_MUTATION_RETRY_DELAYS_MS = [1_000, 2_500] as const;
+const CLERK_IDEMPOTENT_MUTATION_MAX_RETRY_AFTER_MS = 10_000;
+const CLERK_NETWORK_FAILURE_PATTERN =
+  /(?:^fetch failed$|^terminated$|network\s*(?:error|request failed)|socket hang up|\b(?:ECONNRESET|ECONNREFUSED|EHOSTUNREACH|ENETUNREACH|ETIMEDOUT|EAI_AGAIN|ENOTFOUND|UND_ERR_[A-Z_]+)\b)/i;
+
 export const CLERK_E2E_API_URL = "https://api.clerk.com";
 export const CLERK_E2E_API_VERSION = "v1";
+
+function isClerkNetworkFailure(error: Error) {
+  return error.name === "AbortError" || CLERK_NETWORK_FAILURE_PATTERN.test(error.message);
+}
+
+export function isRetryableClerkIdempotentMutationError(error: unknown) {
+  if (!(error instanceof Error)) return false;
+  if (!isClerkAPIResponseError(error)) return isClerkNetworkFailure(error);
+
+  const status: unknown = error.status;
+  if (typeof status === "number") {
+    return status === 408
+      || status === 409
+      || status === 429
+      || (status >= 500 && status <= 599);
+  }
+
+  return error.errors.length === 1
+    && error.errors[0]?.code === "unexpected_error"
+    && isClerkNetworkFailure(new Error(error.errors[0].message));
+}
+
+export async function retryClerkIdempotentMutation<T>(
+  operation: () => Promise<T>,
+  sleep: (milliseconds: number) => Promise<void> = (milliseconds) => (
+    new Promise((resolve) => setTimeout(resolve, milliseconds))
+  ),
+): Promise<T> {
+  for (let failureIndex = 0; ; failureIndex += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      const fallbackDelayMs = CLERK_IDEMPOTENT_MUTATION_RETRY_DELAYS_MS[failureIndex];
+      if (fallbackDelayMs === undefined || !isRetryableClerkIdempotentMutationError(error)) {
+        throw error;
+      }
+
+      const retryAfterSeconds = isClerkAPIResponseError(error) ? error.retryAfter : undefined;
+      const retryAfterMs = typeof retryAfterSeconds === "number"
+        && Number.isFinite(retryAfterSeconds)
+        && retryAfterSeconds >= 0
+        ? retryAfterSeconds * 1_000
+        : 0;
+      if (retryAfterMs > CLERK_IDEMPOTENT_MUTATION_MAX_RETRY_AFTER_MS) throw error;
+      await sleep(Math.max(fallbackDelayMs, retryAfterMs));
+    }
+  }
+}
 
 export function getClerkDevelopmentE2ETarget(
   environment: ClerkDevelopmentEnvironment = process.env,

@@ -400,6 +400,7 @@ const createLearningEventDomainFixtures = ({ anchorMs = Date.now() - 1_200 } = {
     planId: ids.planId,
     recommendationId: ids.recommendationId,
     taskId: ids.taskId,
+    taskDate: "2026-08-11",
     completedAt: occurredAt(2),
   };
   const checkIn = {
@@ -414,6 +415,7 @@ const createLearningEventDomainFixtures = ({ anchorMs = Date.now() - 1_200 } = {
     taskCompletionReceiptId: ids.completionReceiptId,
     practiceReceipt: receipt,
     checkInId: ids.checkInId,
+    date: "2026-08-12",
     savedAt: occurredAt(3),
   };
   const retest = {
@@ -2612,7 +2614,7 @@ const workspaceSpeakingPracticeSource = sourceSection(
 const workspaceCheckInCandidateSource = sourceSection(
   workspaceScript,
   "const checkInCandidateTasks",
-  "checkInCandidateTasks().forEach",
+  "let currentCheckInCandidates = checkInCandidateTasks();",
 );
 const workspaceCheckInSetupSource = sourceSection(
   workspaceScript,
@@ -2761,6 +2763,7 @@ const skippedRecommendationCandidateHarness = (() => {
         "use strict";
         let todayTasks = [];
         let recommendationChain = null;
+        const date = "2026-08-12";
         const getTodayTasks = () => todayTasks;
         const completedRecommendationChain = () => recommendationChain;
         ${workspaceCheckInCandidateSource}
@@ -2843,6 +2846,9 @@ const planBoundPracticeCreationHarness = (() => {
         let uuidCounter = 1;
         let appendCallCount = 0;
         const window = { location: { pathname: "/practice-reading", search: "" } };
+        const todayPlanScheduleRecognized = () => true;
+        const todayExactObjectKeys = (value, keys) =>
+          isRecord(value) && JSON.stringify(Object.keys(value).sort()) === JSON.stringify([...keys].sort());
         const createUuid = () => {
           const suffix = String(uuidCounter).padStart(12, "0");
           uuidCounter += 1;
@@ -3917,7 +3923,7 @@ checkExecutable(
   },
 );
 check(
-  /const todayTasks = getTodayTasks\(\)/.test(workspaceCheckInCandidateSource) &&
+  /const todayTasks = getTodayTasks\(dateKey\)/.test(workspaceCheckInCandidateSource) &&
     /recommendation\.status === "accepted"/.test(workspaceCheckInCandidateSource) &&
     /\[\.\.\.todayTasks, \.\.\.alternativeCoreTasks\][\s\S]*\.filter\(\(task\) =>[\s\S]*task\.skill === recommendationChain\.diagnostic\.prioritySkill[\s\S]*task\.taskId !== recommendationChain\.recommendation\.primary\?\.taskId/.test(
       workspaceCheckInCandidateSource,
@@ -4925,10 +4931,21 @@ check(
 );
 
 const renderPracticeBindingSource = sourceSection(workspaceScript, "const renderPracticeBindingStatus", "const practiceRoot");
+const resolvePracticeTaskContextSource = sourceSection(workspaceScript, "const resolvePracticeTaskContext", "const closedLoopPracticeBinding");
 const checkInSetupSource = sourceSection(workspaceScript, 'const checkinForm = document.querySelector("#checkin-form")', "const clearNamespace");
+const todayPlanProvenanceSource = sourceSection(workspaceScript, "const todayPlanProvenanceRecognized", "const todayPlanScheduleRecognized");
+const todayPlanScheduleSource = sourceSection(workspaceScript, "const todayPlanScheduleRecognized", "const resolveTodayTaskContext");
+const resolveTodayTaskContextSource = sourceSection(workspaceScript, "const resolveTodayTaskContext", "const getTodayTasks");
 const renderTodaySource = sourceSection(workspaceScript, "const renderToday", "renderToday();");
 const recommendationReceiptSource = sourceSection(journeyScript, "const renderRecommendationReceipt", "const setupRecommendations");
 const renderCommunitySource = sourceSection(journeyScript, "const renderCommunity", "const setupCommunity");
+check(
+  /todayPlanScheduleRecognized\(state\.plan, state\)/.test(resolvePracticeTaskContextSource) &&
+    /!isRecord\(task\.contentRef\)/.test(resolvePracticeTaskContextSource) &&
+    /todayExactObjectKeys\(task\.contentRef/.test(resolvePracticeTaskContextSource) &&
+    /task\.contentRef\.contentHash !== catalog\.contentHash/.test(resolvePracticeTaskContextSource),
+  "direct practice deep links require the same canonical current plan and exact content binding as Today",
+);
 check(
   /checkInLink\.hidden = true/.test(renderPracticeBindingSource) &&
     /receipt\.evidenceStatus === "evidence_limited"/.test(renderPracticeBindingSource) &&
@@ -4962,11 +4979,95 @@ check(
   "an accepted recommendation starts its exact validated primary practice route",
 );
 check(
-  /data-today-plan-boundary/.test(await read("today.html")) &&
-    /state\.plan[\s\S]*以下任务来自当前 7 天计划[\s\S]*新诊断已经开始，旧计划已归档[\s\S]*独立练习，不推进当前闭环/.test(
+  /learner_configured_standalone/.test(todayPlanProvenanceSource) &&
+    /learner_configured_after_gate_a_evidence_diagnostic/.test(todayPlanProvenanceSource) &&
+    /learner_confirmed_parallel_retest_followup/.test(todayPlanProvenanceSource) &&
+    /learner_selected_provisional_followup_pending_human_review/.test(todayPlanProvenanceSource) &&
+    /todayExactObjectKeys\(provenance/.test(todayPlanProvenanceSource) &&
+    /cycle\.basePlanId === plan\.planId/.test(todayPlanProvenanceSource) &&
+    /diagnostic\.taskSetDigest === provenance\.taskSetDigest/.test(todayPlanProvenanceSource) &&
+    /journey\?\.planUpdate\?\.updatedPlanId === plan\.planId/.test(todayPlanProvenanceSource) &&
+    /matchingHistory\.length === 1/.test(todayPlanProvenanceSource) &&
+    /plan\.focusSkill === diagnostic\.prioritySkill/.test(todayPlanProvenanceSource) &&
+    /diagnostic\.learnerConfirmedPriority === true/.test(todayPlanProvenanceSource) &&
+    /journey\?\.planUpdate\?\.focusSkill === plan\.focusSkill/.test(todayPlanProvenanceSource) &&
+    /todayExactObjectKeys\(plan, expectedPlanKeys\)/.test(todayPlanScheduleSource) &&
+    /todayExactUtcTimestamp\(plan\.createdAt\)/.test(todayPlanScheduleSource) &&
+    /\[15, 30, 45, 60\]\.includes\(plan\.dailyMinutes\)/.test(todayPlanScheduleSource) &&
+    /todayPlanProvenanceRecognized\(plan, candidateState\)/.test(todayPlanScheduleSource) &&
+    /const dayDates = new Set\(\)/.test(todayPlanScheduleSource) &&
+    /const taskIds = new Set\(\)/.test(todayPlanScheduleSource) &&
+    /plan\.days\.length !== 7/.test(todayPlanScheduleSource) &&
+    /expectedDate\.setUTCDate\(expectedDate\.getUTCDate\(\) \+ index\)/.test(todayPlanScheduleSource) &&
+    /day\.date !== expectedDate\.toISOString\(\)\.slice\(0, 10\)/.test(todayPlanScheduleSource) &&
+    /plan\.days\[0\]\?\.date === plan\.startDate[\s\S]*plan\.days\[6\]\?\.date === plan\.endDate/.test(
+      todayPlanScheduleSource,
+    ) &&
+    /dayDates\.has\(day\.date\)/.test(todayPlanScheduleSource) &&
+    /taskIds\.has\(task\.taskId\)/.test(todayPlanScheduleSource) &&
+    /todayPlanDayValid\(day, day\.date\)/.test(todayPlanScheduleSource) &&
+    /day\.coreSkill !== expectedSequence\[index\]/.test(todayPlanScheduleSource) &&
+    /day\.tasks\.reduce\(\(sum, task\) => sum \+ Number\(task\.durationMinutes\), 0\) !== plan\.dailyMinutes/.test(
+      todayPlanScheduleSource,
+    ) &&
+    /core\.taskId !== `\$\{plan\.planId\}-\$\{day\.date\}-\$\{day\.coreSkill\.toLowerCase\(\)\}`/.test(
+      todayPlanScheduleSource,
+    ) &&
+    /core\.contentRef\.contentHash !== catalog\.contentHash/.test(todayPlanScheduleSource) &&
+    /reflection\.route !== "\/check-in"/.test(todayPlanScheduleSource) &&
+    /historicalPlanIds\.includes\(plan\.planId\)/.test(todayPlanScheduleSource) &&
+    /historicalTaskIds\.every/.test(todayPlanScheduleSource) &&
+    /!todayPlanScheduleRecognized\(plan, candidateState\)/.test(resolveTodayTaskContextSource) &&
+    /matchingDays\.length > 1 \|\| \(matchingDays\.length === 1 && !todayPlanDayValid\(matchingDays\[0\], date\)\)/.test(
+      resolveTodayTaskContextSource,
+    ) &&
+    /if \(matchingDays\.length === 1\)/.test(resolveTodayTaskContextSource) &&
+    /source:\s*"current_plan_day"[\s\S]*planId:\s*plan\.planId[\s\S]*tasks:\s*matchingDays\[0\]\.tasks/.test(
+      resolveTodayTaskContextSource,
+    ) &&
+    /standalone_plan_future/.test(resolveTodayTaskContextSource) &&
+    /standalone_plan_expired/.test(resolveTodayTaskContextSource) &&
+    /standalone_plan_date_gap/.test(resolveTodayTaskContextSource) &&
+    /standalone_plan_day_invalid/.test(resolveTodayTaskContextSource) &&
+    /planId:\s*null/.test(resolveTodayTaskContextSource) &&
+    /const context = resolveTodayTaskContext\(state, date\)/.test(renderTodaySource) &&
+    /planBoundary\.dataset\.todaySource = context\.source/.test(renderTodaySource) &&
+    /sourceLabel\.textContent = context\.source === "current_plan_day"/.test(renderTodaySource) &&
+    /route\.href = todayTaskHref\(task, context\)/.test(renderTodaySource) &&
+    /currentDate !== context\.date[\s\S]*renderToday\(currentDate\)[\s\S]*刚才的勾选没有写入/.test(renderTodaySource) &&
+    /const persistedDate = keyForDate\(new Date\(updatedAt\)\)[\s\S]*persistedDate !== context\.date \|\| todayKey\(\) !== context\.date[\s\S]*刚才的勾选没有写入/.test(
       renderTodaySource,
-    ),
-  "today explicitly distinguishes the current plan from independent fallback practice",
+    ) &&
+    /data-today-plan-boundary/.test(await read("today.html")) &&
+    /data-today-next-link/.test(await read("today.html")) &&
+    /data-today-plan-link/.test(await read("today.html")) &&
+    /data-today-live role="status" aria-live="polite" aria-atomic="true"/.test(await read("today.html")) &&
+    /data-today-date-alert role="alert" aria-atomic="true" tabindex="-1"/.test(await read("today.html")),
+  "today only binds one exact current plan day, labels every fallback as independent, and fails closed across a date change",
+);
+check(
+  /if \(todayKey\(\) !== date \|\| values\.date !== date\) return \{ status: "date_changed" \}/.test(
+    workspaceScript,
+  ) &&
+    /const finalDate = todayKey\(\);[\s\S]*finalDate !== date[\s\S]*status: "date_changed"[\s\S]*state = candidate/.test(
+      workspaceScript,
+    ) &&
+    /reflectionTask\.skill !== "Reflection" \|\| reflectionTask\.date !== date/.test(workspaceScript) &&
+    /linkedPracticeReceipt\?\.taskDate && linkedPracticeReceipt\.taskDate !== date[\s\S]*defaultTodayTasks\(date\)/.test(
+      workspaceScript,
+    ) &&
+    /data-checkin-date-alert role="alert" aria-atomic="true" tabindex="-1"/.test(await read("check-in.html")) &&
+    /data-checkin-switch-today/.test(await read("check-in.html")) &&
+    /const standaloneCycleScopeMatches = Boolean\([\s\S]*checkIn\?\.evidenceClass === "practice_receipt"[\s\S]*checkIn\.linkedTaskId === checkIn\.practiceReceipt\.taskId/.test(
+      journeyScript,
+    ) &&
+    !/record\.date !== stored\.taskDate/.test(journeyScript) &&
+    /isCalendarDate\(record\.date\)/.test(learningEventsScript) &&
+    /isCalendarDate\(record\.practiceReceipt\?\.taskDate\)/.test(learningEventsScript) &&
+    /Date\.parse\(record\.savedAt\) < Date\.parse\(record\.practiceReceipt\.completedAt\)/.test(learningEventsScript) &&
+    /checkIn\.date[^\n]*实际复盘日期/.test(await read("README.md")) &&
+    /practiceReceipt\.taskDate[^\n]*原计划任务日期/.test(await read("README.md")),
+  "cross-day check-in preserves distinct review and scheduled task dates while stale-date writes fail closed",
 );
 check(
   ![workspaceScript, journeyScript, await read("workspace.html"), await read("scripts/generate-pages.mjs"), superTeacherResponder, superTeacherDeterministicResponder, JSON.stringify(await read("data/super-teacher-source-register.json"))]

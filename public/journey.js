@@ -3225,8 +3225,7 @@
           record.planId !== stored.planId ||
           record.cycleId !== stored.cycleId ||
           record.diagnosticSessionId !== stored.diagnosticSessionId ||
-          record.recommendationId !== stored.recommendationId ||
-          record.date !== stored.taskDate
+          record.recommendationId !== stored.recommendationId
         ) return false;
       } else if (
         record.practiceReceipt !== null || record.practiceAttemptId !== null || record.taskCompletionReceiptId !== null
@@ -3310,12 +3309,25 @@
       if (progress.completionClass === "workflow_receipt") {
         const workflow = progress.workflowReceipt;
         const checkIn = workspaceBackupExactCheckInById(candidateState, workflow?.checkInId);
-        const standaloneScopeMatches = owner.kind !== "standalone" || Boolean(
-          (checkIn?.planId === null || checkIn?.planId === candidateState.plan?.planId) &&
+        const standaloneIndependentScopeMatches = Boolean(
+          (checkIn?.planId === null || Boolean(planById(checkIn?.planId, candidateState))) &&
           checkIn?.cycleId === null &&
           checkIn?.diagnosticSessionId === null &&
           checkIn?.recommendationId === null
         );
+        const standaloneCycleScopeMatches = Boolean(
+          checkIn?.evidenceClass === "practice_receipt" &&
+          isRecord(checkIn.practiceReceipt) &&
+          Boolean(planById(checkIn.planId, candidateState)) &&
+          checkIn.date !== checkIn.practiceReceipt.taskDate &&
+          checkIn.cycleId === checkIn.practiceReceipt.cycleId &&
+          checkIn.diagnosticSessionId === checkIn.practiceReceipt.diagnosticSessionId &&
+          checkIn.recommendationId === checkIn.practiceReceipt.recommendationId &&
+          checkIn.linkedTaskId === checkIn.practiceReceipt.taskId &&
+          checkIn.taskCompletionReceiptId === checkIn.practiceReceipt.completionReceiptId
+        );
+        const standaloneScopeMatches = owner.kind !== "standalone" ||
+          standaloneIndependentScopeMatches || standaloneCycleScopeMatches;
         if (
           !exactObjectKeys(progress, WORKSPACE_BACKUP_PROGRESS_WORKFLOW_KEYS) ||
           !exactObjectKeys(workflow, WORKSPACE_BACKUP_WORKFLOW_RECEIPT_KEYS) ||

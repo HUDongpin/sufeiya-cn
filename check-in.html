@@ -119,6 +119,7 @@
       <div class="single-tool-inner narrow-tool">
         <header class="tool-panel-header"><div><span>04</span><div><p>今日打卡</p><h2 id="checkin-title">把今天的证据留下来</h2></div></div><small data-checkin-date></small></header>
         <div class="form-errors" data-checkin-errors role="alert" tabindex="-1" hidden><strong>请检查以下内容：</strong><ul></ul></div>
+        <div class="today-date-alert checkin-date-alert" data-checkin-date-alert role="alert" aria-atomic="true" tabindex="-1" hidden><strong>本机日期已经变化，请先核对</strong><p data-checkin-date-alert-copy>这份未提交内容仍保留原复盘日期。你可以切换到今天并检查内容，或返回今日清单。</p><div class="today-date-alert-actions"><button class="button button-ink" type="button" data-checkin-switch-today>切换到今天并检查内容</button><a class="button button-ghost" href="/today">返回今日清单</a></div></div>
         <form id="checkin-form" class="checkin-form" novalidate>
           <label><span>复盘日期</span><input type="text" name="date" data-checkin-date-input readonly /></label>
           <label><span>关联今日任务 <small>闭环记录必须选择带合格练习回执的本轮核心任务</small></span><select name="linkedTaskId" data-linked-task><option value="">不关联任务 · 保存为独立复盘</option></select><small class="field-error" data-error-for="linkedTaskId"></small></label>
