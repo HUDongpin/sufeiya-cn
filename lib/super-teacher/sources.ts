@@ -204,16 +204,28 @@ function dynamicSources(context?: LearnerContext): GroundingSource[] {
 
   if (context.plan) {
     const focus = skillLabels[context.plan.focusSkill];
+    const planStage = context.plan.stage === "provisional_updated"
+      ? "临时更新后、仍待具备资质人员确认的"
+      : context.plan.stage === "updated"
+        ? "更新后"
+        : "基础";
+    const minimizedProvisional = context.plan.stage === "provisional_updated";
     const task = context.plan.currentTaskSkill
       ? `当前任务技能是 ${skillLabels[context.plan.currentTaskSkill]}。`
-      : "当前任务技能尚未形成。";
-    const time = context.plan.dailyMinutes ? `每日可用时间为 ${context.plan.dailyMinutes} 分钟。` : "未提供每日可用时间。";
+      : minimizedProvisional
+        ? "当前最小化承接摘要未携带任务技能，不能据此判断任务尚未形成。"
+        : "当前任务技能尚未形成。";
+    const time = context.plan.dailyMinutes
+      ? `每日可用时间为 ${context.plan.dailyMinutes} 分钟。`
+      : minimizedProvisional
+        ? "当前最小化承接摘要未携带每日时间，不能据此判断计划未设置时间。"
+        : "未提供每日可用时间。";
     sources.push({
       id: "learner-local-plan",
       title: "用户设备提交的未签名 7 天计划摘要",
       href: "/plan",
       sourceClass: "learner_local_record",
-      content: `同轮回链的${context.plan.stage === "updated" ? "更新后" : "基础"}计划重点是 ${focus}。${time}${task}这是用户设备提交的未签名摘要，不包含姓名或自由文本作答。`,
+      content: `同轮回链的${planStage}计划重点是 ${focus}。${time}${task}这是用户设备提交的未签名摘要，不包含姓名或自由文本作答。`,
     });
   }
 
@@ -233,12 +245,15 @@ function dynamicSources(context?: LearnerContext): GroundingSource[] {
 
   if (context.progress) {
     const progress = context.progress;
+    const updatedPlanStatus = progress.humanReviewStatus === "required_not_completed"
+      ? "临时更新计划已由学习者确认，仍待具备资质人员确认"
+      : `更新计划${progress.updatedPlanConfirmed ? "已由学习者确认" : "尚未确认"}`;
     sources.push({
       id: "learner-local-progress",
       title: "用户设备提交的未签名闭环进度",
       href: "/workspace",
       sourceClass: "learner_local_record",
-      content: `经同轮前序 ID 检查后：打卡${progress.checkInRecorded ? "已记录" : "未记录"}；学生复盘${progress.learnerReviewConfirmed ? "已确认" : "未确认"}；微复测${progress.retestRecorded ? "已记录" : "未记录"}；更新计划${progress.updatedPlanConfirmed ? "已由学习者确认" : "尚未确认"}。这是用户设备提交的未签名摘要，不是服务器签名审计记录。`,
+      content: `经同轮前序 ID 检查后：打卡${progress.checkInRecorded ? "已记录" : "未记录"}；学生复盘${progress.learnerReviewConfirmed ? "已确认" : "未确认"}；微复测${progress.retestRecorded ? "已记录" : "未记录"}；${updatedPlanStatus}。这是用户设备提交的未签名摘要，不是服务器签名审计记录。`,
     });
   }
 

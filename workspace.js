@@ -3997,12 +3997,16 @@
       : { status: "ledger_invalid", eventCount: null, headHash: null };
     let teacherTurns = 0;
     let handoffRequests = 0;
+    let provisionalHandoffPackets = 0;
     try {
       const teacherRaw = window.localStorage.getItem(SUPER_TEACHER_STORAGE_KEY);
       const teacherData = teacherRaw ? JSON.parse(teacherRaw) : null;
       if (isRecord(teacherData) && teacherData.protocolVersion === "sufeiya_super_teacher_v1") {
         teacherTurns = Array.isArray(teacherData.turns) ? teacherData.turns.length : 0;
         handoffRequests = Array.isArray(teacherData.handoffRequests) ? teacherData.handoffRequests.length : 0;
+        provisionalHandoffPackets = Array.isArray(teacherData.provisionalHandoffPackets)
+          ? teacherData.provisionalHandoffPackets.length
+          : 0;
       }
     } catch {
       // Corrupt or unavailable Super Teacher storage is preserved for export or explicit clearing.
@@ -4036,6 +4040,7 @@
       ["专注记录", `${state.focus.sessions.length} 次`],
       ["Sofia智能老师对话消息", teacherTurns + " 条"],
       ["未发送人工请求", handoffRequests + " 条"],
+      ["Sofia 本机严格承接包", provisionalHandoffPackets + " 份 · 均未自动发送"],
       ["教研复核演示草稿", teachingReviewDraftSummary],
     ];
     rows.forEach(([label, value]) => {
@@ -4226,7 +4231,7 @@
 
   document.querySelectorAll("[data-clear-super-teacher]").forEach((button) => {
     button.addEventListener("click", async () => {
-      if (!window.confirm("确定仅清除这个浏览器中的 Sofia智能老师对话和未发送人工请求吗？学习闭环数据与教研复核演示草稿不会被删除；此操作无法撤销。")) return;
+      if (!window.confirm("确定仅清除这个浏览器中的 Sofia智能老师对话、未发送人工请求和本机严格承接包吗？学习闭环数据与教研复核演示草稿不会被删除；此操作无法撤销。")) return;
       const outcome = await withSuperTeacherWriteLock(() => {
         try {
           window.localStorage.removeItem(SUPER_TEACHER_STORAGE_KEY);
@@ -4270,7 +4275,7 @@
 
   document.querySelectorAll("[data-clear-all-sufeiya]").forEach((button) => {
     button.addEventListener("click", async () => {
-      if (!window.confirm("确定清除这个浏览器中的全部 Sufeiya 学习闭环、Sofia智能老师对话、未发送人工请求与教研复核演示草稿吗？此操作无法撤销。")) return;
+      if (!window.confirm("确定清除这个浏览器中的全部 Sufeiya 学习闭环、Sofia智能老师对话、未发送人工请求、本机严格承接包与教研复核演示草稿吗？此操作无法撤销。")) return;
       const outcome = await withWorkspaceRecoveryLock(() => withSuperTeacherWriteLock(() => withTeachingReviewDemoWriteLock(() => {
         let snapshots;
         try {

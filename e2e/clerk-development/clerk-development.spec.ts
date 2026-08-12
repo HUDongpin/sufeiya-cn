@@ -110,6 +110,14 @@ type SmokeStage =
   | "authenticated Gate A community idempotency"
   | "authenticated Gate A community mutable choice"
   | "authenticated Gate A community final choice"
+  | "authenticated Gate A provisional retest branch"
+  | "authenticated Gate A provisional workspace handoff"
+  | "authenticated Gate A Sofia strict packet ready state"
+  | "authenticated Gate A Sofia strict packet click"
+  | "authenticated Gate A Sofia strict packet storage receipt"
+  | "authenticated Gate A Sofia strict packet visible notice"
+  | "authenticated Gate A Sofia strict packet schema"
+  | "authenticated Gate A Sofia stale packet recovery"
   | "authenticated Gate A community downstream seal"
   | "authenticated Gate A community network isolation"
   | "authenticated Gate A Reading retest"
@@ -139,6 +147,9 @@ type SmokeStage =
   | "synthetic capacity UI probe only — focus start restore, not 7/7 evidence"
   | "authenticated teaching-review demo"
   | "authenticated Sofia local explanation"
+  | "authenticated Sofia landscape session refresh"
+  | "authenticated Sofia landscape navigation"
+  | "authenticated Sofia landscape launcher"
   | "authenticated Sofia landscape dialog"
   | "Clerk sign-out"
   | "post-sign-out Sofia privacy"
@@ -338,6 +349,12 @@ test("a temporary Development user can traverse the protected smoke path and is 
       return "refresh_rejected" as const;
     }
   });
+  const refreshApprovedSessionBeforeDocumentNavigation = async () => {
+    await expect.poll(forceRefreshClerkSessionToken, {
+      intervals: [1_000, 2_000, 5_000, 10_000],
+      timeout: 30_000,
+    }).toBe("token_refreshed");
+  };
 
   try {
     if (vercelProtectionBypass) {
@@ -979,6 +996,7 @@ test("a temporary Development user can traverse the protected smoke path and is 
     await expect(planNext.locator("[data-plan-next-label]")).toHaveText("下一步：查看内容推荐");
 
     stage = "authenticated Gate A recommendation";
+    await refreshApprovedSessionBeforeDocumentNavigation();
     const [recommendationsResponse] = await Promise.all([
       page.waitForResponse((response) => (
         response.request().resourceType() === "document"
@@ -1034,6 +1052,7 @@ test("a temporary Development user can traverse the protected smoke path and is 
       "href",
       /\/practice-reading\?plan_id=[^&]+&task_id=[^&]+/,
     );
+    await refreshApprovedSessionBeforeDocumentNavigation();
     const [practiceResponse] = await Promise.all([
       page.waitForResponse((response) => (
         response.request().resourceType() === "document"
@@ -1059,6 +1078,7 @@ test("a temporary Development user can traverse the protected smoke path and is 
       "href",
       /\/check-in#plan_id=.*completion_receipt_id=.*cycle_id=.*recommendation_id=.*/,
     );
+    await refreshApprovedSessionBeforeDocumentNavigation();
     const [checkInResponse] = await Promise.all([
       page.waitForResponse((response) => (
         response.request().resourceType() === "document"
@@ -1137,6 +1157,7 @@ test("a temporary Development user can traverse the protected smoke path and is 
     expect(savedCheckInQuestion).toEqual({ questionStatus: "none", questionText: "" });
     const reviewLink = page.locator("[data-checkin-review-link]");
     await expect(reviewLink).toBeVisible();
+    await refreshApprovedSessionBeforeDocumentNavigation();
     const [reviewResponse] = await Promise.all([
       page.waitForResponse((response) => (
         response.request().resourceType() === "document"
@@ -1285,6 +1306,7 @@ test("a temporary Development user can traverse the protected smoke path and is 
 
     const communityLink = page.locator("[data-review-next]");
     await expect(communityLink).toBeVisible();
+    await refreshApprovedSessionBeforeDocumentNavigation();
     const [communityResponse] = await Promise.all([
       page.waitForResponse((response) => (
         response.request().resourceType() === "document"
@@ -1440,6 +1462,7 @@ test("a temporary Development user can traverse the protected smoke path and is 
 
     const retestLink = page.locator("[data-community-next]");
     await expect(retestLink).toBeVisible();
+    await refreshApprovedSessionBeforeDocumentNavigation();
     const [retestResponse] = await Promise.all([
       page.waitForResponse((response) => (
         response.request().resourceType() === "document"
@@ -1449,6 +1472,419 @@ test("a temporary Development user can traverse the protected smoke path and is 
     ]);
     expect(retestResponse.status()).toBe(200);
     expect(retestResponse.headers()["x-sufeiya-beta-access"]).toBe("approved");
+
+    const beforeProvisionalBranch = await readLocalNamespaces();
+    if (!beforeProvisionalBranch.workspace) throw new Error("pre-retest workspace raw is unavailable");
+
+    stage = "authenticated Gate A provisional retest branch";
+    const provisionalRetestForm = page.locator("#retest-form");
+    await provisionalRetestForm.locator('input[name="retestReading"][value="a"]').check();
+    await provisionalRetestForm.getByRole("button", { name: "保存本次平行任务证据" }).click();
+    await expect(page.locator("[data-retest-result]")).toBeVisible();
+    await expect(page.locator("[data-retest-status]")).toHaveText("已留证，等待人工确认");
+    await expect(page.locator("[data-retest-result-copy]")).toContainText(
+      "仍需具备资质的人工确认",
+    );
+    const provisionalPlanUpdateForm = page.locator("#plan-update-form");
+    await expect(provisionalPlanUpdateForm).toBeVisible();
+    await provisionalPlanUpdateForm.locator('select[name="nextFocusSkill"]').selectOption("Reading");
+    await provisionalPlanUpdateForm.locator('input[name="learnerConfirmed"]').check();
+    await provisionalPlanUpdateForm.getByRole("button", { name: "生成更新后的 7 天计划" }).click();
+    await expect(page.locator("[data-plan-update-completion-title]")).toHaveText(
+      "临时计划已保存在本机",
+    );
+    await expect(page.locator("[data-plan-update-completion-copy]")).toContainText(
+      "仍等待具备资质的人工确认",
+    );
+
+    const provisionalPrivateNarratives = [
+      savedCheckInDidText,
+      savedCheckInEvidenceText,
+    ];
+    const teachingReviewSentinelRaw = JSON.stringify({
+      sentinel: `PRIVATE_TEACHING_REVIEW_${uniqueSuffix}`,
+      purpose: "strict-handoff-byte-isolation",
+    });
+    const provisionalWorkspaceRaw = await page.evaluate(
+      ({ workspaceKey, teachingReviewKey, teachingReviewRaw }) => {
+        const raw = window.localStorage.getItem(workspaceKey);
+        if (!raw) return null;
+        window.localStorage.setItem(teachingReviewKey, teachingReviewRaw);
+        return raw;
+      },
+      {
+        workspaceKey: SOFIA_WORKSPACE_KEY,
+        teachingReviewKey: TEACHING_REVIEW_DEMO_KEY,
+        teachingReviewRaw: teachingReviewSentinelRaw,
+      },
+    );
+    if (!provisionalWorkspaceRaw) throw new Error("provisional workspace raw is unavailable");
+    const provisionalWorkspaceSha256 = createHash("sha256")
+      .update(provisionalWorkspaceRaw)
+      .digest("hex");
+    for (const narrative of provisionalPrivateNarratives) {
+      expect(provisionalWorkspaceRaw).toContain(narrative);
+    }
+    const provisionalEventCount = (JSON.parse(provisionalWorkspaceRaw) as {
+      learningEvents?: unknown[];
+    }).learningEvents?.length ?? 0;
+
+    stage = "authenticated Gate A provisional workspace handoff";
+    await gotoApprovedRoute("/workspace");
+    await expect(page.locator("[data-journey-summary]")).toHaveText(
+      "7 / 7 步已记录 · 待具备资质人员确认",
+    );
+    await expect(page.locator("[data-provisional-handoff]")).toBeVisible();
+    await expect(page.locator("[data-journey-next-link]")).toBeHidden();
+    await expect(page.locator("[data-next-cycle-admission]")).toBeHidden();
+    const workspaceHandoffCta = page.locator("[data-provisional-handoff-support]");
+    await expect(workspaceHandoffCta).toHaveAttribute(
+      "href",
+      "/super-teacher?handoff=provisional#human-support",
+    );
+    const strictNamespacesBefore = await readLocalNamespaces();
+    expect(strictNamespacesBefore).toEqual({
+      chat: beforeProvisionalBranch.chat,
+      teachingReview: teachingReviewSentinelRaw,
+      workspace: provisionalWorkspaceRaw,
+    });
+    await refreshApprovedSessionBeforeDocumentNavigation();
+    await Promise.all([
+      page.waitForURL((url) => (
+        url.pathname === "/super-teacher" && url.searchParams.get("handoff") === "provisional"
+      )),
+      workspaceHandoffCta.click(),
+    ]);
+
+    stage = "authenticated Gate A Sofia strict packet ready state";
+    const strictPacketCard = page.locator('section[aria-labelledby="provisional-package-title"]');
+    await expect(strictPacketCard).toBeVisible();
+    await expect(strictPacketCard).toHaveAttribute("data-state", "ready");
+    await expect(strictPacketCard.locator("header").getByText("7 / 7", { exact: true })).toBeVisible();
+    await expect(strictPacketCard.getByText("待具备资质人员确认", { exact: true })).toBeVisible();
+    const createStrictPacket = strictPacketCard.getByRole("button", {
+      name: "在本机生成严格承接包",
+    });
+    await expect(createStrictPacket).toBeEnabled();
+
+    stage = "authenticated Gate A Sofia strict packet click";
+    await createStrictPacket.click();
+
+    stage = "authenticated Gate A Sofia strict packet storage receipt";
+    await expect.poll(() => page.evaluate((chatKey) => {
+      const raw = window.localStorage.getItem(chatKey);
+      try {
+        const parsed = JSON.parse(raw || "null") as {
+          provisionalHandoffPackets?: unknown[];
+          revision?: number;
+        } | null;
+        return {
+          hasRaw: Boolean(raw),
+          packetCount: parsed?.provisionalHandoffPackets?.length ?? 0,
+          revision: parsed?.revision ?? 0,
+        };
+      } catch {
+        return { hasRaw: Boolean(raw), packetCount: 0, revision: 0 };
+      }
+    }, SOFIA_CHAT_KEY)).toEqual({ hasRaw: true, packetCount: 1, revision: 1 });
+
+    stage = "authenticated Gate A Sofia strict packet visible notice";
+    await expect(page.getByText(/已在 Sofia 本机命名空间生成最小化承接包/)).toBeVisible();
+
+    stage = "authenticated Gate A Sofia strict packet schema";
+    const strictPacketSchemaAssessment = await page.evaluate(
+      ({
+        chatKey,
+        expectedEventCount,
+        expectedSnapshotSha256,
+        expectedTeachingReviewRaw,
+        expectedWorkspaceRaw,
+        privateNarratives,
+        privateSentinels,
+        teachingReviewKey,
+        workspaceKey,
+      }) => {
+        const chatRaw = window.localStorage.getItem(chatKey);
+        const workspaceRaw = window.localStorage.getItem(workspaceKey);
+        const parsedSession = JSON.parse(chatRaw || "null") as {
+          provisionalHandoffPackets?: Array<Record<string, unknown>>;
+          revision?: number;
+        } | null;
+        const parsedWorkspace = JSON.parse(workspaceRaw || "null") as {
+          learningEvents?: unknown[];
+          journey?: {
+            activeCycle?: {
+              basePlanId?: string;
+              checkInId?: string;
+              cycleId?: string;
+              diagnosticSessionId?: string;
+              peerHelpId?: string;
+              recommendationId?: string;
+              retestId?: string;
+              reviewId?: string;
+              updatedPlanId?: string;
+            };
+          };
+        } | null;
+        const cycle = parsedWorkspace?.journey?.activeCycle;
+        const packet = parsedSession?.provisionalHandoffPackets?.at(-1);
+        const sourceDomainIds = [
+          cycle?.cycleId,
+          cycle?.diagnosticSessionId,
+          cycle?.basePlanId,
+          cycle?.recommendationId,
+          cycle?.checkInId,
+          cycle?.reviewId,
+          cycle?.peerHelpId,
+          cycle?.retestId,
+          cycle?.updatedPlanId,
+        ];
+        const expectedKeys = [
+          "canonicalLedgerWriteAllowed",
+          "createdAt",
+          "cycleClosureAllowed",
+          "humanConfirmationStatus",
+          "humanReviewReceiptCreated",
+          "identityVerified",
+          "kind",
+          "learnerNarrativeWithheld",
+          "networkDispatch",
+          "peerHelpStatus",
+          "prioritySkill",
+          "protocolVersion",
+          "qualifiedHumanConfirmation",
+          "realQueueCreated",
+          "recordedStepCount",
+          "retestEvidenceStatus",
+          "sourceClass",
+          "sourceSnapshotSha256",
+          "sourceStorageKey",
+          "sourceUpdatedAt",
+          "status",
+        ].sort();
+        const serializedPacket = JSON.stringify(packet);
+        const forbiddenValues = [
+          "packetId",
+          ...sourceDomainIds,
+          ...privateNarratives,
+          ...privateSentinels,
+        ];
+        (window as Window & { __sufeiyaStrictSessionBytes?: string })
+          .__sufeiyaStrictSessionBytes = chatRaw || undefined;
+        return {
+          eventCountPreserved: (parsedWorkspace?.learningEvents?.length ?? 0) === expectedEventCount,
+          exactSchema: JSON.stringify(Object.keys(packet ?? {}).sort()) === JSON.stringify(expectedKeys),
+          fixedBoundaries: packet?.protocolVersion === "sufeiya_provisional_handoff_packet_v1" &&
+            packet.kind === "provisional_cycle_human_support_handoff" &&
+            packet.status === "local_not_sent" &&
+            packet.sourceStorageKey === workspaceKey &&
+            packet.recordedStepCount === 7 &&
+            packet.humanConfirmationStatus === "required_not_completed" &&
+            packet.networkDispatch === "disabled" &&
+            packet.realQueueCreated === false &&
+            packet.humanReviewReceiptCreated === false &&
+            packet.qualifiedHumanConfirmation === false &&
+            packet.identityVerified === false &&
+            packet.canonicalLedgerWriteAllowed === false &&
+            packet.cycleClosureAllowed === false &&
+            packet.learnerNarrativeWithheld === true,
+          sensitiveValuesWithheld: forbiddenValues.every((value) =>
+            typeof value === "string" && !serializedPacket.includes(value)
+          ),
+          snapshotBound: packet?.sourceSnapshotSha256 === expectedSnapshotSha256,
+          sourceBindingsPresent: sourceDomainIds.length === 9 &&
+            sourceDomainIds.every((value) => typeof value === "string"),
+          teachingReviewBytesPreserved:
+            window.localStorage.getItem(teachingReviewKey) === expectedTeachingReviewRaw,
+          workspaceBytesPreserved: workspaceRaw === expectedWorkspaceRaw,
+        };
+      },
+      {
+        chatKey: SOFIA_CHAT_KEY,
+        expectedEventCount: provisionalEventCount,
+        expectedSnapshotSha256: provisionalWorkspaceSha256,
+        expectedTeachingReviewRaw: teachingReviewSentinelRaw,
+        expectedWorkspaceRaw: provisionalWorkspaceRaw,
+        privateNarratives: provisionalPrivateNarratives,
+        privateSentinels: [
+          temporaryUser.id,
+          temporaryEmail,
+          "13800138000",
+          "private@example.test",
+        ],
+        teachingReviewKey: TEACHING_REVIEW_DEMO_KEY,
+        workspaceKey: SOFIA_WORKSPACE_KEY,
+      },
+    );
+    expect(strictPacketSchemaAssessment).toEqual({
+      eventCountPreserved: true,
+      exactSchema: true,
+      fixedBoundaries: true,
+      sensitiveValuesWithheld: true,
+      snapshotBound: true,
+      sourceBindingsPresent: true,
+      teachingReviewBytesPreserved: true,
+      workspaceBytesPreserved: true,
+    });
+
+    const replayStrictPacket = strictPacketCard.getByRole("button", {
+      name: "重新核对并生成本机包",
+    });
+    await replayStrictPacket.click();
+    await expect(page.getByText(/当前快照已有同一最小化承接包/)).toBeVisible();
+    expect(await page.evaluate((chatKey) => {
+      const before = (window as Window & { __sufeiyaStrictSessionBytes?: string })
+        .__sufeiyaStrictSessionBytes;
+      return Boolean(before) && window.localStorage.getItem(chatKey) === before;
+    }, SOFIA_CHAT_KEY)).toBe(true);
+
+    await page.evaluate(() => {
+      Object.defineProperty(Navigator.prototype, "clipboard", {
+        configurable: true,
+        get() {
+          return {
+            async writeText(text: string) {
+              (window as Window & { __sufeiyaStrictHandoffCopy?: string })
+                .__sufeiyaStrictHandoffCopy = text;
+            },
+          };
+        },
+      });
+    });
+    const copyStrictPacket = strictPacketCard.getByRole("button", {
+      name: "复制白名单承接包",
+    });
+    await expect(copyStrictPacket).toBeEnabled();
+    await copyStrictPacket.click();
+    await expect(page.getByText(/已复制.*白名单承接包/)).toBeVisible();
+    await expect(strictPacketCard).toContainText(
+      "页面、本机包与复制文本都不携带原始领域 ID 或独立包编号",
+    );
+    const strictCopyAssessment = await page.evaluate(({
+      expectedSnapshotSha256,
+      privateNarratives,
+      privateSentinels,
+      workspaceKey,
+    }) => {
+      const copy = (window as Window & { __sufeiyaStrictHandoffCopy?: string })
+        .__sufeiyaStrictHandoffCopy ?? "";
+      const workspace = JSON.parse(window.localStorage.getItem(workspaceKey) || "null") as {
+        journey?: {
+          activeCycle?: {
+            basePlanId?: string;
+            checkInId?: string;
+            cycleId?: string;
+            diagnosticSessionId?: string;
+            peerHelpId?: string;
+            recommendationId?: string;
+            retestId?: string;
+            reviewId?: string;
+            updatedPlanId?: string;
+          };
+        };
+      } | null;
+      const cycle = workspace?.journey?.activeCycle;
+      const sourceDomainIds = [
+        cycle?.cycleId,
+        cycle?.diagnosticSessionId,
+        cycle?.basePlanId,
+        cycle?.recommendationId,
+        cycle?.checkInId,
+        cycle?.reviewId,
+        cycle?.peerHelpId,
+        cycle?.retestId,
+        cycle?.updatedPlanId,
+      ];
+      const cardText = document.querySelector(
+        'section[aria-labelledby="provisional-package-title"]',
+      )?.textContent ?? "";
+      const forbiddenValues = [
+        "packetId",
+        ...sourceDomainIds,
+        ...privateNarratives,
+        ...privateSentinels,
+      ];
+      return {
+        disclosureVisible: cardText.includes(
+          "页面、本机包与复制文本都不携带原始领域 ID 或独立包编号",
+        ),
+        headerPresent: copy.includes("[Sofia智能老师 Gate A 本机临时轮次白名单承接包]"),
+        localOnlyBoundaryPresent: copy.includes("仅在本机准备，尚未发送"),
+        sensitiveValuesWithheld: forbiddenValues.every((value) =>
+          typeof value === "string" && !copy.includes(value) && !cardText.includes(value)
+        ),
+        snapshotBound: copy.includes(expectedSnapshotSha256),
+        sourceFieldNamesWithheld:
+          !/questionText|didText|evidenceText|responseText|rawAnswer|Clerk ID：/.test(copy),
+      };
+    }, {
+      expectedSnapshotSha256: provisionalWorkspaceSha256,
+      privateNarratives: provisionalPrivateNarratives,
+      privateSentinels: [
+        temporaryUser.id,
+        temporaryEmail,
+        "13800138000",
+        "private@example.test",
+      ],
+      workspaceKey: SOFIA_WORKSPACE_KEY,
+    });
+    expect(strictCopyAssessment).toEqual({
+      disclosureVisible: true,
+      headerPresent: true,
+      localOnlyBoundaryPresent: true,
+      sensitiveValuesWithheld: true,
+      snapshotBound: true,
+      sourceFieldNamesWithheld: true,
+    });
+    expect(forbiddenCommunityInteractionRequests).toEqual([]);
+    expect(await page.evaluate(
+      ({ expectedTeachingReviewRaw, expectedWorkspaceRaw, teachingReviewKey, workspaceKey }) =>
+        window.localStorage.getItem(teachingReviewKey) === expectedTeachingReviewRaw &&
+        window.localStorage.getItem(workspaceKey) === expectedWorkspaceRaw,
+      {
+        expectedTeachingReviewRaw: teachingReviewSentinelRaw,
+        expectedWorkspaceRaw: provisionalWorkspaceRaw,
+        teachingReviewKey: TEACHING_REVIEW_DEMO_KEY,
+        workspaceKey: SOFIA_WORKSPACE_KEY,
+      },
+    )).toBe(true);
+
+    stage = "authenticated Gate A Sofia stale packet recovery";
+    await page.evaluate(({ workspaceKey, workspaceRaw }) => {
+      window.localStorage.setItem(workspaceKey, `${workspaceRaw}\n`);
+      window.dispatchEvent(new StorageEvent("storage", { key: workspaceKey }));
+    }, { workspaceKey: SOFIA_WORKSPACE_KEY, workspaceRaw: provisionalWorkspaceRaw });
+    await expect(strictPacketCard).toHaveAttribute("data-state", "stale");
+    await expect(strictPacketCard.getByText("stale · 已失效", { exact: true })).toBeVisible();
+    await expect(copyStrictPacket).toBeDisabled();
+
+    await page.evaluate(({ workspaceKey, workspaceRaw }) => {
+      window.localStorage.setItem(workspaceKey, workspaceRaw);
+      window.dispatchEvent(new StorageEvent("storage", { key: workspaceKey }));
+    }, { workspaceKey: SOFIA_WORKSPACE_KEY, workspaceRaw: provisionalWorkspaceRaw });
+    await expect(strictPacketCard).toHaveAttribute("data-state", "ready");
+    await expect(copyStrictPacket).toBeEnabled();
+    expect(await page.evaluate(
+      (workspaceKey) => window.localStorage.getItem(workspaceKey),
+      SOFIA_WORKSPACE_KEY,
+    )).toBe(provisionalWorkspaceRaw);
+
+    await page.evaluate(({ before, chatKey, teachingReviewKey, workspaceKey }) => {
+      const restore = (key: string, raw: string | null) => {
+        if (raw === null) window.localStorage.removeItem(key);
+        else window.localStorage.setItem(key, raw);
+      };
+      restore(chatKey, before.chat);
+      restore(teachingReviewKey, before.teachingReview);
+      restore(workspaceKey, before.workspace);
+    }, {
+      before: beforeProvisionalBranch,
+      chatKey: SOFIA_CHAT_KEY,
+      teachingReviewKey: TEACHING_REVIEW_DEMO_KEY,
+      workspaceKey: SOFIA_WORKSPACE_KEY,
+    });
+    expect(await readLocalNamespaces()).toEqual(beforeProvisionalBranch);
+    await gotoApprovedRoute("/retest");
 
     stage = "authenticated Gate A Reading retest";
     await expect(page.locator("[data-retest-skill-label]")).toHaveText("Reading · 阅读");
@@ -2639,13 +3075,19 @@ test("a temporary Development user can traverse the protected smoke path and is 
     });
     expect(superTeacherPosts).toEqual([]);
 
-    stage = "authenticated Sofia landscape dialog";
+    stage = "authenticated Sofia landscape session refresh";
+    await refreshApprovedSessionBeforeDocumentNavigation();
+
+    stage = "authenticated Sofia landscape navigation";
     await page.setViewportSize({ width: 812, height: 375 });
-    await page.goto("/resources", { waitUntil: "domcontentloaded" });
+    await gotoApprovedRoute("/resources");
+
+    stage = "authenticated Sofia landscape launcher";
     const sofiaLauncher = page.getByRole("button", { name: "打开 Sofia智能老师对话" });
     await expect(sofiaLauncher).toBeVisible();
     await sofiaLauncher.click();
 
+    stage = "authenticated Sofia landscape dialog";
     const sofiaDialog = page.getByRole("dialog", { name: "Sofia智能老师" });
     await expect(sofiaDialog).toBeVisible();
     const closeSofiaDialog = sofiaDialog.getByRole("button", { name: "关闭 Sofia智能老师对话" });

@@ -561,8 +561,20 @@ export function deriveTeachingReviewEvidence(raw: string | null): TeachingReview
   ) {
     return { status: "no_provisional_cycle", sourceUpdatedAt };
   }
+  const activeProvisionalAt = safeIsoDate(activeCycle.provisionalAt);
+  if (!activeProvisionalAt) {
+    return { status: "invalid", reason: "active_cycle_provisional_timestamp_invalid" };
+  }
   const cycle = currentProvisionalCycle(journey, activeCycle);
   if (!cycle) return { status: "invalid", reason: "active_cycle_history_mismatch" };
+  const historyProvisionalAt = safeIsoDate(cycle.provisionalAt);
+  if (
+    !historyProvisionalAt ||
+    cycle.provisionalAt !== activeCycle.provisionalAt ||
+    historyProvisionalAt !== activeProvisionalAt
+  ) {
+    return { status: "invalid", reason: "active_cycle_history_provisional_timestamp_mismatch" };
+  }
   const cycleId = safeId(cycle.cycleId);
   if (!cycleId) return { status: "invalid", reason: "cycle_id_invalid" };
 
@@ -581,7 +593,7 @@ export function deriveTeachingReviewEvidence(raw: string | null): TeachingReview
   const peerHelpId = safeId(cycle.peerHelpId);
   const retestId = safeId(cycle.retestId);
   const updatedPlanId = safeId(cycle.updatedPlanId);
-  const provisionalAt = safeIsoDate(cycle.provisionalAt) || safeIsoDate(cycle.updatedAt);
+  const provisionalAt = historyProvisionalAt;
 
   if (
     !diagnosticSessionId ||

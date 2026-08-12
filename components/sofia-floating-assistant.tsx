@@ -90,7 +90,12 @@ export function SofiaFloatingAssistant() {
     window.requestAnimationFrame(() => launcherRef.current?.focus());
   }
 
-  const hasLocalConversation = Boolean(session.turns.length || session.handoffRequests.length || sessionReadIssue);
+  const hasLocalConversation = Boolean(
+    session.turns.length ||
+    session.handoffRequests.length ||
+    session.provisionalHandoffPackets.length ||
+    sessionReadIssue,
+  );
 
   return (
     <>

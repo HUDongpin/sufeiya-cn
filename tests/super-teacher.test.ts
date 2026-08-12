@@ -10,6 +10,8 @@ import {
   type LearnerContext,
 } from "../lib/super-teacher/contracts";
 import { deriveLearnerContext } from "../lib/super-teacher/local-context";
+import { createLocalTeacherResponse } from "../lib/super-teacher/deterministic-responder";
+import { buildLocalGroundingBundle } from "../lib/super-teacher/local-grounding";
 import { classifyTeacherQuestion } from "../lib/super-teacher/policy";
 import { admittedSourceCounts, buildGroundingBundle, superTeacherSourceBoundary } from "../lib/super-teacher/sources";
 import { buildSuperTeacherStatusResponse } from "../lib/super-teacher/status";
@@ -291,6 +293,64 @@ describe("Super Teacher local context derivation", () => {
 
   it("rejects a completed marker without all six hashed evidence records", () => {
     assert.equal(deriveLearnerContext(workspaceState({ missingEvidence: true })), undefined);
+  });
+
+  it("describes a provisional updated plan as pending qualified human confirmation", () => {
+    const provisionalContext: LearnerContext = {
+      ...learnerContext,
+      plan: {
+        ...learnerContext.plan!,
+        planId: "plan-updated-test-1",
+        stage: "provisional_updated",
+      },
+      progress: {
+        ...learnerContext.progress!,
+        retestRecorded: true,
+        updatedPlanConfirmed: false,
+        retestId: "retest-test-1",
+        humanReviewStatus: "required_not_completed",
+      },
+    };
+    assert.equal(superTeacherRequestSchema.safeParse({
+      protocolVersion: SUPER_TEACHER_PROTOCOL,
+      consent: true,
+      question: "怎样验证我真的有进步？",
+      learnerContext: provisionalContext,
+    }).success, true);
+
+    const decision = classifyTeacherQuestion("怎样验证我真的有进步？");
+    const response = createLocalTeacherResponse({
+      decision,
+      bundle: buildLocalGroundingBundle(decision.intent, provisionalContext),
+      learnerContext: provisionalContext,
+      requestId: "123e4567-e89b-42d3-a456-426614174020",
+      createdAt: "2026-08-10T13:05:00.000Z",
+    });
+    const serialized = JSON.stringify(response);
+    assert.match(serialized, /临时更新计划已由学习者确认，但仍待具备资质人员确认/);
+    assert.equal(serialized.includes("更新计划已确认"), false);
+    assert.ok(response.actions.some((action) =>
+      action.href === "/workspace" && action.label.includes("核对临时承接状态"),
+    ));
+
+    const minimizedPlan = { ...provisionalContext.plan! };
+    delete minimizedPlan.dailyMinutes;
+    delete minimizedPlan.currentTaskSkill;
+    const minimizedProvisionalContext: LearnerContext = { ...provisionalContext, plan: minimizedPlan };
+    const planDecision = classifyTeacherQuestion("解释我的 7 天计划");
+    const planBundle = buildLocalGroundingBundle(planDecision.intent, minimizedProvisionalContext);
+    const planResponse = createLocalTeacherResponse({
+      decision: planDecision,
+      bundle: planBundle,
+      learnerContext: minimizedProvisionalContext,
+      requestId: "123e4567-e89b-42d3-a456-426614174021",
+      createdAt: "2026-08-10T13:05:00.000Z",
+    });
+    const planSerialized = JSON.stringify({ planBundle, planResponse });
+    assert.match(planSerialized, /最小化承接摘要未携带/);
+    assert.match(planSerialized, /不能据此判断/);
+    assert.equal(planSerialized.includes("未提供每日可用时间"), false);
+    assert.equal(planSerialized.includes("当前任务技能尚未形成"), false);
   });
 });
 

@@ -999,7 +999,7 @@ const workspaceContent = `
             </div>
             <nav class="provisional-handoff-actions" aria-label="临时承接下一步">
               <a class="button button-accent" href="/plan" data-provisional-handoff-plan>查看本机临时计划${arrow}</a>
-              <a class="button button-ghost" href="/super-teacher#human-support" data-provisional-handoff-support>准备人工支持请求${arrow}</a>
+              <a class="button button-ghost" href="/super-teacher?handoff=provisional#human-support" data-provisional-handoff-support>交给 Sofia 准备本机承接包${arrow}</a>
               <a class="button button-ghost" href="/my-data" data-provisional-handoff-data>保全本机数据${arrow}</a>
             </nav>
           </section>
@@ -1562,7 +1562,7 @@ const myDataContent = `
 
         <section class="data-control-section data-danger-zone" aria-labelledby="data-danger-title">
           <header class="data-control-heading"><div><span>03 · DANGER ZONE</span><h3 id="data-danger-title">定向清除本机数据</h3></div><p>清除不可撤销；请先完成需要的导出。</p></header>
-          <div class="data-actions data-danger-actions"><button class="button button-ghost" type="button" data-clear-learning-events>仅清除学习事件账本</button><button class="button button-ghost" type="button" data-clear-workspace>仅清除学习闭环数据</button><button class="button button-ghost" type="button" data-clear-super-teacher>仅清除 Sofia智能老师对话</button><button class="button button-ghost" type="button" data-clear-teaching-review-demo>仅清除教研复核演示草稿</button><button class="button button-ghost" type="button" data-clear-all-sufeiya>清除全部本机 Sufeiya 数据</button></div>
+          <div class="data-actions data-danger-actions"><button class="button button-ghost" type="button" data-clear-learning-events>仅清除学习事件账本</button><button class="button button-ghost" type="button" data-clear-workspace>仅清除学习闭环数据</button><button class="button button-ghost" type="button" data-clear-super-teacher>仅清除 Sofia 对话、请求与承接包</button><button class="button button-ghost" type="button" data-clear-teaching-review-demo>仅清除教研复核演示草稿</button><button class="button button-ghost" type="button" data-clear-all-sufeiya>清除全部本机 Sufeiya 数据</button></div>
         </section>
       </div>
     </div></section>

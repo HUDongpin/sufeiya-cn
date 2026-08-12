@@ -167,6 +167,7 @@ const superTeacherAccessBoundary = await read("components/sofia-access-boundary.
 const superTeacherPublicAccess = await read("components/sofia-public-access.tsx");
 const superTeacherFloatingStyles = await read("components/sofia-floating-assistant.module.css");
 const superTeacherClientSession = await read("lib/super-teacher/client-session.ts");
+const superTeacherProvisionalHandoff = await read("lib/super-teacher/provisional-handoff.ts");
 const superTeacherRoute = await read("app/api/super-teacher/route.ts");
 const superTeacherStatus = await read("lib/super-teacher/status.ts");
 const superTeacherResponder = await read("lib/super-teacher/responder.ts");
@@ -2356,7 +2357,7 @@ check(
       workspacePageSource,
     ) &&
     /href="\/plan" data-provisional-handoff-plan/.test(workspacePageSource) &&
-    /href="\/super-teacher#human-support" data-provisional-handoff-support/.test(workspacePageSource) &&
+    /href="\/super-teacher\?handoff=provisional#human-support" data-provisional-handoff-support/.test(workspacePageSource) &&
     /href="\/my-data" data-provisional-handoff-data/.test(workspacePageSource) &&
     /不自动发送、不创建真实队列、不通知人员、不生成正式人工回执/.test(workspacePageSource) &&
     /\.journey-grid li\.is-pending-human/.test(styles),
@@ -5469,7 +5470,7 @@ check(
 );
 const superTeacherContextConstructionSource = sourceSection(
   superTeacherLocalContext,
-  "const context: LearnerContext",
+  "const completedEvidence = evidence.filter",
   "const basePlan",
 );
 check(
@@ -5485,6 +5486,314 @@ check(
     /modelAttempted:\s*false/.test(superTeacherDeterministicResponder) &&
     !/fetch\(|XMLHttpRequest|sendBeacon/.test(superTeacherDeterministicResponder),
   "Super Teacher derives a strict minimal summary and keeps deterministic explanation browser-local",
+);
+const superTeacherProvisionalContextSource = sourceSection(
+  superTeacherLocalContext,
+  'if (cycle?.status === "provisional_pending_human_review")',
+  "  if (\n    !cycle ||",
+);
+check(
+  /deriveProvisionalHandoffEvidence\(raw\)/.test(superTeacherProvisionalContextSource) &&
+    /deriveTeachingReviewEvidence\(raw\)/.test(superTeacherProvisionalContextSource) &&
+    /handoff\.status !== "ready"[\s\S]*authorized\.status !== "ready"/.test(superTeacherProvisionalContextSource) &&
+    /stage: "provisional_updated"/.test(superTeacherProvisionalContextSource) &&
+    /retestRecorded: true[\s\S]*updatedPlanConfirmed: false[\s\S]*humanReviewStatus: "required_not_completed"/.test(
+      superTeacherProvisionalContextSource,
+    ) &&
+    !/firstResponse|rawAnswer|responseText|didText|evidenceText|questionText/.test(
+      superTeacherProvisionalContextSource,
+    ) &&
+    /context\.plan\?\.stage === "provisional_updated"[\s\S]*!progress\.retestRecorded[\s\S]*progress\.updatedPlanConfirmed[\s\S]*progress\.humanReviewStatus !== "required_not_completed"/.test(
+      superTeacherContracts,
+    ) &&
+    /临时更新计划已由学习者确认，但仍待具备资质人员确认/.test(superTeacherDeterministicResponder) &&
+    /humanReviewStatus === "required_not_completed"[\s\S]*核对临时承接状态/.test(
+      superTeacherDeterministicResponder,
+    ),
+  "Sofia admits a strict provisional 7/7 summary while keeping qualified human confirmation outstanding",
+);
+const provisionalHandoffEvidenceSource = sourceSection(
+  superTeacherProvisionalHandoff,
+  "export function deriveProvisionalHandoffEvidence",
+  "export function createProvisionalHandoffPacket",
+);
+const provisionalHandoffPacketSchemaSource = sourceSection(
+  superTeacherProvisionalHandoff,
+  "export const provisionalHandoffPacketSchema",
+  "export type ProvisionalHandoffPacket",
+);
+const provisionalHandoffPacketBuilderSource = sourceSection(
+  superTeacherProvisionalHandoff,
+  "export function createProvisionalHandoffPacket",
+  "export function parseProvisionalHandoffPacket",
+);
+const provisionalHandoffCopyBuilderSource = sourceSection(
+  superTeacherProvisionalHandoff,
+  "export function buildProvisionalHandoffCopyText",
+  "export function __afterProvisionalHandoffCopyText",
+);
+const canonicalTimestampSchemaSource = sourceSection(
+  superTeacherProvisionalHandoff,
+  "export const canonicalUtcMillisecondTimestampSchema",
+  "export const provisionalHandoffEvidenceSchema",
+);
+const provisionalPacketKeys = [
+  "protocolVersion",
+  "kind",
+  "createdAt",
+  "status",
+  "sourceClass",
+  "sourceStorageKey",
+  "sourceSnapshotSha256",
+  "sourceUpdatedAt",
+  "recordedStepCount",
+  "peerHelpStatus",
+  "prioritySkill",
+  "retestEvidenceStatus",
+  "humanConfirmationStatus",
+  "networkDispatch",
+  "realQueueCreated",
+  "humanReviewReceiptCreated",
+  "qualifiedHumanConfirmation",
+  "identityVerified",
+  "canonicalLedgerWriteAllowed",
+  "cycleClosureAllowed",
+  "learnerNarrativeWithheld",
+];
+const provisionalRawDomainKeys = [
+  "cycleId",
+  "diagnosticSessionId",
+  "basePlanId",
+  "recommendationId",
+  "checkInId",
+  "reviewId",
+  "peerHelpId",
+  "retestId",
+  "updatedPlanId",
+];
+const provisionalPacketSchemaKeys = [
+  ...provisionalHandoffPacketSchemaSource.matchAll(/^  ([A-Za-z][A-Za-z0-9]*):/gm),
+].map((match) => match[1]);
+const provisionalPacketBuildObjectSource = sourceSection(
+  provisionalHandoffPacketBuilderSource,
+  "return provisionalHandoffPacketSchema.parse({",
+  "  });",
+);
+const provisionalPacketBuilderKeys = [
+  ...provisionalPacketBuildObjectSource.matchAll(/^    ([A-Za-z][A-Za-z0-9]*)(?:\s*:|,)/gm),
+].map((match) => match[1]);
+check(
+  /PROVISIONAL_HANDOFF_PROTOCOL = "sufeiya_provisional_handoff_packet_v1"/.test(
+    superTeacherProvisionalHandoff,
+  ) &&
+    canonicalTimestampSchemaSource.includes(
+      ".regex(/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$/)",
+    ) &&
+    /Date\.parse\(value\)/.test(canonicalTimestampSchemaSource) &&
+    /new Date\(timestamp\)\.toISOString\(\) === value/.test(canonicalTimestampSchemaSource) &&
+    /export const provisionalHandoffEvidenceSchema = z\.object\([\s\S]*?\)\.strict\(\)/.test(
+      superTeacherProvisionalHandoff,
+    ) &&
+    /sourceUpdatedAt: canonicalUtcMillisecondTimestampSchema\.nullable\(\)/.test(
+      superTeacherProvisionalHandoff,
+    ) &&
+    superTeacherProvisionalHandoff.includes(
+      'new RegExp(`^${prefix}-[0-9a-z]{6,10}-[0-9a-z]{5}$`)',
+    ) &&
+    /const cycleIdSchema = writerId\("cycle"\)/.test(superTeacherProvisionalHandoff) &&
+    /const diagnosticSessionIdSchema = writerId\("diagnostic"\)/.test(superTeacherProvisionalHandoff) &&
+    /const recommendationIdSchema = writerId\("recommendation"\)/.test(superTeacherProvisionalHandoff) &&
+    /const reviewIdSchema = writerId\("review"\)/.test(superTeacherProvisionalHandoff) &&
+    /const peerHelpIdSchema = writerId\("peer-help"\)/.test(superTeacherProvisionalHandoff) &&
+    /const retestIdSchema = writerId\("retest"\)/.test(superTeacherProvisionalHandoff) &&
+    superTeacherProvisionalHandoff.includes(
+      "const planIdSchema = z.string().regex(/^plan-[0-9a-z]{6,10}(?:-[0-9a-z]{5})?$/);",
+    ) &&
+    superTeacherProvisionalHandoff.includes(
+      "const checkInIdSchema = z.string().regex(/^check-in-[0-9a-z]{6,10}$/);",
+    ) &&
+    /const authorized = deriveTeachingReviewEvidence\(raw\)/.test(provisionalHandoffEvidenceSource) &&
+    /if \(authorized\.status === "invalid"\)/.test(provisionalHandoffEvidenceSource) &&
+    /const cycle = currentAuthorizedHistoryRecord\(raw\)/.test(provisionalHandoffEvidenceSource) &&
+    /provisionalHandoffEvidenceSchema\.safeParse/.test(provisionalHandoffEvidenceSource) &&
+    /evidence\.data\.cycleId !== authorized\.cycle\.cycleId/.test(provisionalHandoffEvidenceSource) &&
+    /evidence\.data\.diagnosticSessionId !== authorized\.cycle\.diagnosticSessionId/.test(
+      provisionalHandoffEvidenceSource,
+    ) &&
+    /evidence\.data\.checkInId !== authorized\.practice\?\.checkInId/.test(
+      provisionalHandoffEvidenceSource,
+    ) &&
+    /evidence\.data\.peerHelpStatus !== authorized\.peerHelp\?\.status/.test(
+      provisionalHandoffEvidenceSource,
+    ) &&
+    /authorized\.cycle\.status !== "provisional_pending_human_review"/.test(provisionalHandoffEvidenceSource) &&
+    /authorized\.planUpdate\?\.provisional !== true/.test(provisionalHandoffEvidenceSource) &&
+    /authorized\.planUpdate\.humanConfirmationStatus !== "required_not_completed"/.test(
+      provisionalHandoffEvidenceSource,
+    ),
+  "provisional handoff admission delegates to the central validator and strictly rebinds internal same-cycle evidence",
+);
+check(
+  /export const provisionalHandoffPacketSchema = z\.object\([\s\S]*?\)\.strict\(\)/.test(
+    provisionalHandoffPacketSchemaSource,
+  ) &&
+    JSON.stringify(provisionalPacketSchemaKeys) === JSON.stringify(provisionalPacketKeys) &&
+    JSON.stringify(provisionalPacketBuilderKeys) === JSON.stringify(provisionalPacketKeys) &&
+    /sourceSnapshotSha256: sha256Schema/.test(provisionalHandoffPacketSchemaSource) &&
+    /createdAt: canonicalUtcMillisecondTimestampSchema/.test(provisionalHandoffPacketSchemaSource) &&
+    /sourceUpdatedAt: canonicalUtcMillisecondTimestampSchema\.nullable\(\)/.test(
+      provisionalHandoffPacketSchemaSource,
+    ) &&
+    !/createdAt: z\.string\(\)\.datetime|sourceUpdatedAt: z\.string\(\)\.datetime/.test(
+      provisionalHandoffPacketSchemaSource,
+    ) &&
+    /recordedStepCount: z\.literal\(7\)/.test(provisionalHandoffPacketSchemaSource) &&
+    /networkDispatch: z\.literal\("disabled"\)/.test(provisionalHandoffPacketSchemaSource) &&
+    /realQueueCreated: z\.literal\(false\)/.test(provisionalHandoffPacketSchemaSource) &&
+    /humanReviewReceiptCreated: z\.literal\(false\)/.test(provisionalHandoffPacketSchemaSource) &&
+    /qualifiedHumanConfirmation: z\.literal\(false\)/.test(provisionalHandoffPacketSchemaSource) &&
+    /identityVerified: z\.literal\(false\)/.test(provisionalHandoffPacketSchemaSource) &&
+    /canonicalLedgerWriteAllowed: z\.literal\(false\)/.test(provisionalHandoffPacketSchemaSource) &&
+    /cycleClosureAllowed: z\.literal\(false\)/.test(provisionalHandoffPacketSchemaSource) &&
+    /learnerNarrativeWithheld: z\.literal\(true\)/.test(provisionalHandoffPacketSchemaSource) &&
+    !["packetId", ...provisionalRawDomainKeys].some((key) =>
+      new RegExp(`\\b${key}\\b`).test(provisionalHandoffPacketSchemaSource + provisionalPacketBuildObjectSource)
+    ) &&
+    !/questionPreview|rawAnswer|responseText|didText|evidenceText|questionText|email|phone|clerkUserId/i.test(
+      provisionalPacketBuildObjectSource,
+    ),
+  "the provisional handoff packet is an exact 21-field strict allowlist with SHA binding and no packet or raw domain IDs",
+);
+check(
+  /provisionalHandoffPacketSchema\.parse\(packet\)/.test(provisionalHandoffCopyBuilderSource) &&
+    /\[Sofia智能老师 Gate A 本机临时轮次白名单承接包\]/.test(
+      provisionalHandoffCopyBuilderSource,
+    ) &&
+    /本机生成时间：\$\{safePacket\.createdAt\}/.test(provisionalHandoffCopyBuilderSource) &&
+    /同伴支持状态：\$\{safePacket\.peerHelpStatus\}/.test(provisionalHandoffCopyBuilderSource) &&
+    /优先技能：\$\{safePacket\.prioritySkill\}/.test(provisionalHandoffCopyBuilderSource) &&
+    /微复测证据：\$\{safePacket\.retestEvidenceStatus\}/.test(provisionalHandoffCopyBuilderSource) &&
+    /人工确认：\$\{safePacket\.humanConfirmationStatus\}/.test(provisionalHandoffCopyBuilderSource) &&
+    /来源更新时间：\$\{safePacket\.sourceUpdatedAt \|\| "未记录"\}/.test(
+      provisionalHandoffCopyBuilderSource,
+    ) &&
+    /来源快照 SHA-256：\$\{safePacket\.sourceSnapshotSha256\}/.test(
+      provisionalHandoffCopyBuilderSource,
+    ) &&
+    /包不保存或复制任何原始领域 ID/.test(provisionalHandoffCopyBuilderSource) &&
+    /不从来源投影姓名、Clerk 身份、联系方式、原始答案、录音、对话或打卡自由文本字段/.test(
+      provisionalHandoffCopyBuilderSource,
+    ) &&
+    !["packetId", ...provisionalRawDomainKeys].some((key) =>
+      new RegExp(`safePacket\\.${key}\\b`).test(provisionalHandoffCopyBuilderSource)
+    ) &&
+    !/questionPreview|rawAnswer|responseText|didText|evidenceText|questionText/.test(
+      provisionalHandoffCopyBuilderSource,
+    ),
+  "the allowlist copy carries the full snapshot SHA and safe bindings while withholding packet, domain, identity, and narrative IDs",
+);
+const provisionalHandoffCommitSource = sourceSection(
+  superTeacherClientSession,
+  "export async function commitProvisionalHandoffPacket",
+  "export async function __afterProvisionalHandoffCommit",
+);
+const provisionalIdempotencyIndex = provisionalHandoffCommitSource.indexOf("if (existing) return");
+const provisionalTimeAllocationIndex = provisionalHandoffCommitSource.indexOf("createdAt: now()");
+const provisionalWriteAttemptIndex = provisionalHandoffCommitSource.indexOf("candidateWriteAttempted = true");
+const provisionalSaveIndex = provisionalHandoffCommitSource.indexOf("saveSession(storage, next)");
+check(
+  /let previousSofiaRaw: string \| null \| undefined/.test(provisionalHandoffCommitSource) &&
+    /let candidateWriteAttempted = false/.test(provisionalHandoffCommitSource) &&
+  /const workspaceBefore = storage\.getItem\("sufeiya_workspace_v1"\)/.test(provisionalHandoffCommitSource) &&
+    /deriveProvisionalHandoffEvidence\(workspaceBefore\)/.test(provisionalHandoffCommitSource) &&
+    /sha256Hex\(workspaceBefore, cryptoProvider\)/.test(provisionalHandoffCommitSource) &&
+    /storedSessionMatches\(stored, expectedSession\)/.test(provisionalHandoffCommitSource) &&
+    /findMatchingProvisionalHandoffPacket\([\s\S]*expectedSession\.provisionalHandoffPackets,[\s\S]*projection\.evidence,[\s\S]*sourceSnapshotSha256/.test(
+      provisionalHandoffCommitSource,
+    ) &&
+    provisionalIdempotencyIndex >= 0 &&
+    provisionalTimeAllocationIndex > provisionalIdempotencyIndex &&
+    !/\bcreateId\b|\bpacketId\b/.test(provisionalHandoffCommitSource) &&
+    provisionalWriteAttemptIndex >= 0 &&
+    provisionalSaveIndex > provisionalWriteAttemptIndex &&
+    /workspaceBeforeReturn !== workspaceBefore/.test(provisionalHandoffCommitSource) &&
+    /if \(!saveSession\(storage, next\)\)[\s\S]*restoreRaw\(storage, previousSofiaRaw\)/.test(
+      provisionalHandoffCommitSource,
+    ) &&
+    /const workspaceAfter = storage\.getItem\("sufeiya_workspace_v1"\)/.test(
+      provisionalHandoffCommitSource,
+    ) &&
+    /const verified = readSession\(storage\)/.test(provisionalHandoffCommitSource) &&
+    /const workspaceFinal = storage\.getItem\("sufeiya_workspace_v1"\)/.test(
+      provisionalHandoffCommitSource,
+    ) &&
+    (provisionalHandoffCommitSource.match(/restoreRaw\(storage, previousSofiaRaw\)/g) || []).length >= 4 &&
+    /catch \{[\s\S]*candidateWriteAttempted && previousSofiaRaw !== undefined[\s\S]*restoreRaw\(storage, previousSofiaRaw\)[\s\S]*storage_unavailable/.test(
+      provisionalHandoffCommitSource,
+    ) &&
+    !/learningEvents|TEACHING_REVIEW_DEMO_STORAGE_KEY|fetch\(|XMLHttpRequest|sendBeacon/.test(
+      provisionalHandoffCommitSource,
+    ),
+  "provisional handoff commit compare-locks both raw namespaces, checks SHA idempotency before timestamp allocation, and rolls Sofia back without events or network",
+);
+const provisionalHandoffRefreshSource = sourceSection(
+  superTeacherSessionProvider,
+  "const refreshProvisionalHandoff",
+  "useEffect(() => {",
+);
+const provisionalHandoffCreateSource = sourceSection(
+  superTeacherSessionProvider,
+  "async function createProvisionalHandoffPacket",
+  "async function copyProvisionalHandoffPacket",
+);
+const provisionalHandoffCopySource = sourceSection(
+  superTeacherSessionProvider,
+  "async function copyProvisionalHandoffPacket",
+  "  return (",
+);
+check(
+  /data-state=\{provisionalLoading \? "loading" : provisionalInvalid \? "invalid" : provisionalReady \? \(provisionalStale \? "stale" : "ready"\) : "unavailable"\}/.test(
+    superTeacherClient,
+  ) &&
+    /provisionalLoading \? "核对中" : provisionalReady \? "7 \/ 7" : "未通过"/.test(superTeacherClient) &&
+    /Sofia 本机严格承接包/.test(superTeacherClient) &&
+    /在本机生成严格承接包/.test(superTeacherClient) &&
+    /复制白名单承接包/.test(superTeacherClient) &&
+    /disabled=\{!packetCurrent\}/.test(superTeacherClient) &&
+    /发现损坏、未知字段或回链不一致时，Sofia 不会猜测、生成或复制承接包/.test(
+      superTeacherClient,
+    ) &&
+    /页面、本机包与复制文本都不携带原始领域 ID 或独立包编号/.test(superTeacherClient) &&
+    /不从来源投影作文、口语、打卡自由文本、联系方式或 Clerk 身份字段/.test(superTeacherClient),
+  "Sofia renders explicit ready, stale, invalid, and unavailable strict-handoff states with allowlist copy disabled unless fresh",
+);
+check(
+  /findMatchingProvisionalHandoffPacket/.test(provisionalHandoffRefreshSource) &&
+    /hasStoredPacket[\s\S]*freshness: matching \|\| !hasStoredPacket \? "fresh" : "stale"/.test(
+      provisionalHandoffRefreshSource,
+    ) &&
+    /navigator\.locks\.request\(`\$\{SUPER_TEACHER_CHAT_KEY\}:write`, \{ mode: "exclusive" \}/.test(
+      provisionalHandoffCreateSource,
+    ) &&
+    /commitProvisionalHandoffPacket\([\s\S]*storage: window\.localStorage[\s\S]*expectedSession: sessionRef\.current/.test(
+      provisionalHandoffCreateSource,
+    ) &&
+    /navigator\.locks\.request\(`\$\{SUPER_TEACHER_CHAT_KEY\}:write`, \{ mode: "exclusive" \}/.test(
+      provisionalHandoffCopySource,
+    ) &&
+    /storedSessionMatches\(stored, sessionRef\.current\)/.test(provisionalHandoffCopySource) &&
+    /storedPacket[\s\S]*JSON\.stringify\(storedPacket\) !== JSON\.stringify\(packet\)/.test(
+      provisionalHandoffCopySource,
+    ) &&
+    /workspaceImmediatelyBeforeCopy !== workspaceBefore/.test(provisionalHandoffCopySource) &&
+    /packetMatchesProvisionalEvidence\(packet, projection\.evidence, digest\)/.test(
+      provisionalHandoffCopySource,
+    ) &&
+    /navigator\.clipboard\.writeText\(buildProvisionalHandoffCopyText\(packet\)\)/.test(
+      provisionalHandoffCopySource,
+    ) &&
+    !/fetch\(|XMLHttpRequest|sendBeacon/.test(provisionalHandoffCreateSource + provisionalHandoffCopySource),
+  "Sofia refreshes freshness by cycle and snapshot, then locks and revalidates session plus workspace before local copy",
 );
 check(
   /export const superTeacherResponseSchema = z[\s\S]*?safeLocalHrefSchema[\s\S]*?bilibiliHrefSchema[\s\S]*?sourceBoundary:[\s\S]*?\.strict\(\);/.test(
@@ -5535,12 +5844,16 @@ const superTeacherHydrationSource = sourceSection(
 );
 check(
   /return \{ status: "corrupt", session: emptySession\(\) \}/.test(superTeacherSessionReadSource) &&
+    /hasExactKeys\([\s\S]*?\["protocolVersion", "turns", "handoffRequests"\][\s\S]*?\["revision", "provisionalHandoffPackets"\]/.test(superTeacherSessionReadSource) &&
     /!Array\.isArray\(value\.turns\) \|\| !value\.turns\.every\(isStoredTurn\)/.test(superTeacherSessionReadSource) &&
+    /hasExactKeys\(value, \["id", "role", "text", "createdAt"\]\)/.test(superTeacherClientSession) &&
+    /hasExactKeys\(value, \["id", "role", "response", "createdAt"\]\)/.test(superTeacherClientSession) &&
+    /hasExactKeys\(value, \["id", "createdAt", "status", "questionPreview"\]\)/.test(superTeacherClientSession) &&
     /setSessionReadIssue\(stored\.status\)/.test(superTeacherHydrationSource) &&
     !/saveSession\(/.test(superTeacherHydrationSource) &&
     /if \(sessionReadIssue\)/.test(superTeacherSubmitSource) &&
     /原记录不会被页面自动覆盖/.test(superTeacherSessionProvider),
-  "corrupt or unsupported Super Teacher sessions stay read-only until explicit learner clearing",
+  "unknown root, turn, request, packet, corrupt, or unsupported Super Teacher sessions stay read-only until explicit learner clearing",
 );
 const superTeacherCommitSource = sourceSection(
   superTeacherSessionProvider,

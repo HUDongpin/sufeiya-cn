@@ -5,6 +5,7 @@ import {
   type Dispatch,
   type ReactNode,
   type SetStateAction,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -20,6 +21,7 @@ import {
 import { createLocalTeacherResponse } from "@/lib/super-teacher/deterministic-responder";
 import {
   emptySession,
+  commitProvisionalHandoffPacket,
   MAX_STORED_TURNS,
   readSession,
   saveSession,
@@ -33,6 +35,15 @@ import {
 import { deriveLearnerContext } from "@/lib/super-teacher/local-context";
 import { buildLocalGroundingBundle } from "@/lib/super-teacher/local-grounding";
 import { classifyTeacherQuestion, containsSensitiveData } from "@/lib/super-teacher/policy";
+import {
+  buildProvisionalHandoffCopyText,
+  deriveProvisionalHandoffEvidence,
+  findMatchingProvisionalHandoffPacket,
+  packetMatchesProvisionalEvidence,
+  sha256Hex,
+  type ProvisionalHandoffBinding,
+  type ProvisionalHandoffPacket,
+} from "@/lib/super-teacher/provisional-handoff";
 
 const WORKSPACE_KEY = "sufeiya_workspace_v1";
 
@@ -58,6 +69,18 @@ function uid(prefix: string) {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+export type ProvisionalHandoffState =
+  | { status: "loading" }
+  | { status: "absent"; reason: "workspace_missing" | "no_active_cycle" | "no_provisional_cycle" }
+  | { status: "invalid"; reason: string }
+  | ({
+    status: "valid";
+    freshness: "fresh" | "stale";
+    stepCount: 7;
+    cycleStatus: "provisional_pending_human_review";
+    sourceSnapshotSha256: string;
+  } & ProvisionalHandoffBinding);
+
 type SuperTeacherSessionValue = {
   ready: boolean;
   safeWriteLockSupported: boolean;
@@ -70,12 +93,17 @@ type SuperTeacherSessionValue = {
   sessionReadIssue?: SessionReadIssue;
   handoffOpen: boolean;
   contextSummary: string;
+  provisionalHandoff: ProvisionalHandoffState;
+  latestProvisionalHandoffPacket?: ProvisionalHandoffPacket;
   setInput: Dispatch<SetStateAction<string>>;
   setHandoffOpen: Dispatch<SetStateAction<boolean>>;
   submitQuestion: (question: string) => Promise<SuperTeacherResponse | undefined>;
   clearConversation: () => Promise<void>;
   createHandoffRequest: () => Promise<void>;
   copyHandoffRequest: () => Promise<void>;
+  refreshProvisionalHandoff: () => Promise<void>;
+  createProvisionalHandoffPacket: () => Promise<void>;
+  copyProvisionalHandoffPacket: () => Promise<void>;
 };
 
 const SuperTeacherSessionContext = createContext<SuperTeacherSessionValue | null>(null);
@@ -91,7 +119,55 @@ export function SuperTeacherSessionProvider({ children }: { children: ReactNode 
   const [notice, setNotice] = useState("");
   const [sessionReadIssue, setSessionReadIssue] = useState<SessionReadIssue>();
   const [handoffOpen, setHandoffOpen] = useState(false);
+  const [provisionalHandoff, setProvisionalHandoff] = useState<ProvisionalHandoffState>({ status: "loading" });
   const sessionRef = useRef<LocalSession>(emptySession());
+
+  const refreshProvisionalHandoff = useCallback(async () => {
+    try {
+      const workspaceRaw = window.localStorage.getItem(WORKSPACE_KEY);
+      const projection = deriveProvisionalHandoffEvidence(workspaceRaw);
+      if (projection.status === "empty") {
+        setProvisionalHandoff({ status: "absent", reason: "workspace_missing" });
+        return;
+      }
+      if (projection.status === "no_active_cycle" || projection.status === "no_provisional_cycle") {
+        setProvisionalHandoff({ status: "absent", reason: projection.status });
+        return;
+      }
+      if (projection.status === "invalid" || !workspaceRaw) {
+        setProvisionalHandoff({
+          status: "invalid",
+          reason: projection.status === "invalid" ? projection.reason : "workspace_missing_after_projection",
+        });
+        return;
+      }
+      const sourceSnapshotSha256 = await sha256Hex(workspaceRaw);
+      if (window.localStorage.getItem(WORKSPACE_KEY) !== workspaceRaw) {
+        setProvisionalHandoff({ status: "invalid", reason: "workspace_changed_during_read" });
+        return;
+      }
+      const matching = findMatchingProvisionalHandoffPacket(
+        sessionRef.current.provisionalHandoffPackets,
+        projection.evidence,
+        sourceSnapshotSha256,
+      );
+      const hasStoredPacket = sessionRef.current.provisionalHandoffPackets.length > 0;
+      setProvisionalHandoff({
+        status: "valid",
+        freshness: matching || !hasStoredPacket ? "fresh" : "stale",
+        stepCount: 7,
+        cycleStatus: "provisional_pending_human_review",
+        sourceSnapshotSha256,
+        sourceUpdatedAt: projection.evidence.sourceUpdatedAt,
+        peerHelpStatus: projection.evidence.peerHelpStatus,
+        prioritySkill: projection.evidence.prioritySkill,
+        retestEvidenceStatus: projection.evidence.retestEvidenceStatus,
+        humanConfirmationStatus: projection.evidence.humanConfirmationStatus,
+      });
+    } catch {
+      setProvisionalHandoff({ status: "invalid", reason: "browser_local_storage_unavailable" });
+    }
+  }, []);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -111,18 +187,20 @@ export function SuperTeacherSessionProvider({ children }: { children: ReactNode 
         setNotice("当前浏览器不支持安全本机写入锁；智能问答和本机人工请求保持只读。请升级到支持 Web Locks 的现代浏览器。");
       }
       setLearnerContext(readLearnerContext());
+      void refreshProvisionalHandoff();
       setReady(true);
     });
     return () => {
       window.cancelAnimationFrame(frame);
     };
-  }, []);
+  }, [refreshProvisionalHandoff]);
 
   useEffect(() => {
     const handleStorageChange = (event: StorageEvent) => {
       if (event.key === WORKSPACE_KEY || event.key === null) {
         const nextContext = readLearnerContext();
         setLearnerContext(nextContext);
+        void refreshProvisionalHandoff();
         setNotice(
           nextContext
             ? "另一标签页中的学习闭环已经变化；当前本机摘要已更新。"
@@ -133,13 +211,14 @@ export function SuperTeacherSessionProvider({ children }: { children: ReactNode 
         const stored = readSession(window.localStorage);
         if (!storedSessionMatches(stored, sessionRef.current)) {
           setSessionReadIssue("concurrent_change");
+          setProvisionalHandoff({ status: "invalid", reason: "super_teacher_concurrent_change" });
           setNotice("另一标签页中的本机对话已经变化；为避免覆盖，新写入已停止。请刷新核对，或明确清除后重新开始。");
         }
       }
     };
     window.addEventListener("storage", handleStorageChange);
     return () => window.removeEventListener("storage", handleStorageChange);
-  }, []);
+  }, [refreshProvisionalHandoff]);
 
   async function commitSession(update: (current: LocalSession) => LocalSession) {
     if (!navigator.locks?.request) {
@@ -172,9 +251,20 @@ export function SuperTeacherSessionProvider({ children }: { children: ReactNode 
   const contextSummary = useMemo(() => {
     if (!learnerContext) return "尚未完成 18+ 本机确认与六项演示诊断任务";
     if (!learnerContext.prioritySkill) return "已确认 18+ · 尚未读取到本轮优先项";
+    if (learnerContext.plan?.stage === "provisional_updated") {
+      return `${skillLabels[learnerContext.prioritySkill]} · 7 / 7 步已记录 · 待具备资质人员确认`;
+    }
     const evidenceCount = learnerContext.completedEvidenceTaskCount ?? learnerContext.completedEvidenceSkills?.length ?? 0;
     return `${skillLabels[learnerContext.prioritySkill]} · ${evidenceCount} / 6 项本机诊断任务证据`;
   }, [learnerContext]);
+
+  const latestProvisionalHandoffPacket = provisionalHandoff.status === "valid"
+    ? findMatchingProvisionalHandoffPacket(
+      session.provisionalHandoffPackets,
+      provisionalHandoff,
+      provisionalHandoff.sourceSnapshotSha256,
+    ) ?? session.provisionalHandoffPackets.at(-1)
+    : undefined;
 
   const lastQuestion = [...session.turns].reverse().find((turn): turn is UserTurn => turn.role === "user")?.text ?? "请描述你需要人工帮助的问题。";
 
@@ -247,7 +337,7 @@ export function SuperTeacherSessionProvider({ children }: { children: ReactNode 
   }
 
   async function clearConversation() {
-    if (!window.confirm("确定清除这个浏览器中的 Sofia智能老师对话和未发送人工请求吗？学习闭环数据不会被删除；此操作无法撤销。")) return;
+    if (!window.confirm("确定清除这个浏览器中的 Sofia智能老师对话、未发送人工请求和本机严格承接包吗？学习闭环数据不会被删除；此操作无法撤销。")) return;
     if (!navigator.locks?.request) {
       setError("当前浏览器无法取得安全写入锁；原对话未被清除。请使用最新版浏览器后重试。");
       return;
@@ -266,7 +356,7 @@ export function SuperTeacherSessionProvider({ children }: { children: ReactNode 
         sessionRef.current = next;
         setSession(next);
         setError("");
-        setNotice("已清除当前浏览器中的 Sofia智能老师对话和本机人工请求记录。学习工作台数据未受影响。");
+        setNotice("已清除当前浏览器中的 Sofia智能老师对话、本机人工请求和严格承接包。学习工作台数据未受影响。");
         setHandoffOpen(false);
         setSessionReadIssue(undefined);
       });
@@ -315,6 +405,116 @@ export function SuperTeacherSessionProvider({ children }: { children: ReactNode 
     }
   }
 
+  async function createProvisionalHandoffPacket() {
+    setError("");
+    if (sessionReadIssue) {
+      setError("现有 Sofia 本机记录处于只读保护状态；未生成承接包，也没有修改学习工作台。");
+      return;
+    }
+    if (!navigator.locks?.request) {
+      setError("当前浏览器无法取得安全写入锁；未生成承接包，也没有发送数据。");
+      return;
+    }
+    try {
+      await navigator.locks.request(`${SUPER_TEACHER_CHAT_KEY}:write`, { mode: "exclusive" }, async () => {
+        const result = await commitProvisionalHandoffPacket({
+          storage: window.localStorage,
+          expectedSession: sessionRef.current,
+        });
+        if (result.status === "created" || result.status === "existing") {
+          sessionRef.current = result.session;
+          setSession(result.session);
+          setNotice(result.status === "existing"
+            ? "当前快照已有同一最小化承接包；保持原生成时间，未重复生成。"
+            : "已在 Sofia 本机命名空间生成最小化承接包；尚未发送，也未建立真人队列。");
+          await refreshProvisionalHandoff();
+          return;
+        }
+        if (result.status === "super_teacher_concurrent_change") {
+          setSessionReadIssue("concurrent_change");
+          setError("Sofia 本机记录已在另一页面变化；本次没有覆盖，也没有生成新包。");
+        } else if (result.status === "workspace_not_ready") {
+          setError(`当前临时轮次未通过严格回链检查（${result.reason}）；已失败关闭，未生成承接包。`);
+        } else if (result.status === "workspace_changed_during_write") {
+          setError("学习工作台在生成期间发生变化；Sofia 写入已恢复到操作前状态，请重新核对。");
+        } else if (result.status === "super_teacher_write_verification_failed") {
+          setError("承接包写后校验失败；Sofia 本机记录已恢复到操作前状态。");
+        } else if (result.status === "super_teacher_rollback_failed") {
+          setSessionReadIssue("concurrent_change");
+          setError("本机写入状态无法确认且恢复失败；已停止后续操作，请先前往“我的本机数据”保全记录。");
+        } else {
+          setError("当前浏览器无法安全保存承接包；没有修改学习工作台或教研演示命名空间。");
+        }
+        await refreshProvisionalHandoff();
+      });
+    } catch {
+      setError("当前浏览器无法完成本机承接包事务；没有发送数据，也没有建立真人队列。");
+      await refreshProvisionalHandoff();
+    }
+  }
+
+  async function copyProvisionalHandoffPacket() {
+    setError("");
+    const packet = latestProvisionalHandoffPacket;
+    if (!packet) {
+      setError("请先为当前严格快照生成本机承接包；页面不会自动发送任何内容。");
+      return;
+    }
+    if (!navigator.locks?.request) {
+      setError("当前浏览器无法取得 Sofia 本机记录锁；旧包未复制，也没有发送数据。");
+      return;
+    }
+    try {
+      await navigator.locks.request(`${SUPER_TEACHER_CHAT_KEY}:write`, { mode: "exclusive" }, async () => {
+        const stored = readSession(window.localStorage);
+        const storedPacket = stored.status === "valid"
+          ? stored.session.provisionalHandoffPackets.find(
+            (candidate) => JSON.stringify(candidate) === JSON.stringify(packet),
+          )
+          : undefined;
+        if (
+          !storedSessionMatches(stored, sessionRef.current) ||
+          !storedPacket ||
+          JSON.stringify(storedPacket) !== JSON.stringify(packet)
+        ) {
+          setSessionReadIssue("concurrent_change");
+          setError("Sofia 本机记录已在另一页面清除或替换；已停止复制，请刷新核对。");
+          return;
+        }
+        const workspaceBefore = window.localStorage.getItem(WORKSPACE_KEY);
+        const projection = deriveProvisionalHandoffEvidence(workspaceBefore);
+        if (projection.status !== "ready" || !workspaceBefore) {
+          setError("当前临时轮次已不再满足严格回链；旧包未复制，请返回工作台核对。");
+          await refreshProvisionalHandoff();
+          return;
+        }
+        const digest = await sha256Hex(workspaceBefore);
+        const sessionImmediatelyBeforeCopy = readSession(window.localStorage);
+        const packetImmediatelyBeforeCopy = sessionImmediatelyBeforeCopy.status === "valid"
+          ? sessionImmediatelyBeforeCopy.session.provisionalHandoffPackets.find(
+            (candidate) => JSON.stringify(candidate) === JSON.stringify(packet),
+          )
+          : undefined;
+        const workspaceImmediatelyBeforeCopy = window.localStorage.getItem(WORKSPACE_KEY);
+        if (
+          !storedSessionMatches(sessionImmediatelyBeforeCopy, sessionRef.current) ||
+          !packetImmediatelyBeforeCopy ||
+          JSON.stringify(packetImmediatelyBeforeCopy) !== JSON.stringify(packet) ||
+          workspaceImmediatelyBeforeCopy !== workspaceBefore ||
+          !packetMatchesProvisionalEvidence(packet, projection.evidence, digest)
+        ) {
+          setError("学习快照已变化或承接包不属于当前 cycle；旧包未复制，请按当前快照重新生成。");
+          await refreshProvisionalHandoff();
+          return;
+        }
+        await navigator.clipboard.writeText(buildProvisionalHandoffCopyText(packet));
+        setNotice("已复制不含原始领域 ID 的最小化白名单承接包。它仍未自动发送；请在发送前再次核对接收方与隐私边界。");
+      });
+    } catch {
+      setError("浏览器未允许安全复制，或本机快照无法复核；页面没有自动发送任何内容。");
+    }
+  }
+
   return (
     <SuperTeacherSessionContext.Provider
       value={{
@@ -329,12 +529,17 @@ export function SuperTeacherSessionProvider({ children }: { children: ReactNode 
         sessionReadIssue,
         handoffOpen,
         contextSummary,
+        provisionalHandoff,
+        latestProvisionalHandoffPacket,
         setInput,
         setHandoffOpen,
         submitQuestion,
         clearConversation,
         createHandoffRequest,
         copyHandoffRequest,
+        refreshProvisionalHandoff,
+        createProvisionalHandoffPacket,
+        copyProvisionalHandoffPacket,
       }}
     >
       {children}

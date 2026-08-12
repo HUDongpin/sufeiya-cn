@@ -57,7 +57,7 @@ Qwen 后端已按 2026-08-11 最新的 Alibaba Cloud 官方 DashScope/OpenAI 兼
 
 - `/`：精炼首页与四个页面入口；
 - `/workspace`：七阶段 Gate A 闭环进度、独立功能页入口、只投影中央校验器已确认 ID 的本轮证据链总览、最近最多 10 轮的本机计划版本历史、完成后经整轮本机容量预检开放的“开始下一轮”入口、临时更新计划专用的待资质人员确认承接卡、脱敏的 29 项 P0 书面决定汇总，以及逐条来源治理/RAG 准入的只读计数；
-- `/super-teacher`：有来源的 Gate A 学习解释、拒答边界、非 AI 退出与本机人工支持请求；
+- `/super-teacher`：有来源的 Gate A 学习解释、拒答边界、非 AI 退出，以及只对严格核验 provisional 轮次开放的 Sofia 本机承接包与未发送人工支持请求；
 - `/diagnostic`：18+、本机、无评分的六任务诊断证据包（2 Reading + 2 Listening + 90 秒 Speaking + 3 分钟 Writing）；
 - `/plan`：7 天学习计划生成器；
 - `/recommendations`：一个主任务、至多两个补充的可解释推荐，可接受或明确跳过；
@@ -86,7 +86,7 @@ Qwen 后端已按 2026-08-11 最新的 Alibaba Cloud 官方 DashScope/OpenAI 兼
 
 - 通过同一 `cycle_id` 串联的 Gate A 演示闭环：六任务诊断证据包 → 计划 → 推荐 → 证据式打卡 → 学习者确认 → 自愿互助状态 → 平行微复测 → 更新计划；
 - 在互助选择前查看未来成人邀请制小组最多可见的两项本机预览：经白名单映射的任务类别与固定完成状态。预览本身不写入本机状态、不生成 ID 或事件，也不发送网络请求；姓名与账户信息、内部 ID、能力分与诊断结论、首答、作文、录音、打卡自由文本、问题、Sofia 对话和联系方式始终不进入预览。`used` 仍只表示查看了冻结合成经验卡，`realCommunityUsed` 始终为 `false`，不代表已加入、发布或分享给真实社区；
-- 在工作台集中核对 `diagnostic_session_id → plan_id → recommendation_id → check_in_id → review_id → peer_help_id/status → retest_id → updated_plan_id`；未通过前序回链的节点不会提前显示。临时更新计划会进入单独的“待具备资质人员确认”承接卡，只提供查看本机临时计划、准备一份未发送的人工支持请求和保全本机数据，不再把用户导回已经完成的微复测，也不自动发送、创建真实队列、通知人员或签发正式人工回执；
+- 在工作台集中核对 `diagnostic_session_id → plan_id → recommendation_id → check_in_id → review_id → peer_help_id/status → retest_id → updated_plan_id`；未通过前序回链的节点不会提前显示。临时更新计划会进入单独的“待具备资质人员确认”承接卡，并通过 `/super-teacher?handoff=provisional#human-support` 进入 Sofia 本机严格承接区。承接区只为 7 / 7 且仍处于 `provisional_pending_human_review` 的当前轮次生成最小化白名单包：生产校验器会在 workspace 内核对完整同轮回链，但页面、本机包和复制文本均不携带原始领域 ID 或独立包编号，只保留严格枚举、状态、时间与当前完整 workspace 的 SHA-256 摘要。旧快照、损坏记录、未知字段、跨轮回链或非 provisional 状态一律失败关闭，并只提供返回工作台与保全本机数据的路径。它不从来源投影姓名、Clerk 身份、联系方式或学习自由文本字段，也不自动发送、创建真实队列、通知人员、写入 canonical 学习账本、关闭 cycle 或签发正式人工回执；
 - 在本轮回执之后查看最近最多 10 轮的本机历史与 `base_plan_id → updated_plan_id` 重点对照；历史按结束时间最新在前，同一 `cycle_id` 重复记录全部失败关闭，仍在上方显示的当前轮次不会重复列入历史。每一轮都重新核对完整域 ID 链、`gate_a_original_6_v1` 任务集与摘要、能力方向、计划来源、里程碑 UTC 时间顺序、匿名事件绑定和该轮事件片段；只有“本机闭环已完成”或明确“待具备资格人员复核”的记录可进入投影，二者不会合并计数或混用文案；
 - 完成一轮后继续保留“查看更新后的计划”主入口，并另行显示“开始下一轮诊断”。后者先只读核对完成一轮至少需要的计划、闭环历史、练习回执、打卡、任务进度、事件与匿名别名计数；仅打开设备预检不会退休当前计划、归档当前轮次、生成 ID 或追加事件。用户完成预检并提交时，生产 writer 会在独占锁内再次执行同一容量检查，再把旧轮归档与新轮建立作为一个可回滚事务；若完整闭环历史已达 19、学习事件已达 207（完成新轮至少还需 6 条）或其他必需集合余量不足，则在首个写入前显示当前值、所需值与安全上限，并只提供 `/my-data` 保全路径；
 - 在工作台查看同源、只读、无缓存的 Gate 0 脱敏汇总；接口异常、协议漂移、超时或字段不完整时按“未通过”处理，不公开 29 项问题文本、负责人、证据、控制映射或复审日期，也不把登录与功能实现计为批准；
@@ -98,7 +98,7 @@ Qwen 后端已按 2026-08-11 最新的 Alibaba Cloud 官方 DashScope/OpenAI 兼
 - 可在刷新后恢复的专注计时器；
 - 自动保存草稿的结构化学习复盘；
 - 本机数据原始保全导出、学习闭环专用的可恢复备份，以及对学习闭环、Sofia 对话和教研复核演示草稿的定向清除；
-- 对等待人工确认的临时 cycle 进行只读教研流程演示：当前登录不代表教研身份或资质，草稿不会发送、不会修改学生计划或事件账本，也不会关闭 cycle 或签发人工复核回执；
+- 对等待人工确认的临时 cycle 生成 Sofia 本机严格承接包，并进行只读教研流程演示：包和教研草稿分别绑定当前来源快照，均只保存在当前浏览器；当前登录不代表教研身份或资质，内容不会自动发送、不会进入真实人工队列、不会修改学生计划或事件账本，也不会关闭 cycle 或签发人工复核回执；
 - 可选的 Sofia智能老师 Gate A：解释本机证据、计划、推荐与原创任务，逐句显示来源；模型不可用时自动回到同一白名单上的确定性备用回答。
 
 公开网站同时展示：
@@ -121,7 +121,7 @@ Listening 只有在静态音频触发完整播放结束，或设备语音合成�
 
 Logo 使用由原始附件精确抠图并进行 4× 重采样的 `2792 × 560` 真透明 PNG；圆形标志另存为 `512 × 512` 透明站点图标。
 
-Clerk 负责账户身份与资料；Sufeiya 另行负责学习区邀请准入，不会成为本机学习记录的账户绑定层。学习闭环数据使用 `sufeiya_workspace_v1` 本机存储命名空间；所有 `workspace.js` 与 `journey.js` 页面共享同名的 `page-writer` Web Lock 长租约，同一时间只有一个标签页可写，第二个标签页在初始化控件前切换为只读。诊断预检与 Sofia智能老师上下文区都会在交互前显示浏览器安全写入锁能力；不支持 Web Locks 时不建立新的闭环或问答写入。Sofia智能老师的对话副本和未发送人工请求使用独立的 `sufeiya_super_teacher_v1` 命名空间；教研复核演示草稿使用 `sufeiya_teaching_review_demo_v1`，只读取与当前 `activeCycle` 的 protocol、状态及全部下游 ID 完整一致，且符合固定任务集、计划、推荐、回执、任务进度、打卡、复测和临时计划回链的唯一 provisional 本机快照。教研投影只显示冻结枚举、质量标记白名单与确定性推荐说明，不复制原始答案、开放作答、打卡自由文本或原始推荐文案；草稿保存使用独立 Web Lock、源快照 SHA-256、原始字节 compare-and-set、精确写后校验和可核验回滚，任何未知存储状态都会停止后续写入。`/workspace`、七步闭环、练习、专注、本机数据与 `/teaching-review-demo` 先要求有效 Clerk session，再要求 Clerk 签名会话令牌中的 `sufeiyaBetaAccess` 同时具有 `protocolVersion=sufeiya_invite_only_beta_v1` 与 `status=approved`；字段缺失、旧协议、未知状态或令牌声明未就绪一律失败关闭。该最小声明由 Production 与 Development Clerk 实例的 session token template 从后端可写、前端只读的 `publicMetadata.sufeiyaBetaAccess` 生成，页面请求不再逐次调用 Clerk Backend API。metadata 更新可能在当前短期令牌中短暂滞后；受控批准流程必须强制刷新令牌，撤销最多存在一个 Clerk 短期令牌的传播延迟。`/account` 保留给任何已登录账户管理身份。邀请必须由受控 Clerk Backend API 流程创建，并把同一 metadata 作为 invitation `publicMetadata` 附带；仅出现 `__clerk_ticket`、仅创建账户或仅登录都不能获得学习区访问权。
+Clerk 负责账户身份与资料；Sufeiya 另行负责学习区邀请准入，不会成为本机学习记录的账户绑定层。学习闭环数据使用 `sufeiya_workspace_v1` 本机存储命名空间；所有 `workspace.js` 与 `journey.js` 页面共享同名的 `page-writer` Web Lock 长租约，同一时间只有一个标签页可写，第二个标签页在初始化控件前切换为只读。诊断预检与 Sofia智能老师上下文区都会在交互前显示浏览器安全写入锁能力；不支持 Web Locks 时不建立新的闭环或问答写入。Sofia智能老师的对话副本、未发送人工请求和严格承接包使用独立的 `sufeiya_super_teacher_v1` 命名空间；承接包以当前完整 provisional workspace 的 SHA-256 作为同快照绑定，只保存严格白名单枚举、固定无权限边界和时间，不保存或复制 workspace 中的原始领域 ID；原始答案、作文、口语、打卡自由文本、联系方式与 Clerk 身份字段也不会进入包。教研复核演示草稿使用 `sufeiya_teaching_review_demo_v1`，只读取与当前 `activeCycle` 的 protocol、状态及全部下游 ID 完整一致，且符合固定任务集、计划、推荐、回执、任务进度、打卡、复测和临时计划回链的唯一 provisional 本机快照。教研投影只显示冻结枚举、质量标记白名单与确定性推荐说明，不复制原始答案、开放作答、打卡自由文本或原始推荐文案；草稿保存使用独立 Web Lock、源快照 SHA-256、原始字节 compare-and-set、精确写后校验和可核验回滚，任何未知存储状态都会停止后续写入。`/workspace`、七步闭环、练习、专注、本机数据与 `/teaching-review-demo` 先要求有效 Clerk session，再要求 Clerk 签名会话令牌中的 `sufeiyaBetaAccess` 同时具有 `protocolVersion=sufeiya_invite_only_beta_v1` 与 `status=approved`；字段缺失、旧协议、未知状态或令牌声明未就绪一律失败关闭。该最小声明由 Production 与 Development Clerk 实例的 session token template 从后端可写、前端只读的 `publicMetadata.sufeiyaBetaAccess` 生成，页面请求不再逐次调用 Clerk Backend API。metadata 更新可能在当前短期令牌中短暂滞后；受控批准流程必须强制刷新令牌，撤销最多存在一个 Clerk 短期令牌的传播延迟。`/account` 保留给任何已登录账户管理身份。邀请必须由受控 Clerk Backend API 流程创建，并把同一 metadata 作为 invitation `publicMetadata` 附带；仅出现 `__clerk_ticket`、仅创建账户或仅登录都不能获得学习区访问权。
 
 `/my-data` 的可恢复文件只封装 `sufeiya_workspace_v1`，使用 `sufeiya_workspace_backup_v1`、固定 namespace/schema 与 replace-only 合同；不会读取、复制或覆盖 Sofia 对话和教研草稿。选择文件、SHA-256 核对、严格领域对象/数量上限/事件哈希链/当前与历史轮次回链预检都在浏览器本机完成，文件不会上传；摘要用于发现意外损坏，不是服务器签名，也不能防止恶意本机重算。旧协议、未知字段、身份或原始响应键、超限、摘要不符、事件孤儿和交叉引用漂移全部零写入拒绝。恢复必须由学习者明确勾选完整替换，随后在独占 Web Lock 内进行写前 compare-and-set、写后读回、持久化复验与复验后第二次 compare-and-set；只有仍拥有候选值时才可回滚，绝不以旧值覆盖第三方并发写入。当前版本不做合并、猜测迁移、账户绑定、云同步或跨设备自动恢复。
 

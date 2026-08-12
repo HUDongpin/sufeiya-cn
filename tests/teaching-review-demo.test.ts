@@ -10,6 +10,26 @@ import {
   parseTeachingReviewDraft,
   serializeTeachingReviewDraft,
 } from "../lib/teaching-review-demo";
+import {
+  PROVISIONAL_HANDOFF_PROTOCOL,
+  buildProvisionalHandoffCopyText,
+  canonicalUtcMillisecondTimestampSchema,
+  createProvisionalHandoffPacket,
+  deriveProvisionalHandoffEvidence,
+  findMatchingProvisionalHandoffPacket,
+  packetMatchesProvisionalEvidence,
+  parseProvisionalHandoffPacket,
+  provisionalHandoffEvidenceSchema,
+  provisionalHandoffPacketSchema,
+  serializeProvisionalHandoffPacket,
+  sha256Hex,
+} from "../lib/super-teacher/provisional-handoff";
+import {
+  SUPER_TEACHER_CHAT_KEY,
+  commitProvisionalHandoffPacket,
+  emptySession,
+} from "../lib/super-teacher/client-session";
+import { deriveLearnerContext } from "../lib/super-teacher/local-context";
 
 type MutableRecord = Record<string, unknown>;
 
@@ -17,16 +37,16 @@ const PROTOCOL_VERSION = "gate_a_local_v1";
 const DIAGNOSTIC_PROTOCOL_VERSION = "gate_a_diagnostic_evidence_v1";
 const TASK_SET_VERSION = "gate_a_original_6_v1";
 const TASK_SET_DIGEST = "c1b2922ca96677665690bf790281be2438a016bbbe0d9f85478685af3c8dfc2c";
-const CYCLE_ID = "cycle-2026-08-10-writing-1";
-const DIAGNOSTIC_SESSION_ID = "diagnostic-2026-08-10-writing-1";
-const BASE_PLAN_ID = "plan-base-2026-08-10-writing-1";
-const RECOMMENDATION_ID = "recommendation-2026-08-10-writing-1";
+const CYCLE_ID = "cycle-msqhg76f-abc12";
+const DIAGNOSTIC_SESSION_ID = "diagnostic-msqhg76g-bcd23";
+const BASE_PLAN_ID = "plan-msqhg76h-cde34";
+const RECOMMENDATION_ID = "recommendation-msqhg76i-def45";
 const PRIMARY_TASK_ID = "plan-task-writing-2026-08-10-1";
-const CHECK_IN_ID = "check-in-2026-08-10-writing-1";
-const REVIEW_ID = "review-2026-08-10-writing-1";
-const PEER_HELP_ID = "peer-help-2026-08-10-writing-1";
-const RETEST_ID = "retest-2026-08-10-writing-1";
-const UPDATED_PLAN_ID = "plan-updated-2026-08-10-writing-1";
+const CHECK_IN_ID = "check-in-msqhg76j";
+const REVIEW_ID = "review-msqhg76k-efg56";
+const PEER_HELP_ID = "peer-help-msqhg76m-fgh67";
+const RETEST_ID = "retest-msqhg76n-ghi78";
+const UPDATED_PLAN_ID = "plan-msqhg76p-hij89";
 const PRACTICE_ATTEMPT_ID = "123e4567-e89b-42d3-a456-426614174000";
 const COMPLETION_RECEIPT_ID = "123e4567-e89b-42d3-a456-426614174001";
 const CREATED_AT = "2026-08-10T12:00:00.000Z";
@@ -613,6 +633,47 @@ describe("Teaching review canonical evidence boundary", () => {
     assert.equal(deriveFixture(noActiveCycle).status, "no_active_cycle");
   });
 
+  it("requires the same explicit provisional timestamp on active and history without an updatedAt fallback", () => {
+    const cases: Array<[string, (fixture: MutableRecord) => void]> = [
+      [
+        "both provisional timestamps missing",
+        (fixture) => {
+          Reflect.deleteProperty(activeCycle(fixture), "provisionalAt");
+          Reflect.deleteProperty(provisionalHistoryCycle(fixture), "provisionalAt");
+        },
+      ],
+      [
+        "active provisional timestamp missing",
+        (fixture) => {
+          Reflect.deleteProperty(activeCycle(fixture), "provisionalAt");
+        },
+      ],
+      [
+        "history provisional timestamp missing",
+        (fixture) => {
+          Reflect.deleteProperty(provisionalHistoryCycle(fixture), "provisionalAt");
+        },
+      ],
+      [
+        "active and history provisional timestamps drift",
+        (fixture) => {
+          activeCycle(fixture).provisionalAt = "2026-08-10T13:00:01.000Z";
+        },
+      ],
+    ];
+
+    for (const [label, mutate] of cases) {
+      const fixture = canonicalProvisionalFixture();
+      mutate(fixture);
+      assert.equal(deriveFixture(fixture).status, "invalid", label);
+      assert.equal(
+        deriveProvisionalHandoffEvidence(JSON.stringify(fixture)).status,
+        "invalid",
+        `${label} handoff projection`,
+      );
+    }
+  });
+
   it("rejects evidence linked to another cycle", () => {
     const fixture = canonicalProvisionalFixture();
     recordAt(provisionalHistoryCycle(fixture), "retest").cycleId = "cycle-other";
@@ -821,6 +882,694 @@ describe("Teaching review canonical evidence boundary", () => {
     }
     if (result.status !== "ready") return;
     assert.equal(result.practice?.learnerNarrativeWithheld, true);
+  });
+});
+
+describe("Sofia provisional handoff production boundary", () => {
+  async function readyHandoff() {
+    const raw = JSON.stringify(canonicalProvisionalFixture());
+    const result = deriveProvisionalHandoffEvidence(raw);
+    assert.equal(result.status, "ready");
+    if (result.status !== "ready") throw new TypeError("Expected production handoff evidence");
+    return { raw, evidence: result.evidence, digest: await sha256Hex(raw) };
+  }
+
+  it("creates the exact strict local packet schema from the authorized provisional cycle", async () => {
+    const { evidence, digest } = await readyHandoff();
+    const packet = createProvisionalHandoffPacket({
+      evidence,
+      sourceSnapshotSha256: digest,
+      createdAt: "2026-08-10T13:05:00.000Z",
+    });
+
+    assert.equal(provisionalHandoffPacketSchema.safeParse(packet).success, true);
+    assert.deepEqual(Object.keys(packet).sort(), [
+      "canonicalLedgerWriteAllowed",
+      "createdAt",
+      "cycleClosureAllowed",
+      "humanConfirmationStatus",
+      "humanReviewReceiptCreated",
+      "identityVerified",
+      "kind",
+      "learnerNarrativeWithheld",
+      "networkDispatch",
+      "peerHelpStatus",
+      "prioritySkill",
+      "protocolVersion",
+      "qualifiedHumanConfirmation",
+      "realQueueCreated",
+      "recordedStepCount",
+      "retestEvidenceStatus",
+      "sourceClass",
+      "sourceSnapshotSha256",
+      "sourceStorageKey",
+      "sourceUpdatedAt",
+      "status",
+    ].sort());
+    assert.equal(packet.protocolVersion, PROVISIONAL_HANDOFF_PROTOCOL);
+    assert.equal(packet.recordedStepCount, 7);
+    assert.equal(packet.sourceStorageKey, CANONICAL_LEARNER_STORAGE_KEY);
+    assert.equal(packet.sourceSnapshotSha256, digest);
+    assert.equal(packet.status, "local_not_sent");
+    assert.equal(packet.networkDispatch, "disabled");
+    assert.equal(packet.realQueueCreated, false);
+    assert.equal(packet.humanReviewReceiptCreated, false);
+    assert.equal(packet.qualifiedHumanConfirmation, false);
+    assert.equal(packet.identityVerified, false);
+    assert.equal(packet.canonicalLedgerWriteAllowed, false);
+    assert.equal(packet.cycleClosureAllowed, false);
+    assert.equal(packet.learnerNarrativeWithheld, true);
+    assert.deepEqual(parseProvisionalHandoffPacket(JSON.parse(serializeProvisionalHandoffPacket(packet))), packet);
+    for (const forbiddenField of [
+      "packetId",
+      "cycleId",
+      "diagnosticSessionId",
+      "basePlanId",
+      "recommendationId",
+      "checkInId",
+      "reviewId",
+      "peerHelpId",
+      "retestId",
+      "updatedPlanId",
+    ]) {
+      assert.equal(Object.hasOwn(packet, forbiddenField), false, forbiddenField);
+      assert.equal(
+        provisionalHandoffPacketSchema.safeParse({ ...packet, [forbiddenField]: "identity-or-contact" }).success,
+        false,
+        forbiddenField,
+      );
+    }
+    assert.equal(provisionalHandoffEvidenceSchema.safeParse(evidence).success, true);
+  });
+
+  it("accepts only canonical UTC millisecond timestamps and fails closed before a poisoned packet can be copied", async () => {
+    const canonicalTimestamps = [
+      "2026-08-10T13:05:00.000Z",
+      "2026-08-10T13:05:00.999Z",
+      "2024-02-29T23:59:59.001Z",
+    ];
+    const nonCanonicalTimestamps = [
+      "2026-08-10T13:05:00.13800138000Z",
+      "2026-08-10T13:05:00Z",
+      "2026-08-10T13:05:00.1Z",
+      "2026-08-10T13:05:00.0000Z",
+      "2026-08-10T13:05:00.000+00:00",
+      "2026-02-30T13:05:00.000Z",
+      "2026-08-10t13:05:00.000z",
+    ];
+    for (const timestamp of canonicalTimestamps) {
+      assert.equal(canonicalUtcMillisecondTimestampSchema.safeParse(timestamp).success, true, timestamp);
+    }
+    for (const timestamp of nonCanonicalTimestamps) {
+      assert.equal(canonicalUtcMillisecondTimestampSchema.safeParse(timestamp).success, false, timestamp);
+    }
+
+    const { evidence, digest } = await readyHandoff();
+    const packet = createProvisionalHandoffPacket({
+      evidence,
+      sourceSnapshotSha256: digest,
+      createdAt: canonicalTimestamps[0],
+    });
+    const poisonedCreatedAt = {
+      ...packet,
+      createdAt: "2026-08-10T13:05:00.13800138000Z",
+    };
+    const poisonedSourceUpdatedAt = {
+      ...packet,
+      sourceUpdatedAt: "2026-08-10T13:05:00.13800138000Z",
+    };
+    for (const poisoned of [poisonedCreatedAt, poisonedSourceUpdatedAt]) {
+      assert.equal(provisionalHandoffPacketSchema.safeParse(poisoned).success, false);
+      assert.equal(parseProvisionalHandoffPacket(poisoned), null);
+      assert.throws(() => buildProvisionalHandoffCopyText(poisoned as typeof packet));
+    }
+    assert.equal(
+      provisionalHandoffEvidenceSchema.safeParse({
+        ...evidence,
+        sourceUpdatedAt: "2026-08-10T13:05:00.13800138000Z",
+      }).success,
+      false,
+    );
+  });
+
+  it("derives the minimized 7/7 provisional learner context without claiming completed human review", () => {
+    const fixture = canonicalProvisionalFixture();
+    const context = deriveLearnerContext(fixture);
+    assert.equal(context?.terminalEvidenceTaskCount, 6);
+    assert.equal(context?.completedEvidenceTaskCount, 6);
+    assert.equal(context?.plan?.stage, "provisional_updated");
+    assert.equal(context?.plan?.planId, UPDATED_PLAN_ID);
+    assert.equal(context?.plan?.basePlanId, BASE_PLAN_ID);
+    assert.equal(context?.progress?.checkInRecorded, true);
+    assert.equal(context?.progress?.learnerReviewConfirmed, true);
+    assert.equal(context?.progress?.retestRecorded, true);
+    assert.equal(context?.progress?.updatedPlanConfirmed, false);
+    assert.equal(context?.progress?.humanReviewStatus, "required_not_completed");
+
+    const crossCycle = canonicalProvisionalFixture();
+    recordAt(provisionalHistoryCycle(crossCycle), "retest").cycleId = "cycle-other";
+    assert.equal(deriveLearnerContext(crossCycle), undefined);
+
+    const unknownStatus = canonicalProvisionalFixture();
+    recordAt(provisionalHistoryCycle(unknownStatus), "peerHelp").status = "PRIVATE_FREE_TEXT_MARKER";
+    assert.equal(deriveLearnerContext(unknownStatus), undefined);
+  });
+
+  it("fails closed for cross-cycle and unknown evidence while keeping completed and in-progress states unavailable", () => {
+    const crossCycle = canonicalProvisionalFixture();
+    recordAt(provisionalHistoryCycle(crossCycle), "retest").cycleId = "cycle-other";
+    assert.deepEqual(deriveProvisionalHandoffEvidence(JSON.stringify(crossCycle)), {
+      status: "invalid",
+      reason: "cross_cycle_evidence_rejected",
+    });
+
+    const unknownStatus = canonicalProvisionalFixture();
+    recordAt(provisionalHistoryCycle(unknownStatus), "peerHelp").status = "PRIVATE_FREE_TEXT_MARKER";
+    assert.deepEqual(deriveProvisionalHandoffEvidence(JSON.stringify(unknownStatus)), {
+      status: "invalid",
+      reason: "provisional_human_review_boundary_rejected",
+    });
+
+    const disguisedIdentity = canonicalProvisionalFixture();
+    const disguisedCycle = provisionalHistoryCycle(disguisedIdentity);
+    activeCycle(disguisedIdentity).cycleId = "clerk_user_2abc123";
+    disguisedCycle.cycleId = "clerk_user_2abc123";
+    recordAt(disguisedCycle, "diagnostic").cycleId = "clerk_user_2abc123";
+    recordAt(disguisedCycle, "recommendation").cycleId = "clerk_user_2abc123";
+    recordAt(disguisedCycle, "checkIn").cycleId = "clerk_user_2abc123";
+    recordAt(disguisedCycle, "review").cycleId = "clerk_user_2abc123";
+    recordAt(disguisedCycle, "peerHelp").cycleId = "clerk_user_2abc123";
+    recordAt(disguisedCycle, "retest").cycleId = "clerk_user_2abc123";
+    recordAt(disguisedCycle, "planUpdate").cycleId = "clerk_user_2abc123";
+    assert.deepEqual(deriveProvisionalHandoffEvidence(JSON.stringify(disguisedIdentity)), {
+      status: "invalid",
+      reason: "canonical_binding_or_plan_rejected",
+    });
+
+    const completed = canonicalProvisionalFixture();
+    provisionalHistoryCycle(completed).status = "completed";
+    activeCycle(completed).status = "completed";
+    assert.deepEqual(deriveProvisionalHandoffEvidence(JSON.stringify(completed)), {
+      status: "no_provisional_cycle",
+    });
+
+    const inProgress = canonicalProvisionalFixture();
+    Object.assign(activeCycle(inProgress), {
+      cycleId: "cycle-new-in-progress",
+      diagnosticSessionId: "diagnostic-new-in-progress",
+      status: "in_progress",
+      provisionalAt: null,
+      updatedPlanId: null,
+    });
+    assert.deepEqual(deriveProvisionalHandoffEvidence(JSON.stringify(inProgress)), {
+      status: "no_provisional_cycle",
+    });
+  });
+
+  it("matches by the full workspace SHA and safe enums without storing raw domain IDs", async () => {
+    const { evidence, digest } = await readyHandoff();
+    const first = createProvisionalHandoffPacket({
+      evidence,
+      sourceSnapshotSha256: digest,
+      createdAt: "2026-08-10T13:05:00.000Z",
+    });
+    const duplicate = createProvisionalHandoffPacket({
+      evidence,
+      sourceSnapshotSha256: digest,
+      createdAt: first.createdAt,
+    });
+
+    assert.equal(serializeProvisionalHandoffPacket(duplicate), serializeProvisionalHandoffPacket(first));
+    assert.equal(findMatchingProvisionalHandoffPacket([first], evidence, digest), first);
+    assert.equal(packetMatchesProvisionalEvidence(first, evidence, digest), true);
+
+    const changedRaw = `${JSON.stringify(canonicalProvisionalFixture())}\n`;
+    const changedDigest = await sha256Hex(changedRaw);
+    assert.notEqual(changedDigest, digest);
+    assert.equal(packetMatchesProvisionalEvidence(first, evidence, changedDigest), false);
+    assert.equal(findMatchingProvisionalHandoffPacket([first], evidence, changedDigest), undefined);
+
+    const otherEvidence = {
+      ...evidence,
+      cycleId: "cycle-msqhg77f-ijk12",
+      diagnosticSessionId: "diagnostic-msqhg77g-jkl23",
+      basePlanId: "plan-msqhg77h-klm34",
+      recommendationId: "recommendation-msqhg77i-lmn45",
+      checkInId: "check-in-msqhg77j",
+      reviewId: "review-msqhg77k-mno56",
+      peerHelpId: "peer-help-msqhg77m-nop67",
+      retestId: "retest-msqhg77n-opq78",
+      updatedPlanId: "plan-msqhg77p-pqr89",
+    };
+    const other = createProvisionalHandoffPacket({
+      evidence: otherEvidence,
+      sourceSnapshotSha256: digest,
+      createdAt: first.createdAt,
+    });
+    assert.equal(serializeProvisionalHandoffPacket(other), serializeProvisionalHandoffPacket(first));
+    assert.equal(findMatchingProvisionalHandoffPacket([first, other], evidence, digest), other);
+    assert.equal(findMatchingProvisionalHandoffPacket([first, other], otherEvidence, digest), other);
+  });
+
+  it("copies only the strict allowlist and withholds learner, identity, contact, and raw-answer text", async () => {
+    const fixture = canonicalProvisionalFixture();
+    const cycle = provisionalHistoryCycle(fixture);
+    recordAt(cycle, "checkIn").questionText = "PRIVATE_QUESTION_MARKER";
+    recordAt(cycle, "checkIn").didText = "PRIVATE_DID_MARKER with sufficient learner narrative";
+    recordAt(cycle, "checkIn").evidenceText = "PRIVATE_EVIDENCE_MARKER with sufficient learner narrative";
+    recordAt(cycle, "retest", "evidence").responseText = "PRIVATE_RETEST_MARKER";
+    const diagnosticTasks = recordAt(cycle, "diagnostic").taskEvidence;
+    if (!Array.isArray(diagnosticTasks) || !isRecord(diagnosticTasks[0])) throw new TypeError("Expected diagnostic tasks");
+    diagnosticTasks[0].rawAnswer = "PRIVATE_RAW_ANSWER_MARKER";
+    fixture.clerkUserId = "user_private_clerk_marker";
+    fixture.email = "private@example.test";
+    fixture.phone = "13800138000";
+
+    const raw = JSON.stringify(fixture);
+    const result = deriveProvisionalHandoffEvidence(raw);
+    assert.equal(result.status, "ready");
+    if (result.status !== "ready") return;
+    const packet = createProvisionalHandoffPacket({
+      evidence: result.evidence,
+      sourceSnapshotSha256: await sha256Hex(raw),
+      createdAt: "2026-08-10T13:05:00.000Z",
+    });
+    const copy = buildProvisionalHandoffCopyText(packet);
+    const rawDomainIds = [
+      result.evidence.cycleId,
+      result.evidence.diagnosticSessionId,
+      result.evidence.basePlanId,
+      result.evidence.recommendationId,
+      result.evidence.checkInId,
+      result.evidence.reviewId,
+      result.evidence.peerHelpId,
+      result.evidence.retestId,
+      result.evidence.updatedPlanId,
+    ];
+    for (const forbidden of [
+      "packetId",
+      ...rawDomainIds,
+      "PRIVATE_QUESTION_MARKER",
+      "PRIVATE_DID_MARKER",
+      "PRIVATE_EVIDENCE_MARKER",
+      "PRIVATE_RETEST_MARKER",
+      "PRIVATE_RAW_ANSWER_MARKER",
+      "user_private_clerk_marker",
+      "private@example.test",
+      "13800138000",
+      "questionText",
+      "didText",
+      "evidenceText",
+      "responseText",
+      "rawAnswer",
+      "clerkUserId",
+      "email",
+      "phone",
+    ]) {
+      assert.equal(JSON.stringify(packet).includes(forbidden), false, `packet: ${forbidden}`);
+      assert.equal(copy.includes(forbidden), false, `copy: ${forbidden}`);
+    }
+    assert.match(copy, new RegExp(packet.sourceSnapshotSha256));
+    assert.match(copy, /仅在本机准备，尚未发送/);
+    assert.match(copy, /不从来源投影姓名、Clerk 身份、联系方式、原始答案、录音、对话或打卡自由文本字段/);
+  });
+
+  it("commits only Sofia bytes, emits zero learning events, and returns the same packet idempotently", async () => {
+    const fixture = canonicalProvisionalFixture();
+    fixture.learningEvents = [{ id: "pre-existing-event", verb: "fixture_sentinel" }];
+    const workspaceRaw = JSON.stringify(fixture);
+    const teachingRaw = '{"strictTeachingDraft":"byte-preserved"}';
+    const initialSession = emptySession();
+    const initialSofiaRaw = JSON.stringify(initialSession);
+    const values = new Map<string, string>([
+      [CANONICAL_LEARNER_STORAGE_KEY, workspaceRaw],
+      [SUPER_TEACHER_CHAT_KEY, initialSofiaRaw],
+      [TEACHING_REVIEW_DEMO_STORAGE_KEY, teachingRaw],
+    ]);
+    const writes: string[] = [];
+    const storage = {
+      getItem(key: string) {
+        return values.get(key) ?? null;
+      },
+      setItem(key: string, value: string) {
+        writes.push(key);
+        values.set(key, value);
+      },
+      removeItem(key: string) {
+        writes.push(key);
+        values.delete(key);
+      },
+    };
+    let timeCalls = 0;
+    const now = () => {
+      timeCalls += 1;
+      return "2026-08-10T13:05:00.000Z";
+    };
+
+    const created = await commitProvisionalHandoffPacket({
+      storage,
+      expectedSession: initialSession,
+      now,
+    });
+    assert.equal(created.status, "created");
+    if (created.status !== "created") return;
+    assert.equal(Object.hasOwn(created.packet, "packetId"), false);
+    assert.equal(timeCalls, 1);
+    assert.deepEqual(writes, [SUPER_TEACHER_CHAT_KEY]);
+    assert.equal(values.get(CANONICAL_LEARNER_STORAGE_KEY), workspaceRaw);
+    assert.equal(values.get(TEACHING_REVIEW_DEMO_STORAGE_KEY), teachingRaw);
+    assert.deepEqual(
+      (JSON.parse(values.get(CANONICAL_LEARNER_STORAGE_KEY) ?? "null") as MutableRecord).learningEvents,
+      fixture.learningEvents,
+    );
+
+    const threeNamespaceBytes = {
+      workspace: values.get(CANONICAL_LEARNER_STORAGE_KEY),
+      sofia: values.get(SUPER_TEACHER_CHAT_KEY),
+      teaching: values.get(TEACHING_REVIEW_DEMO_STORAGE_KEY),
+    };
+    const writesBeforeReplay = writes.length;
+    const replay = await commitProvisionalHandoffPacket({
+      storage,
+      expectedSession: created.session,
+      now,
+    });
+    assert.equal(replay.status, "existing");
+    if (replay.status !== "existing") return;
+    assert.equal(replay.packet.sourceSnapshotSha256, created.packet.sourceSnapshotSha256);
+    assert.equal(replay.packet.createdAt, created.packet.createdAt);
+    assert.equal(replay.session, created.session);
+    assert.equal(timeCalls, 1);
+    assert.equal(writes.length, writesBeforeReplay);
+    assert.deepEqual({
+      workspace: values.get(CANONICAL_LEARNER_STORAGE_KEY),
+      sofia: values.get(SUPER_TEACHER_CHAT_KEY),
+      teaching: values.get(TEACHING_REVIEW_DEMO_STORAGE_KEY),
+    }, threeNamespaceBytes);
+  });
+
+  it("rejects stale workspace and Sofia CAS before timestamp allocation with zero cross-namespace writes", async () => {
+    const workspaceRaw = JSON.stringify(canonicalProvisionalFixture());
+    const changedWorkspaceRaw = `${workspaceRaw}\n`;
+    const teachingRaw = '{"strictTeachingDraft":"byte-preserved"}';
+    const initialSession = emptySession();
+    const initialSofiaRaw = JSON.stringify(initialSession);
+    const makeValues = () => new Map<string, string>([
+      [CANONICAL_LEARNER_STORAGE_KEY, workspaceRaw],
+      [SUPER_TEACHER_CHAT_KEY, initialSofiaRaw],
+      [TEACHING_REVIEW_DEMO_STORAGE_KEY, teachingRaw],
+    ]);
+    let timeCalls = 0;
+    const now = () => {
+      timeCalls += 1;
+      return "2026-08-10T13:05:00.000Z";
+    };
+
+    const staleValues = makeValues();
+    const staleWrites: string[] = [];
+    let workspaceReads = 0;
+    const stale = await commitProvisionalHandoffPacket({
+      storage: {
+        getItem(key: string) {
+          if (key === CANONICAL_LEARNER_STORAGE_KEY) {
+            workspaceReads += 1;
+            if (workspaceReads === 2) staleValues.set(key, changedWorkspaceRaw);
+          }
+          return staleValues.get(key) ?? null;
+        },
+        setItem(key: string, value: string) {
+          staleWrites.push(key);
+          staleValues.set(key, value);
+        },
+        removeItem(key: string) {
+          staleWrites.push(key);
+          staleValues.delete(key);
+        },
+      },
+      expectedSession: initialSession,
+      now,
+    });
+    assert.deepEqual(stale, { status: "workspace_changed_during_write" });
+    assert.deepEqual(staleWrites, []);
+    assert.equal(staleValues.get(CANONICAL_LEARNER_STORAGE_KEY), changedWorkspaceRaw);
+    assert.equal(staleValues.get(SUPER_TEACHER_CHAT_KEY), initialSofiaRaw);
+    assert.equal(staleValues.get(TEACHING_REVIEW_DEMO_STORAGE_KEY), teachingRaw);
+    assert.equal(timeCalls, 0);
+
+    const casValues = makeValues();
+    const casWrites: string[] = [];
+    const cas = await commitProvisionalHandoffPacket({
+      storage: {
+        getItem: (key: string) => casValues.get(key) ?? null,
+        setItem(key: string, value: string) {
+          casWrites.push(key);
+          casValues.set(key, value);
+        },
+        removeItem(key: string) {
+          casWrites.push(key);
+          casValues.delete(key);
+        },
+      },
+      expectedSession: { ...initialSession, revision: 1 },
+      now,
+    });
+    assert.deepEqual(cas, { status: "super_teacher_concurrent_change" });
+    assert.deepEqual(casWrites, []);
+    assert.deepEqual({
+      workspace: casValues.get(CANONICAL_LEARNER_STORAGE_KEY),
+      sofia: casValues.get(SUPER_TEACHER_CHAT_KEY),
+      teaching: casValues.get(TEACHING_REVIEW_DEMO_STORAGE_KEY),
+    }, {
+      workspace: workspaceRaw,
+      sofia: initialSofiaRaw,
+      teaching: teachingRaw,
+    });
+    assert.equal(timeCalls, 0);
+  });
+
+  it("rolls Sofia back byte-for-byte when workspace changes after the candidate write", async () => {
+    const fixture = canonicalProvisionalFixture();
+    fixture.learningEvents = [{ id: "pre-existing-event", verb: "fixture_sentinel" }];
+    const workspaceRaw = JSON.stringify(fixture);
+    const changedWorkspaceRaw = `${workspaceRaw}\n`;
+    const teachingRaw = '{"strictTeachingDraft":"byte-preserved"}';
+    const initialSofiaRaw = JSON.stringify(emptySession());
+    const values = new Map<string, string>([
+      [CANONICAL_LEARNER_STORAGE_KEY, workspaceRaw],
+      [SUPER_TEACHER_CHAT_KEY, initialSofiaRaw],
+      [TEACHING_REVIEW_DEMO_STORAGE_KEY, teachingRaw],
+    ]);
+    const writes: Array<{ key: string; value: string | null }> = [];
+    let workspaceReads = 0;
+    const result = await commitProvisionalHandoffPacket({
+      storage: {
+        getItem(key: string) {
+          if (key === CANONICAL_LEARNER_STORAGE_KEY) {
+            workspaceReads += 1;
+            if (workspaceReads === 3) values.set(key, changedWorkspaceRaw);
+          }
+          return values.get(key) ?? null;
+        },
+        setItem(key: string, value: string) {
+          writes.push({ key, value });
+          values.set(key, value);
+        },
+        removeItem(key: string) {
+          writes.push({ key, value: null });
+          values.delete(key);
+        },
+      },
+      expectedSession: emptySession(),
+      now: () => "2026-08-10T13:05:00.000Z",
+    });
+
+    assert.deepEqual(result, { status: "workspace_changed_during_write" });
+    assert.deepEqual(writes.map(({ key }) => key), [SUPER_TEACHER_CHAT_KEY, SUPER_TEACHER_CHAT_KEY]);
+    assert.equal(values.get(SUPER_TEACHER_CHAT_KEY), initialSofiaRaw);
+    assert.equal(values.get(TEACHING_REVIEW_DEMO_STORAGE_KEY), teachingRaw);
+    assert.equal(values.get(CANONICAL_LEARNER_STORAGE_KEY), changedWorkspaceRaw);
+    assert.deepEqual(
+      (JSON.parse(values.get(CANONICAL_LEARNER_STORAGE_KEY) ?? "null") as MutableRecord).learningEvents,
+      fixture.learningEvents,
+    );
+  });
+
+  it("rolls Sofia back byte-for-byte when post-write session verification fails", async () => {
+    const workspaceRaw = JSON.stringify(canonicalProvisionalFixture());
+    const teachingRaw = '{"strictTeachingDraft":"byte-preserved"}';
+    const initialSofiaRaw = JSON.stringify(emptySession());
+    const values = new Map<string, string>([
+      [CANONICAL_LEARNER_STORAGE_KEY, workspaceRaw],
+      [SUPER_TEACHER_CHAT_KEY, initialSofiaRaw],
+      [TEACHING_REVIEW_DEMO_STORAGE_KEY, teachingRaw],
+    ]);
+    let sofiaWrites = 0;
+    const result = await commitProvisionalHandoffPacket({
+      storage: {
+        getItem: (key: string) => values.get(key) ?? null,
+        setItem(key: string, value: string) {
+          if (key === SUPER_TEACHER_CHAT_KEY) {
+            sofiaWrites += 1;
+            values.set(key, sofiaWrites === 1 ? "{corrupt-after-write" : value);
+            return;
+          }
+          values.set(key, value);
+        },
+        removeItem(key: string) {
+          values.delete(key);
+        },
+      },
+      expectedSession: emptySession(),
+      now: () => "2026-08-10T13:05:00.000Z",
+    });
+
+    assert.deepEqual(result, { status: "super_teacher_write_verification_failed" });
+    assert.equal(sofiaWrites, 2);
+    assert.deepEqual({
+      workspace: values.get(CANONICAL_LEARNER_STORAGE_KEY),
+      sofia: values.get(SUPER_TEACHER_CHAT_KEY),
+      teaching: values.get(TEACHING_REVIEW_DEMO_STORAGE_KEY),
+    }, {
+      workspace: workspaceRaw,
+      sofia: initialSofiaRaw,
+      teaching: teachingRaw,
+    });
+  });
+
+  it("recovers the prior Sofia raw when setItem mutates and then throws", async () => {
+    const workspaceRaw = JSON.stringify(canonicalProvisionalFixture());
+    const teachingRaw = '{"strictTeachingDraft":"byte-preserved"}';
+    const initialSofiaRaw = '{"protocolVersion":"sufeiya_super_teacher_v1","revision":0,"turns":[],"handoffRequests":[]}';
+    const values = new Map<string, string>([
+      [CANONICAL_LEARNER_STORAGE_KEY, workspaceRaw],
+      [SUPER_TEACHER_CHAT_KEY, initialSofiaRaw],
+      [TEACHING_REVIEW_DEMO_STORAGE_KEY, teachingRaw],
+    ]);
+    let sofiaWrites = 0;
+    const result = await commitProvisionalHandoffPacket({
+      storage: {
+        getItem: (key: string) => values.get(key) ?? null,
+        setItem(key: string, value: string) {
+          if (key === SUPER_TEACHER_CHAT_KEY) {
+            sofiaWrites += 1;
+            values.set(key, value);
+            if (sofiaWrites === 1) throw new Error("mutated then threw");
+            return;
+          }
+          values.set(key, value);
+        },
+        removeItem(key: string) {
+          values.delete(key);
+        },
+      },
+      expectedSession: emptySession(),
+      now: () => "2026-08-10T13:05:00.000Z",
+    });
+
+    assert.deepEqual(result, { status: "super_teacher_write_failed" });
+    assert.equal(sofiaWrites, 2);
+    assert.deepEqual({
+      workspace: values.get(CANONICAL_LEARNER_STORAGE_KEY),
+      sofia: values.get(SUPER_TEACHER_CHAT_KEY),
+      teaching: values.get(TEACHING_REVIEW_DEMO_STORAGE_KEY),
+    }, {
+      workspace: workspaceRaw,
+      sofia: initialSofiaRaw,
+      teaching: teachingRaw,
+    });
+  });
+
+  it("rolls Sofia back when the final workspace CAS changes after write verification", async () => {
+    const fixture = canonicalProvisionalFixture();
+    fixture.learningEvents = [{ id: "pre-existing-event", verb: "fixture_sentinel" }];
+    const workspaceRaw = JSON.stringify(fixture);
+    const changedWorkspaceRaw = `${workspaceRaw}\n`;
+    const teachingRaw = '{"strictTeachingDraft":"byte-preserved"}';
+    const initialSofiaRaw = JSON.stringify(emptySession());
+    const values = new Map<string, string>([
+      [CANONICAL_LEARNER_STORAGE_KEY, workspaceRaw],
+      [SUPER_TEACHER_CHAT_KEY, initialSofiaRaw],
+      [TEACHING_REVIEW_DEMO_STORAGE_KEY, teachingRaw],
+    ]);
+    let workspaceReads = 0;
+    let sofiaWrites = 0;
+    const result = await commitProvisionalHandoffPacket({
+      storage: {
+        getItem(key: string) {
+          if (key === CANONICAL_LEARNER_STORAGE_KEY) {
+            workspaceReads += 1;
+            if (workspaceReads === 4) values.set(key, changedWorkspaceRaw);
+          }
+          return values.get(key) ?? null;
+        },
+        setItem(key: string, value: string) {
+          if (key === SUPER_TEACHER_CHAT_KEY) sofiaWrites += 1;
+          values.set(key, value);
+        },
+        removeItem(key: string) {
+          values.delete(key);
+        },
+      },
+      expectedSession: emptySession(),
+      now: () => "2026-08-10T13:05:00.000Z",
+    });
+
+    assert.deepEqual(result, { status: "workspace_changed_during_write" });
+    assert.equal(workspaceReads, 4);
+    assert.equal(sofiaWrites, 2);
+    assert.equal(values.get(CANONICAL_LEARNER_STORAGE_KEY), changedWorkspaceRaw);
+    assert.equal(values.get(SUPER_TEACHER_CHAT_KEY), initialSofiaRaw);
+    assert.equal(values.get(TEACHING_REVIEW_DEMO_STORAGE_KEY), teachingRaw);
+    assert.deepEqual(
+      (JSON.parse(values.get(CANONICAL_LEARNER_STORAGE_KEY) ?? "null") as MutableRecord).learningEvents,
+      fixture.learningEvents,
+    );
+  });
+
+  it("restores the prior Sofia raw when storage throws after the candidate write", async () => {
+    const workspaceRaw = JSON.stringify(canonicalProvisionalFixture());
+    const teachingRaw = '{"strictTeachingDraft":"byte-preserved"}';
+    const initialSofiaRaw = JSON.stringify(emptySession());
+    const values = new Map<string, string>([
+      [CANONICAL_LEARNER_STORAGE_KEY, workspaceRaw],
+      [SUPER_TEACHER_CHAT_KEY, initialSofiaRaw],
+      [TEACHING_REVIEW_DEMO_STORAGE_KEY, teachingRaw],
+    ]);
+    let workspaceReads = 0;
+    let sofiaWrites = 0;
+    const result = await commitProvisionalHandoffPacket({
+      storage: {
+        getItem(key: string) {
+          if (key === CANONICAL_LEARNER_STORAGE_KEY) {
+            workspaceReads += 1;
+            if (workspaceReads === 3) throw new Error("post-write workspace read failed");
+          }
+          return values.get(key) ?? null;
+        },
+        setItem(key: string, value: string) {
+          if (key === SUPER_TEACHER_CHAT_KEY) sofiaWrites += 1;
+          values.set(key, value);
+        },
+        removeItem(key: string) {
+          values.delete(key);
+        },
+      },
+      expectedSession: emptySession(),
+      now: () => "2026-08-10T13:05:00.000Z",
+    });
+
+    assert.deepEqual(result, { status: "storage_unavailable" });
+    assert.equal(workspaceReads, 3);
+    assert.equal(sofiaWrites, 2);
+    assert.deepEqual({
+      workspace: values.get(CANONICAL_LEARNER_STORAGE_KEY),
+      sofia: values.get(SUPER_TEACHER_CHAT_KEY),
+      teaching: values.get(TEACHING_REVIEW_DEMO_STORAGE_KEY),
+    }, {
+      workspace: workspaceRaw,
+      sofia: initialSofiaRaw,
+      teaching: teachingRaw,
+    });
   });
 });
 
