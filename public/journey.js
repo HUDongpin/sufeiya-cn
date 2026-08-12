@@ -14,6 +14,7 @@
   const PRACTICE_RECEIPT_VERSION = "sufeiya_practice_receipt_v2";
   const LEGACY_PRACTICE_RECEIPT_VERSION = "sufeiya_practice_receipt_v1";
   const learningEventsRuntime = window.SufeiyaLearningEvents;
+  const workspaceBackupRuntime = window.SufeiyaWorkspaceBackup;
   const PRACTICE_ACTIVITY_CATALOG = Object.freeze({
     "reading-library-v1": Object.freeze({ activityId: "https://sufeiya.cn/activities/practice/reading-library/v1", activityVersion: "v1", contentId: "reading-library-v1", contentHash: "7238e32977e09ec90227c0dcbdf85d63506e0f0b9458e6efeafc68f4326bbb6f", skill: "Reading", route: "/practice-reading", receiptEvidenceClass: "objective_response", evidenceType: "answer_matched", completionCondition: "correct_answer_observed", responseType: "single_choice", domCompletionRule: "final_answer_correct", correctValue: "b" }),
     "listening-club-v1": Object.freeze({ activityId: "https://sufeiya.cn/activities/practice/listening-club/v1", activityVersion: "v1", contentId: "listening-club-v1", contentHash: "1415f88a1903064dbe1fc21384ca5160be811b9bcab691b7fe7afeeb1928c2cb", skill: "Listening", route: "/practice-listening", receiptEvidenceClass: "audio_objective_response", evidenceType: "answer_matched", completionCondition: "correct_answer_observed", responseType: "single_choice_audio", domCompletionRule: "final_answer_correct_with_audio_quality", correctValue: "b" }),
@@ -22,15 +23,17 @@
   });
   const RETEST_TASK_CATALOG = Object.freeze({
     Reading: Object.freeze({ taskId: "retest-reading-garden-labels-v1", taskVersion: "v1", parallelFormPairId: "gate-a-reading-skill-pair-v1", constructAlignment: "same_skill_unreviewed_construct", responseType: "single_choice", correctValue: "b", humanReviewRule: "incorrect_objective_response" }),
-    Listening: Object.freeze({ taskId: "retest-listening-writing-center-v1", taskVersion: "v1", parallelFormPairId: "gate-a-listening-skill-pair-v1", constructAlignment: "same_skill_unreviewed_construct", responseType: "single_choice", correctValue: "c", humanReviewRule: "incorrect_or_insufficient_audio_evidence", audioEvidenceRule: "full_play_without_seek_transcript_or_failure" }),
+    Listening: Object.freeze({ taskId: "retest-listening-writing-center-v1", taskVersion: "v1", parallelFormPairId: "gate-a-listening-skill-pair-v1", constructAlignment: "same_skill_unreviewed_construct", responseType: "single_choice_audio", correctValue: "c", humanReviewRule: "incorrect_or_insufficient_audio_evidence", audioEvidenceRule: "full_play_without_seek_transcript_or_failure" }),
     Writing: Object.freeze({ taskId: "retest-writing-study-habit-v1", taskVersion: "v1", parallelFormPairId: "gate-a-writing-skill-pair-v1", constructAlignment: "same_skill_unreviewed_construct", responseType: "self_reviewed_writing", minimumWordCount: 20, humanReviewRule: "always_required_for_open_response" }),
     Speaking: Object.freeze({ taskId: "retest-speaking-study-place-v1", taskVersion: "v1", parallelFormPairId: "gate-a-speaking-skill-pair-v1", constructAlignment: "same_skill_unreviewed_construct", responseType: "learner_confirmed_speaking", humanReviewRule: "always_required_for_open_response" }),
   });
+  const RETEST_WRITING_MAX_CHARACTERS = 1200;
+  const RETEST_WRITING_MAX_WORDS = Math.floor((RETEST_WRITING_MAX_CHARACTERS + 1) / 2);
   const DIAGNOSTIC_TASK_MANIFEST = Object.freeze({
-    "diagnostic-reading-library-v1": Object.freeze({ taskVersion: "v1", skill: "Reading", responseType: "single_choice", constructTag: "purpose_from_supporting_details", contentHash: "f1c71d28d6e9b3ebe8b4c29fa5cec52c20b83d737b57f0bc98e15e15f97decd7" }),
-    "diagnostic-reading-newsletter-v1": Object.freeze({ taskVersion: "v1", skill: "Reading", responseType: "single_choice", constructTag: "cause_from_text_structure", contentHash: "8b5feb0e382ea0ffe016ab64f17edb30b8467b40fccf5d8b96d3e2bb74ba44ca" }),
-    "diagnostic-listening-science-club-v1": Object.freeze({ taskVersion: "v1", skill: "Listening", responseType: "single_choice_audio", constructTag: "schedule_change_detail", contentHash: "882abc23a7376b27a0d53e2a4d7b6eb10480bd7b618002fe3e6704922ea67308" }),
-    "diagnostic-listening-language-lab-v1": Object.freeze({ taskVersion: "v1", skill: "Listening", responseType: "single_choice_audio", constructTag: "time_and_location_integration", contentHash: "be827c7ed66ed510a9b94aafdd16b35f445c82e14034bce6c971a29b5a8200cd" }),
+    "diagnostic-reading-library-v1": Object.freeze({ taskVersion: "v1", skill: "Reading", responseType: "single_choice", constructTag: "purpose_from_supporting_details", contentHash: "f1c71d28d6e9b3ebe8b4c29fa5cec52c20b83d737b57f0bc98e15e15f97decd7", correctValue: "b" }),
+    "diagnostic-reading-newsletter-v1": Object.freeze({ taskVersion: "v1", skill: "Reading", responseType: "single_choice", constructTag: "cause_from_text_structure", contentHash: "8b5feb0e382ea0ffe016ab64f17edb30b8467b40fccf5d8b96d3e2bb74ba44ca", correctValue: "b" }),
+    "diagnostic-listening-science-club-v1": Object.freeze({ taskVersion: "v1", skill: "Listening", responseType: "single_choice_audio", constructTag: "schedule_change_detail", contentHash: "882abc23a7376b27a0d53e2a4d7b6eb10480bd7b618002fe3e6704922ea67308", correctValue: "b" }),
+    "diagnostic-listening-language-lab-v1": Object.freeze({ taskVersion: "v1", skill: "Listening", responseType: "single_choice_audio", constructTag: "time_and_location_integration", contentHash: "be827c7ed66ed510a9b94aafdd16b35f445c82e14034bce6c971a29b5a8200cd", correctValue: "a" }),
     "diagnostic-speaking-learning-skill-v1": Object.freeze({ taskVersion: "v1", skill: "Speaking", responseType: "timed_self_report", constructTag: "task_coverage_and_connected_thoughts_self_report", contentHash: "8d40b58172fbd68371784db6caa74a57e37e480c288f64fca9fc1a772d9acdf9" }),
     "diagnostic-writing-learning-place-v1": Object.freeze({ taskVersion: "v1", skill: "Writing", responseType: "timed_local_text", constructTag: "task_response_structure_self_review", contentHash: "83cef1ddc39ff2a78e76fcb89de376c63fe7f6e859e1a3bf16e14b97652b3f85" }),
   });
@@ -106,6 +109,8 @@
   };
 
   const isRecord = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value);
+  const exactObjectKeys = (value, expectedKeys) =>
+    isRecord(value) && JSON.stringify(Object.keys(value).sort()) === JSON.stringify([...expectedKeys].sort());
   const isSafeLocalRoute = (route) =>
     typeof route === "string" && route.startsWith("/") && !route.startsWith("//") && !/[\\\u0000-\u001f\u007f]/.test(route);
   const hasValidPlanShape = (plan) => {
@@ -139,6 +144,9 @@
         Number.isInteger(evidence.attemptCount) &&
         evidence.attemptCount >= 1 &&
         evidence.attemptCount === receipt.attemptCount &&
+        (evidence.attemptCount === 1
+          ? evidence.firstResponse === catalog.correctValue
+          : evidence.firstResponse !== catalog.correctValue) &&
         evidence.resultType === "correct" &&
         (evidence.attemptCount > 1) === receipt.qualityFlags.includes("multiple_attempts");
       if (!choiceValid) return false;
@@ -155,7 +163,12 @@
         evidence.seekDetected === false &&
         evidence.playbackFailed === false &&
         !receipt.qualityFlags.some((flag) => audioFlags.includes(flag));
+      const audioCompletionCoherent = Boolean(
+        evidence.audioCompleted !== true ||
+        (evidence.audioPlayed === true && evidence.seekDetected === false && evidence.playbackFailed === false)
+      );
       return Boolean(
+        audioCompletionCoherent &&
         evidence.audioPlayed === receipt.audioPlayed &&
         evidence.audioCompleted === receipt.audioCompleted &&
         evidence.transcriptUsed === receipt.qualityFlags.includes("transcript_used") &&
@@ -200,9 +213,152 @@
     }
     return false;
   };
+  const expectedPracticeReceiptQualityFlags = (receipt, catalog) => {
+    if (!isRecord(receipt?.evidence) || !catalog) return null;
+    if (catalog.skill === "Writing") return ["open_response_not_human_reviewed"];
+    if (catalog.skill === "Speaking") {
+      return ["audio_not_recorded", "open_response_not_human_reviewed"];
+    }
+    const flags = [];
+    if (receipt.evidence.attemptCount > 1) flags.push("multiple_attempts");
+    if (catalog.skill === "Listening") {
+      if (receipt.evidence.audioPlayed !== true) flags.push("audio_not_played");
+      if (receipt.evidence.audioCompleted !== true) flags.push("audio_not_completed");
+      if (receipt.evidence.seekDetected === true) flags.push("audio_seek_detected");
+      if (receipt.evidence.playbackFailed === true) flags.push("audio_playback_failed");
+      if (receipt.evidence.transcriptUsed === true) flags.push("transcript_used");
+    }
+    return flags;
+  };
+  const practiceReceiptExactKeys = (value, keys) => Boolean(
+    isRecord(value) &&
+    Object.keys(value).length === keys.length &&
+    keys.every((key) => Object.prototype.hasOwnProperty.call(value, key))
+  );
+  const PRACTICE_RECEIPT_ISO_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+  const exactPracticeReceiptTimestamp = (value) => {
+    if (typeof value !== "string" || !PRACTICE_RECEIPT_ISO_PATTERN.test(value)) return false;
+    const timestamp = Date.parse(value);
+    return Number.isFinite(timestamp) && new Date(timestamp).toISOString() === value;
+  };
+  const practiceReceiptDomainIdValid = (value) => Boolean(
+    typeof value === "string" && value.length >= 3 && value.length <= 180 && !/[\u0000-\u001f\u007f]/.test(value)
+  );
+  const practiceReceiptScopeShapeValid = (receipt) => {
+    const scopeValues = [
+      receipt.taskId,
+      receipt.taskDate,
+      receipt.planId,
+      receipt.cycleId,
+      receipt.diagnosticSessionId,
+      receipt.recommendationId,
+    ];
+    if (scopeValues.every((value) => value === null)) return receipt.taskRef === null;
+    if (
+      !practiceReceiptDomainIdValid(receipt.taskId) ||
+      !practiceReceiptDomainIdValid(receipt.planId) ||
+      typeof receipt.taskDate !== "string" ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(receipt.taskDate) ||
+      !practiceReceiptExactKeys(receipt.taskRef, ["cycleId", "diagnosticSessionId", "planId", "taskDate", "taskId"]) ||
+      receipt.taskRef.planId !== receipt.planId ||
+      receipt.taskRef.taskId !== receipt.taskId ||
+      receipt.taskRef.taskDate !== receipt.taskDate
+    ) return false;
+    const cycleValues = [receipt.cycleId, receipt.diagnosticSessionId, receipt.recommendationId];
+    if (cycleValues.every((value) => value === null)) {
+      return receipt.taskRef.cycleId === null && receipt.taskRef.diagnosticSessionId === null;
+    }
+    return Boolean(
+      cycleValues.every(practiceReceiptDomainIdValid) &&
+      receipt.taskRef.cycleId === receipt.cycleId &&
+      receipt.taskRef.diagnosticSessionId === receipt.diagnosticSessionId
+    );
+  };
+  const validPracticeReceiptWriterSemantics = (receipt, catalog) => {
+    if (
+      !catalog ||
+      receipt.practiceAttemptId === receipt.completionReceiptId ||
+      receipt.completionSource !== "guided_practice" ||
+      receipt.evidenceClass !== "practice_receipt" ||
+      receipt.automatedScoreProduced !== false ||
+      receipt.formalDiagnosisProduced !== false ||
+      receipt.officialEquivalenceClaimed !== false ||
+      !exactPracticeReceiptTimestamp(receipt.startedAt) ||
+      !exactPracticeReceiptTimestamp(receipt.completedAt) ||
+      Date.parse(receipt.startedAt) > Date.parse(receipt.completedAt) ||
+      !practiceReceiptExactKeys(receipt.contentRef, ["contentHash", "contentId", "contentVersion", "exerciseId"]) ||
+      receipt.contentRef.exerciseId !== receipt.exerciseId ||
+      receipt.contentRef.contentId !== catalog.contentId ||
+      receipt.contentRef.contentVersion !== catalog.activityVersion ||
+      receipt.contentRef.contentHash !== catalog.contentHash ||
+      !practiceReceiptScopeShapeValid(receipt)
+    ) return false;
+
+    const evidence = receipt.evidence;
+    if (catalog.skill === "Reading") {
+      return Boolean(
+        practiceReceiptExactKeys(evidence, ["attemptCount", "finalResponse", "firstResponse", "resultType"]) &&
+        receipt.attemptCount === evidence.attemptCount &&
+        receipt.wordCount === null &&
+        receipt.selfCheckCount === null &&
+        receipt.audioPlayed === false &&
+        receipt.audioCompleted === false &&
+        receipt.audioRecorded === false
+      );
+    }
+    if (catalog.skill === "Listening") {
+      return Boolean(
+        practiceReceiptExactKeys(evidence, [
+          "attemptCount", "audioCompleted", "audioPlayed", "finalResponse", "firstResponse", "playCount",
+          "playbackFailed", "resultType", "seekDetected", "transcriptUsed",
+        ]) &&
+        receipt.attemptCount === evidence.attemptCount &&
+        receipt.wordCount === null &&
+        receipt.selfCheckCount === null &&
+        receipt.audioPlayed === evidence.audioPlayed &&
+        receipt.audioCompleted === evidence.audioCompleted &&
+        receipt.audioRecorded === false &&
+        Number.isInteger(evidence.playCount) &&
+        evidence.playCount >= 0 &&
+        evidence.audioPlayed === (evidence.playCount >= 1) &&
+        (evidence.audioCompleted !== true || (
+          evidence.audioPlayed === true && evidence.seekDetected === false && evidence.playbackFailed === false
+        ))
+      );
+    }
+    if (catalog.skill === "Writing") {
+      return Boolean(
+        practiceReceiptExactKeys(evidence, ["artifactHash", "resultType", "selfCheckCount", "selfChecks", "wordCount"]) &&
+        practiceReceiptExactKeys(evidence.selfChecks, ["edit", "idea", "reason"]) &&
+        receipt.attemptCount === null &&
+        receipt.wordCount === evidence.wordCount &&
+        receipt.selfCheckCount === evidence.selfCheckCount &&
+        receipt.audioPlayed === false &&
+        receipt.audioCompleted === false &&
+        receipt.audioRecorded === false
+      );
+    }
+    if (catalog.skill === "Speaking") {
+      return Boolean(
+        practiceReceiptExactKeys(evidence, [
+          "audioRecorded", "prepSeconds", "responseSeconds", "resultType", "selfCheckCount", "selfChecks",
+          "timerCompleted",
+        ]) &&
+        practiceReceiptExactKeys(evidence.selfChecks, ["answer", "example", "flow"]) &&
+        receipt.attemptCount === null &&
+        receipt.wordCount === null &&
+        receipt.selfCheckCount === evidence.selfCheckCount &&
+        receipt.audioPlayed === false &&
+        receipt.audioCompleted === false &&
+        receipt.audioRecorded === evidence.audioRecorded
+      );
+    }
+    return false;
+  };
   const hasValidPracticeReceiptShape = (receipt, receiptId = null) => {
     if (!isRecord(receipt) || receipt.protocolVersion !== PRACTICE_RECEIPT_VERSION) return false;
     const catalog = PRACTICE_ACTIVITY_CATALOG[receipt.exerciseId];
+    const expectedQualityFlags = expectedPracticeReceiptQualityFlags(receipt, catalog);
     return Boolean(
       catalog &&
       UUID_V4_PATTERN.test(receipt.practiceAttemptId || "") &&
@@ -222,8 +378,10 @@
       receipt.completionCondition === catalog.completionCondition &&
       ["evidence_limited", "evidence_insufficient"].includes(receipt.evidenceStatus) &&
       Array.isArray(receipt.qualityFlags) &&
+      JSON.stringify(receipt.qualityFlags) === JSON.stringify(expectedQualityFlags) &&
       receipt.status === "completed" &&
-      hasValidPracticeEvidencePayload(receipt, catalog)
+      hasValidPracticeEvidencePayload(receipt, catalog) &&
+      validPracticeReceiptWriterSemantics(receipt, catalog)
     );
   };
   const hasSafeLegacyPracticeReceiptShape = (receipt, receiptId = null) => {
@@ -469,7 +627,7 @@
     }
   };
 
-  const createPlan = ({ nickname, examDate, dailyMinutes, focusSkill }, provenance) => {
+  const createPlan = ({ nickname, examDate, dailyMinutes, focusSkill }, provenance, createdAt = isoNow()) => {
     const start = new Date();
     start.setHours(12, 0, 0, 0);
     const planId = makeId("plan");
@@ -525,7 +683,7 @@
     });
     return {
       planId,
-      createdAt: isoNow(),
+      createdAt,
       startDate: days[0].date,
       endDate: days[6].date,
       status: "active",
@@ -538,23 +696,28 @@
     };
   };
 
-  const activeCycle = () =>
-    isRecord(state.journey.activeCycle) && state.journey.activeCycle.protocolVersion === PROTOCOL_VERSION
-      ? state.journey.activeCycle
+  const activeCycle = (candidateState = state) =>
+    isRecord(candidateState?.journey?.activeCycle) && candidateState.journey.activeCycle.protocolVersion === PROTOCOL_VERSION
+      ? candidateState.journey.activeCycle
       : null;
-  const allCheckIns = () => [...Object.values(state.checkIns), ...state.checkInHistory].filter(isRecord);
-  const getCheckInById = (checkInId) => allCheckIns().find((item) => item.checkInId === checkInId) || null;
-  const getCycleCheckIn = () => {
-    const cycle = activeCycle();
+  const allCheckIns = (candidateState = state) => [
+    ...Object.values(candidateState?.checkIns || {}),
+    ...(Array.isArray(candidateState?.checkInHistory) ? candidateState.checkInHistory : []),
+  ].filter(isRecord);
+  const getCheckInById = (checkInId, candidateState = state) =>
+    allCheckIns(candidateState).find((item) => item.checkInId === checkInId) || null;
+  const getCycleCheckIn = (candidateState = state) => {
+    const cycle = activeCycle(candidateState);
     if (!cycle?.checkInId) return null;
-    const record = getCheckInById(cycle.checkInId);
+    const record = getCheckInById(cycle.checkInId, candidateState);
     return record?.cycleId === cycle.cycleId && record?.planId === cycle.basePlanId ? record : null;
   };
 
-  const planById = (planId) => {
+  const planById = (planId, candidateState = state) => {
     if (!planId) return null;
-    if (state.plan?.planId === planId) return state.plan;
-    return state.planHistory.find((plan) => plan?.planId === planId) || null;
+    if (candidateState?.plan?.planId === planId) return candidateState.plan;
+    return (Array.isArray(candidateState?.planHistory) ? candidateState.planHistory : [])
+      .find((plan) => plan?.planId === planId) || null;
   };
   const planTaskById = (plan, taskId) =>
     plan?.days?.flatMap((day) => day.tasks || []).find((task) => task.taskId === taskId) || null;
@@ -665,19 +828,25 @@
     if (!catalog || !isRecord(evidence) || evidence.responseType !== catalog.responseType) return null;
     let resultType;
     let audioEvidenceInsufficient = false;
-    if (catalog.responseType === "single_choice") {
+    if (["single_choice", "single_choice_audio"].includes(catalog.responseType)) {
       if (!["a", "b", "c"].includes(evidence.selectedAnswer)) return null;
       resultType = evidence.selectedAnswer === catalog.correctValue ? "single_task_correct" : "single_task_needs_review";
-      if (skill === "Listening") {
+      if (catalog.responseType === "single_choice_audio") {
+        if (skill !== "Listening") return null;
         if (
           typeof evidence.audioPlayed !== "boolean" ||
           typeof evidence.audioCompleted !== "boolean" ||
-          !Number.isInteger(evidence.playCount) ||
+          !Number.isSafeInteger(evidence.playCount) ||
           evidence.playCount < 0 ||
           typeof evidence.transcriptUsed !== "boolean" ||
           typeof evidence.seekDetected !== "boolean" ||
           typeof evidence.playbackFailed !== "boolean" ||
-          evidence.audioPlayed !== (evidence.playCount >= 1)
+          evidence.audioPlayed !== (evidence.playCount >= 1) ||
+          (evidence.audioCompleted === true && (
+            evidence.audioPlayed !== true ||
+            evidence.seekDetected === true ||
+            evidence.playbackFailed === true
+          ))
         ) return null;
         audioEvidenceInsufficient = Boolean(
           evidence.audioPlayed !== true ||
@@ -686,9 +855,14 @@
           evidence.seekDetected === true ||
           evidence.playbackFailed === true
         );
-      }
+      } else if (skill === "Listening") return null;
     } else if (catalog.responseType === "self_reviewed_writing") {
-      if (!Number.isInteger(evidence.wordCount) || evidence.wordCount < catalog.minimumWordCount || evidence.selfChecksComplete !== true) return null;
+      if (
+        !Number.isInteger(evidence.wordCount) ||
+        evidence.wordCount < catalog.minimumWordCount ||
+        evidence.wordCount > RETEST_WRITING_MAX_WORDS ||
+        evidence.selfChecksComplete !== true
+      ) return null;
       resultType = "task_completed_no_score";
     } else if (catalog.responseType === "learner_confirmed_speaking") {
       if (evidence.selfChecksComplete !== true || evidence.audioRecorded !== false) return null;
@@ -784,24 +958,24 @@
     return true;
   };
 
-  const validateCycleEvidence = () => {
-    const cycle = activeCycle();
-    const diagnostic = state.journey.diagnostic;
-    const basePlan = planById(cycle?.basePlanId);
+  const validateCycleEvidence = (candidateState = state) => {
+    const cycle = activeCycle(candidateState);
+    const diagnostic = candidateState?.journey?.diagnostic;
+    const basePlan = planById(cycle?.basePlanId, candidateState);
     const baseTaskIds = new Set(basePlan?.days?.flatMap((day) => day.tasks?.map((task) => task.taskId) || []) || []);
-    const recommendation = state.journey.recommendation;
-    const checkIn = getCycleCheckIn();
+    const recommendation = candidateState?.journey?.recommendation;
+    const checkIn = getCycleCheckIn(candidateState);
     const linkedPracticeTask = planTaskById(basePlan, checkIn?.linkedTaskId);
     const linkedPracticeReceipt = checkIn?.practiceReceipt;
-    const storedPracticeReceipt = state.practiceReceipts[linkedPracticeReceipt?.completionReceiptId];
-    const linkedTaskProgress = state.taskProgress[checkIn?.linkedTaskId];
-    const review = state.journey.review;
-    const peerHelp = state.journey.peerHelp;
-    const retest = state.journey.retest;
+    const storedPracticeReceipt = candidateState?.practiceReceipts?.[linkedPracticeReceipt?.completionReceiptId];
+    const linkedTaskProgress = candidateState?.taskProgress?.[checkIn?.linkedTaskId];
+    const review = candidateState?.journey?.review;
+    const peerHelp = candidateState?.journey?.peerHelp;
+    const retest = candidateState?.journey?.retest;
     const retestCatalog = RETEST_TASK_CATALOG[retest?.skill];
     const derivedRetestOutcome = deriveRetestOutcome(retest?.skill, retest?.evidence);
-    const planUpdate = state.journey.planUpdate;
-    const updatedPlan = planById(cycle?.updatedPlanId);
+    const planUpdate = candidateState?.journey?.planUpdate;
+    const updatedPlan = planById(cycle?.updatedPlanId, candidateState);
     const sixTaskEvidenceComplete =
       diagnostic?.diagnosticProtocolVersion === DIAGNOSTIC_PROTOCOL_VERSION &&
       diagnostic?.taskSetVersion === DIAGNOSTIC_TASK_SET_VERSION &&
@@ -1114,6 +1288,7 @@
     "updatedPlanId",
   ].sort());
   const CYCLE_HISTORY_LIMIT = 10;
+  const SUPERSEDED_CYCLE_LIMIT = 64;
   const CYCLE_HISTORY_TERMINAL_STATUSES = new Set(["completed", "provisional_pending_human_review"]);
   const CYCLE_HISTORY_FORBIDDEN_KEYS = new Set([
     "accountId",
@@ -1225,6 +1400,7 @@
       basePlan.createdAt,
       recommendation.evidenceBinding?.createdAt,
       recommendation.createdAt,
+      recommendation.updatedAt,
       checkIn.practiceReceipt?.completedAt,
       checkIn.savedAt,
       review.confirmedAt,
@@ -1598,6 +1774,2755 @@
     };
   };
 
+  const WORKSPACE_BACKUP_ACTIVE_CYCLE_KEYS = Object.freeze([
+    "basePlanId",
+    "checkInId",
+    "closedAt",
+    "createdAt",
+    "cycleId",
+    "diagnosticSessionId",
+    "peerHelpId",
+    "protocolVersion",
+    "provisionalAt",
+    "recommendationId",
+    "retestId",
+    "reviewId",
+    "status",
+    "updatedAt",
+    "updatedPlanId",
+  ].sort());
+  const WORKSPACE_BACKUP_PROFILE_KEYS = Object.freeze([
+    "dailyMinutes",
+    "examDate",
+    "focusSkill",
+    "nickname",
+  ].sort());
+  const WORKSPACE_BACKUP_FOCUS_KEYS = Object.freeze(["active", "sessions"].sort());
+  const WORKSPACE_BACKUP_PLAN_KEYS = Object.freeze([
+    "createdAt", "dailyMinutes", "days", "diagnosticSessionId", "endDate", "examDate", "focusSkill",
+    "nickname", "planId", "provenance", "startDate", "status", "supersededAt", "supersededByRetestId",
+    "supersededReason",
+  ]);
+  const WORKSPACE_BACKUP_PLAN_PROVENANCE_KEYS = Object.freeze([
+    "cycleId", "diagnosticSessionId", "priorityBasis", "retestId", "source", "supersedesPlanId",
+    "taskSetDigest", "taskSetVersion",
+  ]);
+  const WORKSPACE_BACKUP_PLAN_TASK_KEYS = Object.freeze([
+    "contentRef", "date", "durationMinutes", "instructionZh", "route", "skill", "taskId", "titleZh",
+  ]);
+  const WORKSPACE_BACKUP_CONTENT_REF_KEYS = Object.freeze([
+    "contentHash", "contentId", "contentVersion", "exerciseId",
+  ].sort());
+  const WORKSPACE_BACKUP_RECEIPT_KEYS = Object.freeze([
+    "activityId", "activityVersion", "attemptCount", "audioCompleted", "audioPlayed", "audioRecorded",
+    "automatedScoreProduced", "completedAt", "completionCondition", "completionReceiptId", "completionSource",
+    "contentHash", "contentId", "contentRef", "cycleId", "diagnosticSessionId", "evidence", "evidenceClass",
+    "evidenceStatus", "evidenceType", "exerciseId", "formalDiagnosisProduced", "integrityClass",
+    "officialEquivalenceClaimed", "ownerScope", "planId", "practiceAttemptId", "protocolVersion", "qualityFlags",
+    "receiptEvidenceClass", "recommendationId", "route", "sealed", "selfCheckCount", "skill", "startedAt",
+    "status", "taskDate", "taskId", "taskRef", "wordCount",
+  ].sort());
+  const WORKSPACE_BACKUP_TASK_REF_KEYS = Object.freeze([
+    "cycleId", "diagnosticSessionId", "planId", "taskDate", "taskId",
+  ].sort());
+  const WORKSPACE_BACKUP_CHECK_IN_KEYS = Object.freeze([
+    "anomalyReviewStatus", "archivedAt", "archivedReason", "checkInId", "cycleId", "date",
+    "diagnosticSessionId", "didText", "evidenceClass", "evidenceText", "learnerConfirmedReview", "linkedTaskId",
+    "planId", "practiceAttemptId", "practiceReceipt", "questionStatus", "questionText", "recommendationId",
+    "reviewedAt", "reviewId", "savedAt", "status", "taskCompletionReceiptId", "updatedAt", "visibility",
+  ]);
+  const WORKSPACE_BACKUP_SAVED_CHECK_IN_KEYS = Object.freeze(
+    WORKSPACE_BACKUP_CHECK_IN_KEYS.filter((key) => !["archivedAt", "archivedReason"].includes(key)).sort(),
+  );
+  const WORKSPACE_BACKUP_DRAFT_CHECK_IN_KEYS = Object.freeze([
+    "checkInId", "date", "didText", "evidenceClass", "evidenceText", "learnerConfirmedReview", "linkedTaskId",
+    "practiceAttemptId", "practiceReceipt", "questionStatus", "questionText", "reviewedAt", "reviewId", "status",
+    "taskCompletionReceiptId", "updatedAt",
+  ].sort());
+  const WORKSPACE_BACKUP_FOCUS_ACTIVE_KEYS = Object.freeze([
+    "durationSeconds", "endsAt", "recordedAt", "remainingSeconds", "startedAt", "status",
+  ]);
+  const WORKSPACE_BACKUP_FOCUS_SESSION_KEYS = Object.freeze([
+    "durationSeconds", "endedAt", "sessionId", "startedAt", "status",
+  ].sort());
+  const WORKSPACE_BACKUP_FOCUS_DURATIONS = new Set([15 * 60, 25 * 60, 45 * 60]);
+  const WORKSPACE_BACKUP_PROGRESS_LEARNER_KEYS = Object.freeze([
+    "completedAt", "completionClass", "selfReported", "source", "status", "updatedAt",
+  ].sort());
+  const WORKSPACE_BACKUP_PROGRESS_PRACTICE_KEYS = Object.freeze([
+    "completedAt", "completionClass", "evidenceStatus", "practiceReceiptId", "receiptEvidenceClass",
+    "selfReported", "source", "status", "updatedAt",
+  ].sort());
+  const WORKSPACE_BACKUP_PROGRESS_WORKFLOW_KEYS = Object.freeze([
+    "completedAt", "completionClass", "selfReported", "source", "status", "updatedAt", "workflowReceipt",
+  ].sort());
+  const WORKSPACE_BACKUP_WORKFLOW_RECEIPT_KEYS = Object.freeze([
+    "checkInId", "completedAt", "protocolVersion", "taskId",
+  ].sort());
+  const WORKSPACE_BACKUP_PRACTICE_FULL_KEYS = Object.freeze([
+    "attemptScopeKey", "attempts", "audioCompleted", "audioPlaybackFailed", "audioPlayed", "audioRecorded",
+    "audioSeekDetected", "audioStartedNearBeginning", "completedAt", "draftText", "firstResponse",
+    "freshAttemptFromLegacyReceiptId", "latestPracticeReceiptId", "playCount", "selectedAnswer", "selfChecks",
+    "startedAt", "status", "timerCompleted", "transcriptUsed", "updatedAt", "wordCount",
+  ].sort());
+  const WORKSPACE_BACKUP_PRACTICE_LISTENING_COMPACT_KEYS = Object.freeze([
+    "attemptScopeKey", "attempts", "audioCompleted", "audioPlaybackFailed", "audioPlayed", "audioSeekDetected",
+    "audioStartedNearBeginning", "firstResponse", "freshAttemptFromLegacyReceiptId", "latestPracticeReceiptId",
+    "playCount", "selectedAnswer", "startedAt", "status", "transcriptUsed", "updatedAt",
+  ].sort());
+  const WORKSPACE_BACKUP_EVENT_CONTEXT_KIND = Object.freeze({
+    learningCycleId: "cycle",
+    diagnosticSessionId: "diagnostic",
+    planId: "plan",
+    recommendationId: "recommendation",
+    bindingId: "binding",
+    taskId: "task",
+    attemptId: "practiceAttempt",
+    practiceReceiptId: "practiceReceipt",
+    baselinePracticeReceiptId: "practiceReceipt",
+    checkInId: "checkIn",
+    retestId: "retest",
+    humanReviewReceiptId: "humanReviewReceipt",
+    updatedPlanId: "updatedPlan",
+  });
+  const WORKSPACE_BACKUP_DIAGNOSTIC_BASE_KEYS = Object.freeze([
+    "activeTaskId", "adultConfirmed", "automatedScoreProduced", "consent", "createdAt", "cycleId",
+    "demoGoal", "devicePrecheck", "diagnosticProtocolVersion", "diagnosticSessionId", "formalDiagnosisProduced",
+    "officialEquivalenceClaimed", "protocolVersion", "status", "taskEvidence", "taskSetDigest", "taskSetVersion",
+    "updatedAt",
+  ].sort());
+  const WORKSPACE_BACKUP_DIAGNOSTIC_COMPLETED_KEYS = Object.freeze([
+    ...WORKSPACE_BACKUP_DIAGNOSTIC_BASE_KEYS,
+    "completedAt", "completedEvidenceSkills", "completedEvidenceTaskCount", "evidenceConfidence",
+    "evidenceSufficiency", "learnerConfirmedPriority", "patternFlags", "priorityBasis", "prioritySkill", "report",
+    "suggestedPrioritySkills",
+  ].sort());
+  const WORKSPACE_BACKUP_DIAGNOSTIC_EVIDENCE_KEYS = Object.freeze([
+    "attempts", "audioCompleted", "audioPlaybackCompletedAt", "audioPlaybackFailed", "audioPlaybackStartedAt",
+    "audioPlayed", "audioRecorded", "audioSeekDetected", "audioStartedNearBeginning", "automatedScoreProduced",
+    "completedAt", "constructTag", "contentHash", "durationSeconds", "evidenceStatus", "firstResponse", "pasteDetected",
+    "playCount", "qualityFlags", "responseText", "responseType", "resultType", "selectedDraft", "selfChecks",
+    "selfReviewCount", "skill", "speechSynthesisEnded", "speechSynthesisStarted", "speechVoice", "startedAt", "status",
+    "taskId", "taskVersion", "timer", "timerCompleted", "transcriptUsed", "updatedAt", "wordCount",
+  ].sort());
+  const WORKSPACE_BACKUP_DIAGNOSTIC_REPORT_KEYS = Object.freeze([
+    "completedEvidenceSkills", "completedEvidenceTaskCount", "confidence", "evidenceSufficiency", "patterns",
+    "priorityBasis", "priorityCandidates", "priorityExplanation", "quality", "skills",
+  ].sort());
+  const WORKSPACE_BACKUP_RECOMMENDATION_KEYS = Object.freeze([
+    "createdAt", "cycleId", "diagnosticSessionId", "evidenceBinding", "itemCount", "learnerChoice", "planId",
+    "primary", "recommendationId", "sourceMode", "status", "supplements", "updatedAt",
+  ].sort());
+  const WORKSPACE_BACKUP_RECOMMENDATION_PRIMARY_KEYS = Object.freeze([
+    "contentHash", "contentId", "contentVersion", "duration", "exerciseId", "prerequisites", "reason", "reviewStatus",
+    "reviewedAt", "role", "route", "skill", "source", "taskId", "title", "verification",
+  ].sort());
+  const WORKSPACE_BACKUP_RECOMMENDATION_SUPPLEMENT_KEYS = Object.freeze([
+    "duration", "reason", "role", "route", "source", "title", "verification",
+  ].sort());
+  const WORKSPACE_BACKUP_RECOMMENDATION_BINDING_KEYS = Object.freeze([
+    "bindingId", "bindingReason", "contentHash", "contentId", "contentVersion", "createdAt", "cycleId",
+    "diagnosticEvidenceTaskIds", "diagnosticQualityFlags", "diagnosticSessionId", "errorPatternIds", "exerciseId",
+    "measurementReviewed", "practiceTaskId", "prerequisites", "reviewStatus", "reviewedAt", "sourceClass",
+    "teacherReviewed", "videoTimestamp",
+  ].sort());
+  const WORKSPACE_BACKUP_REVIEW_KEYS = Object.freeze([
+    "checkInId", "confirmedAt", "cycleId", "humanEscalationStatus", "learnerConfirmed", "reminderStatus",
+    "reviewId", "shareStatus",
+  ].sort());
+  const WORKSPACE_BACKUP_PEER_HELP_KEYS = Object.freeze([
+    "createdAt", "cycleId", "learnerChoice", "peerHelpId", "planId", "realCommunityUsed", "reviewId", "source",
+    "status", "updatedAt",
+  ].sort());
+  const WORKSPACE_BACKUP_RETEST_KEYS = Object.freeze([
+    "automatedScoreProduced", "baselinePracticeReceiptId", "baselineTaskId", "checkInId", "comparability", "completedAt",
+    "cycleId", "diagnosticSessionId", "evidence", "evidenceStatus", "evidenceSufficiency", "growthClaimProduced",
+    "humanConfirmationStatus", "interpretation", "parallelFormPairId", "parallelRetest", "parallelTaskId", "peerHelpId",
+    "planId", "recommendationId", "retestId", "reviewId", "skill", "status", "taskVersion",
+  ].sort());
+  const WORKSPACE_BACKUP_RETEST_COMPARABILITY_KEYS = Object.freeze([
+    "comparisonBoundary", "constructAlignment", "measurementReviewed", "newOriginalPrompt", "officialEquivalenceClaimed",
+    "sameAsDiagnosticPriority", "sameAsPlanTask", "sameAsPracticeReceipt", "sameSkill", "targetSkill", "teacherReviewed",
+  ].sort());
+  const WORKSPACE_BACKUP_PLAN_UPDATE_KEYS = Object.freeze([
+    "automatedAbilityDecision", "confirmationClass", "createdAt", "cycleId", "focusSkill", "humanConfirmationStatus",
+    "learnerConfirmed", "retestId", "supersedesPlanId", "updatedPlanId",
+  ].sort());
+  const WORKSPACE_BACKUP_SUPERSEDED_KEYS = Object.freeze([
+    "cycleId", "diagnosticProtocolVersion", "diagnosticSessionId", "diagnosticStatus", "evidenceSufficiency",
+    "priorityBasis", "prioritySkill", "protocolVersion", "reason", "status", "supersededAt", "taskEvidenceSummary",
+    "taskSetDigest", "taskSetVersion",
+  ].sort());
+  const WORKSPACE_BACKUP_SUPERSEDED_EVIDENCE_KEYS = Object.freeze([
+    "contentHash", "durationSeconds", "evidenceStatus", "qualityFlags", "resultType", "selfReviewCount", "skill",
+    "status", "taskId", "taskVersion", "wordCount",
+  ].sort());
+  const WORKSPACE_BACKUP_STAGE_IDS = Object.freeze([
+    "basePlanId",
+    "recommendationId",
+    "checkInId",
+    "reviewId",
+    "peerHelpId",
+    "retestId",
+    "updatedPlanId",
+  ]);
+  const WORKSPACE_BACKUP_STAGE_OBJECTS = Object.freeze([
+    ["recommendationId", "recommendation"],
+    ["reviewId", "review"],
+    ["peerHelpId", "peerHelp"],
+    ["retestId", "retest"],
+    ["updatedPlanId", "planUpdate"],
+  ]);
+  const WORKSPACE_BACKUP_STAGE_LABELS = Object.freeze({
+    diagnostic: "诊断进行中",
+    plan: "下一步：生成 7 天计划",
+    recommendation: "下一步：确认内容推荐",
+    practice: "下一步：完成绑定练习",
+    checkin: "下一步：保存证据式打卡",
+    review: "下一步：确认复盘",
+    community: "下一步：选择互助状态",
+    retest: "下一步：完成平行微复测",
+    update: "下一步：确认更新计划",
+    complete: "本轮 Gate A 闭环已完成",
+    empty: "尚未开始 Gate A 闭环",
+  });
+
+  const cloneJson = (value) => JSON.parse(JSON.stringify(value));
+  const onlyAllowedObjectKeys = (value, allowedKeys) =>
+    isRecord(value) && Object.keys(value).every((key) => allowedKeys.includes(key));
+  const workspaceBackupSnapshot = (candidateState = state) => {
+    const normalized = normalizeState(candidateState);
+    if (!normalized) return null;
+    const journey = normalized.journey || {};
+    const active = isRecord(journey.activeCycle)
+      ? {
+          cycleId: journey.activeCycle.cycleId,
+          protocolVersion: journey.activeCycle.protocolVersion,
+          status: journey.activeCycle.status,
+          diagnosticSessionId: journey.activeCycle.diagnosticSessionId,
+          basePlanId: journey.activeCycle.basePlanId ?? null,
+          recommendationId: journey.activeCycle.recommendationId ?? null,
+          checkInId: journey.activeCycle.checkInId ?? null,
+          reviewId: journey.activeCycle.reviewId ?? null,
+          peerHelpId: journey.activeCycle.peerHelpId ?? null,
+          retestId: journey.activeCycle.retestId ?? null,
+          updatedPlanId: journey.activeCycle.updatedPlanId ?? null,
+          createdAt: journey.activeCycle.createdAt,
+          updatedAt: journey.activeCycle.updatedAt,
+          closedAt: journey.activeCycle.closedAt ?? null,
+          provisionalAt: journey.activeCycle.provisionalAt ?? null,
+        }
+      : null;
+    return cloneJson({
+      schemaVersion: normalized.schemaVersion,
+      updatedAt: normalized.updatedAt,
+      profile: normalized.profile,
+      plan: normalized.plan,
+      planHistory: normalized.planHistory,
+      taskProgress: normalized.taskProgress,
+      practice: normalized.practice,
+      practiceReceipts: normalized.practiceReceipts,
+      learningEvents: normalized.learningEvents,
+      learningEventBindings: normalized.learningEventBindings,
+      checkIns: normalized.checkIns,
+      checkInHistory: normalized.checkInHistory,
+      focus: normalized.focus,
+      journey: {
+        protocolVersion: journey.protocolVersion,
+        activeCycle: active,
+        diagnostic: journey.diagnostic ?? null,
+        recommendation: journey.recommendation ?? null,
+        review: journey.review ?? null,
+        peerHelp: journey.peerHelp ?? null,
+        retest: journey.retest ?? null,
+        planUpdate: journey.planUpdate ?? null,
+        history: Array.isArray(journey.history) ? journey.history : [],
+        supersededCycles: Array.isArray(journey.supersededCycles) ? journey.supersededCycles : [],
+      },
+    });
+  };
+
+  const workspaceBackupCalendarDateValid = (value) => {
+    if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+    const parsed = Date.parse(`${value}T00:00:00.000Z`);
+    return Number.isFinite(parsed) && new Date(parsed).toISOString().slice(0, 10) === value;
+  };
+  const validWorkspaceBackupProfile = (profile) => Boolean(
+    exactObjectKeys(profile, WORKSPACE_BACKUP_PROFILE_KEYS) &&
+    typeof profile.nickname === "string" &&
+    profile.nickname === profile.nickname.trim() &&
+    profile.nickname.length <= 20 &&
+    typeof profile.examDate === "string" &&
+    (profile.examDate === "" || workspaceBackupCalendarDateValid(profile.examDate)) &&
+    [15, 30, 45, 60].includes(profile.dailyMinutes) &&
+    VALID_SKILLS.has(profile.focusSkill)
+  );
+
+  const validWorkspaceBackupDiagnosticReport = (report) => Boolean(
+    exactObjectKeys(report, WORKSPACE_BACKUP_DIAGNOSTIC_REPORT_KEYS) &&
+    ["evidence_limited", "evidence_insufficient"].includes(report.evidenceSufficiency) &&
+    ["low", "medium"].includes(report.confidence) &&
+    Number.isInteger(report.completedEvidenceTaskCount) &&
+    report.completedEvidenceTaskCount >= 0 &&
+    report.completedEvidenceTaskCount <= DIAGNOSTIC_TASK_IDS.length &&
+    Array.isArray(report.completedEvidenceSkills) &&
+    new Set(report.completedEvidenceSkills).size === report.completedEvidenceSkills.length &&
+    report.completedEvidenceSkills.every((skill) => VALID_SKILLS.has(skill) && skill !== "Balanced") &&
+    Array.isArray(report.priorityCandidates) &&
+    report.priorityCandidates.length >= 1 &&
+    new Set(report.priorityCandidates).size === report.priorityCandidates.length &&
+    report.priorityCandidates.every((skill) => VALID_SKILLS.has(skill) && skill !== "Balanced") &&
+    Object.hasOwn(priorityBasisLabels, report.priorityBasis) &&
+    typeof report.priorityExplanation === "string" &&
+    Array.isArray(report.patterns) && report.patterns.every((item) => typeof item === "string") &&
+    Array.isArray(report.quality) && report.quality.every((item) => typeof item === "string") &&
+    exactObjectKeys(report.skills, ["Listening", "Reading", "Speaking", "Writing"]) &&
+    Object.values(report.skills).every((summary) =>
+      exactObjectKeys(summary, ["detail", "headline", "label"]) &&
+      [summary.detail, summary.headline, summary.label].every((value) => typeof value === "string")
+    )
+  );
+
+  const WORKSPACE_BACKUP_DIAGNOSTIC_COMMON_EVIDENCE_KEYS = Object.freeze([
+    "constructTag", "contentHash", "evidenceStatus", "qualityFlags", "responseType", "skill", "startedAt", "status",
+    "taskId", "taskVersion", "updatedAt",
+  ]);
+  const WORKSPACE_BACKUP_DIAGNOSTIC_OBJECTIVE_KEYS = Object.freeze([
+    "attempts", "completedAt", "durationSeconds", "firstResponse", "resultType", "selectedDraft",
+  ]);
+  const WORKSPACE_BACKUP_DIAGNOSTIC_LISTENING_KEYS = Object.freeze([
+    "audioCompleted", "audioPlaybackCompletedAt", "audioPlaybackFailed", "audioPlaybackStartedAt", "audioPlayed",
+    "audioSeekDetected", "audioStartedNearBeginning", "playCount", "speechSynthesisEnded", "speechSynthesisStarted",
+    "speechVoice", "transcriptUsed",
+  ]);
+  const WORKSPACE_BACKUP_DIAGNOSTIC_SPEAKING_KEYS = Object.freeze([
+    "audioRecorded", "automatedScoreProduced", "completedAt", "durationSeconds", "selfChecks", "selfReviewCount",
+    "timer", "timerCompleted",
+  ]);
+  const WORKSPACE_BACKUP_DIAGNOSTIC_WRITING_KEYS = Object.freeze([
+    "automatedScoreProduced", "completedAt", "durationSeconds", "pasteDetected", "responseText", "selfChecks",
+    "selfReviewCount", "timer", "timerCompleted", "wordCount",
+  ]);
+  const workspaceBackupSameStringSet = (actual, expected) => Boolean(
+    Array.isArray(actual) &&
+    new Set(actual).size === actual.length &&
+    actual.every((item) => typeof item === "string") &&
+    actual.length === expected.length &&
+    expected.every((item) => actual.includes(item))
+  );
+  const workspaceBackupDiagnosticWordCount = (text) =>
+    typeof text === "string" && text.trim() ? text.trim().split(/\s+/).filter(Boolean).length : 0;
+  const workspaceBackupValidTimerNumber = (value) => Number.isInteger(value) && value >= 0;
+  const workspaceBackupValidDiagnosticTimer = (evidence, expected) => {
+    const timer = evidence.timer;
+    if (!isRecord(timer)) return false;
+    const evidenceStartedAt = Date.parse(evidence.startedAt);
+    const evidenceUpdatedAt = Date.parse(evidence.updatedAt);
+    if (expected.skill === "Speaking") {
+      const review = timer.phase === "review";
+      if (!exactObjectKeys(timer, review
+        ? ["endedAt", "phase", "prepEndsAt", "responseEndsAt", "startedAt"]
+        : ["phase", "prepEndsAt", "responseEndsAt", "startedAt"])) return false;
+      if (!["prep", "response", "review"].includes(timer.phase)) return false;
+      if (![timer.startedAt, timer.prepEndsAt, timer.responseEndsAt, ...(review ? [timer.endedAt] : [])].every(workspaceBackupValidTimerNumber)) return false;
+      if (timer.prepEndsAt - timer.startedAt !== 20_000 || timer.responseEndsAt - timer.prepEndsAt !== 90_000) return false;
+      if (timer.startedAt < evidenceStartedAt || timer.startedAt > evidenceUpdatedAt || (review && timer.endedAt > evidenceUpdatedAt)) return false;
+      if (!review) return !Object.hasOwn(evidence, "durationSeconds") && !Object.hasOwn(evidence, "timerCompleted");
+      if (timer.endedAt < timer.prepEndsAt) return false;
+      const expectedDuration = Math.max(0, Math.min(90, Math.round((timer.endedAt - timer.prepEndsAt) / 1000)));
+      return Number.isInteger(evidence.durationSeconds) &&
+        evidence.durationSeconds === expectedDuration &&
+        evidence.timerCompleted === (expectedDuration >= 90);
+    }
+    if (expected.skill === "Writing") {
+      const review = timer.phase === "review";
+      if (!exactObjectKeys(timer, review ? ["endedAt", "endsAt", "phase", "startedAt"] : ["endsAt", "phase", "startedAt"])) return false;
+      if (!["running", "review"].includes(timer.phase)) return false;
+      if (![timer.startedAt, timer.endsAt, ...(review ? [timer.endedAt] : [])].every(workspaceBackupValidTimerNumber)) return false;
+      if (timer.endsAt - timer.startedAt !== 180_000) return false;
+      if (timer.startedAt < evidenceStartedAt || timer.startedAt > evidenceUpdatedAt || (review && timer.endedAt > evidenceUpdatedAt)) return false;
+      if (!review) return !Object.hasOwn(evidence, "durationSeconds") && !Object.hasOwn(evidence, "timerCompleted");
+      if (timer.endedAt < timer.startedAt) return false;
+      const expectedDuration = Math.max(0, Math.min(180, Math.round((timer.endedAt - timer.startedAt) / 1000)));
+      return Number.isInteger(evidence.durationSeconds) &&
+        evidence.durationSeconds === expectedDuration &&
+        evidence.timerCompleted === (expectedDuration >= 180);
+    }
+    return false;
+  };
+  const workspaceBackupValidListeningProgress = (evidence) => {
+    const isSpeechTask = evidence.taskId === "diagnostic-listening-language-lab-v1";
+    for (const field of ["audioCompleted", "audioPlaybackFailed", "audioPlayed", "audioSeekDetected", "audioStartedNearBeginning", "speechSynthesisEnded", "speechSynthesisStarted", "transcriptUsed"]) {
+      if (Object.hasOwn(evidence, field) && typeof evidence[field] !== "boolean") return false;
+    }
+    if (Object.hasOwn(evidence, "playCount") && (!Number.isInteger(evidence.playCount) || evidence.playCount < 1)) return false;
+    for (const field of ["audioPlaybackCompletedAt", "audioPlaybackStartedAt"]) {
+      if (Object.hasOwn(evidence, field) && !exactUtcTimestamp(evidence[field])) return false;
+    }
+    if (isSpeechTask) {
+      if (["audioPlaybackStartedAt", "audioSeekDetected", "audioStartedNearBeginning"].some((field) => Object.hasOwn(evidence, field))) return false;
+      if (evidence.audioPlayed === true) {
+        if (evidence.speechSynthesisStarted !== true || !Number.isInteger(evidence.playCount)) return false;
+        if (
+          !exactObjectKeys(evidence.speechVoice, ["default", "lang", "localService"]) ||
+          typeof evidence.speechVoice.lang !== "string" || evidence.speechVoice.lang.length < 1 || evidence.speechVoice.lang.length > 20 ||
+          typeof evidence.speechVoice.localService !== "boolean" || typeof evidence.speechVoice.default !== "boolean"
+        ) return false;
+      } else if (["audioCompleted", "playCount", "speechSynthesisEnded", "speechSynthesisStarted", "speechVoice"].some((field) => Object.hasOwn(evidence, field))) return false;
+      if (evidence.audioCompleted === true) {
+        if (
+          evidence.audioPlayed !== true || evidence.speechSynthesisEnded !== true || evidence.audioPlaybackFailed === true ||
+          !exactUtcTimestamp(evidence.audioPlaybackCompletedAt)
+        ) return false;
+      } else if (evidence.speechSynthesisEnded === true || Object.hasOwn(evidence, "audioPlaybackCompletedAt")) return false;
+    } else {
+      if (["speechSynthesisEnded", "speechSynthesisStarted", "speechVoice"].some((field) => Object.hasOwn(evidence, field))) return false;
+      if (evidence.audioPlayed === true) {
+        if (!Number.isInteger(evidence.playCount) || typeof evidence.audioCompleted !== "boolean" || typeof evidence.audioStartedNearBeginning !== "boolean" || !exactUtcTimestamp(evidence.audioPlaybackStartedAt)) return false;
+      } else if (
+        (Object.hasOwn(evidence, "audioCompleted") && evidence.audioCompleted !== false) ||
+        ["audioPlaybackStartedAt", "audioStartedNearBeginning", "playCount"].some((field) => Object.hasOwn(evidence, field))
+      ) return false;
+      if (evidence.audioCompleted === true) {
+        if (evidence.audioStartedNearBeginning !== true || evidence.audioSeekDetected === true || evidence.audioPlaybackFailed === true || !exactUtcTimestamp(evidence.audioPlaybackCompletedAt)) return false;
+      } else if (Object.hasOwn(evidence, "audioPlaybackCompletedAt") && evidence.audioPlayed !== true) return false;
+    }
+    if (evidence.audioPlaybackCompletedAt && evidence.audioPlaybackStartedAt && Date.parse(evidence.audioPlaybackCompletedAt) < Date.parse(evidence.audioPlaybackStartedAt)) return false;
+    for (const field of ["audioPlaybackCompletedAt", "audioPlaybackStartedAt"]) {
+      if (
+        evidence[field] &&
+        (Date.parse(evidence[field]) < Date.parse(evidence.startedAt) || Date.parse(evidence[field]) > Date.parse(evidence.updatedAt))
+      ) return false;
+    }
+    return true;
+  };
+  const workspaceBackupExpectedDiagnosticQualityFlags = (evidence, diagnostic) => {
+    const flags = [];
+    const timerStarted = isRecord(evidence.timer) && workspaceBackupValidTimerNumber(evidence.timer.startedAt);
+    if (evidence.qualityFlags.includes("resumed_after_reload") && timerStarted) flags.push("resumed_after_reload");
+    if (evidence.skill === "Listening") {
+      const speechTask = evidence.taskId === "diagnostic-listening-language-lab-v1";
+      if (evidence.audioSeekDetected === true) flags.push("audio_seek_detected");
+      if (evidence.audioPlaybackFailed === true) flags.push("audio_playback_failed");
+      if (speechTask && evidence.audioPlaybackFailed === true) flags.push("speech_synthesis_error");
+      if (evidence.transcriptUsed === true) flags.push("transcript_used");
+      if (speechTask && (evidence.speechSynthesisStarted === true || evidence.status === "completed")) flags.push("browser_voice_variability");
+      if (speechTask && evidence.speechSynthesisStarted === true && evidence.speechVoice?.lang === "browser-default") flags.push("voice_not_loaded");
+      if (
+        speechTask && evidence.speechSynthesisStarted === true &&
+        (evidence.speechVoice?.lang === "browser-default" || evidence.speechVoice?.lang?.toLowerCase() !== "en-us" || evidence.speechVoice?.localService !== true)
+      ) flags.push("voice_fallback_used");
+      if (evidence.status === "completed") {
+        if (evidence.audioPlayed !== true) flags.push("audio_not_played");
+        if (evidence.audioPlayed === true && evidence.audioCompleted !== true) flags.push("audio_not_completed");
+        if (diagnostic.devicePrecheck.audioOutputStatus !== "heard") flags.push("audio_output_unavailable");
+        if (Number(evidence.playCount || 0) > 2) flags.push("multiple_replays");
+      }
+    }
+    if (evidence.skill === "Writing") {
+      if (evidence.pasteDetected === true) flags.push("writing_paste_detected");
+      if (evidence.timer?.phase === "review" && evidence.timerCompleted !== true) flags.push("writing_ended_early");
+    }
+    if (evidence.skill === "Speaking" && evidence.timer?.phase === "review" && evidence.timerCompleted !== true) flags.push("speaking_ended_early");
+    if (["skipped", "unavailable"].includes(evidence.status)) {
+      flags.push(evidence.status === "unavailable" ? "task_unavailable" : "learner_skipped");
+    } else if (evidence.skill === "Speaking" && evidence.status === "completed") {
+      flags.push("audio_not_recorded", "open_response_not_human_reviewed");
+      if (evidence.selfReviewCount < 3) flags.push("self_review_incomplete");
+    } else if (evidence.skill === "Writing" && ["completed", "evidence_insufficient"].includes(evidence.status)) {
+      flags.push("open_response_not_human_reviewed");
+      if (evidence.wordCount < 20) flags.push("writing_below_completion_condition");
+      if (evidence.selfReviewCount < 3) flags.push("self_review_incomplete");
+    }
+    return [...new Set(flags)];
+  };
+  const validWorkspaceBackupDiagnosticEvidence = (evidence, diagnostic) => {
+    const expected = DIAGNOSTIC_TASK_MANIFEST[evidence?.taskId];
+    const allowedKeys = expected?.skill === "Listening"
+      ? [...WORKSPACE_BACKUP_DIAGNOSTIC_COMMON_EVIDENCE_KEYS, ...WORKSPACE_BACKUP_DIAGNOSTIC_OBJECTIVE_KEYS, ...WORKSPACE_BACKUP_DIAGNOSTIC_LISTENING_KEYS]
+      : expected?.skill === "Reading"
+        ? [...WORKSPACE_BACKUP_DIAGNOSTIC_COMMON_EVIDENCE_KEYS, ...WORKSPACE_BACKUP_DIAGNOSTIC_OBJECTIVE_KEYS]
+        : expected?.skill === "Speaking"
+          ? [...WORKSPACE_BACKUP_DIAGNOSTIC_COMMON_EVIDENCE_KEYS, ...WORKSPACE_BACKUP_DIAGNOSTIC_SPEAKING_KEYS]
+          : [...WORKSPACE_BACKUP_DIAGNOSTIC_COMMON_EVIDENCE_KEYS, ...WORKSPACE_BACKUP_DIAGNOSTIC_WRITING_KEYS];
+    if (
+      !expected || !onlyAllowedObjectKeys(evidence, allowedKeys) ||
+      !exactObjectKeys(Object.fromEntries(Object.entries(evidence).filter(([key]) => WORKSPACE_BACKUP_DIAGNOSTIC_COMMON_EVIDENCE_KEYS.includes(key))), WORKSPACE_BACKUP_DIAGNOSTIC_COMMON_EVIDENCE_KEYS) ||
+      !Object.entries(expected).filter(([key]) => key !== "correctValue").every(([key, value]) => evidence[key] === value) ||
+      !DIAGNOSTIC_EVIDENCE_STATES.has(evidence.evidenceStatus) ||
+      !exactUtcTimestamp(evidence.startedAt) || !exactUtcTimestamp(evidence.updatedAt) ||
+      Date.parse(evidence.updatedAt) < Date.parse(evidence.startedAt) ||
+      !Array.isArray(evidence.qualityFlags) ||
+      evidence.qualityFlags.some((flag) => !DIAGNOSTIC_QUALITY_FLAGS.has(flag))
+    ) return false;
+    const terminal = DIAGNOSTIC_TERMINAL_STATES.has(evidence.status);
+    if (terminal) {
+      if (!exactUtcTimestamp(evidence.completedAt) || evidence.completedAt !== evidence.updatedAt) return false;
+    } else if (evidence.status !== "in_progress" || Object.hasOwn(evidence, "completedAt")) return false;
+    if (evidence.status === "unavailable" && expected.skill !== "Listening") return false;
+    if (
+      expected.skill === "Reading" && !["in_progress", "completed", "skipped"].includes(evidence.status) ||
+      expected.skill === "Listening" && !["in_progress", "completed", "skipped", "unavailable"].includes(evidence.status)
+    ) return false;
+    if (
+      expected.skill === "Listening" && ["skipped", "unavailable"].includes(evidence.status) &&
+      evidence.status !== (
+        diagnostic.devicePrecheck.audioOutputStatus === "unavailable" || evidence.audioPlaybackFailed === true
+          ? "unavailable"
+          : "skipped"
+      )
+    ) return false;
+    if (["skipped", "unavailable"].includes(evidence.status) && evidence.evidenceStatus !== "evidence_insufficient") return false;
+    if (evidence.status === "in_progress" && evidence.evidenceStatus !== "evidence_limited") return false;
+
+    if (["Reading", "Listening"].includes(expected.skill)) {
+      if (Object.hasOwn(evidence, "selectedDraft") && !["a", "b", "c"].includes(evidence.selectedDraft)) return false;
+      if (evidence.status === "completed") {
+        if (
+          evidence.attempts !== 1 || !["a", "b", "c"].includes(evidence.firstResponse) ||
+          Object.hasOwn(evidence, "selectedDraft") || !Number.isInteger(evidence.durationSeconds) || evidence.durationSeconds < 0 ||
+          evidence.durationSeconds !== Math.max(0, Math.round((Date.parse(evidence.completedAt) - Date.parse(evidence.startedAt)) / 1000)) ||
+          evidence.resultType !== (evidence.firstResponse === expected.correctValue ? "first_response_matched" : "first_response_not_matched")
+        ) return false;
+      } else if (["attempts", "durationSeconds", "firstResponse", "resultType"].some((field) => Object.hasOwn(evidence, field))) return false;
+      if (expected.skill === "Reading" && evidence.status === "completed" && evidence.evidenceStatus !== "evidence_limited") return false;
+      if (expected.skill === "Listening") {
+        if (!workspaceBackupValidListeningProgress(evidence)) return false;
+        if (evidence.status === "completed") {
+          const insufficient = ["audio_not_played", "audio_not_completed", "audio_seek_detected", "audio_playback_failed", "speech_synthesis_error", "audio_output_unavailable", "transcript_used"]
+            .some((flag) => evidence.qualityFlags.includes(flag));
+          if (evidence.evidenceStatus !== (insufficient ? "evidence_insufficient" : "evidence_limited")) return false;
+        }
+      }
+    } else {
+      if (Object.hasOwn(evidence, "timer") && !workspaceBackupValidDiagnosticTimer(evidence, expected)) return false;
+      if (Object.hasOwn(evidence, "selfChecks")) {
+        const keys = expected.skill === "Speaking" ? ["connected", "coverage", "support"] : ["change", "reviewed", "support"];
+        if (
+          !exactObjectKeys(evidence.selfChecks, keys) ||
+          !Object.values(evidence.selfChecks).every((value) => typeof value === "boolean") ||
+          evidence.timer?.phase !== "review"
+        ) return false;
+      }
+      if (
+        ["durationSeconds", "timerCompleted"].some((field) => Object.hasOwn(evidence, field)) &&
+        !isRecord(evidence.timer)
+      ) return false;
+      if (expected.skill === "Speaking") {
+        if (["completed", "evidence_insufficient"].includes(evidence.status) && evidence.status !== "completed") return false;
+        if (evidence.status === "completed") {
+          if (
+            evidence.timer?.phase !== "review" || !isRecord(evidence.selfChecks) ||
+            evidence.selfReviewCount !== Object.values(evidence.selfChecks).filter(Boolean).length ||
+            evidence.audioRecorded !== false || evidence.automatedScoreProduced !== false ||
+            evidence.evidenceStatus !== "evidence_insufficient"
+          ) return false;
+        } else if (["selfReviewCount", "audioRecorded", "automatedScoreProduced"].some((field) => Object.hasOwn(evidence, field))) return false;
+      } else {
+        if (
+          ["pasteDetected", "responseText", "selfChecks", "wordCount"].some((field) => Object.hasOwn(evidence, field)) &&
+          !isRecord(evidence.timer)
+        ) return false;
+        if (Object.hasOwn(evidence, "responseText") && (typeof evidence.responseText !== "string" || evidence.responseText.length > 1800)) return false;
+        if (Object.hasOwn(evidence, "wordCount") && evidence.wordCount !== workspaceBackupDiagnosticWordCount(evidence.responseText)) return false;
+        if (Object.hasOwn(evidence, "pasteDetected") && evidence.pasteDetected !== true) return false;
+        const submitted = ["completed", "evidence_insufficient"].includes(evidence.status);
+        if (submitted) {
+          if (
+            evidence.timer?.phase !== "review" || typeof evidence.responseText !== "string" || !isRecord(evidence.selfChecks) ||
+            !Object.hasOwn(evidence, "wordCount") || !Number.isInteger(evidence.wordCount) ||
+            evidence.selfReviewCount !== Object.values(evidence.selfChecks).filter(Boolean).length || evidence.automatedScoreProduced !== false ||
+            evidence.status !== (evidence.wordCount >= 20 ? "completed" : "evidence_insufficient") ||
+            evidence.evidenceStatus !== "evidence_insufficient"
+          ) return false;
+        } else if (["selfReviewCount", "automatedScoreProduced"].some((field) => Object.hasOwn(evidence, field))) return false;
+        if (Object.hasOwn(evidence, "timer") && typeof evidence.responseText !== "string") return false;
+      }
+    }
+    return workspaceBackupSameStringSet(
+      evidence.qualityFlags,
+      workspaceBackupExpectedDiagnosticQualityFlags(evidence, diagnostic),
+    );
+  };
+
+  const validWorkspaceBackupDiagnostic = (diagnostic) => {
+    if (!isRecord(diagnostic)) return false;
+    const expectedKeys = diagnostic.status === "completed"
+      ? WORKSPACE_BACKUP_DIAGNOSTIC_COMPLETED_KEYS
+      : diagnostic.status === "awaiting_confirmation"
+        ? [...WORKSPACE_BACKUP_DIAGNOSTIC_BASE_KEYS, "reportDraft"]
+        : WORKSPACE_BACKUP_DIAGNOSTIC_BASE_KEYS;
+    if (
+      !exactObjectKeys(diagnostic, expectedKeys) ||
+      !["in_progress", "awaiting_confirmation", "completed"].includes(diagnostic.status) ||
+      diagnostic.protocolVersion !== PROTOCOL_VERSION ||
+      diagnostic.diagnosticProtocolVersion !== DIAGNOSTIC_PROTOCOL_VERSION ||
+      diagnostic.taskSetVersion !== DIAGNOSTIC_TASK_SET_VERSION ||
+      diagnostic.taskSetDigest !== DIAGNOSTIC_TASK_SET_DIGEST ||
+      !historyIdValid(diagnostic.cycleId) ||
+      !historyIdValid(diagnostic.diagnosticSessionId) ||
+      diagnostic.adultConfirmed !== true ||
+      diagnostic.demoGoal !== "det_preparation_4_weeks" ||
+      diagnostic.automatedScoreProduced !== false ||
+      diagnostic.formalDiagnosisProduced !== false ||
+      diagnostic.officialEquivalenceClaimed !== false ||
+      !exactUtcTimestamp(diagnostic.createdAt) ||
+      !exactUtcTimestamp(diagnostic.updatedAt) ||
+      Date.parse(diagnostic.updatedAt) < Date.parse(diagnostic.createdAt) ||
+      !exactObjectKeys(diagnostic.consent, ["confirmedAt", "localOnlyConfirmed", "noModelTrainingConfirmed", "noScoreConfirmed"]) ||
+      diagnostic.consent.localOnlyConfirmed !== true ||
+      diagnostic.consent.noModelTrainingConfirmed !== true ||
+      diagnostic.consent.noScoreConfirmed !== true ||
+      !exactUtcTimestamp(diagnostic.consent.confirmedAt) ||
+      !exactObjectKeys(diagnostic.devicePrecheck, [
+        "audioOutputStatus", "completedAt", "environmentConfirmed", "keyboardConfirmed", "microphoneMode", "mp3Supported",
+        "networkAtStart", "safeWriteLockSupported", "speechSynthesisSupported", "storageStatus", "viewportMode",
+      ]) ||
+      diagnostic.devicePrecheck.storageStatus !== "available" ||
+      !["heard", "unavailable"].includes(diagnostic.devicePrecheck.audioOutputStatus) ||
+      diagnostic.devicePrecheck.safeWriteLockSupported !== true ||
+      diagnostic.devicePrecheck.keyboardConfirmed !== true ||
+      diagnostic.devicePrecheck.environmentConfirmed !== true ||
+      diagnostic.devicePrecheck.microphoneMode !== "not_requested" ||
+      !["desktop_or_tablet", "mobile_lightweight"].includes(diagnostic.devicePrecheck.viewportMode) ||
+      !["online", "offline"].includes(diagnostic.devicePrecheck.networkAtStart) ||
+      typeof diagnostic.devicePrecheck.mp3Supported !== "boolean" ||
+      typeof diagnostic.devicePrecheck.speechSynthesisSupported !== "boolean" ||
+      !exactUtcTimestamp(diagnostic.devicePrecheck.completedAt) ||
+      diagnostic.consent.confirmedAt !== diagnostic.createdAt ||
+      diagnostic.devicePrecheck.completedAt !== diagnostic.createdAt ||
+      !Array.isArray(diagnostic.taskEvidence) ||
+      !diagnostic.taskEvidence.every((evidence) => validWorkspaceBackupDiagnosticEvidence(evidence, diagnostic)) ||
+      !diagnosticEvidenceCollectionValid(diagnostic, { requireAllTerminal: diagnostic.status !== "in_progress" })
+    ) return false;
+    let previousEvidenceAt = Date.parse(diagnostic.createdAt);
+    for (const evidence of diagnostic.taskEvidence) {
+      if (
+        Date.parse(evidence.startedAt) < previousEvidenceAt ||
+        Date.parse(evidence.updatedAt) > Date.parse(diagnostic.updatedAt)
+      ) return false;
+      previousEvidenceAt = DIAGNOSTIC_TERMINAL_STATES.has(evidence.status)
+        ? Date.parse(evidence.completedAt)
+        : Date.parse(evidence.startedAt);
+    }
+    if (diagnostic.status === "in_progress") {
+      return true;
+    }
+    if (diagnostic.activeTaskId !== null) return false;
+    const report = diagnostic.status === "completed" ? diagnostic.report : diagnostic.reportDraft;
+    if (
+      !validWorkspaceBackupDiagnosticReport(report) ||
+      workspaceBackupRuntime.canonicalJson(report) !== workspaceBackupRuntime.canonicalJson(buildDiagnosticReport(diagnostic))
+    ) return false;
+    if (diagnostic.status === "awaiting_confirmation") return true;
+    return Boolean(
+      exactUtcTimestamp(diagnostic.completedAt) &&
+      Date.parse(diagnostic.completedAt) >= Date.parse(diagnostic.createdAt) &&
+      VALID_SKILLS.has(diagnostic.prioritySkill) &&
+      diagnostic.prioritySkill !== "Balanced" &&
+      diagnostic.learnerConfirmedPriority === true &&
+      diagnostic.completedEvidenceTaskCount === report.completedEvidenceTaskCount &&
+      workspaceBackupRuntime.canonicalJson(diagnostic.completedEvidenceSkills) === workspaceBackupRuntime.canonicalJson(report.completedEvidenceSkills) &&
+      diagnostic.evidenceSufficiency === report.evidenceSufficiency &&
+      diagnostic.evidenceConfidence === report.confidence &&
+      diagnostic.priorityBasis === report.priorityBasis &&
+      workspaceBackupRuntime.canonicalJson(diagnostic.suggestedPrioritySkills) === workspaceBackupRuntime.canonicalJson(report.priorityCandidates) &&
+      report.priorityCandidates.includes(diagnostic.prioritySkill) &&
+      workspaceBackupRuntime.canonicalJson(diagnostic.patternFlags) === workspaceBackupRuntime.canonicalJson(
+        terminalDiagnosticEvidence(diagnostic)
+          .filter((item) => item.resultType === "first_response_not_matched")
+          .map((item) => item.constructTag),
+      ) &&
+      diagnostic.completedAt === diagnostic.updatedAt &&
+      Date.parse(diagnostic.completedAt) >= Math.max(
+        Date.parse(diagnostic.createdAt),
+        ...diagnostic.taskEvidence.map((item) => Date.parse(item.completedAt)),
+      )
+    );
+  };
+
+  const validWorkspaceBackupRecommendation = (recommendation) => {
+    if (!exactObjectKeys(recommendation, WORKSPACE_BACKUP_RECOMMENDATION_KEYS)) return false;
+    const primary = recommendation.primary;
+    const binding = recommendation.evidenceBinding;
+    if (
+      !historyIdValid(recommendation.recommendationId) ||
+      !historyIdValid(recommendation.cycleId) ||
+      !historyIdValid(recommendation.planId) ||
+      !historyIdValid(recommendation.diagnosticSessionId) ||
+      !["accepted", "skipped"].includes(recommendation.status) ||
+      recommendation.itemCount !== 3 ||
+      recommendation.learnerChoice !== true ||
+      recommendation.sourceMode !== "frozen_local_routes_no_rag" ||
+      !exactUtcTimestamp(recommendation.createdAt) ||
+      !exactUtcTimestamp(recommendation.updatedAt) ||
+      recommendation.updatedAt !== recommendation.createdAt ||
+      !exactObjectKeys(primary, WORKSPACE_BACKUP_RECOMMENDATION_PRIMARY_KEYS) ||
+      !exactObjectKeys(binding, WORKSPACE_BACKUP_RECOMMENDATION_BINDING_KEYS) ||
+      !Array.isArray(recommendation.supplements) ||
+      recommendation.supplements.length !== 2 ||
+      !recommendation.supplements.every((item) => exactObjectKeys(item, WORKSPACE_BACKUP_RECOMMENDATION_SUPPLEMENT_KEYS))
+    ) return false;
+    if (
+      primary.role !== "主任务" ||
+      !VALID_SKILLS.has(primary.skill) || primary.skill === "Balanced" ||
+      !isSafeLocalRoute(primary.route) ||
+      primary.reviewStatus !== "gate_a_unreviewed" ||
+      primary.reviewedAt !== null ||
+      primary.source !== "Sufeiya 原创 Gate A 微练习 v1 · 未经教研与测量双签" ||
+      workspaceBackupRuntime.canonicalJson(primary.prerequisites) !== workspaceBackupRuntime.canonicalJson(["18_plus_gate_a", "same_browser_local_storage", "safe_write_lock"])
+    ) return false;
+    const expectedSupplements = [
+      {
+        role: "可选补充 1",
+        title: "15 分钟专注计时",
+        route: "/focus",
+        reason: "为主任务保留一段不被打断的时间；计时不会被当成能力或完成证据。",
+        duration: "15 分钟起",
+        source: "Sufeiya 本机工具",
+        verification: "计时后仍需完成任务并自行复盘。",
+      },
+      {
+        role: "可选补充 2",
+        title: "查看已审阅的公开资源目录",
+        route: "/resources",
+        reason: "需要更多公开材料入口时自行选择；目录不等于 RAG 知识库。",
+        duration: "按需",
+        source: "本站冻结资源目录",
+        verification: "只把实际完成的学习写入复盘，不以打开链接代替完成。",
+      },
+    ];
+    if (workspaceBackupRuntime.canonicalJson(recommendation.supplements) !== workspaceBackupRuntime.canonicalJson(expectedSupplements)) {
+      return false;
+    }
+    if (
+      !historyIdValid(binding.bindingId) ||
+      !historyIdValid(binding.practiceTaskId) ||
+      binding.cycleId !== recommendation.cycleId ||
+      binding.diagnosticSessionId !== recommendation.diagnosticSessionId ||
+      binding.practiceTaskId !== primary.taskId ||
+      binding.exerciseId !== primary.exerciseId ||
+      binding.contentId !== primary.contentId ||
+      binding.contentVersion !== primary.contentVersion ||
+      binding.contentHash !== primary.contentHash ||
+      binding.bindingReason !== primary.reason ||
+      binding.sourceClass !== "first_party_original_gate_a" ||
+      binding.reviewStatus !== "gate_a_unreviewed" ||
+      binding.reviewedAt !== null ||
+      binding.teacherReviewed !== false ||
+      binding.measurementReviewed !== false ||
+      binding.videoTimestamp !== null ||
+      !exactUtcTimestamp(binding.createdAt) ||
+      binding.createdAt !== recommendation.createdAt ||
+      ![binding.errorPatternIds, binding.diagnosticEvidenceTaskIds, binding.diagnosticQualityFlags].every((items) =>
+        Array.isArray(items) && new Set(items).size === items.length && items.every((item) => typeof item === "string")
+      ) ||
+      workspaceBackupRuntime.canonicalJson(binding.prerequisites) !== workspaceBackupRuntime.canonicalJson(primary.prerequisites)
+    ) return false;
+    return recommendation.supplements.every((item) => isSafeLocalRoute(item.route));
+  };
+
+  const validWorkspaceBackupReview = (review) => Boolean(
+    exactObjectKeys(review, WORKSPACE_BACKUP_REVIEW_KEYS) &&
+    [review.cycleId, review.reviewId, review.checkInId].every(historyIdValid) &&
+    review.learnerConfirmed === true &&
+    review.shareStatus === "not_shared" &&
+    review.reminderStatus === "not_enabled" &&
+    review.humanEscalationStatus === "not_requested" &&
+    exactUtcTimestamp(review.confirmedAt)
+  );
+
+  const validWorkspaceBackupPeerHelp = (peerHelp) => Boolean(
+    exactObjectKeys(peerHelp, WORKSPACE_BACKUP_PEER_HELP_KEYS) &&
+    [peerHelp.cycleId, peerHelp.peerHelpId, peerHelp.planId, peerHelp.reviewId].every(historyIdValid) &&
+    VALID_PEER_HELP_STATES.has(peerHelp.status) &&
+    peerHelp.source === "synthetic_demo_card_v1" &&
+    peerHelp.learnerChoice === true &&
+    peerHelp.realCommunityUsed === false &&
+    exactUtcTimestamp(peerHelp.createdAt) &&
+    exactUtcTimestamp(peerHelp.updatedAt) &&
+    Date.parse(peerHelp.updatedAt) >= Date.parse(peerHelp.createdAt)
+  );
+
+  const validWorkspaceBackupRetest = (retest) => {
+    if (
+      !exactObjectKeys(retest, WORKSPACE_BACKUP_RETEST_KEYS) ||
+      !exactObjectKeys(retest.comparability, WORKSPACE_BACKUP_RETEST_COMPARABILITY_KEYS) ||
+      ![retest.cycleId, retest.retestId, retest.diagnosticSessionId, retest.planId, retest.recommendationId,
+        retest.checkInId, retest.reviewId, retest.peerHelpId, retest.baselineTaskId,
+        retest.baselinePracticeReceiptId].every(historyIdValid) ||
+      !VALID_SKILLS.has(retest.skill) || retest.skill === "Balanced" ||
+      retest.status !== "completed" ||
+      retest.parallelRetest !== true ||
+      retest.automatedScoreProduced !== false ||
+      retest.growthClaimProduced !== false ||
+      retest.interpretation !== "single_task_evidence_only_no_growth_claim" ||
+      !exactUtcTimestamp(retest.completedAt)
+    ) return false;
+    const catalog = RETEST_TASK_CATALOG[retest.skill];
+    const evidenceKeys = retest.skill === "Reading"
+      ? ["responseType", "resultType", "selectedAnswer"]
+      : retest.skill === "Listening"
+        ? ["audioCompleted", "audioPlayed", "playCount", "playbackFailed", "responseType", "resultType", "seekDetected", "selectedAnswer", "transcriptUsed"]
+        : retest.skill === "Writing"
+          ? ["responseType", "resultType", "selfChecksComplete", "wordCount"]
+          : ["audioRecorded", "responseType", "resultType", "selfChecksComplete"];
+    const derived = deriveRetestOutcome(retest.skill, retest.evidence);
+    return Boolean(
+      catalog &&
+      exactObjectKeys(retest.evidence, evidenceKeys) &&
+      retest.parallelTaskId === catalog.taskId &&
+      retest.taskVersion === catalog.taskVersion &&
+      retest.parallelFormPairId === catalog.parallelFormPairId &&
+      retest.comparability.targetSkill === retest.skill &&
+      retest.comparability.sameSkill === true &&
+      retest.comparability.sameAsDiagnosticPriority === true &&
+      retest.comparability.sameAsPlanTask === true &&
+      retest.comparability.sameAsPracticeReceipt === true &&
+      retest.comparability.newOriginalPrompt === true &&
+      retest.comparability.constructAlignment === catalog.constructAlignment &&
+      retest.comparability.teacherReviewed === false &&
+      retest.comparability.measurementReviewed === false &&
+      retest.comparability.officialEquivalenceClaimed === false &&
+      retest.comparability.comparisonBoundary === "same_skill_only_no_calibrated_construct_or_difficulty_equivalence" &&
+      derived &&
+      retest.evidence.resultType === derived.resultType &&
+      retest.evidenceStatus === derived.evidenceStatus &&
+      retest.evidenceSufficiency === derived.evidenceSufficiency &&
+      retest.humanConfirmationStatus === derived.humanConfirmationStatus
+    );
+  };
+
+  const validWorkspaceBackupPlanUpdate = (planUpdate) => Boolean(
+    exactObjectKeys(planUpdate, WORKSPACE_BACKUP_PLAN_UPDATE_KEYS) &&
+    [planUpdate.cycleId, planUpdate.updatedPlanId, planUpdate.supersedesPlanId, planUpdate.retestId].every(historyIdValid) &&
+    VALID_SKILLS.has(planUpdate.focusSkill) &&
+    planUpdate.learnerConfirmed === true &&
+    planUpdate.automatedAbilityDecision === false &&
+    (
+      (planUpdate.confirmationClass === "learner_confirmed_gate_a" && planUpdate.humanConfirmationStatus === "not_required_for_gate_a_flow") ||
+      (planUpdate.confirmationClass === "provisional_pending_human_review" && planUpdate.humanConfirmationStatus === "required_not_completed")
+    ) &&
+    exactUtcTimestamp(planUpdate.createdAt)
+  );
+
+  const validWorkspaceBackupDomainObjects = (candidateState) => {
+    const current = candidateState.journey;
+    if (current.diagnostic !== null && !validWorkspaceBackupDiagnostic(current.diagnostic)) return false;
+    if (current.recommendation !== null && !validWorkspaceBackupRecommendation(current.recommendation)) return false;
+    if (current.review !== null && !validWorkspaceBackupReview(current.review)) return false;
+    if (current.peerHelp !== null && !validWorkspaceBackupPeerHelp(current.peerHelp)) return false;
+    if (current.retest !== null && !validWorkspaceBackupRetest(current.retest)) return false;
+    if (current.planUpdate !== null && !validWorkspaceBackupPlanUpdate(current.planUpdate)) return false;
+    return current.history.every((record) =>
+      exactObjectKeys(record, cycleHistoryTopLevelKeys) &&
+      validWorkspaceBackupDiagnostic(record.diagnostic) &&
+      validWorkspaceBackupRecommendation(record.recommendation) &&
+      validWorkspaceBackupReview(record.review) &&
+      validWorkspaceBackupPeerHelp(record.peerHelp) &&
+      validWorkspaceBackupRetest(record.retest) &&
+      validWorkspaceBackupPlanUpdate(record.planUpdate)
+    );
+  };
+
+  const validWorkspaceBackupPlanGraph = (candidateState) => {
+    const plans = [candidateState.plan, ...candidateState.planHistory].filter((plan) => plan !== null);
+    const planIds = plans.map((plan) => plan?.planId);
+    if (
+      planIds.some((planId) => !historyIdValid(planId)) ||
+      new Set(planIds).size !== planIds.length ||
+      (candidateState.plan !== null && candidateState.plan?.status !== "active") ||
+      candidateState.planHistory.some((plan) => plan?.status !== "superseded")
+    ) return false;
+    const allTaskIds = [];
+    for (const plan of plans) {
+      const provenance = plan?.provenance;
+      const standalone = provenance?.source === "learner_configured_standalone";
+      const diagnosticBound = provenance?.source === "learner_configured_after_gate_a_evidence_diagnostic";
+      const retestFollowup = [
+        "learner_confirmed_parallel_retest_followup",
+        "learner_selected_provisional_followup_pending_human_review",
+      ].includes(provenance?.source);
+      const provenanceKeys = standalone
+        ? ["source"]
+        : diagnosticBound
+          ? ["cycleId", "diagnosticSessionId", "priorityBasis", "source", "taskSetDigest", "taskSetVersion"]
+          : retestFollowup
+            ? ["cycleId", "diagnosticSessionId", "retestId", "source", "supersedesPlanId", "taskSetDigest", "taskSetVersion"]
+            : [];
+      if (!provenanceKeys.length || !exactObjectKeys(provenance, provenanceKeys)) return false;
+      const hasTopLevelDiagnostic = Object.hasOwn(plan, "diagnosticSessionId");
+      if (
+        (standalone && (!hasTopLevelDiagnostic || plan.diagnosticSessionId !== null)) ||
+        (diagnosticBound && (!hasTopLevelDiagnostic || plan.diagnosticSessionId !== provenance.diagnosticSessionId)) ||
+        (retestFollowup && hasTopLevelDiagnostic)
+      ) return false;
+      let cycleOwner = null;
+      let ownerDiagnostic = null;
+      if (!standalone) {
+        if (
+          !historyIdValid(provenance.cycleId) || !historyIdValid(provenance.diagnosticSessionId) ||
+          provenance.taskSetVersion !== DIAGNOSTIC_TASK_SET_VERSION ||
+          provenance.taskSetDigest !== DIAGNOSTIC_TASK_SET_DIGEST
+        ) return false;
+        cycleOwner = workspaceBackupCycleDomainOwner(candidateState, provenance.cycleId);
+        if (!cycleOwner || cycleOwner.cycle.diagnosticSessionId !== provenance.diagnosticSessionId) return false;
+        ownerDiagnostic = cycleOwner.kind === "active"
+          ? candidateState.journey.diagnostic
+          : cycleOwner.kind === "history"
+            ? cycleOwner.history?.diagnostic
+            : cycleOwner.summary;
+        if (
+          ownerDiagnostic?.diagnosticSessionId !== provenance.diagnosticSessionId ||
+          ownerDiagnostic?.taskSetVersion !== provenance.taskSetVersion ||
+          ownerDiagnostic?.taskSetDigest !== provenance.taskSetDigest
+        ) return false;
+      }
+      if (diagnosticBound && (
+        (ownerDiagnostic?.diagnosticStatus || ownerDiagnostic?.status) !== "completed" ||
+        provenance.priorityBasis !== (ownerDiagnostic?.priorityBasis || null) ||
+        !(provenance.priorityBasis === null || Object.hasOwn(priorityBasisLabels, provenance.priorityBasis)) ||
+        (exactUtcTimestamp(ownerDiagnostic?.completedAt) && Date.parse(plan.createdAt) < Date.parse(ownerDiagnostic.completedAt)) ||
+        (cycleOwner.summary && Date.parse(plan.createdAt) > Date.parse(cycleOwner.summary.supersededAt))
+      )) return false;
+      if (retestFollowup && (
+        cycleOwner.kind === "superseded" ||
+        !["completed", "provisional_pending_human_review"].includes(cycleOwner.cycle.status) ||
+        !historyIdValid(provenance.retestId) || !historyIdValid(provenance.supersedesPlanId) ||
+        cycleOwner.cycle.retestId !== provenance.retestId ||
+        cycleOwner.cycle.basePlanId !== provenance.supersedesPlanId ||
+        cycleOwner.cycle.updatedPlanId !== plan.planId ||
+        plan.createdAt !== (cycleOwner.cycle.status === "completed" ? cycleOwner.cycle.closedAt : cycleOwner.cycle.provisionalAt) ||
+        provenance.source !== (cycleOwner.cycle.status === "completed"
+          ? "learner_confirmed_parallel_retest_followup"
+          : "learner_selected_provisional_followup_pending_human_review")
+      )) return false;
+      const commonPlanKeys = [
+        "createdAt", "dailyMinutes", "days", "endDate", "examDate", "focusSkill", "nickname", "planId",
+        "provenance", "startDate", "status", ...(hasTopLevelDiagnostic ? ["diagnosticSessionId"] : []),
+      ];
+      let retirementKeys = [];
+      if (plan.status === "superseded") {
+        const retestRetirement = Object.hasOwn(plan, "supersededByRetestId");
+        retirementKeys = retestRetirement
+          ? ["supersededAt", "supersededByRetestId"]
+          : ["supersededAt", "supersededReason"];
+        if (
+          !exactUtcTimestamp(plan.supersededAt) || Date.parse(plan.supersededAt) < Date.parse(plan.createdAt) ||
+          (retestRetirement
+            ? !diagnosticBound || !historyIdValid(plan.supersededByRetestId) ||
+              cycleOwner?.cycle.retestId !== plan.supersededByRetestId ||
+              plan.supersededAt !== (cycleOwner.cycle.status === "completed" ? cycleOwner.cycle.closedAt : cycleOwner.cycle.provisionalAt)
+            : !["learner_manual_regeneration", "learner_started_new_gate_a_evidence_pack", "learner_restarted_gate_a_evidence_pack"]
+              .includes(plan.supersededReason) ||
+              (["learner_started_new_gate_a_evidence_pack", "learner_restarted_gate_a_evidence_pack"].includes(plan.supersededReason) &&
+                cycleOwner?.summary && Date.parse(plan.supersededAt) < Date.parse(cycleOwner.summary.supersededAt)))
+        ) return false;
+      }
+      if (
+        !exactObjectKeys(plan, [...commonPlanKeys, ...retirementKeys]) ||
+        !hasValidPlanShape(plan) ||
+        !exactUtcTimestamp(plan.createdAt) ||
+        ![15, 30, 45, 60].includes(plan.dailyMinutes) ||
+        !VALID_SKILLS.has(plan.focusSkill) ||
+        typeof plan.nickname !== "string" ||
+        plan.nickname !== plan.nickname.trim() ||
+        plan.nickname.length > 20 ||
+        typeof plan.examDate !== "string" ||
+        (plan.examDate !== "" && !workspaceBackupCalendarDateValid(plan.examDate)) ||
+        plan.days.length !== 7 ||
+        !workspaceBackupCalendarDateValid(plan.startDate) ||
+        !workspaceBackupCalendarDateValid(plan.endDate) ||
+        plan.startDate !== plan.days[0]?.date ||
+        plan.endDate !== plan.days[6]?.date
+      ) return false;
+      const expectedSequence = sequences[plan.focusSkill] || sequences.Balanced;
+      for (let index = 0; index < plan.days.length; index += 1) {
+        const day = plan.days[index];
+        const expectedDate = new Date(`${plan.startDate}T12:00:00Z`);
+        expectedDate.setUTCDate(expectedDate.getUTCDate() + index);
+        const expectedDateString = expectedDate.toISOString().slice(0, 10);
+        if (
+          day.date !== expectedDateString ||
+          day.coreSkill !== expectedSequence[index] ||
+          day.tasks.length !== 3 ||
+          day.tasks.reduce((sum, task) => sum + Number(task.durationMinutes), 0) !== plan.dailyMinutes
+        ) return false;
+        const [warmup, core, reflection] = day.tasks;
+        const catalog = practiceCatalogForSkill(day.coreSkill);
+        if (
+          !exactObjectKeys(day, ["coreSkill", "date", "tasks"]) ||
+          !exactObjectKeys(warmup, WORKSPACE_BACKUP_PLAN_TASK_KEYS.filter((key) => key !== "contentRef")) ||
+          !exactObjectKeys(core, WORKSPACE_BACKUP_PLAN_TASK_KEYS) ||
+          !exactObjectKeys(reflection, WORKSPACE_BACKUP_PLAN_TASK_KEYS.filter((key) => key !== "contentRef")) ||
+          warmup.taskId !== `${plan.planId}-${day.date}-warmup` ||
+          warmup.date !== day.date ||
+          warmup.skill !== "General" ||
+          warmup.route !== "/practice" ||
+          warmup.titleZh !== "英文热身" ||
+          warmup.instructionZh !== "快速浏览今天的英文提示与关键词，明确任务要求。" ||
+          core.taskId !== `${plan.planId}-${day.date}-${day.coreSkill.toLowerCase()}` ||
+          core.date !== day.date ||
+          core.skill !== day.coreSkill ||
+          core.route !== skillRoutes[day.coreSkill] ||
+          core.titleZh !== skillTasks[day.coreSkill]?.[0] ||
+          core.instructionZh !== skillTasks[day.coreSkill]?.[1] ||
+          reflection.taskId !== `${plan.planId}-${day.date}-reflection` ||
+          reflection.date !== day.date ||
+          reflection.skill !== "Reflection" ||
+          reflection.route !== "/check-in" ||
+          reflection.titleZh !== "记录学习证据" ||
+          reflection.instructionZh !== "写下今天完成了什么、哪里困难，以及明天先做什么。" ||
+          ![warmup, core, reflection].every((task) =>
+            historyIdValid(task.taskId) &&
+            typeof task.titleZh === "string" &&
+            typeof task.instructionZh === "string" &&
+            Number.isInteger(task.durationMinutes) &&
+            task.durationMinutes > 0
+          ) ||
+          !catalog ||
+          !isRecord(core.contentRef) ||
+          !exactObjectKeys(core.contentRef, WORKSPACE_BACKUP_CONTENT_REF_KEYS) ||
+          Object.hasOwn(warmup, "contentRef") ||
+          Object.hasOwn(reflection, "contentRef") ||
+          core.contentRef.exerciseId !== catalog.exerciseId ||
+          core.contentRef.contentId !== catalog.contentId ||
+          core.contentRef.contentVersion !== catalog.activityVersion ||
+          core.contentRef.contentHash !== catalog.contentHash
+        ) return false;
+        allTaskIds.push(warmup.taskId, core.taskId, reflection.taskId);
+      }
+    }
+    return new Set(allTaskIds).size === allTaskIds.length;
+  };
+
+  const validWorkspaceBackupReceiptDomainScope = (candidateState, receipt, catalog) => {
+    if (receipt.planId === null) return true;
+    const plan = planById(receipt.planId, candidateState);
+    const task = planTaskById(plan, receipt.taskId);
+    if (
+      !plan ||
+      !task ||
+      task.date !== receipt.taskDate ||
+      task.skill !== receipt.skill ||
+      task.route !== receipt.route ||
+      !isRecord(task.contentRef) ||
+      task.contentRef.exerciseId !== receipt.exerciseId ||
+      task.contentRef.contentId !== catalog.contentId ||
+      task.contentRef.contentVersion !== catalog.activityVersion ||
+      task.contentRef.contentHash !== catalog.contentHash
+    ) return false;
+    if (receipt.cycleId === null) return true;
+    const cycleOwner = workspaceBackupCycleDomainOwner(candidateState, receipt.cycleId);
+    if (
+      !cycleOwner ||
+      cycleOwner.cycle.diagnosticSessionId !== receipt.diagnosticSessionId ||
+      plan.provenance?.cycleId !== receipt.cycleId ||
+      plan.provenance?.diagnosticSessionId !== receipt.diagnosticSessionId
+    ) return false;
+    return cycleOwner.kind === "superseded" || Boolean(
+      cycleOwner.cycle.basePlanId === receipt.planId &&
+      cycleOwner.cycle.recommendationId === receipt.recommendationId
+    );
+  };
+  const validWorkspaceBackupReceiptGraph = (candidateState) => {
+    const attemptIds = new Set();
+    for (const [receiptId, receipt] of Object.entries(candidateState.practiceReceipts)) {
+      const catalog = PRACTICE_ACTIVITY_CATALOG[receipt?.exerciseId];
+      const evidenceKeys = catalog?.receiptEvidenceClass === "objective_response"
+        ? ["attemptCount", "finalResponse", "firstResponse", "resultType"]
+        : catalog?.receiptEvidenceClass === "audio_objective_response"
+          ? ["attemptCount", "audioCompleted", "audioPlayed", "finalResponse", "firstResponse", "playCount", "playbackFailed", "resultType", "seekDetected", "transcriptUsed"]
+          : catalog?.receiptEvidenceClass === "self_reviewed_artifact"
+            ? ["artifactHash", "resultType", "selfCheckCount", "selfChecks", "wordCount"]
+            : catalog?.receiptEvidenceClass === "timed_self_report"
+              ? ["audioRecorded", "prepSeconds", "responseSeconds", "resultType", "selfCheckCount", "selfChecks", "timerCompleted"]
+              : [];
+      if (
+        !exactObjectKeys(receipt, WORKSPACE_BACKUP_RECEIPT_KEYS) ||
+        !exactObjectKeys(receipt?.contentRef, WORKSPACE_BACKUP_CONTENT_REF_KEYS) ||
+        !(receipt.taskRef === null || exactObjectKeys(receipt.taskRef, WORKSPACE_BACKUP_TASK_REF_KEYS)) ||
+        !exactObjectKeys(receipt?.evidence, evidenceKeys) ||
+        (receipt.evidence?.selfChecks !== undefined && !onlyAllowedObjectKeys(receipt.evidence.selfChecks, ["answer", "edit", "example", "flow", "idea", "reason"])) ||
+        receipt?.protocolVersion !== PRACTICE_RECEIPT_VERSION ||
+        !hasValidPracticeReceiptShape(receipt, receiptId) ||
+        receipt.completionSource !== "guided_practice" ||
+        receipt.evidenceClass !== "practice_receipt" ||
+        receipt.automatedScoreProduced !== false ||
+        receipt.formalDiagnosisProduced !== false ||
+        receipt.officialEquivalenceClaimed !== false ||
+        !exactUtcTimestamp(receipt.completedAt) ||
+        attemptIds.has(receipt.practiceAttemptId) ||
+        !validWorkspaceBackupReceiptDomainScope(candidateState, receipt, catalog)
+      ) return false;
+      attemptIds.add(receipt.practiceAttemptId);
+    }
+    for (const [taskId, progress] of Object.entries(candidateState.taskProgress)) {
+      if (progress?.completionClass !== "practice_receipt") continue;
+      const receipt = candidateState.practiceReceipts[progress.practiceReceiptId];
+      if (!receipt || receipt.taskId !== taskId) return false;
+    }
+    for (const [exerciseId, practice] of Object.entries(candidateState.practice)) {
+      if (!Object.hasOwn(PRACTICE_ACTIVITY_CATALOG, exerciseId) || !isRecord(practice)) return false;
+      if (practice.latestPracticeReceiptId) {
+        const receipt = candidateState.practiceReceipts[practice.latestPracticeReceiptId];
+        if (!receipt || receipt.exerciseId !== exerciseId) return false;
+      }
+    }
+    return true;
+  };
+
+  const workspaceBackupDiagnosticEvidenceSummary = (item) => ({
+    taskId: item.taskId,
+    taskVersion: item.taskVersion,
+    contentHash: item.contentHash,
+    skill: item.skill,
+    status: item.status,
+    evidenceStatus: item.evidenceStatus,
+    qualityFlags: Array.isArray(item.qualityFlags) ? [...item.qualityFlags] : [],
+    ...(Number.isFinite(Number(item.durationSeconds)) ? { durationSeconds: Number(item.durationSeconds) } : {}),
+    ...(Number.isFinite(Number(item.wordCount)) ? { wordCount: Number(item.wordCount) } : {}),
+    ...(Number.isFinite(Number(item.selfReviewCount)) ? { selfReviewCount: Number(item.selfReviewCount) } : {}),
+    ...(typeof item.resultType === "string" ? { resultType: item.resultType } : {}),
+  });
+  const WORKSPACE_BACKUP_SUPERSEDED_BASE_KEYS = Object.freeze(
+    WORKSPACE_BACKUP_SUPERSEDED_KEYS.filter((key) => !["evidenceSufficiency", "priorityBasis", "prioritySkill"].includes(key)),
+  );
+  const WORKSPACE_BACKUP_SUPERSEDED_EVIDENCE_BASE_KEYS = Object.freeze([
+    "contentHash", "evidenceStatus", "qualityFlags", "skill", "status", "taskId", "taskVersion",
+  ]);
+  const workspaceBackupSupersededFlagSetValid = (evidence, expected) => {
+    const allowed = new Set();
+    if (["Speaking", "Writing"].includes(expected.skill)) allowed.add("resumed_after_reload");
+    if (expected.skill === "Listening") {
+      ["audio_not_played", "audio_not_completed", "audio_seek_detected", "audio_playback_failed", "audio_output_unavailable", "transcript_used", "multiple_replays"]
+        .forEach((flag) => allowed.add(flag));
+      if (evidence.taskId === "diagnostic-listening-language-lab-v1") {
+        ["browser_voice_variability", "voice_fallback_used", "voice_not_loaded", "speech_synthesis_error"]
+          .forEach((flag) => allowed.add(flag));
+      }
+      if (
+        evidence.status !== "completed" &&
+        ["audio_not_played", "audio_not_completed", "audio_output_unavailable", "multiple_replays"]
+          .some((flag) => evidence.qualityFlags.includes(flag))
+      ) return false;
+      if ((evidence.qualityFlags.includes("speech_synthesis_error") && !evidence.qualityFlags.includes("audio_playback_failed")) ||
+          (evidence.taskId === "diagnostic-listening-language-lab-v1" && evidence.qualityFlags.includes("audio_playback_failed") && !evidence.qualityFlags.includes("speech_synthesis_error")) ||
+          (evidence.qualityFlags.includes("voice_not_loaded") && !evidence.qualityFlags.includes("voice_fallback_used")) ||
+          (evidence.qualityFlags.includes("voice_fallback_used") && !evidence.qualityFlags.includes("browser_voice_variability")) ||
+          (evidence.status === "completed" && evidence.taskId === "diagnostic-listening-language-lab-v1" && !evidence.qualityFlags.includes("browser_voice_variability"))) return false;
+      if (evidence.status === "completed") {
+        if (evidence.qualityFlags.includes("audio_not_played") && evidence.qualityFlags.includes("audio_not_completed")) return false;
+        const insufficient = ["audio_not_played", "audio_not_completed", "audio_seek_detected", "audio_playback_failed", "audio_output_unavailable", "transcript_used"]
+          .some((flag) => evidence.qualityFlags.includes(flag));
+        if (evidence.evidenceStatus !== (insufficient ? "evidence_insufficient" : "evidence_limited")) return false;
+      }
+    }
+    if (expected.skill === "Writing") allowed.add("writing_paste_detected");
+    if (expected.skill === "Speaking" && Object.hasOwn(evidence, "durationSeconds")) {
+      allowed.add("speaking_ended_early");
+      if ((evidence.durationSeconds < 90) !== evidence.qualityFlags.includes("speaking_ended_early")) return false;
+    }
+    if (expected.skill === "Writing" && Object.hasOwn(evidence, "durationSeconds")) {
+      allowed.add("writing_ended_early");
+      if ((evidence.durationSeconds < 180) !== evidence.qualityFlags.includes("writing_ended_early")) return false;
+    }
+    const required = [];
+    if (evidence.status === "skipped") required.push("learner_skipped");
+    if (evidence.status === "unavailable") required.push("task_unavailable");
+    if (evidence.status === "completed" && expected.skill === "Speaking") {
+      required.push("audio_not_recorded", "open_response_not_human_reviewed");
+      allowed.add("audio_not_recorded");
+      allowed.add("open_response_not_human_reviewed");
+      allowed.add("speaking_ended_early");
+      allowed.add("self_review_incomplete");
+      if ((evidence.selfReviewCount < 3) !== evidence.qualityFlags.includes("self_review_incomplete")) return false;
+    }
+    if (["completed", "evidence_insufficient"].includes(evidence.status) && expected.skill === "Writing") {
+      required.push("open_response_not_human_reviewed");
+      ["open_response_not_human_reviewed", "writing_below_completion_condition", "writing_ended_early", "self_review_incomplete"]
+        .forEach((flag) => allowed.add(flag));
+      if ((evidence.wordCount < 20) !== evidence.qualityFlags.includes("writing_below_completion_condition")) return false;
+      if ((evidence.selfReviewCount < 3) !== evidence.qualityFlags.includes("self_review_incomplete")) return false;
+    }
+    if (["skipped", "unavailable"].includes(evidence.status)) {
+      allowed.add(evidence.status === "skipped" ? "learner_skipped" : "task_unavailable");
+      if (expected.skill === "Speaking") allowed.add("speaking_ended_early");
+      if (expected.skill === "Writing") allowed.add("writing_ended_early");
+    }
+    const oppositeTerminalFlag = evidence.status === "skipped"
+      ? "task_unavailable"
+      : evidence.status === "unavailable"
+        ? "learner_skipped"
+        : null;
+    return Boolean(
+      Array.isArray(evidence.qualityFlags) &&
+      new Set(evidence.qualityFlags).size === evidence.qualityFlags.length &&
+      evidence.qualityFlags.every((flag) => allowed.has(flag)) &&
+      required.every((flag) => evidence.qualityFlags.includes(flag)) &&
+      (!oppositeTerminalFlag || !evidence.qualityFlags.includes(oppositeTerminalFlag))
+    );
+  };
+  const validWorkspaceBackupSupersededEvidence = (evidence) => {
+    const expected = DIAGNOSTIC_TASK_MANIFEST[evidence?.taskId];
+    if (!expected) return false;
+    let optionalKeys = [];
+    if (["Reading", "Listening"].includes(expected.skill)) {
+      if (evidence.status === "completed") optionalKeys = ["durationSeconds", "resultType"];
+      else if (!["in_progress", "skipped", ...(expected.skill === "Listening" ? ["unavailable"] : [])].includes(evidence.status)) return false;
+    } else if (expected.skill === "Speaking") {
+      if (evidence.status === "completed") optionalKeys = ["durationSeconds", "selfReviewCount"];
+      else if (["in_progress", "skipped"].includes(evidence.status)) {
+        optionalKeys = Object.hasOwn(evidence, "durationSeconds") ? ["durationSeconds"] : [];
+      } else return false;
+    } else if (expected.skill === "Writing") {
+      if (["completed", "evidence_insufficient"].includes(evidence.status)) {
+        optionalKeys = ["durationSeconds", "selfReviewCount", "wordCount"];
+      } else if (["in_progress", "skipped"].includes(evidence.status)) {
+        optionalKeys = ["durationSeconds", "wordCount"].filter((key) => Object.hasOwn(evidence, key));
+      } else return false;
+    }
+    if (
+      !exactObjectKeys(evidence, [...WORKSPACE_BACKUP_SUPERSEDED_EVIDENCE_BASE_KEYS, ...optionalKeys]) ||
+      evidence.taskVersion !== expected.taskVersion || evidence.contentHash !== expected.contentHash || evidence.skill !== expected.skill ||
+      !DIAGNOSTIC_EVIDENCE_STATES.has(evidence.evidenceStatus) ||
+      !workspaceBackupSupersededFlagSetValid(evidence, expected)
+    ) return false;
+    if (
+      (evidence.status === "in_progress" && evidence.evidenceStatus !== "evidence_limited") ||
+      (["skipped", "unavailable"].includes(evidence.status) && evidence.evidenceStatus !== "evidence_insufficient")
+    ) return false;
+    for (const [field, max] of [["durationSeconds", expected.skill === "Speaking" ? 90 : expected.skill === "Writing" ? 180 : Number.MAX_SAFE_INTEGER], ["wordCount", 900], ["selfReviewCount", 3]]) {
+      if (Object.hasOwn(evidence, field) && (!Number.isInteger(evidence[field]) || evidence[field] < 0 || evidence[field] > max)) return false;
+    }
+    if (["Reading", "Listening"].includes(expected.skill)) {
+      if (evidence.status === "completed") {
+        if (!["first_response_matched", "first_response_not_matched"].includes(evidence.resultType)) return false;
+        if (expected.skill === "Reading" && evidence.evidenceStatus !== "evidence_limited") return false;
+      } else if (evidence.evidenceStatus !== (evidence.status === "in_progress" ? "evidence_limited" : "evidence_insufficient")) return false;
+    }
+    if (expected.skill === "Speaking" && evidence.status === "completed" && evidence.evidenceStatus !== "evidence_insufficient") return false;
+    if (expected.skill === "Writing" && ["completed", "evidence_insufficient"].includes(evidence.status)) {
+      if (evidence.evidenceStatus !== "evidence_insufficient" || evidence.status !== (evidence.wordCount >= 20 ? "completed" : "evidence_insufficient")) return false;
+    }
+    return true;
+  };
+  const validWorkspaceBackupSupersededCycles = (candidateState) => {
+    const summaries = candidateState.journey.supersededCycles;
+    if (summaries.length > SUPERSEDED_CYCLE_LIMIT) return false;
+    const ids = [];
+    for (const summary of summaries) {
+      const completed = summary?.diagnosticStatus === "completed";
+      if (
+        !exactObjectKeys(summary, completed
+          ? [...WORKSPACE_BACKUP_SUPERSEDED_BASE_KEYS, "evidenceSufficiency", "priorityBasis", "prioritySkill"]
+          : WORKSPACE_BACKUP_SUPERSEDED_BASE_KEYS) ||
+        !historyIdValid(summary.cycleId) ||
+        !historyIdValid(summary.diagnosticSessionId) ||
+        summary.protocolVersion !== PROTOCOL_VERSION ||
+        summary.diagnosticProtocolVersion !== DIAGNOSTIC_PROTOCOL_VERSION ||
+        summary.taskSetVersion !== DIAGNOSTIC_TASK_SET_VERSION ||
+        summary.taskSetDigest !== DIAGNOSTIC_TASK_SET_DIGEST ||
+        !["in_progress", "awaiting_confirmation", "completed"].includes(summary.diagnosticStatus) ||
+        summary.status !== "superseded_by_new_diagnostic" ||
+        summary.reason !== "learner_started_new_gate_a_evidence_pack" ||
+        !exactUtcTimestamp(summary.supersededAt) ||
+        !Array.isArray(summary.taskEvidenceSummary) ||
+        summary.taskEvidenceSummary.length > DIAGNOSTIC_TASK_IDS.length ||
+        !summary.taskEvidenceSummary.every((item, index) => item?.taskId === DIAGNOSTIC_TASK_IDS[index]) ||
+        !summary.taskEvidenceSummary.every(validWorkspaceBackupSupersededEvidence) ||
+        (completed && (!VALID_SKILLS.has(summary.prioritySkill) || summary.prioritySkill === "Balanced" ||
+          !Object.hasOwn(priorityBasisLabels, summary.priorityBasis) || !DIAGNOSTIC_EVIDENCE_STATES.has(summary.evidenceSufficiency)))
+      ) return false;
+      const statuses = summary.taskEvidenceSummary.map((evidence) => evidence.status);
+      const firstNonTerminal = statuses.findIndex((status) => !DIAGNOSTIC_TERMINAL_STATES.has(status));
+      const terminalCount = firstNonTerminal < 0 ? statuses.length : firstNonTerminal;
+      if (
+        (firstNonTerminal >= 0 && (firstNonTerminal !== statuses.length - 1 || statuses[firstNonTerminal] !== "in_progress")) ||
+        (summary.diagnosticStatus === "in_progress" && terminalCount === DIAGNOSTIC_TASK_IDS.length) ||
+        (summary.diagnosticStatus !== "in_progress" && (terminalCount !== DIAGNOSTIC_TASK_IDS.length || statuses.length !== DIAGNOSTIC_TASK_IDS.length))
+      ) return false;
+      if (completed) {
+        const pseudoDiagnostic = {
+          taskEvidence: summary.taskEvidenceSummary.map((evidence) => ({
+            ...DIAGNOSTIC_TASK_MANIFEST[evidence.taskId],
+            ...evidence,
+            ...(evidence.skill === "Speaking" ? { timerCompleted: evidence.durationSeconds === 90 } : {}),
+            ...(evidence.skill === "Writing" ? { timerCompleted: evidence.durationSeconds === 180 } : {}),
+          })),
+        };
+        const report = buildDiagnosticReport(pseudoDiagnostic);
+        if (
+          summary.priorityBasis !== report.priorityBasis || summary.evidenceSufficiency !== report.evidenceSufficiency ||
+          !report.priorityCandidates.includes(summary.prioritySkill)
+        ) return false;
+      }
+      ids.push(summary.cycleId);
+    }
+    return new Set(ids).size === ids.length;
+  };
+
+  const validWorkspaceBackupCheckInRecord = (record, candidateState, { archived = false, embedded = false } = {}) => {
+    const expectedKeys = archived
+      ? [...WORKSPACE_BACKUP_SAVED_CHECK_IN_KEYS, "archivedAt", "archivedReason"]
+      : WORKSPACE_BACKUP_SAVED_CHECK_IN_KEYS;
+    if (record?.status === "saved" && !exactObjectKeys(record, expectedKeys)) return false;
+    if (record?.status === "draft") {
+      const freshDraft = exactObjectKeys(record, WORKSPACE_BACKUP_DRAFT_CHECK_IN_KEYS);
+      const revisedSavedDraft = exactObjectKeys(record, WORKSPACE_BACKUP_SAVED_CHECK_IN_KEYS);
+      if (archived || embedded || (!freshDraft && !revisedSavedDraft)) return false;
+      if (
+        record.checkInId !== null || record.evidenceClass !== "draft_unclassified" ||
+        record.practiceAttemptId !== null || record.practiceReceipt !== null || record.taskCompletionReceiptId !== null ||
+        record.learnerConfirmedReview !== false || record.reviewId !== null || record.reviewedAt !== null
+      ) return false;
+      if (revisedSavedDraft && (
+        !(record.cycleId === null || historyIdValid(record.cycleId)) ||
+        !(record.planId === null || historyIdValid(record.planId)) ||
+        !(record.diagnosticSessionId === null || historyIdValid(record.diagnosticSessionId)) ||
+        !(record.recommendationId === null || historyIdValid(record.recommendationId)) ||
+        (record.cycleId === null) !== (record.diagnosticSessionId === null) ||
+        (record.cycleId === null) !== (record.recommendationId === null) ||
+        record.visibility !== "local_only" || record.anomalyReviewStatus !== "not_flagged" ||
+        !exactUtcTimestamp(record.savedAt) || Date.parse(record.savedAt) > Date.parse(record.updatedAt)
+      )) return false;
+    } else if (record?.status !== "saved") {
+      return false;
+    }
+    if (
+      !workspaceBackupCalendarDateValid(record.date) ||
+      typeof record.didText !== "string" || typeof record.evidenceText !== "string" ||
+      record.didText !== record.didText.trim() || record.didText.length > 300 ||
+      record.evidenceText !== record.evidenceText.trim() || record.evidenceText.length > 500 ||
+      !["none", "has_question", ""].includes(record.questionStatus) ||
+      typeof record.questionText !== "string" || record.questionText !== record.questionText.trim() ||
+      record.questionText.length > 300 ||
+      !(record.linkedTaskId === "" || historyIdValid(record.linkedTaskId)) ||
+      !exactUtcTimestamp(record.updatedAt)
+    ) return false;
+    if (record.status === "saved") {
+      const reviews = [candidateState.journey.review, ...candidateState.journey.history.map((history) => history?.review)]
+        .filter((review) => isRecord(review) && review.checkInId === record.checkInId);
+      const confirmationRecords = reviews.filter((review) => review.reviewId === record.reviewId);
+      const confirmationCanonical = new Set(confirmationRecords.map((review) => workspaceBackupRuntime.canonicalJson(review)));
+      const confirmed = record.learnerConfirmedReview === true;
+      if (
+        !historyIdValid(record.checkInId) ||
+        record.didText.length < 10 ||
+        record.evidenceText.length < 10 ||
+        !["none", "has_question"].includes(record.questionStatus) ||
+        (record.questionStatus === "none" && record.questionText !== "") ||
+        (record.questionStatus === "has_question" && record.questionText.length === 0) ||
+        !exactUtcTimestamp(record.savedAt) ||
+        Date.parse(record.savedAt) > Date.parse(record.updatedAt) ||
+        record.visibility !== "local_only" ||
+        record.anomalyReviewStatus !== "not_flagged" ||
+        !(record.planId === null || historyIdValid(record.planId)) ||
+        !(record.cycleId === null || historyIdValid(record.cycleId)) ||
+        !(record.diagnosticSessionId === null || historyIdValid(record.diagnosticSessionId)) ||
+        !(record.recommendationId === null || historyIdValid(record.recommendationId)) ||
+        (record.cycleId === null) !== (record.diagnosticSessionId === null) ||
+        (record.cycleId === null) !== (record.recommendationId === null) ||
+        typeof record.learnerConfirmedReview !== "boolean" ||
+        (confirmed
+          ? !historyIdValid(record.reviewId) || !exactUtcTimestamp(record.reviewedAt) || record.updatedAt !== record.reviewedAt ||
+            ((!archived || confirmationRecords.length > 0) && (
+              confirmationRecords.length === 0 || confirmationCanonical.size !== 1 ||
+              confirmationRecords.some((review) =>
+                review.cycleId !== record.cycleId || review.confirmedAt !== record.reviewedAt || review.learnerConfirmed !== true
+              )
+            ))
+          : record.reviewId !== null || record.reviewedAt !== null || reviews.length > 0) ||
+        !["practice_receipt", "learner_self_report"].includes(record.evidenceClass)
+      ) return false;
+      if (record.evidenceClass === "practice_receipt") {
+        const stored = candidateState.practiceReceipts[record.taskCompletionReceiptId];
+        if (
+          !stored ||
+          workspaceBackupRuntime.canonicalJson(stored) !== workspaceBackupRuntime.canonicalJson(record.practiceReceipt) ||
+          record.practiceAttemptId !== stored.practiceAttemptId ||
+          record.linkedTaskId !== stored.taskId ||
+          record.planId !== stored.planId ||
+          record.cycleId !== stored.cycleId ||
+          record.diagnosticSessionId !== stored.diagnosticSessionId ||
+          record.recommendationId !== stored.recommendationId ||
+          record.date !== stored.taskDate
+        ) return false;
+      } else if (
+        record.practiceReceipt !== null || record.practiceAttemptId !== null || record.taskCompletionReceiptId !== null
+      ) return false;
+    }
+    if (archived) {
+      if (
+        !exactUtcTimestamp(record.archivedAt) ||
+        Date.parse(record.archivedAt) < Date.parse(record.updatedAt) ||
+        !["learner_revision_after_confirmation", "learner_revision_after_save", "scope_changed"].includes(record.archivedReason) ||
+        (record.archivedReason === "learner_revision_after_confirmation" && record.learnerConfirmedReview !== true) ||
+        (record.archivedReason === "learner_revision_after_save" && record.learnerConfirmedReview !== false)
+      ) return false;
+    }
+    return true;
+  };
+
+  const workspaceBackupDateKeyValid = (value) => {
+    if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+    const parsed = Date.parse(`${value}T00:00:00.000Z`);
+    return Number.isFinite(parsed) && new Date(parsed).toISOString().slice(0, 10) === value;
+  };
+  const workspaceBackupDefaultTaskOwner = (taskId) => {
+    const match = /^default-(\d{4}-\d{2}-\d{2})-(reading|writing|reflection)$/.exec(taskId || "");
+    if (!match || !workspaceBackupDateKeyValid(match[1])) return null;
+    const skills = { reading: "Reading", writing: "Writing", reflection: "Reflection" };
+    return { kind: "standalone", taskId, date: match[1], skill: skills[match[2]], plan: null, task: null };
+  };
+  const workspaceBackupTaskOwner = (candidateState, taskId) => {
+    if (!historyIdValid(taskId)) return null;
+    const matches = [candidateState.plan, ...candidateState.planHistory]
+      .filter(isRecord)
+      .flatMap((plan) => (plan.days || []).flatMap((day) => (day.tasks || [])
+        .filter((task) => task?.taskId === taskId)
+        .map((task) => ({ kind: "plan", taskId, date: task.date, skill: task.skill, plan, task }))));
+    if (matches.length > 1) return null;
+    if (matches.length === 1) return matches[0];
+    return workspaceBackupDefaultTaskOwner(taskId);
+  };
+  const workspaceBackupExactCheckInById = (candidateState, checkInId) => {
+    const matches = allCheckIns(candidateState).filter((record) => record?.checkInId === checkInId);
+    return matches.length === 1 ? matches[0] : null;
+  };
+  const validWorkspaceBackupTaskProgress = (candidateState) => {
+    for (const [taskId, progress] of Object.entries(candidateState.taskProgress)) {
+      const owner = workspaceBackupTaskOwner(candidateState, taskId);
+      if (!owner || !isRecord(progress)) return false;
+      if (progress.completionClass === "learner_self_report" || progress.completionClass === "not_completed") {
+        const completed = progress.completionClass === "learner_self_report";
+        if (
+          !exactObjectKeys(progress, WORKSPACE_BACKUP_PROGRESS_LEARNER_KEYS) ||
+          progress.status !== (completed ? "completed" : "todo") ||
+          progress.selfReported !== true ||
+          progress.source !== "learner_checkbox" ||
+          !exactUtcTimestamp(progress.updatedAt) ||
+          (completed
+            ? !exactUtcTimestamp(progress.completedAt) || Date.parse(progress.completedAt) < Date.parse(progress.updatedAt)
+            : progress.completedAt !== null)
+        ) return false;
+        continue;
+      }
+      if (progress.completionClass === "practice_receipt") {
+        const receipt = candidateState.practiceReceipts[progress.practiceReceiptId];
+        if (
+          owner.kind !== "plan" ||
+          !exactObjectKeys(progress, WORKSPACE_BACKUP_PROGRESS_PRACTICE_KEYS) ||
+          progress.status !== "completed" ||
+          progress.selfReported !== false ||
+          !receipt ||
+          receipt.taskId !== taskId ||
+          receipt.planId !== owner.plan.planId ||
+          progress.source !== `practice-${String(receipt.skill || "").toLowerCase()}` ||
+          progress.evidenceStatus !== receipt.evidenceStatus ||
+          progress.receiptEvidenceClass !== receipt.receiptEvidenceClass ||
+          progress.completedAt !== receipt.completedAt ||
+          progress.updatedAt !== receipt.completedAt ||
+          !exactUtcTimestamp(progress.completedAt)
+        ) return false;
+        continue;
+      }
+      if (progress.completionClass === "workflow_receipt") {
+        const workflow = progress.workflowReceipt;
+        const checkIn = workspaceBackupExactCheckInById(candidateState, workflow?.checkInId);
+        const standaloneScopeMatches = owner.kind !== "standalone" || Boolean(
+          (checkIn?.planId === null || checkIn?.planId === candidateState.plan?.planId) &&
+          checkIn?.cycleId === null &&
+          checkIn?.diagnosticSessionId === null &&
+          checkIn?.recommendationId === null
+        );
+        if (
+          !exactObjectKeys(progress, WORKSPACE_BACKUP_PROGRESS_WORKFLOW_KEYS) ||
+          !exactObjectKeys(workflow, WORKSPACE_BACKUP_WORKFLOW_RECEIPT_KEYS) ||
+          progress.status !== "completed" ||
+          progress.selfReported !== false ||
+          progress.source !== "check-in" ||
+          owner.skill !== "Reflection" ||
+          workflow.protocolVersion !== "sufeiya_check_in_completion_v1" ||
+          workflow.taskId !== taskId ||
+          !checkIn ||
+          checkIn.status !== "saved" ||
+          checkIn.date !== owner.date ||
+          (owner.kind === "plan" ? checkIn.planId !== owner.plan.planId : !standaloneScopeMatches) ||
+          workflow.completedAt !== checkIn.savedAt ||
+          progress.completedAt !== workflow.completedAt ||
+          progress.updatedAt !== workflow.completedAt ||
+          !exactUtcTimestamp(progress.completedAt)
+        ) return false;
+        continue;
+      }
+      return false;
+    }
+
+    const receiptsByTask = new Map();
+    for (const receipt of Object.values(candidateState.practiceReceipts)) {
+      if (!receipt?.taskId) continue;
+      const receipts = receiptsByTask.get(receipt.taskId) || [];
+      receipts.push(receipt);
+      receiptsByTask.set(receipt.taskId, receipts);
+    }
+    for (const [taskId, receipts] of receiptsByTask) {
+      const progress = candidateState.taskProgress[taskId];
+      const selected = progress?.completionClass === "practice_receipt"
+        ? candidateState.practiceReceipts[progress.practiceReceiptId]
+        : null;
+      if (!selected || selected.taskId !== taskId) return false;
+      const selectedAt = Date.parse(selected.completedAt);
+      if (receipts.some((receipt) => Date.parse(receipt.completedAt) > selectedAt)) return false;
+    }
+    for (const checkIn of Object.values(candidateState.checkIns)) {
+      if (checkIn?.status !== "saved") continue;
+      const owners = Object.entries(candidateState.taskProgress).filter(([, progress]) =>
+        progress?.completionClass === "workflow_receipt" &&
+        progress.workflowReceipt?.checkInId === checkIn.checkInId
+      );
+      if (owners.length !== 1) return false;
+      const [taskId, progress] = owners[0];
+      if (
+        progress.workflowReceipt.taskId !== taskId ||
+        progress.workflowReceipt.completedAt !== checkIn.savedAt
+      ) return false;
+    }
+    return true;
+  };
+
+  const workspaceBackupParsePracticeScope = (scopeKey, exerciseId) => {
+    if (scopeKey === `standalone:${exerciseId}`) {
+      return { kind: "standalone", planId: null, taskId: null, cycleId: null, diagnosticSessionId: null, recommendationId: null };
+    }
+    if (typeof scopeKey !== "string") return null;
+    const parts = scopeKey.split("|");
+    const prefixes = ["plan:", "task:", "cycle:", "diagnostic:", "recommendation:"];
+    if (parts.length !== prefixes.length || parts.some((part, index) => !part.startsWith(prefixes[index]))) return null;
+    const values = parts.map((part, index) => part.slice(prefixes[index].length));
+    if (values.some((value) => !value || value.includes("|"))) return null;
+    const [planId, taskId, cycleValue, diagnosticValue, recommendationValue] = values;
+    const allNone = [cycleValue, diagnosticValue, recommendationValue].every((value) => value === "none");
+    const allBound = [cycleValue, diagnosticValue, recommendationValue].every((value) => value !== "none" && historyIdValid(value));
+    if (!historyIdValid(planId) || !historyIdValid(taskId) || (!allNone && !allBound)) return null;
+    return {
+      kind: allNone ? "plan" : "cycle",
+      planId,
+      taskId,
+      cycleId: allNone ? null : cycleValue,
+      diagnosticSessionId: allNone ? null : diagnosticValue,
+      recommendationId: allNone ? null : recommendationValue,
+    };
+  };
+  const workspaceBackupCycleDomainOwner = (candidateState, cycleId) => {
+    const active = candidateState.journey.activeCycle?.cycleId === cycleId
+      ? candidateState.journey.activeCycle
+      : null;
+    const histories = candidateState.journey.history.filter((record) => record?.cycleId === cycleId);
+    const summaries = candidateState.journey.supersededCycles.filter((record) => record?.cycleId === cycleId);
+    if (histories.length > 1 || summaries.length > 1) return null;
+    if (active) return { kind: "active", cycle: active, history: histories[0] || null, summary: summaries[0] || null };
+    if (histories.length === 1) return { kind: "history", cycle: histories[0], history: histories[0], summary: summaries[0] || null };
+    if (summaries.length === 1) return { kind: "superseded", cycle: summaries[0], history: null, summary: summaries[0] };
+    return null;
+  };
+  const workspaceBackupEventDomainId = (candidateState, kind, alias) => {
+    if (!UUID_V4_PATTERN.test(alias || "")) return null;
+    const records = candidateState.learningEventBindings?.records?.[kind];
+    if (!isRecord(records)) return null;
+    const matches = Object.entries(records).filter(([, candidateAlias]) => candidateAlias === alias);
+    return matches.length === 1 && historyIdValid(matches[0][0]) ? matches[0][0] : null;
+  };
+  const workspaceBackupScopeMatchesDomain = (candidateState, scope, exerciseId) => {
+    if (scope.kind === "standalone") return true;
+    const owner = workspaceBackupTaskOwner(candidateState, scope.taskId);
+    if (
+      owner?.kind !== "plan" ||
+      owner.plan.planId !== scope.planId ||
+      owner.task.contentRef?.exerciseId !== exerciseId
+    ) return false;
+    if (scope.kind === "plan") return true;
+    const cycleOwner = workspaceBackupCycleDomainOwner(candidateState, scope.cycleId);
+    if (!cycleOwner) return false;
+    if (cycleOwner.kind !== "superseded") {
+      return Boolean(
+        cycleOwner.cycle.diagnosticSessionId === scope.diagnosticSessionId &&
+        cycleOwner.cycle.basePlanId === scope.planId &&
+        cycleOwner.cycle.recommendationId === scope.recommendationId
+      );
+    }
+    if (cycleOwner.summary.diagnosticSessionId !== scope.diagnosticSessionId) return false;
+    const cycleAlias = candidateState.learningEventBindings?.records?.cycle?.[scope.cycleId];
+    const events = candidateState.learningEvents.filter((event) => event?.context?.learningCycleId === cycleAlias);
+    const recommendationEvents = events.filter((event) => event.eventType === "recommendation.decided");
+    if (recommendationEvents.length !== 1) return false;
+    return Boolean(
+      workspaceBackupEventDomainId(candidateState, "plan", recommendationEvents[0].context.planId) === scope.planId &&
+      workspaceBackupEventDomainId(candidateState, "recommendation", recommendationEvents[0].context.recommendationId) === scope.recommendationId &&
+      workspaceBackupEventDomainId(candidateState, "diagnostic", recommendationEvents[0].context.diagnosticSessionId) === scope.diagnosticSessionId
+    );
+  };
+  const workspaceBackupScopeMatchesReceipt = (scope, receipt) => {
+    if (scope.kind === "standalone") {
+      return Boolean(
+        receipt.taskId === null && receipt.taskRef === null && receipt.planId === null && receipt.cycleId === null &&
+        receipt.diagnosticSessionId === null && receipt.recommendationId === null
+      );
+    }
+    if (
+      receipt.planId !== scope.planId ||
+      receipt.taskId !== scope.taskId ||
+      receipt.taskRef?.planId !== scope.planId ||
+      receipt.taskRef?.taskId !== scope.taskId
+    ) return false;
+    if (scope.kind === "plan") {
+      return Boolean(
+        receipt.cycleId === null && receipt.diagnosticSessionId === null && receipt.recommendationId === null &&
+        receipt.taskRef.cycleId === null && receipt.taskRef.diagnosticSessionId === null
+      );
+    }
+    return Boolean(
+      receipt.cycleId === scope.cycleId && receipt.diagnosticSessionId === scope.diagnosticSessionId &&
+      receipt.recommendationId === scope.recommendationId && receipt.taskRef.cycleId === scope.cycleId &&
+      receipt.taskRef.diagnosticSessionId === scope.diagnosticSessionId
+    );
+  };
+  const workspaceBackupSelfChecksValid = (value, keys) => Boolean(
+    isRecord(value) &&
+    (exactObjectKeys(value, []) || (
+      exactObjectKeys(value, keys) && keys.every((key) => typeof value[key] === "boolean")
+    ))
+  );
+  const validWorkspaceBackupPracticeState = async (candidateState) => {
+    for (const [exerciseId, practice] of Object.entries(candidateState.practice)) {
+      const catalog = PRACTICE_ACTIVITY_CATALOG[exerciseId];
+      if (!catalog || !isRecord(practice) || !["in_progress", "checked", "completed"].includes(practice.status)) return false;
+      const compactKeys = practice.status === "completed"
+        ? [...WORKSPACE_BACKUP_PRACTICE_LISTENING_COMPACT_KEYS, "completedAt"]
+        : WORKSPACE_BACKUP_PRACTICE_LISTENING_COMPACT_KEYS;
+      const full = exactObjectKeys(practice, WORKSPACE_BACKUP_PRACTICE_FULL_KEYS);
+      const compact = exerciseId === "listening-club-v1" && exactObjectKeys(practice, compactKeys);
+      if (!full && !compact) return false;
+      if (
+        ![null, "a", "b", "c"].includes(practice.selectedAnswer) ||
+        ![null, "a", "b", "c"].includes(practice.firstResponse) ||
+        !Number.isInteger(practice.attempts) || practice.attempts < 0 || practice.attempts > 1000 ||
+        ![practice.audioPlayed, practice.audioCompleted, practice.audioSeekDetected, practice.audioPlaybackFailed,
+          practice.audioStartedNearBeginning, practice.transcriptUsed].every((value) => typeof value === "boolean") ||
+        !Number.isInteger(practice.playCount) || practice.playCount < 0 || practice.playCount > 1000 ||
+        practice.freshAttemptFromLegacyReceiptId !== null ||
+        !exactUtcTimestamp(practice.startedAt) || !exactUtcTimestamp(practice.updatedAt) ||
+        Date.parse(practice.startedAt) > Date.parse(practice.updatedAt)
+      ) return false;
+      if (full && (
+        typeof practice.draftText !== "string" ||
+        practice.draftText.length > 4096 ||
+        !Number.isInteger(practice.wordCount) || practice.wordCount < 0 || practice.wordCount > 100000 ||
+        typeof practice.audioRecorded !== "boolean" ||
+        typeof practice.timerCompleted !== "boolean"
+      )) return false;
+      if (exerciseId === "writing-community-v1") {
+        if (!full || !workspaceBackupSelfChecksValid(practice.selfChecks, ["idea", "reason", "edit"]) || practice.status === "checked") return false;
+      } else if (exerciseId === "speaking-skill-v1") {
+        if (!full || !workspaceBackupSelfChecksValid(practice.selfChecks, ["answer", "example", "flow"])) return false;
+      } else if (full && !exactObjectKeys(practice.selfChecks, [])) return false;
+      if (full && exerciseId !== "writing-community-v1" && (practice.draftText !== "" || practice.wordCount !== 0)) return false;
+      if (full && exerciseId !== "speaking-skill-v1" && practice.timerCompleted !== false) return false;
+      if (full && practice.audioRecorded !== false) return false;
+      if (exerciseId !== "listening-club-v1" && (
+        practice.audioPlayed !== false || practice.audioCompleted !== false || practice.playCount !== 0 ||
+        practice.audioSeekDetected !== false || practice.audioPlaybackFailed !== false ||
+        practice.audioStartedNearBeginning !== false || practice.transcriptUsed !== false
+      )) return false;
+      if (["Reading", "Listening"].includes(catalog.skill)) {
+        if (practice.status === "checked" && (
+          practice.attempts < 1 ||
+          !practice.selectedAnswer || practice.selectedAnswer === catalog.correctValue ||
+          !practice.firstResponse || practice.firstResponse === catalog.correctValue
+        )) return false;
+        if (practice.status === "in_progress") {
+          if (
+            (practice.attempts === 0 && practice.firstResponse !== null) ||
+            (practice.attempts > 0 && (!practice.firstResponse || practice.firstResponse === catalog.correctValue))
+          ) return false;
+        }
+        if (practice.status === "completed" && (
+          practice.selectedAnswer !== catalog.correctValue ||
+          (practice.attempts === 1
+            ? practice.firstResponse !== catalog.correctValue
+            : practice.attempts < 2 || practice.firstResponse === catalog.correctValue)
+        )) return false;
+      } else if (practice.selectedAnswer !== null || practice.firstResponse !== null || practice.attempts !== 0) return false;
+      if (catalog.skill === "Listening" && practice.audioCompleted === true && (
+        practice.audioPlayed !== true ||
+        practice.audioStartedNearBeginning !== true ||
+        practice.audioSeekDetected !== false ||
+        practice.audioPlaybackFailed !== false
+      )) return false;
+
+      const scope = workspaceBackupParsePracticeScope(practice.attemptScopeKey, exerciseId);
+      if (!scope || !workspaceBackupScopeMatchesDomain(candidateState, scope, exerciseId)) return false;
+      const latestReceipt = practice.latestPracticeReceiptId === null
+        ? null
+        : candidateState.practiceReceipts[practice.latestPracticeReceiptId];
+      if (practice.latestPracticeReceiptId !== null && (!latestReceipt || latestReceipt.exerciseId !== exerciseId)) return false;
+      if (latestReceipt && Object.values(candidateState.practiceReceipts).some((receipt) =>
+        receipt?.exerciseId === exerciseId && Date.parse(receipt.completedAt) > Date.parse(latestReceipt.completedAt)
+      )) return false;
+      if (practice.status === "completed") {
+        if (
+          !latestReceipt ||
+          !exactUtcTimestamp(practice.completedAt) ||
+          practice.completedAt !== practice.updatedAt ||
+          practice.completedAt !== latestReceipt.completedAt ||
+          practice.startedAt !== latestReceipt.startedAt ||
+          !workspaceBackupScopeMatchesReceipt(scope, latestReceipt)
+        ) return false;
+        if (["Reading", "Listening"].includes(catalog.skill) && (
+          practice.selectedAnswer !== latestReceipt.evidence.finalResponse ||
+          practice.firstResponse !== latestReceipt.evidence.firstResponse ||
+          practice.attempts !== latestReceipt.evidence.attemptCount
+        )) return false;
+        if (catalog.skill === "Listening" && (
+          practice.audioPlayed !== latestReceipt.evidence.audioPlayed ||
+          practice.audioCompleted !== latestReceipt.evidence.audioCompleted ||
+          practice.playCount !== latestReceipt.evidence.playCount ||
+          practice.transcriptUsed !== latestReceipt.evidence.transcriptUsed ||
+          practice.audioSeekDetected !== latestReceipt.evidence.seekDetected ||
+          practice.audioPlaybackFailed !== latestReceipt.evidence.playbackFailed ||
+          (practice.audioCompleted && practice.audioStartedNearBeginning !== true)
+        )) return false;
+        if (catalog.skill === "Writing") {
+          const normalizedArtifact = practice.draftText.replace(/\r\n/g, "\n").trim();
+          const words = normalizedArtifact ? normalizedArtifact.split(/\s+/).filter(Boolean).length : 0;
+          if (
+            practice.draftText !== normalizedArtifact ||
+            words !== practice.wordCount ||
+            practice.wordCount !== latestReceipt.evidence.wordCount ||
+            await workspaceBackupRuntime.sha256Hex(normalizedArtifact) !== latestReceipt.evidence.artifactHash ||
+            !["idea", "reason", "edit"].every((key) => practice.selfChecks[key] === true)
+          ) return false;
+        }
+        if (catalog.skill === "Speaking" && (
+          practice.timerCompleted !== true ||
+          practice.audioRecorded !== false ||
+          !["answer", "example", "flow"].every((key) => practice.selfChecks[key] === true)
+        )) return false;
+      } else if (full ? practice.completedAt !== null : Object.hasOwn(practice, "completedAt")) {
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const validWorkspaceBackupFocusState = (candidateState) => {
+    const sessions = candidateState.focus.sessions;
+    const sessionIds = new Set();
+    for (const session of sessions) {
+      if (
+        !exactObjectKeys(session, WORKSPACE_BACKUP_FOCUS_SESSION_KEYS) ||
+        !/^focus-[0-9a-z]+$/.test(session.sessionId || "") ||
+        sessionIds.has(session.sessionId) ||
+        !["completed", "stopped"].includes(session.status) ||
+        !WORKSPACE_BACKUP_FOCUS_DURATIONS.has(session.durationSeconds) ||
+        !exactUtcTimestamp(session.startedAt) || !exactUtcTimestamp(session.endedAt) ||
+        Date.parse(session.endedAt) < Date.parse(session.startedAt)
+      ) return false;
+      sessionIds.add(session.sessionId);
+    }
+    const active = candidateState.focus.active;
+    if (active === null) return true;
+    if (!isRecord(active) || !["running", "paused", "completed", "stopped"].includes(active.status)) return false;
+    const terminal = ["completed", "stopped"].includes(active.status);
+    const expectedKeys = terminal
+      ? [...WORKSPACE_BACKUP_FOCUS_ACTIVE_KEYS]
+      : WORKSPACE_BACKUP_FOCUS_ACTIVE_KEYS.filter((key) => key !== "recordedAt");
+    if (
+      !exactObjectKeys(active, expectedKeys) ||
+      !WORKSPACE_BACKUP_FOCUS_DURATIONS.has(active.durationSeconds) ||
+      !Number.isInteger(active.remainingSeconds) || active.remainingSeconds < 0 || active.remainingSeconds > active.durationSeconds ||
+      !exactUtcTimestamp(active.startedAt)
+    ) return false;
+    if (active.status === "running") {
+      return Number.isInteger(active.endsAt) && active.endsAt >= Date.parse(active.startedAt) && active.remainingSeconds > 0;
+    }
+    if (active.endsAt !== null) return false;
+    if (active.status === "paused") return active.remainingSeconds > 0;
+    if (!exactUtcTimestamp(active.recordedAt) || (active.status === "completed" && active.remainingSeconds !== 0)) return false;
+    const mirrors = sessions.filter((session) =>
+      session.status === active.status &&
+      session.durationSeconds === active.durationSeconds &&
+      session.startedAt === active.startedAt &&
+      Date.parse(session.endedAt) <= Date.parse(active.recordedAt)
+    );
+    return mirrors.length === 1;
+  };
+
+  const validWorkspaceBackupAuxiliaryState = async (candidateState) => {
+    for (const [date, record] of Object.entries(candidateState.checkIns)) {
+      if (record?.date !== date || !validWorkspaceBackupCheckInRecord(record, candidateState)) return false;
+    }
+    if (!candidateState.checkInHistory.every((record) => validWorkspaceBackupCheckInRecord(record, candidateState, { archived: true }))) {
+      return false;
+    }
+    if (!candidateState.journey.history.every((record) =>
+      validWorkspaceBackupCheckInRecord(record.checkIn, candidateState, { embedded: true })
+    )) return false;
+    const storedCheckInIds = [
+      ...Object.values(candidateState.checkIns),
+      ...candidateState.checkInHistory,
+    ].map((record) => record?.checkInId).filter(Boolean);
+    if (new Set(storedCheckInIds).size !== storedCheckInIds.length) return false;
+    return Boolean(
+      validWorkspaceBackupTaskProgress(candidateState) &&
+      await validWorkspaceBackupPracticeState(candidateState) &&
+      validWorkspaceBackupFocusState(candidateState)
+    );
+  };
+
+  const workspaceBackupCycleStage = (chain, candidateState) => {
+    if (!chain.cycle) return { key: "empty", nextRoute: candidateState.plan ? "/today" : "/diagnostic" };
+    if (chain.updateComplete || chain.provisionalUpdateRecorded) return { key: "complete", nextRoute: "/plan" };
+    if (chain.retestEvidenceComplete) return { key: "update", nextRoute: "/retest" };
+    if (chain.peerHelpComplete) return { key: "retest", nextRoute: "/retest" };
+    if (chain.reviewComplete) return { key: "community", nextRoute: "/community" };
+    if (chain.checkInComplete) return { key: "review", nextRoute: "/review" };
+    if (chain.recommendationComplete) {
+      const hasReceipt = Object.values(candidateState.practiceReceipts || {}).some((receipt) =>
+        receipt?.cycleId === chain.cycle.cycleId,
+      );
+      return hasReceipt
+        ? { key: "checkin", nextRoute: "/check-in" }
+        : { key: "practice", nextRoute: chain.recommendation?.primary?.route || "/practice" };
+    }
+    if (chain.planComplete) return { key: "recommendation", nextRoute: "/recommendations" };
+    if (chain.diagnosticComplete) return { key: "plan", nextRoute: "/plan" };
+    return { key: "diagnostic", nextRoute: "/diagnostic" };
+  };
+
+  const workspaceBackupActiveMilestonesValid = (candidateState, chain) => {
+    const cycle = chain.cycle;
+    const diagnostic = chain.diagnostic;
+    if (!cycle || !diagnostic || diagnostic.createdAt !== cycle.createdAt) return false;
+    const milestones = [cycle.createdAt];
+    if (diagnostic.status === "completed") milestones.push(diagnostic.completedAt);
+    if (chain.basePlan) milestones.push(chain.basePlan.createdAt);
+    if (chain.recommendation) {
+      milestones.push(chain.recommendation.evidenceBinding?.createdAt, chain.recommendation.createdAt, chain.recommendation.updatedAt);
+    }
+    if (chain.linkedPracticeReceipt) milestones.push(chain.linkedPracticeReceipt.completedAt);
+    if (chain.checkIn?.status === "saved") milestones.push(chain.checkIn.savedAt);
+    if (chain.review) milestones.push(chain.review.confirmedAt);
+    if (chain.peerHelp) milestones.push(chain.peerHelp.createdAt, chain.peerHelp.updatedAt);
+    if (chain.retest) milestones.push(chain.retest.completedAt);
+    if (chain.planUpdate) milestones.push(chain.planUpdate.createdAt);
+    if (chain.updatedPlan) milestones.push(chain.updatedPlan.createdAt);
+    if (!milestones.every(exactUtcTimestamp)) return false;
+    const times = milestones.map(Date.parse);
+    if (times.some((value, index) => index > 0 && value < times[index - 1])) return false;
+    const cycleAlias = workspaceBackupBoundAlias(candidateState, "cycle", cycle.cycleId);
+    const eventTimes = cycleAlias
+      ? candidateState.learningEvents
+        .filter((event) => event?.context?.learningCycleId === cycleAlias)
+        .map((event) => Date.parse(event.occurredAt))
+      : [];
+    const latest = Math.max(Date.parse(diagnostic.updatedAt), ...times, ...eventTimes);
+    return Date.parse(cycle.updatedAt) >= latest;
+  };
+
+  const validateWorkspaceBackupActiveCycle = (candidateState) => {
+    const cycle = activeCycle(candidateState);
+    const journey = candidateState.journey;
+    const currentObjects = ["diagnostic", "recommendation", "review", "peerHelp", "retest", "planUpdate"];
+    if (!cycle) {
+      if (currentObjects.some((key) => journey[key] !== null)) return { ok: false, code: "orphaned_current_object" };
+      return { ok: true, chain: validateCycleEvidence(candidateState) };
+    }
+    if (
+      !exactObjectKeys(cycle, WORKSPACE_BACKUP_ACTIVE_CYCLE_KEYS) ||
+      !["in_progress", "completed", "provisional_pending_human_review"].includes(cycle.status) ||
+      !historyIdValid(cycle.cycleId) ||
+      !historyIdValid(cycle.diagnosticSessionId) ||
+      cycle.protocolVersion !== PROTOCOL_VERSION ||
+      !exactUtcTimestamp(cycle.createdAt) ||
+      !exactUtcTimestamp(cycle.updatedAt)
+    ) return { ok: false, code: "active_cycle_shape" };
+    const nonNullIds = [cycle.cycleId, cycle.diagnosticSessionId, ...WORKSPACE_BACKUP_STAGE_IDS.map((field) => cycle[field]).filter(Boolean)];
+    if (new Set(nonNullIds).size !== nonNullIds.length) return { ok: false, code: "active_cycle_duplicate_id" };
+    let gapFound = false;
+    for (const field of WORKSPACE_BACKUP_STAGE_IDS) {
+      const value = cycle[field];
+      if (value === null) gapFound = true;
+      else if (!historyIdValid(value) || gapFound) return { ok: false, code: "active_cycle_stage_gap" };
+    }
+    if (
+      !isRecord(journey.diagnostic) ||
+      journey.diagnostic.cycleId !== cycle.cycleId ||
+      journey.diagnostic.diagnosticSessionId !== cycle.diagnosticSessionId ||
+      journey.diagnostic.protocolVersion !== PROTOCOL_VERSION ||
+      journey.diagnostic.diagnosticProtocolVersion !== DIAGNOSTIC_PROTOCOL_VERSION ||
+      journey.diagnostic.taskSetVersion !== DIAGNOSTIC_TASK_SET_VERSION ||
+      journey.diagnostic.taskSetDigest !== DIAGNOSTIC_TASK_SET_DIGEST ||
+      !["in_progress", "awaiting_confirmation", "completed"].includes(journey.diagnostic.status) ||
+      !diagnosticEvidenceCollectionValid(journey.diagnostic)
+    ) return { ok: false, code: "active_diagnostic_invalid" };
+    for (const [idField, objectField] of WORKSPACE_BACKUP_STAGE_OBJECTS) {
+      if ((cycle[idField] === null) !== (journey[objectField] === null)) {
+        return { ok: false, code: "active_cycle_object_gap" };
+      }
+    }
+    const chain = validateCycleEvidence(candidateState);
+    if (!workspaceBackupActiveMilestonesValid(candidateState, chain)) {
+      return { ok: false, code: "active_milestone_order_invalid" };
+    }
+    const expectedStages = [
+      ["basePlanId", "diagnosticComplete"],
+      ["recommendationId", "planComplete"],
+      ["checkInId", "recommendationComplete"],
+      ["reviewId", "checkInComplete"],
+      ["peerHelpId", "reviewComplete"],
+      ["retestId", "peerHelpComplete"],
+      ["updatedPlanId", "retestEvidenceComplete"],
+    ];
+    for (const [idField, requiredFlag] of expectedStages) {
+      if (cycle[idField] !== null && !chain[requiredFlag]) return { ok: false, code: `active_${requiredFlag}_invalid` };
+    }
+    if (cycle.status === "in_progress") {
+      if (cycle.closedAt !== null || cycle.provisionalAt !== null || cycle.updatedPlanId !== null) {
+        return { ok: false, code: "active_in_progress_terminal_fields" };
+      }
+    } else if (cycle.status === "completed") {
+      if (!chain.updateComplete || !exactUtcTimestamp(cycle.closedAt) || cycle.provisionalAt !== null) {
+        return { ok: false, code: "active_completed_invalid" };
+      }
+    } else if (!chain.provisionalUpdateRecorded || cycle.closedAt !== null || !exactUtcTimestamp(cycle.provisionalAt)) {
+      return { ok: false, code: "active_provisional_invalid" };
+    }
+    return { ok: true, chain };
+  };
+
+  const workspaceBackupFullCycleObject = (candidateState, cycleOwner, objectKey) => {
+    if (!cycleOwner || cycleOwner.kind === "superseded") return null;
+    return cycleOwner.kind === "active"
+      ? candidateState.journey[objectKey]
+      : cycleOwner.history?.[objectKey] || null;
+  };
+  const workspaceBackupSupersededMatchesTerminalHistory = (summary, history) => {
+    const diagnostic = history?.diagnostic;
+    const terminalAt = history?.status === "completed" ? history.closedAt : history?.provisionalAt;
+    if (
+      !isRecord(diagnostic) ||
+      !exactUtcTimestamp(terminalAt) ||
+      Date.parse(summary.supersededAt) < Date.parse(terminalAt)
+    ) return false;
+    const expected = {
+      cycleId: history.cycleId,
+      diagnosticSessionId: history.diagnosticSessionId,
+      protocolVersion: history.protocolVersion,
+      diagnosticProtocolVersion: diagnostic.diagnosticProtocolVersion,
+      taskSetVersion: diagnostic.taskSetVersion,
+      taskSetDigest: diagnostic.taskSetDigest,
+      diagnosticStatus: diagnostic.status,
+      taskEvidenceSummary: diagnostic.taskEvidence.map(workspaceBackupDiagnosticEvidenceSummary),
+      ...(diagnostic.prioritySkill ? { prioritySkill: diagnostic.prioritySkill } : {}),
+      ...(diagnostic.priorityBasis ? { priorityBasis: diagnostic.priorityBasis } : {}),
+      ...(diagnostic.evidenceSufficiency ? { evidenceSufficiency: diagnostic.evidenceSufficiency } : {}),
+    };
+    const metadataKeys = [
+      "cycleId", "diagnosticSessionId", "protocolVersion", "diagnosticProtocolVersion", "taskSetVersion",
+      "taskSetDigest", "diagnosticStatus", "taskEvidenceSummary", "prioritySkill", "priorityBasis",
+      "evidenceSufficiency",
+    ];
+    const actual = Object.fromEntries(
+      metadataKeys.filter((key) => Object.hasOwn(summary, key)).map((key) => [key, summary[key]]),
+    );
+    return workspaceBackupRuntime.canonicalJson(actual) === workspaceBackupRuntime.canonicalJson(expected);
+  };
+  const validateWorkspaceBackupLedgerCoverage = (candidateState) => {
+    const events = candidateState.learningEvents;
+    if (!events.length) return candidateState.learningEventBindings === null;
+    const bindings = candidateState.learningEventBindings;
+    const records = bindings?.records;
+    if (!isRecord(records)) return false;
+
+    const domainCycleIds = new Set([
+      candidateState.journey.activeCycle?.cycleId,
+      ...candidateState.journey.history.map((record) => record?.cycleId),
+      ...candidateState.journey.supersededCycles.map((record) => record?.cycleId),
+    ].filter(Boolean));
+    if (
+      Object.keys(records.cycle || {}).length !== domainCycleIds.size ||
+      [...domainCycleIds].some((cycleId) => !UUID_V4_PATTERN.test(records.cycle?.[cycleId] || ""))
+    ) return false;
+
+    const usedAliases = new Set();
+    const resolvedEvents = [];
+    for (const event of events) {
+      const resolved = {};
+      for (const [contextKey, alias] of Object.entries(event.context || {})) {
+        if (contextKey === "causationEventId") continue;
+        const kind = WORKSPACE_BACKUP_EVENT_CONTEXT_KIND[contextKey];
+        const domainId = kind ? workspaceBackupEventDomainId(candidateState, kind, alias) : null;
+        if (!kind || !domainId) return false;
+        usedAliases.add(alias);
+        resolved[contextKey] = domainId;
+      }
+      const cycleId = resolved.learningCycleId;
+      const cycleOwner = workspaceBackupCycleDomainOwner(candidateState, cycleId);
+      if (!cycleOwner || cycleOwner.cycle.diagnosticSessionId !== resolved.diagnosticSessionId) return false;
+
+      if (resolved.planId) {
+        const plan = planById(resolved.planId, candidateState);
+        if (
+          !plan ||
+          plan.provenance?.cycleId !== cycleId ||
+          plan.provenance?.diagnosticSessionId !== resolved.diagnosticSessionId ||
+          (cycleOwner.kind !== "superseded" && cycleOwner.cycle.basePlanId !== resolved.planId)
+        ) return false;
+      }
+      if (resolved.recommendationId) {
+        const recommendation = workspaceBackupFullCycleObject(candidateState, cycleOwner, "recommendation");
+        if (cycleOwner.kind === "superseded") {
+          if (event.eventType === "learning_cycle.completed") return false;
+        } else if (
+          recommendation?.recommendationId !== resolved.recommendationId ||
+          recommendation.cycleId !== cycleId ||
+          recommendation.diagnosticSessionId !== resolved.diagnosticSessionId
+        ) return false;
+      }
+      if (resolved.bindingId) {
+        const recommendation = workspaceBackupFullCycleObject(candidateState, cycleOwner, "recommendation");
+        if (cycleOwner.kind !== "superseded" && recommendation?.evidenceBinding?.bindingId !== resolved.bindingId) return false;
+      }
+      if (resolved.taskId) {
+        const owner = workspaceBackupTaskOwner(candidateState, resolved.taskId);
+        if (owner?.kind !== "plan" || owner.plan.planId !== resolved.planId) return false;
+      }
+      if (resolved.practiceReceiptId) {
+        const receipt = candidateState.practiceReceipts[resolved.practiceReceiptId];
+        if (!receipt || receipt.cycleId !== cycleId || receipt.diagnosticSessionId !== resolved.diagnosticSessionId) return false;
+        if (resolved.planId && receipt.planId !== resolved.planId) return false;
+        if (resolved.taskId && receipt.taskId !== resolved.taskId) return false;
+      }
+      if (resolved.baselinePracticeReceiptId) {
+        const receipt = candidateState.practiceReceipts[resolved.baselinePracticeReceiptId];
+        if (!receipt || receipt.cycleId !== cycleId || receipt.diagnosticSessionId !== resolved.diagnosticSessionId) return false;
+      }
+      if (resolved.attemptId) {
+        const matches = Object.values(candidateState.practiceReceipts).filter((receipt) =>
+          receipt?.practiceAttemptId === resolved.attemptId && receipt?.cycleId === cycleId
+        );
+        if (matches.length !== 1 || matches[0].completionReceiptId !== resolved.practiceReceiptId) return false;
+      }
+      if (resolved.checkInId) {
+        const checkIn = workspaceBackupExactCheckInById(candidateState, resolved.checkInId);
+        if (!checkIn || checkIn.cycleId !== cycleId || checkIn.diagnosticSessionId !== resolved.diagnosticSessionId) return false;
+      }
+      if (resolved.retestId) {
+        const retest = workspaceBackupFullCycleObject(candidateState, cycleOwner, "retest");
+        if (cycleOwner.kind !== "superseded" && (
+          retest?.retestId !== resolved.retestId || retest.cycleId !== cycleId
+        )) return false;
+      }
+      if (resolved.humanReviewReceiptId) return false;
+      if (resolved.updatedPlanId) {
+        const planUpdate = workspaceBackupFullCycleObject(candidateState, cycleOwner, "planUpdate");
+        const updatedPlan = planById(resolved.updatedPlanId, candidateState);
+        if (
+          cycleOwner.kind === "superseded" ||
+          planUpdate?.updatedPlanId !== resolved.updatedPlanId ||
+          planUpdate.cycleId !== cycleId ||
+          !updatedPlan ||
+          updatedPlan.provenance?.cycleId !== cycleId
+        ) return false;
+      }
+      resolvedEvents.push({ event, resolved, cycleOwner });
+    }
+
+    for (const [kind, domainRecords] of Object.entries(records)) {
+      if (!isRecord(domainRecords)) return false;
+      if (kind === "humanReviewReceipt" && Object.keys(domainRecords).length !== 0) return false;
+      for (const alias of Object.values(domainRecords)) {
+        if (!usedAliases.has(alias)) return false;
+      }
+    }
+
+    for (const summary of candidateState.journey.supersededCycles) {
+      const matchingHistory = candidateState.journey.history.filter((record) => record?.cycleId === summary.cycleId);
+      if (matchingHistory.length) {
+        if (
+          matchingHistory.length !== 1 ||
+          !workspaceBackupSupersededMatchesTerminalHistory(summary, matchingHistory[0])
+        ) return false;
+        continue;
+      }
+      const cycleAlias = records.cycle?.[summary.cycleId];
+      const cycleEvents = resolvedEvents.filter(({ event }) => event.context.learningCycleId === cycleAlias);
+      const startedEvents = cycleEvents.filter(({ event }) => event.eventType === "learning_cycle.started");
+      if (
+        !cycleEvents.length ||
+        startedEvents.length !== 1 ||
+        cycleEvents[0] !== startedEvents[0] ||
+        cycleEvents.some(({ event, resolved }) => event.eventType === "learning_cycle.completed" || resolved.updatedPlanId) ||
+        cycleEvents.some(({ event }) => Date.parse(event.occurredAt) > Date.parse(summary.supersededAt)) ||
+        startedEvents[0].resolved.diagnosticSessionId !== summary.diagnosticSessionId ||
+        startedEvents[0].event.attributes.taskSetVersion !== summary.taskSetVersion ||
+        startedEvents[0].event.attributes.taskSetDigest !== summary.taskSetDigest
+      ) return false;
+    }
+    return true;
+  };
+
+  const workspaceBackupBoundAlias = (candidateState, kind, domainId) => {
+    if (!historyIdValid(domainId)) return null;
+    return boundHistoryAlias(candidateState.learningEventBindings, kind, domainId);
+  };
+
+  const workspaceBackupDomainIdForAlias = (candidateState, kind, alias) => {
+    return workspaceBackupEventDomainId(candidateState, kind, alias);
+  };
+
+  const validateWorkspaceBackupActiveEventPrefix = (candidateState, activeValidation) => {
+    const cycle = activeValidation.chain.cycle;
+    if (!cycle) return true;
+    const cycleAlias = workspaceBackupBoundAlias(candidateState, "cycle", cycle.cycleId);
+    const diagnosticAlias = workspaceBackupBoundAlias(candidateState, "diagnostic", cycle.diagnosticSessionId);
+    if (!cycleAlias || !diagnosticAlias) return false;
+    const cycleEvents = candidateState.learningEvents.filter((event) => event?.context?.learningCycleId === cycleAlias);
+    const byType = (type) => cycleEvents.filter((event) => event.eventType === type);
+    const started = byType("learning_cycle.started");
+    const recommendations = byType("recommendation.decided");
+    const practices = byType("practice_attempt.finalized");
+    const checkIns = byType("check_in.committed");
+    const retests = byType("retest.completed");
+    const completions = byType("learning_cycle.completed");
+    if (
+      started.length !== 1 ||
+      recommendations.length !== (cycle.recommendationId ? 1 : 0) ||
+      checkIns.length !== (cycle.checkInId ? 1 : 0) ||
+      retests.length !== (cycle.retestId ? 1 : 0) ||
+      completions.length !== (cycle.status === "completed" ? 1 : 0) ||
+      (cycle.checkInId && practices.length === 0) ||
+      (!cycle.recommendationId && practices.length > 0)
+    ) return false;
+    if (
+      started[0].context.diagnosticSessionId !== diagnosticAlias ||
+      started[0].occurredAt !== cycle.createdAt ||
+      started[0].attributes.outcome !== "started" ||
+      started[0].attributes.taskSetVersion !== activeValidation.chain.diagnostic?.taskSetVersion ||
+      started[0].attributes.taskSetDigest !== activeValidation.chain.diagnostic?.taskSetDigest
+    ) return false;
+
+    const recommendation = activeValidation.chain.recommendation;
+    const basePlan = activeValidation.chain.basePlan;
+    const bindingAlias = recommendation
+      ? workspaceBackupBoundAlias(candidateState, "binding", recommendation.evidenceBinding?.bindingId)
+      : null;
+    const planAlias = basePlan ? workspaceBackupBoundAlias(candidateState, "plan", basePlan.planId) : null;
+    const recommendationAlias = recommendation
+      ? workspaceBackupBoundAlias(candidateState, "recommendation", recommendation.recommendationId)
+      : null;
+    if (recommendations.length && (
+      !planAlias ||
+      !recommendationAlias ||
+      !bindingAlias ||
+      recommendations[0].context.diagnosticSessionId !== diagnosticAlias ||
+      recommendations[0].context.planId !== planAlias ||
+      recommendations[0].context.recommendationId !== recommendationAlias ||
+      recommendations[0].context.bindingId !== bindingAlias ||
+      recommendations[0].occurredAt !== recommendation.createdAt ||
+      recommendations[0].attributes.decision !== recommendation.status ||
+      recommendations[0].attributes.bindingReviewStatus !== "gate_a_unreviewed"
+    )) return false;
+
+    const activeCycleReceipts = Object.values(candidateState.practiceReceipts).filter((receipt) => receipt?.cycleId === cycle.cycleId);
+    if (activeCycleReceipts.length !== practices.length) return false;
+    const practiceReceiptIds = new Set();
+    for (const event of practices) {
+      const receiptId = workspaceBackupDomainIdForAlias(candidateState, "practiceReceipt", event.context.practiceReceiptId);
+      const attemptId = workspaceBackupDomainIdForAlias(candidateState, "practiceAttempt", event.context.attemptId);
+      const taskId = workspaceBackupDomainIdForAlias(candidateState, "task", event.context.taskId);
+      const receipt = receiptId ? candidateState.practiceReceipts[receiptId] : null;
+      if (
+        !receipt ||
+        receipt.cycleId !== cycle.cycleId ||
+        receipt.diagnosticSessionId !== cycle.diagnosticSessionId ||
+        receipt.planId !== cycle.basePlanId ||
+        receipt.recommendationId !== cycle.recommendationId ||
+        receipt.practiceAttemptId !== attemptId ||
+        receipt.taskId !== taskId ||
+        practiceReceiptIds.has(receipt.completionReceiptId) ||
+        event.context.diagnosticSessionId !== diagnosticAlias ||
+        event.context.planId !== planAlias ||
+        event.context.recommendationId !== recommendationAlias ||
+        event.context.bindingId !== bindingAlias ||
+        event.attributes.skill !== receipt.skill ||
+        event.occurredAt !== receipt.completedAt ||
+        event.attributes.evidenceStatus !== receipt.evidenceStatus ||
+        event.attributes.automatedScoreProduced !== false ||
+        event.attributes.formalDiagnosisProduced !== false ||
+        event.attributes.officialEquivalenceClaimed !== false ||
+        (["Reading", "Listening"].includes(receipt.skill) && event.attributes.attemptCount !== receipt.evidence.attemptCount) ||
+        (receipt.skill === "Writing" && (
+          event.attributes.wordCount !== receipt.evidence.wordCount ||
+          event.attributes.selfCheckCount !== receipt.evidence.selfCheckCount
+        )) ||
+        (receipt.skill === "Speaking" && event.attributes.selfCheckCount !== receipt.evidence.selfCheckCount)
+      ) return false;
+      practiceReceiptIds.add(receipt.completionReceiptId);
+    }
+
+    const checkIn = activeValidation.chain.checkIn;
+    if (checkIns.length) {
+      const receipt = checkIn?.practiceReceipt;
+      if (
+        !receipt ||
+        checkIns[0].context.diagnosticSessionId !== diagnosticAlias ||
+        checkIns[0].context.planId !== planAlias ||
+        checkIns[0].context.recommendationId !== recommendationAlias ||
+        checkIns[0].context.bindingId !== bindingAlias ||
+        checkIns[0].context.taskId !== workspaceBackupBoundAlias(candidateState, "task", checkIn.linkedTaskId) ||
+        checkIns[0].context.practiceReceiptId !== workspaceBackupBoundAlias(candidateState, "practiceReceipt", receipt.completionReceiptId) ||
+        checkIns[0].context.checkInId !== workspaceBackupBoundAlias(candidateState, "checkIn", checkIn.checkInId) ||
+        !practiceReceiptIds.has(receipt.completionReceiptId) ||
+        checkIns[0].occurredAt !== checkIn.savedAt ||
+        checkIns[0].attributes.outcome !== "committed" ||
+        checkIns[0].attributes.questionStatus !== checkIn.questionStatus ||
+        checkIns[0].attributes.evidenceClass !== checkIn.evidenceClass ||
+        checkIns[0].attributes.evidenceStatus !== receipt.evidenceStatus
+      ) return false;
+    }
+
+    const retest = activeValidation.chain.retest;
+    if (retests.length && (
+      !retest ||
+      retests[0].context.diagnosticSessionId !== diagnosticAlias ||
+      retests[0].context.planId !== planAlias ||
+      retests[0].context.recommendationId !== recommendationAlias ||
+      retests[0].context.bindingId !== bindingAlias ||
+      retests[0].context.checkInId !== workspaceBackupBoundAlias(candidateState, "checkIn", cycle.checkInId) ||
+      retests[0].context.retestId !== workspaceBackupBoundAlias(candidateState, "retest", cycle.retestId) ||
+      retests[0].context.baselinePracticeReceiptId !== workspaceBackupBoundAlias(candidateState, "practiceReceipt", retest.baselinePracticeReceiptId) ||
+      retests[0].attributes.skill !== retest.skill ||
+      retests[0].attributes.humanConfirmationStatus !== retest.humanConfirmationStatus ||
+      retests[0].occurredAt !== retest.completedAt ||
+      retests[0].attributes.outcome !== "completed" ||
+      retests[0].attributes.evidenceType !== retest.evidence?.resultType ||
+      retests[0].attributes.evidenceSufficiency !== retest.evidenceSufficiency ||
+      retests[0].attributes.comparabilityClass !== retest.comparability?.constructAlignment
+    )) return false;
+
+    const planUpdate = activeValidation.chain.planUpdate;
+    if (completions.length && (
+      !planUpdate ||
+      completions[0].context.diagnosticSessionId !== diagnosticAlias ||
+      completions[0].context.planId !== planAlias ||
+      completions[0].context.retestId !== workspaceBackupBoundAlias(candidateState, "retest", cycle.retestId) ||
+      completions[0].context.updatedPlanId !== workspaceBackupBoundAlias(candidateState, "updatedPlan", cycle.updatedPlanId) ||
+      completions[0].attributes.nextFocusSkill !== planUpdate.focusSkill ||
+      completions[0].attributes.humanConfirmationStatus !== planUpdate.humanConfirmationStatus ||
+      completions[0].occurredAt !== cycle.closedAt ||
+      completions[0].attributes.outcome !== "completed"
+    )) return false;
+    return true;
+  };
+
+  const validateWorkspaceBackupCycleIdentityGraph = (candidateState) => {
+    const active = candidateState.journey.activeCycle;
+    const history = candidateState.journey.history;
+    const sameActiveHistory = active
+      ? history.filter((record) => record?.cycleId === active.cycleId)
+      : [];
+    if (active?.status === "in_progress" && sameActiveHistory.length !== 0) return false;
+    if (active && active.status !== "in_progress") {
+      if (sameActiveHistory.length !== 1) return false;
+      const checkInMatches = allCheckIns(candidateState).filter((record) =>
+        record?.checkInId === active.checkInId &&
+        record?.cycleId === active.cycleId &&
+        record?.planId === active.basePlanId,
+      );
+      if (checkInMatches.length !== 1) return false;
+      const storedCheckIn = checkInMatches[0];
+      const projectedCheckIn = { ...storedCheckIn };
+      const hasArchivedAt = Object.hasOwn(projectedCheckIn, "archivedAt");
+      const hasArchivedReason = Object.hasOwn(projectedCheckIn, "archivedReason");
+      if (hasArchivedAt !== hasArchivedReason) return false;
+      if (hasArchivedAt) {
+        const terminalAt = active.status === "completed" ? active.closedAt : active.provisionalAt;
+        if (
+          !validWorkspaceBackupCheckInRecord(storedCheckIn, candidateState, { archived: true }) ||
+          !exactUtcTimestamp(terminalAt) ||
+          Date.parse(storedCheckIn.archivedAt) < Date.parse(terminalAt) ||
+          (storedCheckIn.archivedReason === "learner_revision_after_confirmation" &&
+            !(storedCheckIn.learnerConfirmedReview === true && historyIdValid(storedCheckIn.reviewId))) ||
+          (storedCheckIn.archivedReason === "learner_revision_after_save" &&
+            (storedCheckIn.learnerConfirmedReview === true || Boolean(storedCheckIn.reviewId)))
+        ) return false;
+        delete projectedCheckIn.archivedAt;
+        delete projectedCheckIn.archivedReason;
+      }
+      const expected = {
+        ...active,
+        diagnostic: candidateState.journey.diagnostic,
+        recommendation: candidateState.journey.recommendation,
+        checkIn: projectedCheckIn,
+        review: candidateState.journey.review,
+        peerHelp: candidateState.journey.peerHelp,
+        retest: candidateState.journey.retest,
+        planUpdate: candidateState.journey.planUpdate,
+      };
+      if (workspaceBackupRuntime.canonicalJson(sameActiveHistory[0]) !== workspaceBackupRuntime.canonicalJson(expected)) {
+        return false;
+      }
+    }
+    const identityOwner = new Map();
+    const register = (value, cycleId, role) => {
+      if (!historyIdValid(value) || !historyIdValid(cycleId)) return false;
+      const owner = identityOwner.get(value);
+      if (owner && (owner.cycleId !== cycleId || owner.role !== role)) return false;
+      identityOwner.set(value, { cycleId, role });
+      return true;
+    };
+    const cycles = [...history, ...(active ? [active] : [])];
+    for (const cycle of cycles) {
+      if (!CYCLE_HISTORY_ID_FIELDS.filter((field) => cycle[field] !== null).every((field) => register(cycle[field], cycle.cycleId, field))) {
+        return false;
+      }
+    }
+    for (const summary of candidateState.journey.supersededCycles) {
+      if (active?.cycleId === summary.cycleId) return false;
+      if (
+        !register(summary.cycleId, summary.cycleId, "cycleId") ||
+        !register(summary.diagnosticSessionId, summary.cycleId, "diagnosticSessionId")
+      ) return false;
+    }
+    return true;
+  };
+
+  const validateWorkspaceBackupCandidate = async (candidate) => {
+    if (!workspaceBackupRuntime || !learningEventsRuntime) return { ok: false, code: "runtime_unavailable" };
+    if (
+      !exactObjectKeys(candidate, workspaceBackupRuntime.WORKSPACE_KEYS) ||
+      !exactObjectKeys(candidate?.journey, workspaceBackupRuntime.JOURNEY_KEYS) ||
+      !exactObjectKeys(candidate?.profile, WORKSPACE_BACKUP_PROFILE_KEYS) ||
+      !exactObjectKeys(candidate?.focus, WORKSPACE_BACKUP_FOCUS_KEYS) ||
+      candidate.schemaVersion !== SCHEMA_VERSION ||
+      candidate.journey.protocolVersion !== PROTOCOL_VERSION ||
+      !exactUtcTimestamp(candidate.updatedAt) ||
+      !validWorkspaceBackupProfile(candidate.profile) ||
+      !isRecord(candidate.taskProgress) ||
+      !isRecord(candidate.practice) ||
+      !isRecord(candidate.practiceReceipts) ||
+      !isRecord(candidate.checkIns) ||
+      !Array.isArray(candidate.checkInHistory) ||
+      !Array.isArray(candidate.focus.sessions)
+    ) return { ok: false, code: "workspace_shape_invalid" };
+    const normalized = normalizeState(candidate);
+    if (
+      !normalized ||
+      workspaceBackupRuntime.canonicalJson(normalized) !== workspaceBackupRuntime.canonicalJson(candidate)
+    ) return { ok: false, code: "workspace_normalization_changed" };
+    if (!validWorkspaceBackupDomainObjects(normalized)) return { ok: false, code: "domain_object_schema_invalid" };
+    if (!validWorkspaceBackupPlanGraph(normalized)) return { ok: false, code: "plan_graph_invalid" };
+    if (!validWorkspaceBackupReceiptGraph(normalized)) return { ok: false, code: "receipt_graph_invalid" };
+    if (!await validWorkspaceBackupAuxiliaryState(normalized)) return { ok: false, code: "auxiliary_state_invalid" };
+    if (!validWorkspaceBackupSupersededCycles(normalized)) return { ok: false, code: "superseded_cycle_invalid" };
+    let ledgerStatus;
+    try {
+      ledgerStatus = await learningEventsRuntime.validateLedger(normalized);
+    } catch {
+      return { ok: false, code: "ledger_validation_exception" };
+    }
+    if (!ledgerStatus.ok) return { ok: false, code: `ledger_${ledgerStatus.code || "invalid"}` };
+    if (!validateWorkspaceBackupLedgerCoverage(normalized)) return { ok: false, code: "ledger_domain_coverage_invalid" };
+    const activeValidation = validateWorkspaceBackupActiveCycle(normalized);
+    if (!activeValidation.ok) return activeValidation;
+    if (!validateWorkspaceBackupActiveEventPrefix(normalized, activeValidation)) {
+      return { ok: false, code: "active_event_prefix_invalid" };
+    }
+    if (!validateWorkspaceBackupCycleIdentityGraph(normalized)) {
+      return { ok: false, code: "cycle_identity_graph_invalid" };
+    }
+    const historyProjection = buildCycleHistoryProjection(normalized, ledgerStatus);
+    if (
+      historyProjection.invalidCount !== 0 ||
+      historyProjection.sourceCount !== historyProjection.validCount + historyProjection.currentExcludedCount
+    ) return { ok: false, code: "history_graph_invalid" };
+    const stage = workspaceBackupCycleStage(activeValidation.chain, normalized);
+    return {
+      ok: true,
+      candidate: normalized,
+      summary: {
+        stageKey: stage.key,
+        stageLabel: WORKSPACE_BACKUP_STAGE_LABELS[stage.key],
+        nextRoute: stage.nextRoute,
+        planCount: (normalized.plan ? 1 : 0) + normalized.planHistory.length,
+        currentPlanStart: normalized.plan?.startDate || null,
+        currentPlanEnd: normalized.plan?.endDate || null,
+        completedCycleCount: normalized.journey.history.filter((record) => record?.status === "completed").length,
+        provisionalCycleCount: normalized.journey.history.filter((record) => record?.status === "provisional_pending_human_review").length,
+        practiceReceiptCount: Object.keys(normalized.practiceReceipts).length,
+        checkInCount: Object.values(normalized.checkIns).filter((record) => record?.status === "saved").length,
+        learningEventCount: normalized.learningEvents.length,
+        learningEventHeadHash: normalized.learningEvents.at(-1)?.eventHash || null,
+      },
+    };
+  };
+
+  const WORKSPACE_BACKUP_ERROR_MESSAGES = Object.freeze({
+    empty_file: "所选文件为空；没有修改当前学习数据。",
+    envelope_contract: "备份信封版本或安全边界不受支持；没有修改当前学习数据。",
+    envelope_shape: "备份信封字段不完整或含有未知字段；没有修改当前学习数据。",
+    file_too_large: "备份文件超过 2 MiB 上限；没有读取或修改当前学习数据。",
+    forbidden_key: "备份含有不允许的身份或对象字段；没有修改当前学习数据。",
+    integrity_mismatch: "备份摘要与内容不一致，可能已损坏或被改动；没有修改当前学习数据。",
+    invalid_control_character: "备份含有不允许的控制字符；没有修改当前学习数据。",
+    invalid_json: "所选文件不是有效 JSON；没有修改当前学习数据。",
+    invalid_key_length: "备份字段名超过安全上限；没有修改当前学习数据。",
+    invalid_number: "备份含有无效数值；没有修改当前学习数据。",
+    ledger_domain_coverage_invalid: "备份的学习事件与闭环记录无法完整回链；没有修改当前学习数据。",
+    not_text: "浏览器无法把所选文件作为文本读取；没有修改当前学习数据。",
+    plan_graph_invalid: "备份中的 7 天计划回链不完整；没有修改当前学习数据。",
+    receipt_graph_invalid: "备份中的练习回执回链不完整；没有修改当前学习数据。",
+    resource_limit_exceeded: "备份超过本机恢复的安全容量；没有修改当前学习数据。",
+    runtime_unavailable: "本机备份或事件核对组件未加载；请刷新后重试。",
+    string_too_long: "备份中的单项文本超过安全上限；没有修改当前学习数据。",
+    superseded_cycle_invalid: "备份中的中止轮次记录不完整；没有修改当前学习数据。",
+    too_deep: "备份嵌套层级超过安全上限；没有修改当前学习数据。",
+    too_many_values: "备份包含的项目数量超过安全上限；没有修改当前学习数据。",
+    unsupported_value: "备份含有不受支持的数据类型；没有修改当前学习数据。",
+    workspace_count_limit: "备份中的记录数量超过恢复上限；没有修改当前学习数据。",
+    workspace_normalization_changed: "备份不能在当前版本中无损读取；没有修改当前学习数据。",
+    workspace_shape: "备份中的学习工作区结构不受支持；没有修改当前学习数据。",
+    workspace_shape_invalid: "备份中的学习工作区结构不完整；没有修改当前学习数据。",
+    workspace_too_large: "备份中的学习工作区超过 1 MiB 上限；没有修改当前学习数据。",
+  });
+
+  const workspaceBackupErrorMessage = (code) => {
+    if (typeof code === "string" && code.startsWith("ledger_")) {
+      return "备份中的学习事件账本未通过顺序、哈希或状态核对；没有修改当前学习数据。";
+    }
+    if (typeof code === "string" && (code.startsWith("active_") || code === "orphaned_current_object")) {
+      return "备份中的当前学习轮次回链不完整；没有修改当前学习数据。";
+    }
+    if (code === "history_graph_invalid") {
+      return "备份中的历史学习轮次回链不完整；没有修改当前学习数据。";
+    }
+    return WORKSPACE_BACKUP_ERROR_MESSAGES[code] || "备份未通过严格核对；没有修改当前学习数据。";
+  };
+
+  const downloadWorkspaceBackup = (content) => {
+    const blob = new Blob([content], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `sufeiya-workspace-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const synchronizeJourneyRuntimeAfterWorkspaceRestore = async (candidateRaw) => {
+    try {
+      const persistedRaw = window.localStorage.getItem(STORAGE_KEY);
+      if (persistedRaw !== candidateRaw) return { status: "concurrent_write" };
+      const validation = await validateWorkspaceBackupCandidate(JSON.parse(persistedRaw));
+      if (!validation.ok) return { status: "workspace_invalid", code: validation.code };
+      const restoredLedgerStatus = await learningEventsRuntime.validateLedger(validation.candidate);
+      if (!restoredLedgerStatus?.ok) {
+        return { status: "ledger_invalid", code: restoredLedgerStatus?.code || "invalid" };
+      }
+      const workspacePageRuntime = window.SufeiyaWorkspacePageRuntime;
+      if (
+        workspacePageRuntime?.protocolVersion !== "sufeiya_workspace_page_runtime_v1" ||
+        typeof workspacePageRuntime.refreshAfterWorkspaceRestore !== "function"
+      ) return { status: "page_runtime_unavailable" };
+      const pageRefresh = await workspacePageRuntime.refreshAfterWorkspaceRestore();
+      if (pageRefresh?.status !== "refreshed") {
+        return { status: "page_refresh_failed", code: pageRefresh?.status || "unknown" };
+      }
+      if (window.localStorage.getItem(STORAGE_KEY) !== candidateRaw) return { status: "concurrent_write" };
+      state = validation.candidate;
+      learningLedgerStatus = restoredLedgerStatus;
+      storageWritable = Boolean(workspaceWriterLeaseAvailable);
+      return { status: "synchronized" };
+    } catch {
+      return { status: "runtime_sync_failed" };
+    }
+  };
+
+  const setupWorkspaceBackupControls = ({ currentLedgerStatus }) => {
+    const root = document.querySelector("[data-workspace-backup]");
+    if (!root) return;
+    const exportButton = document.querySelector("[data-export-restorable-workspace]");
+    const fileInput = root.querySelector("[data-workspace-backup-file]");
+    const validateButton = root.querySelector("[data-validate-workspace-backup]");
+    const preview = root.querySelector("[data-workspace-backup-preview]");
+    const confirmation = root.querySelector("[data-confirm-workspace-restore]");
+    const restoreButton = root.querySelector("[data-restore-workspace-backup]");
+    const resetButton = root.querySelector("[data-reset-workspace-backup]");
+    const message = root.querySelector("[data-workspace-backup-message]");
+    const success = root.querySelector("[data-workspace-restore-success]");
+    const successLink = root.querySelector("[data-workspace-restore-next]");
+    if (
+      !exportButton ||
+      !fileInput ||
+      !validateButton ||
+      !preview ||
+      !confirmation ||
+      !restoreButton ||
+      !resetButton ||
+      !message ||
+      !success ||
+      !successLink
+    ) return;
+
+    let inspection = null;
+    let expectedCurrentRaw = null;
+    let busy = false;
+    let committed = false;
+    const currentWorkspaceExportable = Boolean(
+      workspaceBackupRuntime && currentLedgerStatus?.ok && storageWritable && workspaceWriterLeaseAvailable,
+    );
+    const restoreLockAvailable = Boolean(workspaceWriterLeaseAvailable && navigator.locks?.request);
+
+    const setMessage = (text, { error = false, focus = false, code = null } = {}) => {
+      message.textContent = text;
+      message.setAttribute("role", error ? "alert" : "status");
+      message.dataset.state = error ? "error" : text ? "status" : "idle";
+      if (code) message.dataset.code = code;
+      else delete message.dataset.code;
+      if (focus) message.focus();
+    };
+    const setBusy = (nextBusy) => {
+      busy = nextBusy;
+      root.setAttribute("aria-busy", String(nextBusy));
+      exportButton.disabled = nextBusy || committed || !currentWorkspaceExportable;
+      fileInput.disabled = nextBusy || committed;
+      validateButton.disabled = nextBusy || committed || !fileInput.files?.length;
+      resetButton.disabled = nextBusy || committed || (!fileInput.files?.length && !inspection);
+      confirmation.disabled = nextBusy || committed || !inspection;
+      restoreButton.disabled = nextBusy || committed || !inspection || !confirmation.checked || !restoreLockAvailable;
+    };
+    const clearPreview = ({ clearFile = false, clearMessage = false } = {}) => {
+      inspection = null;
+      expectedCurrentRaw = null;
+      preview.hidden = true;
+      success.hidden = true;
+      confirmation.checked = false;
+      confirmation.disabled = true;
+      restoreButton.disabled = true;
+      if (clearFile) fileInput.value = "";
+      if (clearMessage) setMessage("");
+      setBusy(false);
+    };
+    const setPreviewText = (selector, value) => {
+      const node = preview.querySelector(selector);
+      if (node) node.textContent = value;
+    };
+    const renderInspection = (result) => {
+      const summary = result.validation.summary;
+      const exportedAt = new Intl.DateTimeFormat("zh-CN", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+      }).format(new Date(result.envelope.exportedAt));
+      const dateRange = summary.currentPlanStart && summary.currentPlanEnd
+        ? `${summary.currentPlanStart} 至 ${summary.currentPlanEnd}`
+        : "没有当前 7 天计划";
+      setPreviewText("[data-backup-exported-at]", exportedAt);
+      setPreviewText("[data-backup-stage]", summary.stageLabel);
+      setPreviewText("[data-backup-plans]", `${summary.planCount} 份`);
+      setPreviewText("[data-backup-date-range]", dateRange);
+      setPreviewText(
+        "[data-backup-completed-cycles]",
+        `${summary.completedCycleCount} 轮完成 · ${summary.provisionalCycleCount} 轮待人工确认`,
+      );
+      setPreviewText("[data-backup-receipts]", `${summary.practiceReceiptCount} 份`);
+      setPreviewText("[data-backup-checkins]", `${summary.checkInCount} 条`);
+      setPreviewText("[data-backup-events]", `${summary.learningEventCount} 条`);
+      setPreviewText(
+        "[data-backup-head-hash]",
+        summary.learningEventHeadHash ? `${summary.learningEventHeadHash.slice(0, 12)}…` : "空账本",
+      );
+      preview.hidden = false;
+      confirmation.disabled = false;
+      preview.focus();
+    };
+
+    exportButton.addEventListener("click", async () => {
+      if (busy || committed) return;
+      setBusy(true);
+      setMessage("正在核对当前学习工作区…");
+      try {
+        if (!workspaceBackupRuntime || !currentLedgerStatus?.ok || !storageWritable || !workspaceWriterLeaseAvailable) {
+          setMessage("当前学习工作区不能生成可恢复备份；请先使用“导出全部原始本机数据”保全原值。", {
+            error: true,
+            focus: true,
+            code: "export_unavailable",
+          });
+          return;
+        }
+        const snapshot = workspaceBackupSnapshot(state);
+        const validation = snapshot ? await validateWorkspaceBackupCandidate(snapshot) : { ok: false, code: "workspace_shape" };
+        if (!validation.ok) {
+          setMessage(`${workspaceBackupErrorMessage(validation.code)} 可先导出全部原始本机数据保全原值。`, {
+            error: true,
+            focus: true,
+            code: validation.code,
+          });
+          return;
+        }
+        const result = await workspaceBackupRuntime.createEnvelope(validation.candidate);
+        if (result.status !== "ready") {
+          setMessage(workspaceBackupErrorMessage(result.code), { error: true, focus: true, code: result.code });
+          return;
+        }
+        downloadWorkspaceBackup(JSON.stringify(result.envelope, null, 2));
+        setMessage("可恢复的学习工作区备份已下载。文件不含 Sofia 对话或教研复核演示草稿。", { focus: true });
+      } catch {
+        setMessage("浏览器未能生成可恢复备份；请使用原始本机数据导出保全当前值。", { error: true, focus: true, code: "export_exception" });
+      } finally {
+        setBusy(false);
+      }
+    });
+
+    fileInput.addEventListener("change", () => {
+      clearPreview();
+      validateButton.disabled = !fileInput.files?.length;
+      resetButton.disabled = !fileInput.files?.length;
+      setMessage(fileInput.files?.length ? "文件已选择。点击“验证备份”后才会读取并预览；此时不会写入。" : "");
+    });
+
+    validateButton.addEventListener("click", async () => {
+      if (busy || committed) return;
+      clearPreview();
+      const file = fileInput.files?.[0];
+      if (!file) {
+        setMessage("请先选择一个 Sufeiya 学习工作区 JSON 备份。", { error: true, focus: true });
+        return;
+      }
+      if (!workspaceBackupRuntime) {
+        setMessage(workspaceBackupErrorMessage("runtime_unavailable"), { error: true, focus: true });
+        return;
+      }
+      if (file.size > workspaceBackupRuntime.MAX_FILE_BYTES) {
+        setMessage(workspaceBackupErrorMessage("file_too_large"), { error: true, focus: true });
+        return;
+      }
+      setBusy(true);
+      setMessage("正在本机验证协议、摘要、事件链与闭环回链…");
+      try {
+        const text = await file.text();
+        const result = await workspaceBackupRuntime.inspectEnvelopeText(text, validateWorkspaceBackupCandidate);
+        if (result.status !== "ready") {
+          setMessage(workspaceBackupErrorMessage(result.code), { error: true, focus: true });
+          return;
+        }
+        try {
+          expectedCurrentRaw = window.localStorage.getItem(STORAGE_KEY);
+        } catch {
+          setMessage("浏览器无法读取当前学习工作区；没有修改任何本机数据。", { error: true, focus: true });
+          return;
+        }
+        inspection = result;
+        renderInspection(result);
+        setMessage("备份已通过本机严格核对。确认替换范围后，恢复按钮才会启用。");
+      } catch {
+        setMessage("浏览器未能安全读取所选文件；没有修改当前学习数据。", { error: true, focus: true });
+      } finally {
+        setBusy(false);
+      }
+    });
+
+    confirmation.addEventListener("change", () => setBusy(false));
+    resetButton.addEventListener("click", () => {
+      if (busy || committed) return;
+      clearPreview({ clearFile: true, clearMessage: true });
+      fileInput.focus();
+    });
+
+    restoreButton.addEventListener("click", async () => {
+      if (busy || committed || !inspection || !confirmation.checked) return;
+      if (!restoreLockAvailable) {
+        setMessage("当前无法取得学习区写入锁；请关闭其他 Sufeiya 学习页、刷新后重新验证。", {
+          error: true,
+          focus: true,
+        });
+        return;
+      }
+      setBusy(true);
+      setMessage("正在原子替换并重新核对学习工作区…");
+      const candidateRaw = JSON.stringify(inspection.workspace);
+      let outcome;
+      try {
+        outcome = await navigator.locks.request(`${STORAGE_KEY}:sealed-write`, { mode: "exclusive" }, () =>
+          workspaceBackupRuntime.replaceWorkspaceAtomically({
+            storage: window.localStorage,
+            storageKey: STORAGE_KEY,
+            candidateRaw,
+            expectedCurrentRaw,
+            validatePersisted: async (raw) => {
+              try {
+                const parsed = JSON.parse(raw);
+                const result = await validateWorkspaceBackupCandidate(parsed);
+                return {
+                  ok: result.ok && workspaceBackupRuntime.canonicalJson(parsed) === workspaceBackupRuntime.canonicalJson(inspection.workspace),
+                };
+              } catch {
+                return { ok: false };
+              }
+            },
+          }),
+        );
+      } catch {
+        outcome = { status: "lock_unavailable" };
+      }
+      if (outcome.status !== "restored") {
+        const failure = outcome.status === "stale"
+          ? "验证后当前学习数据发生了变化。没有覆盖新值；请重新选择并验证备份。"
+          : outcome.status === "concurrent_write"
+            ? "恢复核对期间当前学习数据被其他上下文修改。系统没有覆盖该新值；请刷新后重新验证。"
+          : outcome.status === "rollback_failed"
+            ? "恢复未能完整提交，且浏览器未能确认原值已回滚。请立即导出全部原始数据并停止继续写入。"
+            : outcome.status === "lock_unavailable"
+              ? "当前无法取得学习区写入锁；请关闭其他 Sufeiya 学习页、刷新后重新验证。"
+              : outcome.status === "read_failed"
+                ? "浏览器无法读取当前学习工作区；没有写入备份。"
+                : outcome.status === "read_failed_after_write"
+                  ? "写入后浏览器无法完成所有权核对。系统已停止继续操作；请立即导出原始数据并刷新核对。"
+                : "恢复未能通过写后核对；原学习工作区已回滚。";
+        setMessage(failure, { error: true, focus: true });
+        setBusy(false);
+        if (outcome.status === "stale") clearPreview();
+        return;
+      }
+      const synchronization = await synchronizeJourneyRuntimeAfterWorkspaceRestore(candidateRaw);
+      if (synchronization.status !== "synchronized") {
+        committed = true;
+        setMessage("学习工作区已写入，但本页未能同步恢复后的运行状态。为避免旧快照继续操作，正在刷新本页重新核对。", {
+          error: true,
+          focus: true,
+          code: synchronization.status,
+        });
+        setBusy(false);
+        window.location.reload();
+        return;
+      }
+      committed = true;
+      successLink.href = inspection.validation.summary.nextRoute;
+      success.hidden = false;
+      setMessage("学习工作区已恢复；Sofia 对话与教研复核演示草稿未被读取或修改。");
+      setBusy(false);
+      success.focus();
+    });
+
+    clearPreview({ clearMessage: true });
+  };
+
   const diagnosticStatusLabels = {
     completed: "已留证",
     skipped: "已跳过",
@@ -1646,6 +4571,8 @@
       (left, right) => DIAGNOSTIC_TASK_IDS.indexOf(left.taskId) - DIAGNOSTIC_TASK_IDS.indexOf(right.taskId),
     );
     diagnostic.updatedAt = isoNow();
+    const cycle = activeCycle();
+    if (cycle?.diagnosticSessionId === diagnostic.diagnosticSessionId) cycle.updatedAt = diagnostic.updatedAt;
   };
   const formatDiagnosticClock = (seconds) => {
     const safe = Math.max(0, Math.ceil(Number(seconds) || 0));
@@ -1668,25 +4595,34 @@
     if (!isRecord(evidence)) return false;
     const expected = DIAGNOSTIC_TASK_MANIFEST[evidence.taskId];
     if (!expected) return false;
-    if (!Object.entries(expected).every(([key, value]) => evidence[key] === value)) return false;
+    if (!Object.entries(expected).filter(([key]) => key !== "correctValue").every(([key, value]) => evidence[key] === value)) return false;
     if (!DIAGNOSTIC_EVIDENCE_STATES.has(evidence.evidenceStatus)) return false;
     if (!Array.isArray(evidence.qualityFlags) || !evidence.qualityFlags.every((flag) => DIAGNOSTIC_QUALITY_FLAGS.has(flag))) return false;
     if (terminal && !DIAGNOSTIC_TERMINAL_STATES.has(evidence.status)) return false;
     if (!terminal && !DIAGNOSTIC_TERMINAL_STATES.has(evidence.status) && evidence.status !== "in_progress") return false;
     if (["single_choice", "single_choice_audio"].includes(expected.responseType) && evidence.status === "completed") {
       if (evidence.attempts !== 1 || !["a", "b", "c"].includes(evidence.firstResponse)) return false;
-      if (!["first_response_matched", "first_response_not_matched"].includes(evidence.resultType)) return false;
+      if (evidence.resultType !== (evidence.firstResponse === expected.correctValue ? "first_response_matched" : "first_response_not_matched")) return false;
     }
     return true;
   };
   const diagnosticEvidenceCollectionValid = (diagnostic, { requireAllTerminal = false } = {}) => {
     if (!Array.isArray(diagnostic?.taskEvidence)) return false;
     const ids = diagnostic.taskEvidence.map((item) => item?.taskId);
-    if (new Set(ids).size !== ids.length || !diagnostic.taskEvidence.every((item) => evidenceMatchesManifest(item, { terminal: requireAllTerminal }))) return false;
-    return !requireAllTerminal || (
-      diagnostic.taskEvidence.length === DIAGNOSTIC_TASK_IDS.length &&
-      DIAGNOSTIC_TASK_IDS.every((taskId) => ids.includes(taskId))
-    );
+    if (
+      JSON.stringify(ids) !== JSON.stringify(DIAGNOSTIC_TASK_IDS.slice(0, ids.length)) ||
+      !diagnostic.taskEvidence.every((item) => evidenceMatchesManifest(item, { terminal: requireAllTerminal }))
+    ) return false;
+    const firstNonTerminal = diagnostic.taskEvidence.findIndex((item) => !DIAGNOSTIC_TERMINAL_STATES.has(item.status));
+    if (firstNonTerminal >= 0 && (firstNonTerminal !== diagnostic.taskEvidence.length - 1 || diagnostic.taskEvidence[firstNonTerminal].status !== "in_progress")) return false;
+    const terminalCount = firstNonTerminal >= 0 ? firstNonTerminal : diagnostic.taskEvidence.length;
+    if (requireAllTerminal) {
+      return terminalCount === DIAGNOSTIC_TASK_IDS.length && diagnostic.activeTaskId === null;
+    }
+    if (diagnostic.status === "in_progress") {
+      return terminalCount < DIAGNOSTIC_TASK_IDS.length && diagnostic.activeTaskId === DIAGNOSTIC_TASK_IDS[terminalCount];
+    }
+    return terminalCount === DIAGNOSTIC_TASK_IDS.length && diagnostic.activeTaskId === null;
   };
   const newTaskEvidence = (panel) => ({
     ...taskDescriptor(panel),
@@ -1712,22 +4648,17 @@
   });
   const archiveSupersededCycle = () => {
     const cycle = activeCycle();
-    if (!cycle?.diagnosticSessionId) return;
+    if (!cycle?.diagnosticSessionId) return { status: "not_applicable" };
+    const existing = Array.isArray(state.journey.supersededCycles) ? state.journey.supersededCycles : [];
+    if (existing.length >= SUPERSEDED_CYCLE_LIMIT) {
+      return { status: "capacity_reached", limit: SUPERSEDED_CYCLE_LIMIT };
+    }
+    if (existing.some((summary) => summary?.cycleId === cycle.cycleId)) {
+      return { status: "cycle_conflict" };
+    }
     const diagnostic = state.journey.diagnostic;
     const archivedEvidence = Array.isArray(diagnostic?.taskEvidence)
-      ? diagnostic.taskEvidence.map((item) => ({
-          taskId: item.taskId,
-          taskVersion: item.taskVersion,
-          contentHash: item.contentHash,
-          skill: item.skill,
-          status: item.status,
-          evidenceStatus: item.evidenceStatus,
-          qualityFlags: Array.isArray(item.qualityFlags) ? [...item.qualityFlags] : [],
-          ...(Number.isFinite(Number(item.durationSeconds)) ? { durationSeconds: Number(item.durationSeconds) } : {}),
-          ...(Number.isFinite(Number(item.wordCount)) ? { wordCount: Number(item.wordCount) } : {}),
-          ...(Number.isFinite(Number(item.selfReviewCount)) ? { selfReviewCount: Number(item.selfReviewCount) } : {}),
-          ...(typeof item.resultType === "string" ? { resultType: item.resultType } : {}),
-        }))
+      ? diagnostic.taskEvidence.map(workspaceBackupDiagnosticEvidenceSummary)
       : [];
     const receipt = {
       cycleId: cycle.cycleId,
@@ -1745,8 +4676,8 @@
       supersededAt: isoNow(),
       reason: "learner_started_new_gate_a_evidence_pack",
     };
-    const existing = Array.isArray(state.journey.supersededCycles) ? state.journey.supersededCycles : [];
-    state.journey.supersededCycles = [...existing, receipt].slice(-10);
+    state.journey.supersededCycles = [...existing, receipt];
+    return { status: "archived", cycleId: cycle.cycleId };
   };
   const resetDiagnosticDownstream = () => {
     state.journey.recommendation = null;
@@ -2295,7 +5226,9 @@
       [...document.querySelectorAll("[data-diagnostic-task]")].some((panel) => {
         const expected = DIAGNOSTIC_TASK_MANIFEST[panel.dataset.taskId];
         const actual = taskDescriptor(panel);
-        return !expected || !Object.entries(expected).every(([key, value]) => actual[key] === value);
+        return !expected ||
+          !Object.entries(expected).filter(([key]) => key !== "correctValue").every(([key, value]) => actual[key] === value) ||
+          (["single_choice", "single_choice_audio"].includes(expected.responseType) && panel.dataset.correctValue !== expected.correctValue);
       })
     ) {
       showStorageWarning("诊断任务清单与运行时版本不一致；为避免形成错误回执，本页已停止写入。请刷新或联系维护者。");
@@ -2406,7 +5339,15 @@
       if (hasDownstream && !window.confirm("开始新一轮诊断会关闭当前未完成闭环的后续连接，并仅归档不含作文原文或首答内容的证据摘要；当前计划将作为历史保留，不再显示为当前计划。确定继续吗？")) return;
       const outcome = await withExclusiveJourneyWrite(async () => {
         const snapshot = snapshotState();
-        archiveSupersededCycle();
+        const archiveOutcome = archiveSupersededCycle();
+        if (!["archived", "not_applicable"].includes(archiveOutcome.status)) {
+          state = snapshot;
+          return {
+            status: archiveOutcome.status === "capacity_reached"
+              ? "superseded_cycle_capacity"
+              : "superseded_cycle_conflict",
+          };
+        }
         const diagnosticSessionId = makeId("diagnostic");
         const createdAt = isoNow();
         const retiredPlan = retireCurrentPlanForNewDiagnostic({
@@ -2488,6 +5429,10 @@
       if (outcome.status !== "saved") {
         if (message) message.textContent = outcome.status === "lock_unavailable"
           ? "当前浏览器无法取得安全写入锁，新诊断会话未建立。"
+          : outcome.status === "superseded_cycle_capacity"
+            ? `本机已保留 ${SUPERSEDED_CYCLE_LIMIT} 轮中止诊断摘要；为避免删除仍被学习事件链引用的证据，本次新诊断未建立。请先前往“我的本机数据”导出备份，再明确清除本机学习数据后开始。`
+            : outcome.status === "superseded_cycle_conflict"
+              ? "当前轮次标识已出现在中止摘要中；为避免覆盖，本次新诊断已停止。请先导出本机数据后核对。"
           : outcome.status === "persist_failed"
             ? "当前无法保存，新诊断会话未建立，原本机记录保持不变。"
             : outcome.status === "plan_history_conflict"
@@ -2532,7 +5477,7 @@
           if (panel.dataset.audioMode === "browser_speech_synthesis") flags.push("browser_voice_variability");
         }
         const completedAt = isoNow();
-        const durationSeconds = Math.max(0, Math.round((Date.now() - Date.parse(current.startedAt)) / 1000));
+        const durationSeconds = Math.max(0, Math.round((Date.parse(completedAt) - Date.parse(current.startedAt)) / 1000));
         const next = {
           ...current,
           status: "completed",
@@ -2573,11 +5518,17 @@
         if (!hasCurrentDiagnosticShape(diagnostic) || diagnostic.activeTaskId !== panel.dataset.taskId) return;
         const current = ensureActiveTaskEvidence(diagnostic, panel);
         if (current.status !== "in_progress") return;
+        const {
+          audioPlaybackCompletedAt: _completedPlaybackAt,
+          audioPlaybackFailed: _playbackFailed,
+          ...currentBeforeReplay
+        } = current;
         replaceDiagnosticEvidence(diagnostic, {
-          ...current,
+          ...currentBeforeReplay,
           audioPlayed: true,
           audioCompleted: false,
-          audioStartedNearBeginning: current.audioStartedNearBeginning === true || audio.currentTime <= 0.25,
+          audioStartedNearBeginning: audio.currentTime <= 0.25,
+          qualityFlags: (current.qualityFlags || []).filter((flag) => flag !== "audio_playback_failed"),
           audioPlaybackStartedAt: isoNow(),
           playCount: Number(current.playCount || 0) + 1,
           updatedAt: isoNow(),
@@ -2596,7 +5547,8 @@
         const nextPosition = Number(audio.currentTime || 0);
         diagnosticAudioPositions.set(audio, nextPosition);
         if (Math.abs(nextPosition - previousPosition) <= 0.05) return;
-        replaceDiagnosticEvidence(diagnostic, appendQualityFlag({ ...current, audioCompleted: false, audioSeekDetected: true }, "audio_seek_detected"));
+        const { audioPlaybackCompletedAt: _completedPlaybackAt, ...currentBeforeSeek } = current;
+        replaceDiagnosticEvidence(diagnostic, appendQualityFlag({ ...currentBeforeSeek, audioCompleted: false, audioSeekDetected: true }, "audio_seek_detected"));
         persist();
         const status = panel.querySelector("[data-diagnostic-audio-status]");
         if (status) status.textContent = "检测到音频进度被拖动；本题仍可完成，但不会作为连续完整播放的纯听力证据。";
@@ -2674,8 +5626,14 @@
           const voiceFlags = ["browser_voice_variability"];
           if (!selectedVoice) voiceFlags.push("voice_not_loaded", "voice_fallback_used");
           else if (selectedVoice !== localEnUs) voiceFlags.push("voice_fallback_used");
+          const {
+            audioPlaybackCompletedAt: _completedPlaybackAt,
+            audioPlaybackFailed: _playbackFailed,
+            speechSynthesisEnded: _speechSynthesisEnded,
+            ...evidenceBeforeReplay
+          } = latest.evidence;
           replaceDiagnosticEvidence(latest.diagnostic, {
-            ...latest.evidence,
+            ...evidenceBeforeReplay,
             audioPlayed: true,
             audioCompleted: false,
             speechSynthesisStarted: true,
@@ -2683,7 +5641,10 @@
               ? { lang: String(selectedVoice.lang || "unknown").slice(0, 20), localService: Boolean(selectedVoice.localService), default: Boolean(selectedVoice.default) }
               : { lang: "browser-default", localService: false, default: true },
             playCount: Number(latest.evidence.playCount || 0) + 1,
-            qualityFlags: unique([...(latest.evidence.qualityFlags || []), ...voiceFlags]),
+            qualityFlags: unique([
+              ...(latest.evidence.qualityFlags || []).filter((flag) => !["audio_playback_failed", "speech_synthesis_error"].includes(flag)),
+              ...voiceFlags,
+            ]),
             updatedAt: isoNow(),
           });
           persist();
@@ -2986,7 +5947,15 @@
         if (!window.confirm("重新开始会归档当前会话的任务状态与质量摘要（不含作文原文或首答内容），并清除本轮尚未完成的后续连接；当前计划将转入历史，不再显示为当前计划。确定继续吗？")) return;
         const outcome = await withExclusiveJourneyWrite(async () => {
           const snapshot = snapshotState();
-          archiveSupersededCycle();
+          const archiveOutcome = archiveSupersededCycle();
+          if (!["archived", "not_applicable"].includes(archiveOutcome.status)) {
+            state = snapshot;
+            return {
+              status: archiveOutcome.status === "capacity_reached"
+                ? "superseded_cycle_capacity"
+                : "superseded_cycle_conflict",
+            };
+          }
           const retiredPlan = retireCurrentPlanForNewDiagnostic({
             supersededAt: isoNow(),
             reason: "learner_restarted_gate_a_evidence_pack",
@@ -3005,7 +5974,11 @@
           return { status: "saved" };
         });
         if (outcome.status !== "saved") {
-          if (message) message.textContent = outcome.status === "plan_history_conflict"
+          if (message) message.textContent = outcome.status === "superseded_cycle_capacity"
+            ? `本机已保留 ${SUPERSEDED_CYCLE_LIMIT} 轮中止诊断摘要；为避免删除仍被学习事件链引用的证据，本轮没有重新开始。请先前往“我的本机数据”导出备份，再明确清除本机学习数据后开始。`
+            : outcome.status === "superseded_cycle_conflict"
+              ? "当前轮次标识已出现在中止摘要中；为避免覆盖，本次重新开始已停止。请先导出本机数据后核对。"
+            : outcome.status === "plan_history_conflict"
             ? "当前计划与历史计划出现重复标识；为避免覆盖，本轮没有重新开始。请先导出本机数据后再处理。"
             : outcome.status === "persist_failed"
               ? "当前无法保存；原诊断、计划与闭环记录保持不变。"
@@ -3099,7 +6072,7 @@
       },
     ];
   };
-  const createRecommendationBinding = (chain, primary) => {
+  const createRecommendationBinding = (chain, primary, createdAt = isoNow()) => {
     const core = deriveRecommendationBindingCore({
       cycle: chain.cycle,
       diagnostic: chain.diagnostic,
@@ -3110,7 +6083,7 @@
     return {
       bindingId: makeId("recommendation-binding"),
       ...core,
-      createdAt: isoNow(),
+      createdAt,
     };
   };
 
@@ -3231,7 +6204,8 @@
 
         const before = snapshotState();
         const recommendationId = makeId("recommendation");
-        const evidenceBinding = createRecommendationBinding(latestChain, items[0]);
+        const createdAt = isoNow();
+        const evidenceBinding = createRecommendationBinding(latestChain, items[0], createdAt);
         if (!evidenceBinding) return { status: "binding_invalid" };
         state.journey.recommendation = {
           recommendationId,
@@ -3245,8 +6219,8 @@
           supplements: items.slice(1),
           sourceMode: "frozen_local_routes_no_rag",
           learnerChoice: true,
-          updatedAt: isoNow(),
-          createdAt: isoNow(),
+          updatedAt: createdAt,
+          createdAt,
         };
         latestCycle.recommendationId = recommendationId;
         latestCycle.checkInId = null;
@@ -3486,6 +6460,7 @@
       const previous = state.journey.peerHelp?.cycleId === cycle.cycleId ? state.journey.peerHelp : null;
       const peerHelpId = previous?.peerHelpId || makeId("peer-help");
       const before = snapshotState();
+      const updatedAt = isoNow();
       state.journey.peerHelp = {
         peerHelpId,
         cycleId: cycle.cycleId,
@@ -3495,8 +6470,8 @@
         source: "synthetic_demo_card_v1",
         learnerChoice: true,
         realCommunityUsed: false,
-        updatedAt: isoNow(),
-        createdAt: previous?.createdAt || isoNow(),
+        updatedAt,
+        createdAt: previous?.createdAt || updatedAt,
       };
       cycle.peerHelpId = peerHelpId;
       cycle.retestId = null;
@@ -3563,6 +6538,13 @@
       const value = form.elements.retestWriting.value.trim();
       const words = value ? value.split(/\s+/).filter(Boolean).length : 0;
       const checks = [...form.querySelectorAll("[data-retest-writing-review]")];
+      if (value.length > RETEST_WRITING_MAX_CHARACTERS) {
+        return {
+          error: `Writing 任务最多保存 ${RETEST_WRITING_MAX_CHARACTERS} 个字符。`,
+          errorKey: "writing",
+          target: form.elements.retestWriting,
+        };
+      }
       if (words < RETEST_TASK_CATALOG.Writing.minimumWordCount) {
         return {
           error: `Writing 任务需要至少 ${RETEST_TASK_CATALOG.Writing.minimumWordCount} 个英文词。`,
@@ -3917,7 +6899,7 @@
           taskSetDigest: state.journey.diagnostic.taskSetDigest,
           retestId: retest.retestId,
           supersedesPlanId: cycle.basePlanId,
-        });
+        }, closedAt);
         state.plan = nextPlan;
         state.journey.planUpdate = {
           cycleId: cycle.cycleId,
@@ -4477,6 +7459,7 @@
     );
     disableJourneyControls();
   }
+  setupWorkspaceBackupControls({ currentLedgerStatus: learningLedgerStatus });
   setupDiagnostic();
   setupRecommendations();
   setupReview();

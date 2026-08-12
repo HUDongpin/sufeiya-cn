@@ -28,6 +28,11 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
     <html lang="zh-CN">
       <body>
         <Script
+          id="sufeiya-workspace-backup-runtime"
+          src="/workspace-backup.js"
+          strategy="beforeInteractive"
+        />
+        <Script
           id="sufeiya-learning-events-runtime"
           src="/learning-events.js"
           strategy="beforeInteractive"

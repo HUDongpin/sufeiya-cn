@@ -1,10 +1,12 @@
-import { randomBytes, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
 
 import { clerk, setupClerkTestingToken } from "@clerk/testing/playwright";
 import { createClerkClient } from "@clerk/backend";
 import {
   expect,
   test,
+  type Dialog,
   type Locator,
   type Request as PlaywrightRequest,
   type Response as PlaywrightResponse,
@@ -24,6 +26,20 @@ import {
 
 const SOFIA_WORKSPACE_KEY = "sufeiya_workspace_v1";
 const SOFIA_CHAT_KEY = "sufeiya_super_teacher_v1";
+const TEACHING_REVIEW_DEMO_KEY = "sufeiya_teaching_review_demo_v1";
+
+const canonicalJson = (value: unknown): string => {
+  if (value === null || typeof value === "boolean" || typeof value === "number") {
+    return JSON.stringify(value);
+  }
+  if (typeof value === "string") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map((item) => canonicalJson(item)).join(",")}]`;
+  if (typeof value !== "object") throw new Error("unsupported canonical JSON value");
+  const record = value as Record<string, unknown>;
+  return `{${Object.keys(record).sort().map((key) => (
+    `${JSON.stringify(key)}:${canonicalJson(record[key])}`
+  )).join(",")}}`;
+};
 
 type SmokeStage =
   | "testing-token handoff"
@@ -66,6 +82,7 @@ type SmokeStage =
   | "real Clerk sign-in"
   | "real Clerk sign-in page"
   | "real Clerk sign-in runtime"
+  | "temporary synthetic sign-in token"
   | "real Clerk sign-in session"
   | "signed-in uninvited session claim refresh"
   | "authenticated Gate A fresh workspace"
@@ -83,6 +100,20 @@ type SmokeStage =
   | "authenticated Gate A updated plan"
   | "authenticated Gate A completed workspace"
   | "authenticated Gate A local-state integrity"
+  | "authenticated Gate A restorable backup export"
+  | `authenticated Gate A restorable backup export rejected (${string})`
+  | "authenticated Gate A restorable backup continuity projection"
+  | "authenticated Gate A workspace-only clear"
+  | "authenticated Gate A tampered backup rejection"
+  | "authenticated Gate A rehashed invalid-domain backup rejection"
+  | "authenticated Gate A valid backup preview"
+  | "authenticated Gate A atomic restore"
+  | "authenticated Gate A restore network isolation"
+  | "authenticated Gate A restore namespace integrity"
+  | "authenticated Gate A restored same-page raw export"
+  | "authenticated Gate A restored same-page event clear"
+  | "authenticated Gate A second atomic restore"
+  | "authenticated Gate A restored continuity"
   | "authenticated teaching-review demo"
   | "authenticated Sofia local explanation"
   | "authenticated Sofia landscape dialog"
@@ -490,10 +521,18 @@ test("a temporary Development user can traverse the protected smoke path and is 
     await page.goto("/", { waitUntil: "domcontentloaded" });
     stage = "real Clerk sign-in runtime";
     await clerk.loaded({ page });
+    stage = "temporary synthetic sign-in token";
+    const temporarySignInToken = await client.signInTokens.createSignInToken({
+      expiresInSeconds: 300,
+      userId: temporaryUser.id,
+    });
     stage = "real Clerk sign-in session";
     await clerk.signIn({
-      emailAddress: temporaryEmail,
       page,
+      signInParams: {
+        strategy: "ticket",
+        ticket: temporarySignInToken.token,
+      },
       setupClerkTestingTokenOptions: { frontendApiUrl: keyPair.frontendApiHost },
     });
 
@@ -648,6 +687,18 @@ test("a temporary Development user can traverse the protected smoke path and is 
       await expect(locator).toHaveText(/\S+/);
       return (await locator.textContent())!.trim();
     };
+    const readLocalNamespaces = () => page.evaluate(
+      ({ chatKey, teachingReviewKey, workspaceKey }) => ({
+        chat: window.localStorage.getItem(chatKey),
+        teachingReview: window.localStorage.getItem(teachingReviewKey),
+        workspace: window.localStorage.getItem(workspaceKey),
+      }),
+      {
+        chatKey: SOFIA_CHAT_KEY,
+        teachingReviewKey: TEACHING_REVIEW_DEMO_KEY,
+        workspaceKey: SOFIA_WORKSPACE_KEY,
+      },
+    );
 
     stage = "authenticated Gate A fresh workspace";
     await gotoApprovedRoute("/workspace");
@@ -703,11 +754,12 @@ test("a temporary Development user can traverse the protected smoke path and is 
       .toHaveText("已留证");
 
     stage = "authenticated Gate A remaining task skips";
-    page.on("dialog", (dialog) => {
+    const acceptDiagnosticSkipDialog = (dialog: Dialog) => {
       expect(dialog.type()).toBe("confirm");
       expect(dialog.message()).toContain("不会被记作零分");
       void dialog.accept();
-    });
+    };
+    page.on("dialog", acceptDiagnosticSkipDialog);
     const skippedDiagnosticTaskIds = [
       "diagnostic-reading-newsletter-v1",
       "diagnostic-listening-science-club-v1",
@@ -724,6 +776,7 @@ test("a temporary Development user can traverse the protected smoke path and is 
           .toHaveText("已跳过");
       }
     }
+    page.off("dialog", acceptDiagnosticSkipDialog);
     await expect(page.locator("[data-diagnostic-report]")).toBeVisible();
     await expect(page.locator("[data-report-summary]")).toContainText(
       "六项任务已有 6 项终态，其中 1 项形成完成证据",
@@ -823,12 +876,25 @@ test("a temporary Development user can traverse the protected smoke path and is 
       .toHaveAttribute("data-evidence-class", "practice_receipt");
     await checkInForm.locator('textarea[name="didText"]').fill("完成了本轮绑定的阅读练习并核对答案。");
     await checkInForm.locator('textarea[name="evidenceText"]').fill("能够从短文细节判断图书馆改造支持不同学习方式。");
+    const checkInQuestion = checkInForm.locator('textarea[name="questionText"]');
+    await checkInForm.locator('input[name="questionStatus"][value="has_question"]').check();
+    await expect(checkInForm.locator("[data-question-wrap]")).toBeVisible();
+    await checkInQuestion.fill("这段暂存问题应在选择暂时没有后被清除。");
     await checkInForm.locator('input[name="questionStatus"][value="none"]').check();
+    await expect(checkInForm.locator("[data-question-wrap]")).toBeHidden();
     await checkInForm.getByRole("button", { name: "保存证据式打卡" }).click();
     await expect(checkInForm).not.toHaveAttribute("aria-busy", "true");
     await expect(page.locator("[data-checkin-receipt]")).toBeVisible();
     await expect(page.locator("[data-checkin-evidence-class]")).toContainText("practice_receipt");
     await expectNonemptyText(page.locator("[data-checkin-practice-receipt-id]"));
+    const savedCheckInQuestion = await page.evaluate((workspaceKey) => {
+      const parsed = JSON.parse(window.localStorage.getItem(workspaceKey) || "null") as {
+        checkIns?: Record<string, { questionStatus?: string; questionText?: string; status?: string }>;
+      } | null;
+      const saved = Object.values(parsed?.checkIns ?? {}).find((record) => record.status === "saved");
+      return saved ? { questionStatus: saved.questionStatus, questionText: saved.questionText } : null;
+    }, SOFIA_WORKSPACE_KEY);
+    expect(savedCheckInQuestion).toEqual({ questionStatus: "none", questionText: "" });
     const reviewLink = page.locator("[data-checkin-review-link]");
     await expect(reviewLink).toBeVisible();
     const [reviewResponse] = await Promise.all([
@@ -927,7 +993,13 @@ test("a temporary Development user can traverse the protected smoke path and is 
       const state = JSON.parse(rawState) as {
         schemaVersion?: number;
         planHistory?: Array<{ planId?: string; status?: string }>;
-        learningEvents?: Array<{ eventType?: string }>;
+        learningEvents?: Array<{
+          eventHash?: string;
+          eventId?: string;
+          eventType?: string;
+          previousHash?: string | null;
+          sequence?: number;
+        }>;
         journey?: {
           protocolVersion?: string;
           activeCycle?: Record<string, unknown>;
@@ -944,7 +1016,9 @@ test("a temporary Development user can traverse the protected smoke path and is 
       const cycle = state.journey?.activeCycle ?? {};
       const evidence = state.journey?.diagnostic?.taskEvidence ?? [];
       const history = state.journey?.history ?? [];
+      const events = state.learningEvents ?? [];
       return {
+        rawState,
         schemaVersion: state.schemaVersion,
         protocolVersion: state.journey?.protocolVersion,
         cycleStatus: cycle.status,
@@ -969,7 +1043,15 @@ test("a temporary Development user can traverse the protected smoke path and is 
         planHistory: state.planHistory,
         historyStatuses: history.map((item) => item.status),
         historyCycleIds: history.map((item) => item.cycleId),
-        eventTypes: (state.learningEvents ?? []).map((event) => event.eventType),
+        eventTypes: events.map((event) => event.eventType),
+        eventChain: events.map((event) => ({
+          eventHash: event.eventHash,
+          eventId: event.eventId,
+          eventType: event.eventType,
+          previousHash: event.previousHash,
+          sequence: event.sequence,
+        })),
+        eventHeadHash: events.at(-1)?.eventHash ?? null,
       };
     }, SOFIA_WORKSPACE_KEY);
     expect(gateAState).not.toBeNull();
@@ -1005,6 +1087,432 @@ test("a temporary Development user can traverse the protected smoke path and is 
     }));
     expect(gateAState!.historyStatuses).toEqual(["completed"]);
     expect(gateAState!.historyCycleIds).toEqual([gateAState!.cycleIds[0]]);
+    expect(gateAState!.eventChain).toHaveLength(6);
+    expect(gateAState!.eventHeadHash).toMatch(/^[a-f0-9]{64}$/);
+    stage = "authenticated Gate A restorable backup export";
+    await gotoApprovedRoute("/my-data");
+    const adjacentNamespaceSentinels = {
+      chat: JSON.stringify({
+        sentinel: `sofia-adjacent-namespace-${uniqueSuffix}`,
+        purpose: "workspace-backup-nonempty-isolation-proof",
+      }),
+      teachingReview: JSON.stringify({
+        sentinel: `teaching-review-adjacent-namespace-${uniqueSuffix}`,
+        purpose: "workspace-backup-nonempty-isolation-proof",
+      }),
+    };
+    await page.evaluate(
+      ({ chatKey, chatRaw, teachingReviewKey, teachingReviewRaw }) => {
+        window.localStorage.setItem(chatKey, chatRaw);
+        window.localStorage.setItem(teachingReviewKey, teachingReviewRaw);
+      },
+      {
+        chatKey: SOFIA_CHAT_KEY,
+        chatRaw: adjacentNamespaceSentinels.chat,
+        teachingReviewKey: TEACHING_REVIEW_DEMO_KEY,
+        teachingReviewRaw: adjacentNamespaceSentinels.teachingReview,
+      },
+    );
+    const namespaceRawBeforeRestoreExercise = await readLocalNamespaces();
+    expect(namespaceRawBeforeRestoreExercise).toEqual({
+      chat: adjacentNamespaceSentinels.chat,
+      teachingReview: adjacentNamespaceSentinels.teachingReview,
+      workspace: gateAState!.rawState,
+    });
+
+    const restorableExport = page.locator("[data-export-restorable-workspace]");
+    const workspaceBackupStatus = page.locator("[data-workspace-backup-message]");
+    await expect(restorableExport).toBeVisible();
+    await expect(restorableExport).toBeEnabled();
+    const workspaceBackupDownloadPromise = page.waitForEvent("download", { timeout: 30_000 }).catch(() => null);
+    await restorableExport.click();
+    await expect(workspaceBackupStatus).not.toHaveText("正在核对当前学习工作区…", { timeout: 30_000 });
+    const exportStatus = await workspaceBackupStatus.textContent();
+    if (!exportStatus?.includes("可恢复的学习工作区备份已下载")) {
+      stage = `authenticated Gate A restorable backup export rejected (${await workspaceBackupStatus.getAttribute("data-code") || "unknown"})`;
+      throw new Error("restorable backup export did not reach the fixed local success state");
+    }
+    const workspaceBackupDownload = await workspaceBackupDownloadPromise;
+    if (!workspaceBackupDownload) throw new Error("browser did not emit the workspace backup download");
+    expect(workspaceBackupDownload.suggestedFilename()).toMatch(
+      /^sufeiya-workspace-backup-\d{4}-\d{2}-\d{2}\.json$/,
+    );
+    expect(await workspaceBackupDownload.failure()).toBeNull();
+    const workspaceBackupPath = await workspaceBackupDownload.path();
+    if (!workspaceBackupPath) throw new Error("browser did not retain the downloaded workspace backup");
+    const workspaceBackupBuffer = await readFile(workspaceBackupPath);
+    const workspaceBackupText = workspaceBackupBuffer.toString("utf8");
+    expect(workspaceBackupText).not.toContain(SOFIA_CHAT_KEY);
+    expect(workspaceBackupText).not.toContain(TEACHING_REVIEW_DEMO_KEY);
+    const workspaceBackupEnvelope = JSON.parse(workspaceBackupText) as {
+      backupProtocol?: string;
+      integrity?: {
+        learningEventCount?: number;
+        learningEventHeadHash?: string | null;
+        sha256?: string;
+      };
+      namespace?: string;
+      restorePolicy?: string;
+      workspace?: {
+        journey?: {
+          activeCycle?: Record<string, unknown>;
+          history?: Array<Record<string, unknown>>;
+        };
+        learningEvents?: Array<{
+          eventHash?: string;
+          eventId?: string;
+          eventType?: string;
+          previousHash?: string | null;
+          sequence?: number;
+        }>;
+      };
+    };
+    expect(workspaceBackupEnvelope).toMatchObject({
+      backupProtocol: "sufeiya_workspace_backup_v1",
+      namespace: SOFIA_WORKSPACE_KEY,
+      restorePolicy: "replace_only_no_merge",
+      integrity: {
+        learningEventCount: 6,
+        learningEventHeadHash: gateAState!.eventHeadHash,
+        sha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+      },
+    });
+    stage = "authenticated Gate A restorable backup continuity projection";
+    expect(workspaceBackupEnvelope.workspace).toBeDefined();
+    const exportedWorkspace = workspaceBackupEnvelope.workspace!;
+    const exportedCycle = exportedWorkspace.journey?.activeCycle ?? {};
+    expect([
+      exportedCycle.cycleId,
+      exportedCycle.diagnosticSessionId,
+      exportedCycle.basePlanId,
+      exportedCycle.recommendationId,
+      exportedCycle.checkInId,
+      exportedCycle.reviewId,
+      exportedCycle.peerHelpId,
+      exportedCycle.retestId,
+      exportedCycle.updatedPlanId,
+    ]).toEqual(gateAState!.cycleIds);
+    expect(exportedWorkspace.journey?.history?.map((item) => item.status)).toEqual(
+      gateAState!.historyStatuses,
+    );
+    expect((exportedWorkspace.learningEvents ?? []).map((event) => ({
+      eventHash: event.eventHash,
+      eventId: event.eventId,
+      eventType: event.eventType,
+      previousHash: event.previousHash,
+      sequence: event.sequence,
+    }))).toEqual(gateAState!.eventChain);
+    const exportedWorkspaceCanonical = canonicalJson(exportedWorkspace);
+    await expect(workspaceBackupStatus).toContainText(
+      "可恢复的学习工作区备份已下载",
+    );
+
+    stage = "authenticated Gate A workspace-only clear";
+    const clearWorkspaceButton = page.locator("[data-clear-workspace]");
+    await expect(clearWorkspaceButton).toBeEnabled();
+    const clearWorkspaceDialog = page.waitForEvent("dialog");
+    const clearedWorkspaceReload = page.waitForEvent("load");
+    const clearWorkspaceClick = clearWorkspaceButton.click();
+    const confirmationDialog = await clearWorkspaceDialog;
+    expect(confirmationDialog.type()).toBe("confirm");
+    expect(confirmationDialog.message()).toContain("仅清除这个浏览器中的 Sufeiya 学习闭环数据");
+    expect(confirmationDialog.message()).toContain("Sofia智能老师对话与教研复核演示草稿不会被删除");
+    await confirmationDialog.accept();
+    await Promise.all([clearWorkspaceClick, clearedWorkspaceReload]);
+    await expect(page).toHaveURL((url) => url.pathname === "/my-data");
+    expect(await readLocalNamespaces()).toEqual({
+      chat: namespaceRawBeforeRestoreExercise.chat,
+      teachingReview: namespaceRawBeforeRestoreExercise.teachingReview,
+      workspace: null,
+    });
+
+    type BackupInteractionPhase =
+      | "tampered_validation"
+      | "invalid_domain_validation"
+      | "valid_validation"
+      | "restore";
+    let backupInteractionPhase: BackupInteractionPhase | null = null;
+    const backupApplicationPosts: string[] = [];
+    const backupPayloadTransmissions: string[] = [];
+    const applicationOrigin = new URL(target.baseURL).origin;
+    const backupPayloadMarkers = [
+      "sufeiya_workspace_backup_v1",
+      workspaceBackupEnvelope.integrity?.sha256,
+      workspaceBackupEnvelope.integrity?.learningEventHeadHash,
+    ].filter((value): value is string => Boolean(value));
+    const recordBackupInteractionRequest = (request: PlaywrightRequest) => {
+      if (!backupInteractionPhase) return;
+      const requestUrl = new URL(request.url());
+      const method = request.method();
+      const observation = `${backupInteractionPhase}:${method}:${requestUrl.origin}${requestUrl.pathname}`;
+      if (method === "POST" && requestUrl.origin === applicationOrigin) {
+        backupApplicationPosts.push(observation);
+      }
+      const requestBody = request.postData();
+      if (requestBody && backupPayloadMarkers.some((marker) => requestBody.includes(marker))) {
+        backupPayloadTransmissions.push(observation);
+      }
+    };
+    page.on("request", recordBackupInteractionRequest);
+
+    const workspaceBackupFile = page.locator("[data-workspace-backup-file]");
+    const validateWorkspaceBackup = page.locator("[data-validate-workspace-backup]");
+    const workspaceBackupPreview = page.locator("[data-workspace-backup-preview]");
+    const confirmWorkspaceRestore = page.locator("[data-confirm-workspace-restore]");
+    const restoreWorkspaceBackup = page.locator("[data-restore-workspace-backup]");
+    const workspaceBackupMessage = page.locator("[data-workspace-backup-message]");
+
+    stage = "authenticated Gate A tampered backup rejection";
+    const tamperedEnvelope = JSON.parse(workspaceBackupText) as {
+      integrity: { sha256: string };
+    };
+    tamperedEnvelope.integrity.sha256 = tamperedEnvelope.integrity.sha256 === "0".repeat(64)
+      ? "1".repeat(64)
+      : "0".repeat(64);
+    backupInteractionPhase = "tampered_validation";
+    await workspaceBackupFile.setInputFiles({
+      name: "tampered-sufeiya-workspace-backup.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify(tamperedEnvelope)),
+    });
+    await expect(validateWorkspaceBackup).toBeEnabled();
+    await expect(restoreWorkspaceBackup).toBeDisabled();
+    await validateWorkspaceBackup.click();
+    await expect(workspaceBackupMessage).toHaveAttribute("role", "alert");
+    await expect(workspaceBackupMessage).toContainText("可能已损坏或被改动");
+    await expect(workspaceBackupMessage).toBeFocused();
+    await expect(workspaceBackupPreview).toBeHidden();
+    await expect(confirmWorkspaceRestore).toBeDisabled();
+    await expect(restoreWorkspaceBackup).toBeDisabled();
+    expect(await readLocalNamespaces()).toEqual({
+      chat: namespaceRawBeforeRestoreExercise.chat,
+      teachingReview: namespaceRawBeforeRestoreExercise.teachingReview,
+      workspace: null,
+    });
+
+    stage = "authenticated Gate A rehashed invalid-domain backup rejection";
+    const rehashedInvalidDomainEnvelope = JSON.parse(workspaceBackupText) as {
+      integrity: { byteLength: number; sha256: string };
+      workspace: { focus: { active: unknown } };
+    };
+    rehashedInvalidDomainEnvelope.workspace.focus.active = {};
+    const rehashedInvalidDomainWorkspace = canonicalJson(
+      rehashedInvalidDomainEnvelope.workspace,
+    );
+    rehashedInvalidDomainEnvelope.integrity.byteLength = Buffer.byteLength(
+      rehashedInvalidDomainWorkspace,
+      "utf8",
+    );
+    rehashedInvalidDomainEnvelope.integrity.sha256 = createHash("sha256")
+      .update(rehashedInvalidDomainWorkspace, "utf8")
+      .digest("hex");
+    backupInteractionPhase = "invalid_domain_validation";
+    await workspaceBackupFile.setInputFiles({
+      name: "rehashed-invalid-domain-sufeiya-workspace-backup.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify(rehashedInvalidDomainEnvelope)),
+    });
+    await expect(validateWorkspaceBackup).toBeEnabled();
+    await expect(restoreWorkspaceBackup).toBeDisabled();
+    await validateWorkspaceBackup.click();
+    await expect(workspaceBackupMessage).toHaveAttribute("role", "alert");
+    await expect(workspaceBackupMessage).toContainText("没有修改当前学习数据");
+    await expect(workspaceBackupMessage).not.toContainText("摘要与内容不一致");
+    await expect(workspaceBackupMessage).toBeFocused();
+    await expect(workspaceBackupPreview).toBeHidden();
+    await expect(confirmWorkspaceRestore).toBeDisabled();
+    await expect(restoreWorkspaceBackup).toBeDisabled();
+    expect(await readLocalNamespaces()).toEqual({
+      chat: namespaceRawBeforeRestoreExercise.chat,
+      teachingReview: namespaceRawBeforeRestoreExercise.teachingReview,
+      workspace: null,
+    });
+
+    stage = "authenticated Gate A valid backup preview";
+    backupInteractionPhase = "valid_validation";
+    await workspaceBackupFile.setInputFiles(workspaceBackupPath);
+    await expect(validateWorkspaceBackup).toBeEnabled();
+    await expect(restoreWorkspaceBackup).toBeDisabled();
+    await validateWorkspaceBackup.click();
+    await expect(workspaceBackupPreview).toBeVisible({ timeout: 15_000 });
+    await expect(workspaceBackupPreview).toBeFocused();
+    await expect(workspaceBackupPreview.locator("[data-backup-stage]")).toHaveText(
+      "本轮 Gate A 闭环已完成",
+    );
+    await expect(workspaceBackupPreview.locator("[data-backup-plans]")).toHaveText("2 份");
+    await expect(workspaceBackupPreview.locator("[data-backup-completed-cycles]")).toHaveText(
+      "1 轮完成 · 0 轮待人工确认",
+    );
+    await expect(workspaceBackupPreview.locator("[data-backup-receipts]")).toHaveText("1 份");
+    await expect(workspaceBackupPreview.locator("[data-backup-checkins]")).toHaveText("1 条");
+    await expect(workspaceBackupPreview.locator("[data-backup-events]")).toHaveText("6 条");
+    await expect(workspaceBackupPreview.locator("[data-backup-head-hash]")).toHaveText(
+      `${gateAState!.eventHeadHash!.slice(0, 12)}…`,
+    );
+    await expect(confirmWorkspaceRestore).toBeEnabled();
+    await expect(confirmWorkspaceRestore).not.toBeChecked();
+    await expect(restoreWorkspaceBackup).toBeDisabled();
+    expect(await readLocalNamespaces()).toEqual({
+      chat: namespaceRawBeforeRestoreExercise.chat,
+      teachingReview: namespaceRawBeforeRestoreExercise.teachingReview,
+      workspace: null,
+    });
+    await confirmWorkspaceRestore.check();
+    await expect(restoreWorkspaceBackup).toBeEnabled();
+    expect(await readLocalNamespaces()).toEqual({
+      chat: namespaceRawBeforeRestoreExercise.chat,
+      teachingReview: namespaceRawBeforeRestoreExercise.teachingReview,
+      workspace: null,
+    });
+
+    stage = "authenticated Gate A atomic restore";
+    backupInteractionPhase = "restore";
+    await restoreWorkspaceBackup.click();
+    const workspaceRestoreSuccess = page.locator("[data-workspace-restore-success]");
+    await expect(workspaceRestoreSuccess).toBeVisible({ timeout: 15_000 });
+    await expect(workspaceRestoreSuccess).toBeFocused();
+    await expect(workspaceBackupMessage).toContainText(
+      "Sofia 对话与教研复核演示草稿未被读取或修改",
+    );
+    backupInteractionPhase = null;
+    page.off("request", recordBackupInteractionRequest);
+    stage = "authenticated Gate A restore network isolation";
+    expect(backupApplicationPosts).toEqual([]);
+    expect(backupPayloadTransmissions).toEqual([]);
+
+    stage = "authenticated Gate A restore namespace integrity";
+    const restoredNamespaceRaw = await readLocalNamespaces();
+    expect(restoredNamespaceRaw.chat).toBe(namespaceRawBeforeRestoreExercise.chat);
+    expect(restoredNamespaceRaw.teachingReview).toBe(namespaceRawBeforeRestoreExercise.teachingReview);
+    expect(restoredNamespaceRaw.workspace).not.toBeNull();
+    const restoredWorkspace = JSON.parse(restoredNamespaceRaw.workspace!) as {
+      journey?: { activeCycle?: Record<string, unknown> };
+      learningEvents?: Array<{
+        eventHash?: string;
+        eventId?: string;
+        eventType?: string;
+        previousHash?: string | null;
+        sequence?: number;
+      }>;
+    };
+    expect(canonicalJson(restoredWorkspace)).toBe(exportedWorkspaceCanonical);
+    const restoredCycle = restoredWorkspace.journey?.activeCycle ?? {};
+    const restoredCycleIds = [
+      restoredCycle.cycleId,
+      restoredCycle.diagnosticSessionId,
+      restoredCycle.basePlanId,
+      restoredCycle.recommendationId,
+      restoredCycle.checkInId,
+      restoredCycle.reviewId,
+      restoredCycle.peerHelpId,
+      restoredCycle.retestId,
+      restoredCycle.updatedPlanId,
+    ];
+    expect(restoredCycleIds).toEqual(gateAState!.cycleIds);
+    const restoredEventChain = (restoredWorkspace.learningEvents ?? []).map((event) => ({
+      eventHash: event.eventHash,
+      eventId: event.eventId,
+      eventType: event.eventType,
+      previousHash: event.previousHash,
+      sequence: event.sequence,
+    }));
+    expect(restoredEventChain).toEqual(gateAState!.eventChain);
+    expect(restoredEventChain.at(-1)?.eventHash).toBe(gateAState!.eventHeadHash);
+
+    stage = "authenticated Gate A restored same-page raw export";
+    const localRawExportDownloadPromise = page.waitForEvent("download", { timeout: 30_000 });
+    await page.locator("[data-export-workspace]").click();
+    const localRawExportDownload = await localRawExportDownloadPromise;
+    expect(await localRawExportDownload.failure()).toBeNull();
+    const localRawExportPath = await localRawExportDownload.path();
+    if (!localRawExportPath) throw new Error("browser did not retain the same-page raw export");
+    const localRawExport = JSON.parse(
+      (await readFile(localRawExportPath)).toString("utf8"),
+    ) as {
+      exportProtocol?: string;
+      namespaces?: Record<string, { parsed?: unknown; raw?: string | null }>;
+    };
+    expect(localRawExport.exportProtocol).toBe("sufeiya_local_export_v2");
+    expect(canonicalJson(localRawExport.namespaces?.[SOFIA_WORKSPACE_KEY]?.parsed)).toBe(
+      exportedWorkspaceCanonical,
+    );
+    expect(await readLocalNamespaces()).toEqual(restoredNamespaceRaw);
+
+    stage = "authenticated Gate A restored same-page event clear";
+    const clearEventsButton = page.locator("[data-clear-learning-events]");
+    await expect(clearEventsButton).toBeEnabled();
+    const clearEventsDialog = page.waitForEvent("dialog");
+    const clearEventsReload = page.waitForEvent("load");
+    const clearEventsClick = clearEventsButton.click();
+    const eventsConfirmation = await clearEventsDialog;
+    expect(eventsConfirmation.type()).toBe("confirm");
+    expect(eventsConfirmation.message()).toContain("仅清除学习事件账本和本机事件别名");
+    await eventsConfirmation.accept();
+    await Promise.all([clearEventsClick, clearEventsReload]);
+    await expect(page).toHaveURL((url) => url.pathname === "/my-data");
+    const afterEventClearNamespaces = await readLocalNamespaces();
+    expect(afterEventClearNamespaces.chat).toBe(namespaceRawBeforeRestoreExercise.chat);
+    expect(afterEventClearNamespaces.teachingReview).toBe(namespaceRawBeforeRestoreExercise.teachingReview);
+    expect(afterEventClearNamespaces.workspace).not.toBeNull();
+    const eventClearedWorkspace = JSON.parse(afterEventClearNamespaces.workspace!) as Record<string, unknown>;
+    expect(eventClearedWorkspace.learningEvents).toEqual([]);
+    expect(eventClearedWorkspace.learningEventBindings).toBeNull();
+    const eventClearedDomainState = structuredClone(eventClearedWorkspace);
+    const restoredDomainState = structuredClone(restoredWorkspace) as Record<string, unknown>;
+    ["learningEvents", "learningEventBindings", "updatedAt"].forEach((key) => {
+      delete eventClearedDomainState[key];
+      delete restoredDomainState[key];
+    });
+    expect(canonicalJson(eventClearedDomainState)).toBe(canonicalJson(restoredDomainState));
+
+    stage = "authenticated Gate A second atomic restore";
+    await workspaceBackupFile.setInputFiles(workspaceBackupPath);
+    await expect(validateWorkspaceBackup).toBeEnabled();
+    await validateWorkspaceBackup.click();
+    await expect(workspaceBackupPreview).toBeVisible({ timeout: 15_000 });
+    await expect(confirmWorkspaceRestore).toBeEnabled();
+    await confirmWorkspaceRestore.check();
+    await expect(restoreWorkspaceBackup).toBeEnabled();
+    await restoreWorkspaceBackup.click();
+    await expect(workspaceRestoreSuccess).toBeVisible({ timeout: 15_000 });
+    await expect(workspaceRestoreSuccess).toBeFocused();
+    const secondRestoreNamespaces = await readLocalNamespaces();
+    expect(secondRestoreNamespaces.chat).toBe(namespaceRawBeforeRestoreExercise.chat);
+    expect(secondRestoreNamespaces.teachingReview).toBe(namespaceRawBeforeRestoreExercise.teachingReview);
+    expect(secondRestoreNamespaces.workspace).not.toBeNull();
+    expect(canonicalJson(JSON.parse(secondRestoreNamespaces.workspace!))).toBe(exportedWorkspaceCanonical);
+
+    stage = "authenticated Gate A restored continuity";
+    const workspaceRestoreNext = page.locator("[data-workspace-restore-next]");
+    await expect(workspaceRestoreNext).toHaveAttribute("href", "/plan");
+    await Promise.all([
+      page.waitForURL((url) => url.pathname === "/plan"),
+      workspaceRestoreNext.click(),
+    ]);
+    await expect(page).toHaveURL((url) => url.pathname === "/plan");
+    await gotoApprovedRoute("/workspace");
+    await expect(page.locator("[data-journey-summary]")).toHaveText("7 / 7 步已留证");
+    await expect(page.locator("[data-cycle-ledger]")).toHaveAttribute("data-cycle-state", "complete");
+    await expect(page.locator('[data-cycle-ledger-row][data-state="recorded"]')).toHaveCount(8);
+    const finalNamespaceRaw = await readLocalNamespaces();
+    expect(finalNamespaceRaw.chat).toBe(namespaceRawBeforeRestoreExercise.chat);
+    expect(finalNamespaceRaw.teachingReview).toBe(namespaceRawBeforeRestoreExercise.teachingReview);
+    expect(finalNamespaceRaw.workspace).not.toBeNull();
+    expect(canonicalJson(JSON.parse(finalNamespaceRaw.workspace!))).toBe(exportedWorkspaceCanonical);
+    expect((JSON.parse(finalNamespaceRaw.workspace!) as { learningEvents?: unknown[] }).learningEvents)
+      .toHaveLength(gateAState!.eventChain.length);
+    await page.evaluate(({ chatKey, teachingReviewKey }) => {
+      window.localStorage.removeItem(chatKey);
+      window.localStorage.removeItem(teachingReviewKey);
+    }, {
+      chatKey: SOFIA_CHAT_KEY,
+      teachingReviewKey: TEACHING_REVIEW_DEMO_KEY,
+    });
+    expect(await readLocalNamespaces()).toEqual({
+      chat: null,
+      teachingReview: null,
+      workspace: finalNamespaceRaw.workspace,
+    });
 
     stage = "authenticated teaching-review demo";
     await gotoApprovedRoute("/teaching-review-demo");

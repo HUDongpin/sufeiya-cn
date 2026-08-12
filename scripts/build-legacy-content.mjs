@@ -27,7 +27,7 @@ const definitions = [
   { key: "review", file: "review.html", path: "/review", runtime: "site", nav: "workspace", journey: true },
   { key: "community", file: "community.html", path: "/community", runtime: "workspace", nav: "workspace", journey: true },
   { key: "retest", file: "retest.html", path: "/retest", runtime: "workspace", nav: "workspace", journey: true },
-  { key: "my-data", file: "my-data.html", path: "/my-data", runtime: "workspace", nav: "workspace" },
+  { key: "my-data", file: "my-data.html", path: "/my-data", runtime: "workspace", nav: "workspace", journey: true },
   { key: "not-found", file: "404.html", path: "/404", runtime: "site", nav: "home" },
 ];
 
@@ -68,6 +68,7 @@ for (const [from, to] of [
   ["../workspace.js", "../public/workspace.js"],
   ["../journey.js", "../public/journey.js"],
   ["../learning-events.js", "../public/learning-events.js"],
+  ["../workspace-backup.js", "../public/workspace-backup.js"],
   ["../script.js", "../public/script.js"],
   ["../resources.js", "../public/resources.js"],
 ]) {
