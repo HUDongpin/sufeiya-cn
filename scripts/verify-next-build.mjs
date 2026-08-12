@@ -94,7 +94,7 @@ for (const [path, html] of [
   [appNotFoundHtmlPath, appNotFoundHtml],
   [pagesNotFoundHtmlPath, pagesNotFoundHtml],
 ]) {
-  if (!html.includes("/learning-events.js") || !html.includes("/script.js")) {
+  if (!html.includes("/workspace-backup.js") || !html.includes("/learning-events.js") || !html.includes("/script.js")) {
     throw new Error(`${path} is missing the expected local site runtimes.`);
   }
   if (!html.includes("这一页暂时没有学习任务。")) {
@@ -340,6 +340,7 @@ if (
 }
 
 const allowedPublicScripts = new Map([
+  ["/workspace-backup.js", "public/workspace-backup.js"],
   ["/learning-events.js", "public/learning-events.js"],
   ["/script.js", "public/script.js"],
 ]);
@@ -460,6 +461,7 @@ const parseTagAttributes = (tag, tagName) => {
 };
 
 const allowedInlineScriptPatterns = [
+  /^\(self\.__next_s=self\.__next_s\|\|\[\]\)\.push\(\["\/workspace-backup\.js",\{"id":"sufeiya-workspace-backup-runtime"\}\]\)$/,
   /^\(self\.__next_s=self\.__next_s\|\|\[\]\)\.push\(\["\/learning-events\.js",\{"id":"sufeiya-learning-events-runtime"\}\]\)$/,
   /^\(self\.__next_f=self\.__next_f\|\|\[\]\)\.push\(\[0\]\)$/,
 ];

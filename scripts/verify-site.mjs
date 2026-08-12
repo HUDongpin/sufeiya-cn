@@ -106,9 +106,11 @@ const nextOverrides = await read("app/next-overrides.css");
 const script = await read("script.js");
 const workspaceScript = await read("workspace.js");
 const journeyScript = await read("journey.js");
+const workspaceBackupScript = await read("workspace-backup.js");
 const learningEventsScript = await read("learning-events.js");
 const publicWorkspaceScript = await read("public/workspace.js");
 const publicJourneyScript = await read("public/journey.js");
+const publicWorkspaceBackupScript = await read("public/workspace-backup.js");
 const publicLearningEventsScript = await read("public/learning-events.js");
 const resourcesScript = await read("resources.js");
 const notFound = await read("404.html");
@@ -1341,7 +1343,7 @@ const recoveryLockSource = sourceSection(
   "const appendLearningEvent",
 );
 check(
-  /const allowedSelectors = \["\[data-export-workspace\]"\]/.test(workspaceControlPolicySource) &&
+  /const allowedSelectors = \[[\s\S]*?"\[data-export-workspace\]"[\s\S]*?"\[data-workspace-backup-file\]"[\s\S]*?"\[data-restore-workspace-backup\]"[\s\S]*?\];/.test(workspaceControlPolicySource) &&
     /if \(allowEventExport\)[\s\S]*data-export-learning-events/.test(workspaceControlPolicySource) &&
     /if \(allowEventClear\)[\s\S]*data-clear-learning-events/.test(workspaceControlPolicySource) &&
     /if \(allowDataReset\)[\s\S]*data-clear-workspace[\s\S]*data-clear-super-teacher[\s\S]*data-clear-teaching-review-demo[\s\S]*data-clear-all-sufeiya/.test(
@@ -1851,7 +1853,12 @@ check(/data-recommendation-items[\s\S]*data-accept-recommendation[\s\S]*data-ski
 check(/data-today-tasks/.test(await read("today.html")), "today page contains a directly usable task list");
 check(/lang="en"[\s\S]*name="reading-answer"/.test(await read("practice-reading.html")), "reading material is marked as English");
 check(/<audio controls preload="metadata"[\s\S]*name="listening-answer"/.test(await read("practice-listening.html")), "listening page includes packaged audio and a question");
-check(/textarea[^>]*lang="en"[\s\S]*data-complete-writing/.test(await read("practice-writing.html")), "writing page includes an English response field and completion control");
+check(
+  /textarea[^>]*maxlength="4096"[^>]*lang="en"[^>]*data-writing-answer[\s\S]*data-complete-writing/.test(
+    await read("practice-writing.html"),
+  ),
+  "writing page exposes the 4096-character storage boundary and completion control",
+);
 check(/data-speaking-time[\s\S]*data-speaking-review/.test(await read("practice-speaking.html")), "speaking page includes prepare/speak timing and self-review");
 check(/data-focus-time[\s\S]*data-focus-stop/.test(await read("focus.html")), "focus page includes start, pause, stop, and reset-capable controls");
 check(/name="didText"[\s\S]*name="evidenceText"[\s\S]*name="questionStatus"/.test(await read("check-in.html")), "check-in page collects action, evidence, and question state");
@@ -1969,7 +1976,7 @@ check(
 );
 check(
   !/\bfetch\s*\(|localStorage|setItem|persist\(|appendLearningEvent|appendDomainEvent/.test(
-    sourceSection(journeyScript, "const cycleHistoryTopLevelKeys", "const diagnosticStatusLabels"),
+    sourceSection(journeyScript, "const cycleHistoryTopLevelKeys", "const WORKSPACE_BACKUP_ACTIVE_CYCLE_KEYS"),
   ) &&
     /textContent = value/.test(journeyScript) &&
     /overflow-wrap:\s*anywhere/.test(styles) &&
@@ -2294,6 +2301,12 @@ check(
   "a failed first-response persist restores the complete pre-submit diagnostic state",
 );
 check(
+  /const completedAt = isoNow\(\);[\s\S]*const durationSeconds = Math\.max\(0, Math\.round\(\(Date\.parse\(completedAt\) - Date\.parse\(current\.startedAt\)\) \/ 1000\)\)/.test(
+    diagnosticObjectiveSubmitSource,
+  ) && !/Date\.now\(\) - Date\.parse\(current\.startedAt\)/.test(diagnosticObjectiveSubmitSource),
+  "objective diagnostic completion derives duration from its persisted completion timestamp",
+);
+check(
   /data-prep-seconds="20"[^>]*data-response-seconds="90"/.test(diagnosticPage) &&
     /data-task-skill="Writing"[^>]*data-response-seconds="180"/.test(diagnosticPage),
   "diagnostic page exposes the approved 90-second Speaking and 180-second Writing timers",
@@ -2337,7 +2350,7 @@ check(
     /diagnostic\?\.taskSetVersion === DIAGNOSTIC_TASK_SET_VERSION/.test(journeyScript) &&
     /diagnostic\?\.taskSetDigest === DIAGNOSTIC_TASK_SET_DIGEST/.test(journeyScript) &&
     /contentHash:\s*panel\.dataset\.contentHash/.test(journeyScript) &&
-    /Object\.entries\(expected\)\.every\(\(\[key, value\]\) => evidence\[key\] === value\)/.test(journeyScript) &&
+    /Object\.entries\(expected\)\.filter\(\(\[key\]\) => key !== "correctValue"\)\.every\(\(\[key, value\]\) => evidence\[key\] === value\)/.test(journeyScript) &&
     /automatedScoreProduced:\s*false[\s\S]*formalDiagnosisProduced:\s*false/.test(journeyScript),
   "journey binds runtime evidence to the task-set digest and per-task content hash without scoring",
 );
@@ -2553,6 +2566,11 @@ const workspaceCheckInCandidateSource = sourceSection(
   workspaceScript,
   "const checkInCandidateTasks",
   "checkInCandidateTasks().forEach",
+);
+const workspaceCheckInSetupSource = sourceSection(
+  workspaceScript,
+  'const checkinForm = document.querySelector("#checkin-form")',
+  "const clearNamespace",
 );
 
 const journeyEvidenceHarness = (() => {
@@ -2800,17 +2818,19 @@ const planBoundPracticeCreationHarness = (() => {
             state = nextState;
             appendCallCount = 0;
             window.location.search = \`?plan_id=\${encodeURIComponent(state.plan.planId)}&task_id=\${encodeURIComponent(taskId)}\`;
-            const receipt = sealPracticeReceipt("Reading", "reading-library-v1", {
+            const completedAt = new Date().toISOString();
+            const startedAt = new Date(Date.parse(completedAt) - 1000).toISOString();
+            const receipt = sealPracticeReceipt("Reading", "reading-library-v1", completedAt, {
               firstResponse: "b",
               finalResponse: "b",
               attemptCount: 1,
               qualityFlags: [],
-              startedAt: new Date(Date.now() - 1000).toISOString(),
+              startedAt,
             });
             const eventOutcome = receipt
               ? await appendPracticeFinalizationEvent(receipt)
               : { status: "receipt_invalid" };
-            return { receipt, eventOutcome, appendCallCount, state };
+            return { receipt, eventOutcome, appendCallCount, state, completedAt, startedAt };
           },
         };
       })()`,
@@ -2901,9 +2921,13 @@ await checkExecutableAsync(
       receipt.taskRef?.diagnosticSessionId === null &&
       receipt.recommendationId === null &&
       receipt.evidenceStatus === "evidence_limited" &&
+      receipt.startedAt === result.startedAt &&
+      receipt.completedAt === result.completedAt &&
       result.eventOutcome.status === "not_applicable" &&
       result.appendCallCount === 0 &&
       result.state.taskProgress[taskId]?.practiceReceiptId === receipt.completionReceiptId &&
+      result.state.taskProgress[taskId]?.updatedAt === result.completedAt &&
+      result.state.taskProgress[taskId]?.completedAt === result.completedAt &&
       result.state.practiceReceipts[receipt.completionReceiptId] === receipt
     );
   },
@@ -3104,16 +3128,20 @@ const createJourneyEvidenceFixture = () => {
     ([taskId, expected]) => {
       const objective = ["single_choice", "single_choice_audio"].includes(expected.responseType);
       const isPatternEvidence = taskId === "diagnostic-reading-library-v1";
+      const descriptor = Object.fromEntries(Object.entries(expected).filter(([key]) => key !== "correctValue"));
+      const firstResponse = isPatternEvidence
+        ? (["a", "b", "c"].find((value) => value !== expected.correctValue) || "a")
+        : expected.correctValue;
       return {
         taskId,
-        ...expected,
+        ...descriptor,
         status: "completed",
         evidenceStatus: "evidence_limited",
         qualityFlags: [],
         ...(objective
           ? {
               attempts: 1,
-              firstResponse: isPatternEvidence ? "a" : "b",
+              firstResponse,
               resultType: isPatternEvidence ? "first_response_not_matched" : "first_response_matched",
             }
           : {}),
@@ -3128,6 +3156,7 @@ const createJourneyEvidenceFixture = () => {
     cycleId: cycle.cycleId,
     diagnosticSessionId: cycle.diagnosticSessionId,
     status: "completed",
+    activeTaskId: null,
     adultConfirmed: true,
     devicePrecheck: { storageStatus: "available" },
     taskEvidence: diagnosticEvidence,
@@ -3708,6 +3737,7 @@ const createSkippedRecommendationJourneyFixture = ({ linkedTaskKind = "primary",
   const state = createJourneyEvidenceFixture();
   const basePlan = state.planHistory[0];
   const primaryTask = basePlan.days[0].tasks[0];
+  primaryTask.date = basePlan.days[0].date;
   const alternativeTask = {
     ...structuredClone(primaryTask),
     taskId: "practice-task-alternative-fixture",
@@ -4142,6 +4172,8 @@ check(
     workspaceChoicePracticeSource.includes("practiceReceiptMatchesCurrentPageScope") &&
     workspaceWritingPracticeSource.indexOf('practiceDomMatchesCatalog("writing-community-v1")') >= 0 &&
     workspaceWritingPracticeSource.indexOf('practiceDomMatchesCatalog("writing-community-v1")') <
+      workspaceWritingPracticeSource.indexOf("const existingWritingPractice") &&
+    workspaceWritingPracticeSource.indexOf("const existingWritingPractice") <
       workspaceWritingPracticeSource.indexOf('initializePracticeAttemptScope("Writing", "writing-community-v1")') &&
     workspaceWritingPracticeSource.indexOf('initializePracticeAttemptScope("Writing", "writing-community-v1")') <
       workspaceWritingPracticeSource.indexOf("writing.value = saved.draftText") &&
@@ -4152,7 +4184,32 @@ check(
     workspaceSpeakingPracticeSource.indexOf('initializePracticeAttemptScope("Speaking", "speaking-skill-v1")') <
       workspaceSpeakingPracticeSource.indexOf("const savedSpeakingReceiptId") &&
     workspaceSpeakingPracticeSource.includes("practiceReceiptMatchesCurrentPageScope"),
-  "choice, writing, and speaking pages validate catalog bindings and initialize scope before restoring attempt evidence",
+  "choice, writing, and speaking pages validate catalog bindings; writing fails closed on oversized legacy drafts before scope mutation",
+);
+check(
+  /writing\.maxLength !== WRITING_PRACTICE_MAX_CHARACTERS/.test(workspaceWritingPracticeSource) &&
+    /existingDraftText\.length > WRITING_PRACTICE_MAX_CHARACTERS[\s\S]*writing\.disabled = true[\s\S]*旧草稿未修改[\s\S]*不会截断、保存或封存/.test(
+      workspaceWritingPracticeSource,
+    ) &&
+    /const saveWriting = \(\) => \{[\s\S]*!writingDraftWithinLimit\(writing\.value\)[\s\S]*reportWritingLengthFailure\(\)[\s\S]*return false;/.test(
+      workspaceWritingPracticeSource,
+    ) &&
+    /const normalizedArtifact = writing\.value\.replace[\s\S]*!writingDraftWithinLimit\(writing\.value\)[\s\S]*!writingDraftWithinLimit\(normalizedArtifact\)[\s\S]*reportWritingLengthFailure\(\)[\s\S]*return;/.test(
+      workspaceWritingPracticeSource,
+    ),
+  "Writing rejects oversized persisted, autosave, and sealing paths without truncating learner text",
+);
+check(
+  /const questionStatus = checkinForm\.querySelector\('input\[name="questionStatus"\]:checked'\)\?\.value \|\| "";[\s\S]*questionText: questionStatus === "has_question" \? questionText\?\.value\.trim\(\) \|\| "" : ""/.test(
+    workspaceCheckInSetupSource,
+  ) &&
+    /const toggleQuestion = \(\) => \{[\s\S]*if \(!hasQuestion && questionText\) questionText\.value = "";/.test(
+      workspaceCheckInSetupSource,
+    ) &&
+    /const values = readCheckin\(\);[\s\S]*state\.checkIns\[date\] = \{[\s\S]*\.\.\.values/.test(
+      workspaceCheckInSetupSource,
+    ),
+  "check-in autosave and commit canonicalize no-question records to an empty questionText",
 );
 check(
   /hasValidPracticeReceiptShape\(receipt, receiptId\)\s*\|\|\s*hasSafeLegacyPracticeReceiptShape\(receipt, receiptId\)/.test(
@@ -4237,6 +4294,29 @@ check(
     /sealed:\s*true[\s\S]*ownerScope:\s*"browser_local_not_account_bound"[\s\S]*integrityClass:\s*"unsigned_local_receipt"/.test(workspaceScript) &&
     !/const markMatchingTaskComplete/.test(workspaceScript),
   "practice completion seals an append-only local receipt and no longer completes the first matching skill task",
+);
+check(
+  /const sealPracticeReceipt = \(skill, exerciseId, completedAt, evidence = \{\}\) =>/.test(
+    workspaceSealPracticeReceiptSource,
+  ) &&
+    /typeof completedAt !== "string"[\s\S]*Date\.parse\(completedAt\)[\s\S]*new Date\(completedAt\)\.toISOString\(\) !== completedAt/.test(
+      workspaceSealPracticeReceiptSource,
+    ) &&
+    !/const completedAt = new Date\(\)\.toISOString\(\)/.test(workspaceSealPracticeReceiptSource) &&
+    /existingReceipt\.completedAt === completedAt \? existingReceipt : null/.test(workspaceSealPracticeReceiptSource) &&
+    /updatedAt: completedAt,[\s\S]*completedAt,[\s\S]*sealPracticeReceipt\(skill, exerciseId, completedAt, \{/.test(
+      workspaceChoicePracticeSource,
+    ) &&
+    /setupChoicePractice\(\{[\s\S]*skill: "Reading"[\s\S]*setupChoicePractice\(\{[\s\S]*skill: "Listening"/.test(
+      workspaceScript,
+    ) &&
+    /updatedAt: completedAt,[\s\S]*sealPracticeReceipt\("Writing", "writing-community-v1", completedAt, \{/.test(
+      workspaceWritingPracticeSource,
+    ) &&
+    /updatedAt: completedAt,[\s\S]*sealPracticeReceipt\("Speaking", "speaking-skill-v1", completedAt, \{/.test(
+      workspaceSpeakingPracticeSource,
+    ),
+  "Reading, Listening, Writing, and Speaking use one caller-owned completion timestamp for practice, receipt, and task progress",
 );
 check(
   /completionClass:\s*checkbox\.checked \? "learner_self_report"/.test(workspaceScript) &&
@@ -4613,8 +4693,105 @@ check(
 check(
   publicLearningEventsScript === learningEventsScript &&
     publicWorkspaceScript === workspaceScript &&
-    publicJourneyScript === journeyScript,
-  "Next.js public learning-events, workspace, and journey runtimes exactly match their authoritative source files",
+    publicJourneyScript === journeyScript &&
+    publicWorkspaceBackupScript === workspaceBackupScript,
+  "Next.js public learning-events, workspace, journey, and backup runtimes exactly match their authoritative source files",
+);
+check(
+  /supersededCycles:\s*64/.test(workspaceBackupScript) &&
+    /const SUPERSEDED_CYCLE_LIMIT = 64/.test(journeyScript) &&
+    /status:\s*"capacity_reached"/.test(journeyScript) &&
+    /status:\s*"cycle_conflict"/.test(journeyScript) &&
+    !/supersededCycles\s*=\s*\[\.\.\.existing, receipt\]\.slice/.test(journeyScript) &&
+    (journeyScript.match(/const archiveOutcome = archiveSupersededCycle\(\);/g) || []).length === 2 &&
+    (journeyScript.match(/superseded_cycle_capacity/g) || []).length >= 4,
+  "superseded diagnostic receipts retain ledger coverage and fail closed at one shared 64-cycle capacity",
+);
+check(
+  /const checkInMatches = allCheckIns\(candidateState\)\.filter/.test(journeyScript) &&
+    /checkInMatches\.length !== 1/.test(journeyScript) &&
+    /hasArchivedAt !== hasArchivedReason/.test(journeyScript) &&
+    /learner_revision_after_confirmation/.test(journeyScript) &&
+    /delete projectedCheckIn\.archivedAt;[\s\S]*delete projectedCheckIn\.archivedReason;/.test(journeyScript) &&
+    /checkIn:\s*projectedCheckIn/.test(journeyScript),
+  "terminal cycle mirror accepts only one strictly validated archived check-in projection",
+);
+check(
+  /const validWorkspaceBackupTaskProgress = \(candidateState\) =>/.test(journeyScript) &&
+    /const validWorkspaceBackupPracticeState = async \(candidateState\) =>/.test(journeyScript) &&
+    /const validWorkspaceBackupFocusState = \(candidateState\) =>/.test(journeyScript) &&
+    /const WORKSPACE_BACKUP_EVENT_CONTEXT_KIND = Object\.freeze/.test(journeyScript) &&
+    /JSON\.stringify\(receipt\.qualityFlags\) === JSON\.stringify\(expectedQualityFlags\)/.test(journeyScript) &&
+    /for \(const \[kind, domainRecords\] of Object\.entries\(records\)\)/.test(journeyScript) &&
+    /if \(!usedAliases\.has\(alias\)\) return false/.test(journeyScript) &&
+    /workspaceBackupSupersededMatchesTerminalHistory/.test(journeyScript) &&
+    /practice\.draftText\.replace\(\/\\r\\n\/g, "\\n"\)\.trim\(\)/.test(journeyScript) &&
+    /await workspaceBackupRuntime\.sha256Hex\(normalizedArtifact\) !== latestReceipt\.evidence\.artifactHash/.test(journeyScript) &&
+    /record\.didText\.length > 300/.test(journeyScript) &&
+    /record\.evidenceText\.length > 500/.test(journeyScript) &&
+    /record\.questionText\.length > 300/.test(journeyScript) &&
+    /record\.didText\.length < 10/.test(journeyScript) &&
+    /record\.evidenceText\.length < 10/.test(journeyScript) &&
+    /record\.questionStatus === "none" && record\.questionText !== ""/.test(journeyScript) &&
+    /record\.questionStatus === "has_question" && record\.questionText\.length === 0/.test(journeyScript) &&
+    /const validPracticeReceiptWriterSemantics = \(receipt, catalog\) =>/.test(journeyScript) &&
+    /receipt\.contentRef\.contentHash !== catalog\.contentHash/.test(journeyScript) &&
+    /receipt\.attemptCount === evidence\.attemptCount/.test(journeyScript) &&
+    /receipt\.wordCount === evidence\.wordCount/.test(journeyScript) &&
+    /receipt\.selfCheckCount === evidence\.selfCheckCount/.test(journeyScript) &&
+    /receipt\.audioRecorded === evidence\.audioRecorded/.test(journeyScript) &&
+    /const practiceReceiptScopeShapeValid = \(receipt\) =>/.test(journeyScript) &&
+    /const validWorkspaceBackupReceiptDomainScope = \(candidateState, receipt, catalog\) =>/.test(journeyScript) &&
+    /attemptIds\.has\(receipt\.practiceAttemptId\)/.test(journeyScript),
+  "workspace restore validates exact progress, practice, focus, receipt flags, event bindings, and superseded mirrors",
+);
+check(
+  /const workspaceBackupCalendarDateValid = \(value\) =>/.test(journeyScript) &&
+    /profile\.nickname === profile\.nickname\.trim\(\)/.test(journeyScript) &&
+    /workspaceBackupCalendarDateValid\(profile\.examDate\)/.test(journeyScript) &&
+    /const provenanceKeys = standalone[\s\S]*diagnosticBound[\s\S]*retestFollowup/.test(journeyScript) &&
+    /learner_configured_standalone/.test(journeyScript) &&
+    /learner_configured_after_gate_a_evidence_diagnostic/.test(journeyScript) &&
+    /learner_confirmed_parallel_retest_followup/.test(journeyScript) &&
+    /learner_selected_provisional_followup_pending_human_review/.test(journeyScript) &&
+    /!exactObjectKeys\(plan, \[\.\.\.commonPlanKeys, \.\.\.retirementKeys\]\)/.test(journeyScript) &&
+    /const WORKSPACE_BACKUP_DRAFT_CHECK_IN_KEYS = Object\.freeze/.test(journeyScript) &&
+    /Date\.parse\(record\.savedAt\) > Date\.parse\(record\.updatedAt\)/.test(journeyScript) &&
+    /record\.updatedAt !== record\.reviewedAt/.test(journeyScript) &&
+    /confirmationCanonical\.size !== 1/.test(journeyScript) &&
+    /Date\.parse\(record\.archivedAt\) < Date\.parse\(record\.updatedAt\)/.test(journeyScript),
+  "workspace restore reapplies exact profile, plan provenance, and check-in confirmation writer unions",
+);
+check(
+  /const replaceWorkspaceAtomically = async/.test(workspaceBackupScript) &&
+    /afterWrite !== candidateRaw[\s\S]*concurrent_write/.test(workspaceBackupScript) &&
+    /afterValidation !== candidateRaw[\s\S]*concurrent_write/.test(workspaceBackupScript) &&
+    /rollbackIfCandidateStillOwned/.test(workspaceBackupScript),
+  "workspace restore uses precondition, write-back, post-validation CAS, and owned rollback",
+);
+check(
+  /const refreshWorkspacePageRuntimeAfterRestore = async/.test(workspaceScript) &&
+    /restoredRaw = window\.localStorage\.getItem\(STORAGE_KEY\)/.test(workspaceScript) &&
+    /state = normalized;[\s\S]*rawStoredValue = restoredRaw;[\s\S]*workspaceStateRecognized = true;[\s\S]*learningLedgerStatus = restoredLedgerStatus;[\s\S]*await updateDataPage\(\)/.test(
+      workspaceScript,
+    ) &&
+    /window\.SufeiyaWorkspacePageRuntime = Object\.freeze\([\s\S]*refreshAfterWorkspaceRestore: refreshWorkspacePageRuntimeAfterRestore/.test(
+      workspaceScript,
+    ) &&
+    /const synchronizeJourneyRuntimeAfterWorkspaceRestore = async \(candidateRaw\)/.test(journeyScript) &&
+    /persistedRaw !== candidateRaw[\s\S]*validateWorkspaceBackupCandidate\(JSON\.parse\(persistedRaw\)\)[\s\S]*refreshAfterWorkspaceRestore\(\)[\s\S]*state = validation\.candidate;[\s\S]*learningLedgerStatus = restoredLedgerStatus/.test(
+      journeyScript,
+    ) &&
+    /const synchronization = await synchronizeJourneyRuntimeAfterWorkspaceRestore\(candidateRaw\);[\s\S]*synchronization\.status !== "synchronized"[\s\S]*window\.location\.reload\(\);[\s\S]*committed = true;[\s\S]*success\.hidden = false/.test(
+      journeyScript,
+    ),
+  "successful workspace restore synchronizes both page runtimes and refreshes My Data before success is shown",
+);
+check(
+  /const exportButton = document\.querySelector\("\[data-export-restorable-workspace\]"\);/.test(journeyScript) &&
+    !/const exportButton = root\.querySelector\("\[data-export-restorable-workspace\]"\);/.test(journeyScript) &&
+    /code:\s*"export_unavailable"/.test(journeyScript),
+  "restorable export binds the unique export control outside the restore section and reports unavailable state explicitly",
 );
 
 const renderPracticeBindingSource = sourceSection(workspaceScript, "const renderPracticeBindingStatus", "const practiceRoot");
@@ -5474,6 +5651,8 @@ const retestListeningAudio = await stat(join(root, "assets/listening-writing-cen
 check(retestListeningAudio.size > 50_000, "parallel retest listening audio has a plausible production size");
 const publicJourney = await stat(join(root, "public/journey.js"));
 check(publicJourney.size > 20_000, "Next.js public build includes the journey runtime");
+const publicWorkspaceBackup = await stat(join(root, "public/workspace-backup.js"));
+check(publicWorkspaceBackup.size > 8_000, "Next.js public build includes the workspace backup runtime");
 
 for (const path of ["package.json", "vercel.json"]) {
   try {

@@ -31,8 +31,10 @@
       {"@context":"https://schema.org","@type":"WebPage","name":"我的本机数据｜苏肥鸭学习工作台","url":"https://sufeiya.cn/my-data","inLanguage":"zh-CN","description":"查看、导出或定向清除当前浏览器中的 Sufeiya 学习闭环、Sofia 对话与教研复核演示草稿。","isPartOf":{"@type":"WebSite","name":"苏肥鸭多邻国","url":"https://sufeiya.cn/"}}
     </script>
     <script src="/script.js" defer></script>
+    <script src="/workspace-backup.js" defer></script>
     <script src="/learning-events.js" defer></script>
     <script src="/workspace.js" defer></script>
+    <script src="/journey.js" defer></script>
   </head>
   <body data-page="my-data">
 
@@ -117,8 +119,54 @@
     <section class="single-tool-section data-page" aria-labelledby="data-title"><div class="single-tool-inner narrow-tool"><header class="tool-panel-header"><div><span>数</span><div><p>数据控制</p><h2 id="data-title">当前浏览器中的 Sufeiya 数据</h2></div></div><small data-data-status>正在读取</small></header>
       <div class="data-facts"><article><strong>三个本机命名空间</strong><p><code>sufeiya_workspace_v1</code>、<code>sufeiya_super_teacher_v1</code> 与 <code>sufeiya_teaching_review_demo_v1</code> 分开保存；教研记录只是未发送的演示草稿，不是正式确认或人工回执。</p></article><article><strong>本地但未加密</strong><p>同一设备上的其他使用者可能看到这些记录，请勿填写敏感成绩截图或身份材料。</p></article><article><strong>学习事件哈希链</strong><p>事件只保存受限元数据，可发现意外损坏；它不是服务器签名，也不能防止恶意本机重算。当前不连接 LRS。</p></article><article><strong>不保存录音</strong><p>口语练习不申请麦克风权限，也不会储存或上传声音。</p></article></div>
       <div class="data-summary" data-data-summary><p>正在统计本机记录…</p></div>
-      <div class="data-actions"><button class="button button-ink" type="button" data-export-workspace>导出全部本机 JSON 数据</button><button class="button button-ghost" type="button" data-export-learning-events>仅导出学习事件备份</button><button class="button button-ghost" type="button" data-clear-learning-events>仅清除学习事件账本</button><button class="button button-ghost" type="button" data-clear-workspace>仅清除学习闭环数据</button><button class="button button-ghost" type="button" data-clear-super-teacher>仅清除 Sofia智能老师对话</button><button class="button button-ghost" type="button" data-clear-teaching-review-demo>仅清除教研复核演示草稿</button><button class="button button-ghost" type="button" data-clear-all-sufeiya>清除全部本机 Sufeiya 数据</button></div>
-      <p class="save-message" data-data-message role="status" aria-live="polite">导出文件仅供个人备份，不是 LRS 或 xAPI 导出；本站目前不提供导入或云同步。</p>
+      <div class="data-control-stack">
+        <section class="data-control-section data-export-section" aria-labelledby="data-export-title">
+          <header class="data-control-heading"><div><span>01 · EXPORT</span><h3 id="data-export-title">导出与原始保全</h3></div><p>先把当前记录带走，再决定是否恢复或清除。</p></header>
+          <div class="data-actions data-export-actions"><button class="button button-ink" type="button" data-export-restorable-workspace>生成学习闭环可恢复备份</button><button class="button button-ghost" type="button" data-export-workspace>导出三个命名空间原始保全 JSON</button><button class="button button-ghost" type="button" data-export-learning-events>仅导出学习事件个人备份</button></div>
+          <p class="data-section-note">“原始保全 JSON”完整保留学习闭环、Sofia 对话与教研演示三个命名空间，适合个人留存，但不承诺可由本页恢复。只有本页生成并通过严格预检的“学习闭环可恢复备份”可进入下方恢复流程。</p>
+          <p class="save-message data-global-message" data-data-message role="status" aria-live="polite" tabindex="-1">导出文件仅供个人保全，不是 LRS 或 xAPI 导出；严格恢复仅接受本页生成的学习闭环可恢复备份，目前不提供云同步。</p>
+        </section>
+
+        <section class="data-control-section data-restore-section" data-workspace-backup aria-labelledby="workspace-backup-title">
+          <header class="data-control-heading"><div><span>02 · RESTORE</span><h3 id="workspace-backup-title">恢复学习闭环备份</h3></div><p>本机预检通过后，才会开放替换确认。</p></header>
+          <div class="data-backup-boundary" aria-label="恢复范围与限制">
+            <p><strong>只在本机读取</strong><span>文件不会上传，也不会因为选择或预检而发出网络请求。</span></p>
+            <p><strong>只恢复学习闭环</strong><span>仅替换 <code>sufeiya_workspace_v1</code>；Sofia智能老师对话与教研复核演示草稿保持不变。</span></p>
+            <p><strong>完整替换，不做合并</strong><span>当前学习闭环会被备份内容覆盖。恢复前请先导出你要保留的当前记录。</span></p>
+          </div>
+          <div class="data-file-field">
+            <label for="workspace-backup-file">选择学习闭环可恢复备份（JSON）</label>
+            <input id="workspace-backup-file" type="file" accept=".json,application/json" data-workspace-backup-file aria-describedby="workspace-backup-file-help workspace-backup-message" />
+            <small id="workspace-backup-file-help">文件上限 2 MiB。预检会核对协议版本、结构、哈希链与闭环交叉引用；哈希用于发现意外损坏，不是服务器签名，也不能防止恶意本机重算。</small>
+          </div>
+          <div class="data-actions data-restore-file-actions"><button class="button button-ink" type="button" data-validate-workspace-backup aria-controls="workspace-backup-preview" disabled>在本机预检文件</button><button class="button button-ghost" type="button" data-reset-workspace-backup>取消并重新选择</button></div>
+          <p id="workspace-backup-message" class="data-workspace-backup-message" data-workspace-backup-message role="status" aria-live="polite" tabindex="-1">请选择由本页生成的学习闭环可恢复备份。选择文件不会修改当前数据。</p>
+
+          <section id="workspace-backup-preview" class="data-backup-preview" data-workspace-backup-preview aria-labelledby="workspace-backup-preview-title" tabindex="-1" hidden>
+            <header><span>LOCAL VALIDATION PASSED</span><h4 id="workspace-backup-preview-title">恢复前脱敏摘要</h4><p>只显示数量、日期、阶段与截断后的链头；不会在页面展开学习内容。</p></header>
+            <dl>
+              <div><dt>备份生成时间</dt><dd data-backup-exported-at>—</dd></div>
+              <div><dt>学习闭环阶段</dt><dd data-backup-stage>—</dd></div>
+              <div><dt>当前 / 历史计划</dt><dd data-backup-plans>—</dd></div>
+              <div><dt>记录日期范围</dt><dd data-backup-date-range>—</dd></div>
+              <div><dt>已完成演示闭环</dt><dd data-backup-completed-cycles>—</dd></div>
+              <div><dt>练习回执</dt><dd data-backup-receipts>—</dd></div>
+              <div><dt>证据式打卡</dt><dd data-backup-checkins>—</dd></div>
+              <div><dt>本机学习事件</dt><dd data-backup-events>—</dd></div>
+              <div class="data-backup-hash-row"><dt>事件链头（截断）</dt><dd data-backup-head-hash>—</dd></div>
+            </dl>
+            <label class="consent-check data-restore-confirmation"><input type="checkbox" data-confirm-workspace-restore disabled /><span><strong>我确认：用这份备份完整替换当前学习闭环，不做合并</strong><small>Sofia智能老师对话与教研复核演示草稿不会被替换。恢复过程中如核对失败，系统会停止并尝试保留原值。</small></span></label>
+            <div class="data-actions data-restore-submit-actions"><button class="button button-accent" type="button" data-restore-workspace-backup disabled>确认替换并恢复学习闭环</button></div>
+          </section>
+
+          <section class="data-workspace-restore-success" data-workspace-restore-success role="status" aria-live="polite" tabindex="-1" hidden><span>RESTORE COMPLETE</span><h4>学习闭环已恢复</h4><p>备份已写入当前浏览器并重新核对。页面不会自动跳转，请按下一步继续。</p><a class="button button-ink" href="/workspace" data-workspace-restore-next>前往恢复后的下一步 →</a></section>
+        </section>
+
+        <section class="data-control-section data-danger-zone" aria-labelledby="data-danger-title">
+          <header class="data-control-heading"><div><span>03 · DANGER ZONE</span><h3 id="data-danger-title">定向清除本机数据</h3></div><p>清除不可撤销；请先完成需要的导出。</p></header>
+          <div class="data-actions data-danger-actions"><button class="button button-ghost" type="button" data-clear-learning-events>仅清除学习事件账本</button><button class="button button-ghost" type="button" data-clear-workspace>仅清除学习闭环数据</button><button class="button button-ghost" type="button" data-clear-super-teacher>仅清除 Sofia智能老师对话</button><button class="button button-ghost" type="button" data-clear-teaching-review-demo>仅清除教研复核演示草稿</button><button class="button button-ghost" type="button" data-clear-all-sufeiya>清除全部本机 Sufeiya 数据</button></div>
+        </section>
+      </div>
     </div></section>
   </main>
 

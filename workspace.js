@@ -10,6 +10,7 @@
   const DIAGNOSTIC_TASK_SET_DIGEST = "c1b2922ca96677665690bf790281be2438a016bbbe0d9f85478685af3c8dfc2c";
   const PRACTICE_RECEIPT_VERSION = "sufeiya_practice_receipt_v2";
   const LEGACY_PRACTICE_RECEIPT_VERSION = "sufeiya_practice_receipt_v1";
+  const WRITING_PRACTICE_MAX_CHARACTERS = 4096;
   const learningEventsRuntime = window.SufeiyaLearningEvents;
   const PRACTICE_ACTIVITY_CATALOG = Object.freeze({
     "reading-library-v1": Object.freeze({
@@ -621,7 +622,7 @@
   const loadState = () => {
     try {
       rawStoredValue = window.localStorage.getItem(STORAGE_KEY);
-      if (!rawStoredValue) return;
+      if (rawStoredValue === null) return;
       const parsed = JSON.parse(rawStoredValue);
       const normalized = normalizeState(parsed);
       if (!normalized) {
@@ -712,7 +713,14 @@
     allowEventClear = false,
     allowDataReset = false,
   } = {}) => {
-    const allowedSelectors = ["[data-export-workspace]"];
+    const allowedSelectors = [
+      "[data-export-workspace]",
+      "[data-workspace-backup-file]",
+      "[data-validate-workspace-backup]",
+      "[data-reset-workspace-backup]",
+      "[data-confirm-workspace-restore]",
+      "[data-restore-workspace-backup]",
+    ];
     if (allowEventExport) allowedSelectors.push("[data-export-learning-events]");
     if (allowEventClear) allowedSelectors.push("[data-clear-learning-events]");
     if (allowDataReset) {
@@ -1531,7 +1539,13 @@
   };
   renderToday();
 
-  const sealPracticeReceipt = (skill, exerciseId, evidence = {}) => {
+  const sealPracticeReceipt = (skill, exerciseId, completedAt, evidence = {}) => {
+    if (
+      typeof completedAt !== "string" ||
+      !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(completedAt) ||
+      Number.isNaN(Date.parse(completedAt)) ||
+      new Date(completedAt).toISOString() !== completedAt
+    ) return null;
     const catalog = PRACTICE_ACTIVITY_CATALOG[exerciseId];
     if (!catalog || catalog.skill !== skill) return null;
     const taskContext = resolvePracticeTaskContext(skill, exerciseId);
@@ -1548,8 +1562,7 @@
         recommendation: currentCycle?.recommendationId ? currentRecommendation : null,
         plan: taskContext?.plan,
       })
-    ) return existingReceipt;
-    const completedAt = new Date().toISOString();
+    ) return existingReceipt.completedAt === completedAt ? existingReceipt : null;
     const planId = taskContext?.plan?.planId || null;
     const loopBinding = taskContext
       ? closedLoopPracticeBinding({
@@ -1797,7 +1810,7 @@
           if (practice.audioPlaybackFailed === true) qualityFlags.push("audio_playback_failed");
           if (practice.transcriptUsed === true) qualityFlags.push("transcript_used");
         }
-        const receipt = sealPracticeReceipt(skill, exerciseId, {
+        const receipt = sealPracticeReceipt(skill, exerciseId, completedAt, {
           firstResponse,
           finalResponse: selected.value,
           attemptCount: attempts,
@@ -1942,14 +1955,37 @@
     const completeButton = document.querySelector("[data-complete-writing]");
     const feedback = document.querySelector("[data-writing-feedback]");
     const reviewBoxes = [...document.querySelectorAll("[data-review]")];
-    if (!practiceDomMatchesCatalog("writing-community-v1")) {
+    if (
+      !practiceDomMatchesCatalog("writing-community-v1") ||
+      writing.maxLength !== WRITING_PRACTICE_MAX_CHARACTERS
+    ) {
       writing.disabled = true;
       reviewBoxes.forEach((box) => { box.disabled = true; });
       if (completeButton) completeButton.disabled = true;
-      if (feedback) feedback.textContent = "练习内容版本未通过本机核对；为避免生成错误回执，本页已停止封存。";
+      if (feedback) feedback.textContent = "练习内容版本或写作字符上限未通过本机核对；为避免生成错误回执，本页已停止保存和封存。";
       return;
     }
     const writingCatalog = PRACTICE_ACTIVITY_CATALOG["writing-community-v1"];
+    const existingWritingPractice = state.practice["writing-community-v1"] || {};
+    const existingDraftText = existingWritingPractice.draftText;
+    if (
+      typeof existingDraftText === "string" &&
+      existingDraftText.length > WRITING_PRACTICE_MAX_CHARACTERS
+    ) {
+      writing.value = existingDraftText;
+      writing.disabled = true;
+      writing.setAttribute("aria-invalid", "true");
+      reviewBoxes.forEach((box) => { box.disabled = true; });
+      if (completeButton) completeButton.disabled = true;
+      if (wordCount) {
+        wordCount.textContent = String(existingDraftText.trim().split(/\s+/).filter(Boolean).length);
+      }
+      if (saveStatus) saveStatus.textContent = "旧草稿未修改";
+      if (feedback) {
+        feedback.textContent = `发现一份 ${existingDraftText.length} 字符的旧草稿，超过当前 ${WRITING_PRACTICE_MAX_CHARACTERS} 字符安全上限。本页不会截断、保存或封存它；请先到“我的本机数据”导出原始保全 JSON，再清除学习闭环后重新开始。`;
+      }
+      return;
+    }
     const attemptBoundary = initializePracticeAttemptScope("Writing", "writing-community-v1");
     const saved = state.practice["writing-community-v1"] || {};
     const savedWritingReceipt = state.practiceReceipts[saved.latestPracticeReceiptId];
@@ -1959,14 +1995,29 @@
       box.checked = Boolean(saved.selfChecks?.[box.dataset.review]);
     });
     let writingTimer;
+    const writingDraftWithinLimit = (value) =>
+      typeof value === "string" && value.length <= WRITING_PRACTICE_MAX_CHARACTERS;
+    const reportWritingLengthFailure = () => {
+      if (completeButton) completeButton.disabled = true;
+      if (saveStatus) saveStatus.textContent = "未保存 · 超过字符上限";
+      if (feedback) {
+        feedback.textContent = `当前回答超过 ${WRITING_PRACTICE_MAX_CHARACTERS} 字符，本页不会保存或封存；请删减后再继续。`;
+      }
+    };
     const countWords = () => {
       const words = writing.value.trim() ? writing.value.trim().split(/\s+/).filter(Boolean).length : 0;
       if (wordCount) wordCount.textContent = String(words);
-      const ready = words >= writingCatalog.minimumWords && reviewBoxes.every((box) => box.checked);
+      const ready = writingDraftWithinLimit(writing.value) &&
+        words >= writingCatalog.minimumWords &&
+        reviewBoxes.every((box) => box.checked);
       if (completeButton) completeButton.disabled = !ready;
       return words;
     };
     const saveWriting = () => {
+      if (!writingDraftWithinLimit(writing.value)) {
+        reportWritingLengthFailure();
+        return false;
+      }
       const previous = state.practice["writing-community-v1"] || {};
       state.practice["writing-community-v1"] = {
         ...previous,
@@ -1976,12 +2027,18 @@
         startedAt: previous.startedAt || new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
-      persist();
+      const savedLocally = persist();
       if (saveStatus) saveStatus.textContent = storageWritable ? "草稿已保存在本机" : "仅在本页暂存";
       countWords();
+      return savedLocally;
     };
     writing.addEventListener("input", () => {
       countWords();
+      if (!writingDraftWithinLimit(writing.value)) {
+        window.clearTimeout(writingTimer);
+        reportWritingLengthFailure();
+        return;
+      }
       if (saveStatus) saveStatus.textContent = "正在保存…";
       window.clearTimeout(writingTimer);
       writingTimer = window.setTimeout(saveWriting, 500);
@@ -1990,6 +2047,13 @@
     completeButton?.addEventListener("click", async () => {
       if (writingReceiptSealed) return;
       const normalizedArtifact = writing.value.replace(/\r\n/g, "\n").trim();
+      if (
+        !writingDraftWithinLimit(writing.value) ||
+        !writingDraftWithinLimit(normalizedArtifact)
+      ) {
+        reportWritingLengthFailure();
+        return;
+      }
       const words = normalizedArtifact ? normalizedArtifact.split(/\s+/).filter(Boolean).length : 0;
       const selfChecks = Object.fromEntries(reviewBoxes.map((box) => [box.dataset.review, box.checked]));
       const selfCheckCount = Object.values(selfChecks).filter(Boolean).length;
@@ -2016,7 +2080,7 @@
           completedAt,
           updatedAt: completedAt,
         };
-        const receipt = sealPracticeReceipt("Writing", "writing-community-v1", {
+        const receipt = sealPracticeReceipt("Writing", "writing-community-v1", completedAt, {
           wordCount: words,
           selfCheckCount,
           selfChecks,
@@ -2140,7 +2204,7 @@
           updatedAt: completedAt,
           completedAt,
         };
-        const receipt = sealPracticeReceipt("Speaking", "speaking-skill-v1", {
+        const receipt = sealPracticeReceipt("Speaking", "speaking-skill-v1", completedAt, {
           selfCheckCount: Object.values(selfChecks).filter(Boolean).length,
           selfChecks,
           prepSeconds: speakingCatalog.prepSeconds,
@@ -2522,14 +2586,17 @@
       contextualEntryNotice = "已检测到刚完成的推荐练习，但今天已有另一份打卡草稿或记录；为避免静默覆盖，本页保留原内容，请手动核对任务。";
     }
 
-    const readCheckin = () => ({
-      date,
-      linkedTaskId: linkedTaskId?.value || "",
-      didText: didText?.value.trim() || "",
-      evidenceText: evidenceText?.value.trim() || "",
-      questionStatus: checkinForm.querySelector('input[name="questionStatus"]:checked')?.value || "",
-      questionText: questionText?.value.trim() || "",
-    });
+    const readCheckin = () => {
+      const questionStatus = checkinForm.querySelector('input[name="questionStatus"]:checked')?.value || "";
+      return {
+        date,
+        linkedTaskId: linkedTaskId?.value || "",
+        didText: didText?.value.trim() || "",
+        evidenceText: evidenceText?.value.trim() || "",
+        questionStatus,
+        questionText: questionStatus === "has_question" ? questionText?.value.trim() || "" : "",
+      };
+    };
     const sameCheckinContent = (record, values) =>
       ["linkedTaskId", "didText", "evidenceText", "questionStatus", "questionText"].every(
         (key) => (record?.[key] || "") === (values?.[key] || ""),
@@ -2589,6 +2656,7 @@
     const toggleQuestion = () => {
       const hasQuestion = checkinForm.querySelector('input[name="questionStatus"]:checked')?.value === "has_question";
       if (questionWrap) questionWrap.hidden = !hasQuestion;
+      if (!hasQuestion && questionText) questionText.value = "";
     };
     const renderCheckinReceipt = (record) => {
       const hasReceipt = record?.status === "saved" && Boolean(record.checkInId);
@@ -2998,6 +3066,51 @@
       ? (storageWritable ? "本机存储与事件链可用" : "当前为只读模式")
       : "学习事件链需要处理";
   };
+
+  const refreshWorkspacePageRuntimeAfterRestore = async () => {
+    let restoredRaw;
+    let normalized;
+    let restoredLedgerStatus;
+    try {
+      restoredRaw = window.localStorage.getItem(STORAGE_KEY);
+      if (restoredRaw === null) return { status: "workspace_missing" };
+      normalized = normalizeState(JSON.parse(restoredRaw));
+      if (!normalized) return { status: "workspace_invalid" };
+      if (!learningEventsRuntime) return { status: "runtime_unavailable" };
+      restoredLedgerStatus = await learningEventsRuntime.validateLedger(normalized);
+      if (!restoredLedgerStatus?.ok) {
+        return { status: "ledger_invalid", code: restoredLedgerStatus?.code || "invalid" };
+      }
+    } catch {
+      return { status: "read_or_validation_failed" };
+    }
+
+    state = normalized;
+    rawStoredValue = restoredRaw;
+    workspaceStateRecognized = true;
+    learningLedgerStatus = restoredLedgerStatus;
+    storageWritable = Boolean(workspaceWriterLeaseAvailable);
+    try {
+      await updateDataPage();
+    } catch {
+      return { status: "summary_refresh_failed" };
+    }
+    if (storageWritable) {
+      document.querySelectorAll("[data-export-learning-events], [data-clear-learning-events]").forEach((control) => {
+        control.disabled = false;
+      });
+    }
+    return {
+      status: "refreshed",
+      eventCount: restoredLedgerStatus.eventCount,
+      headHash: restoredLedgerStatus.headHash,
+    };
+  };
+
+  window.SufeiyaWorkspacePageRuntime = Object.freeze({
+    protocolVersion: "sufeiya_workspace_page_runtime_v1",
+    refreshAfterWorkspaceRestore: refreshWorkspacePageRuntimeAfterRestore,
+  });
   await updateDataPage();
 
   document.querySelectorAll("[data-export-workspace]").forEach((button) => {
@@ -3011,7 +3124,7 @@
         // Preserve an unreadable raw value below rather than silently omitting it.
       }
       const teachingReviewNamespace = readTeachingReviewDemoNamespace();
-      const workspaceData = rawStoredValue && !storageWritable ? null : state;
+      const workspaceData = workspaceStateRecognized ? state : null;
       const content = JSON.stringify({
         exportProtocol: "sufeiya_local_export_v2",
         exportedAt: new Date().toISOString(),
