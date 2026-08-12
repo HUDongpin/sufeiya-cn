@@ -302,7 +302,7 @@ describe("Super Teacher source admission", () => {
     assert.equal(superTeacherStatusResponseSchema.safeParse(payload).success, true);
     assert.equal(payload.answerMode, "local_manual_grounded");
     assert.equal(payload.teacherSurfaceAccess, "public_teaser");
-    assert.equal(payload.interactiveTeacherAccess, "clerk_authenticated");
+    assert.equal(payload.interactiveTeacherAccess, "clerk_invitation_approved");
     assert.equal(payload.localManualExplanationEnabled, true);
     assert.equal(payload.firstPartyServerProcessingEnabled, false);
     assert.equal(payload.externalModelProcessingEnabled, false);

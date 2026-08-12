@@ -2,12 +2,14 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  CLERK_BETA_PROTECTED_PATHS,
   CLERK_PUBLIC_RUNTIME_PATHS,
   CLERK_PRODUCTION_AUTHORIZED_PARTIES,
   CLERK_PROTECTED_PATHS,
   getClerkAuthorizedParties,
   getClerkRuntimeState,
   hasApplicationJsonContentType,
+  isClerkBetaProtectedPathname,
   isClerkRuntimePathname,
   isConfiguredClerkMiddlewarePathname,
   isClerkProtectedPathname,
@@ -160,6 +162,13 @@ describe("Clerk route boundary", () => {
       assert.equal(isClerkProtectedPathname(`${path}/child`), true, `${path}/child`);
     }
 
+    for (const path of CLERK_BETA_PROTECTED_PATHS) {
+      assert.equal(isClerkBetaProtectedPathname(path), true, path);
+      assert.equal(isClerkBetaProtectedPathname(`${path}/child.js`), true, `${path}/child.js`);
+    }
+    assert.equal(isClerkBetaProtectedPathname("/account"), false);
+    assert.equal(isClerkBetaProtectedPathname("/beta-access"), false);
+
     assert.equal(isClerkProtectedPathname("/account/security"), true);
 
     for (const path of [
@@ -171,6 +180,7 @@ describe("Clerk route boundary", () => {
       "/super-teacher",
       "/sign-in",
       "/sign-up",
+      "/beta-access",
       "/api/super-teacher",
       "/practice-guide",
       "/community-guidelines",
@@ -189,6 +199,7 @@ describe("Clerk route boundary", () => {
     for (const path of [
       "/sign-in/factor-one",
       "/sign-up/verify-email-address",
+      "/beta-access/status",
       "/account/security",
     ]) {
       assert.equal(isClerkRuntimePathname(path), true, path);

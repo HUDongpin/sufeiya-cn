@@ -154,10 +154,24 @@ type SmokeStage =
   | "signed-out route navigation"
   | "signed-out route redirect"
   | "signed-out Clerk UI"
+  | "signed-out invitation-only registration"
   | "browser runtime instance binding"
   | "temporary synthetic identifier preflight"
   | "temporary synthetic user creation"
   | "temporary synthetic user visibility"
+  | "signed-in uninvited Sofia local-data isolation"
+  | "signed-in uninvited Sofia page isolation"
+  | "signed-in uninvited Sofia page access context"
+  | "signed-in uninvited Sofia page copy"
+  | "signed-in uninvited Sofia page controls"
+  | "signed-in uninvited Sofia page storage"
+  | "signed-in uninvited Sofia floating isolation"
+  | "signed-in uninvited Sofia marker preservation"
+  | "signed-in uninvited workspace denial"
+  | "signed-in uninvited API denial"
+  | "temporary synthetic invitation approval"
+  | "temporary synthetic invitation visibility"
+  | "temporary synthetic signed session claim refresh"
   | "anonymous Clerk-free 404 navigation"
   | "anonymous Clerk-free 404 title hydration"
   | "anonymous Clerk-free 404 heading hydration"
@@ -171,6 +185,10 @@ type SmokeStage =
   | "anonymous 404 Clerk account-mode response"
   | "anonymous 404 Clerk strict-CSP response"
   | "real Clerk sign-in"
+  | "real Clerk sign-in page"
+  | "real Clerk sign-in runtime"
+  | "real Clerk sign-in session"
+  | "signed-in uninvited session claim refresh"
   | "authenticated workspace"
   | "authenticated teaching-review demo"
   | "authenticated Sofia local explanation"
@@ -435,11 +453,11 @@ test("a temporary Development user can traverse the protected smoke path and is 
         "data-full-document-navigation-ready",
         "true",
       );
-      await expect(page.getByRole("link", { name: "注册", exact: true })).toHaveAttribute(
+      await expect(page.getByRole("link", { name: "邀请制内测", exact: true })).toHaveAttribute(
         "href",
         "/sign-up",
       );
-      await expect(page.getByRole("link", { name: "注册", exact: true })).toHaveAttribute(
+      await expect(page.getByRole("link", { name: "邀请制内测", exact: true })).toHaveAttribute(
         "target",
         "_top",
       );
@@ -487,8 +505,9 @@ test("a temporary Development user can traverse the protected smoke path and is 
 
       stage = "anonymous 404 Clerk account-mode response";
       expect(signInHeaders["x-sufeiya-account-mode"]).toBe(
-        "clerk-access-local-learning-data",
+        "clerk-invite-gated-local-learning-data",
       );
+      expect(signInHeaders["x-sufeiya-beta-access"]).toBe("signed_out");
 
       stage = "anonymous 404 Clerk strict-CSP response";
       expect(signInHeaders["content-security-policy"]).toMatch(/nonce-[^;' ]+/);
@@ -503,6 +522,15 @@ test("a temporary Development user can traverse the protected smoke path and is 
     await page.waitForURL((url) => url.pathname === "/sign-in");
     stage = "signed-out Clerk UI";
     await expect(page.locator(".cl-signIn-root")).toBeVisible();
+
+    stage = "signed-out invitation-only registration";
+    await page.goto("/sign-up", { waitUntil: "domcontentloaded" });
+    await expect(page.locator('[data-beta-access-state="registration"]')).toBeVisible();
+    await expect(page.locator(".cl-signUp-root")).toHaveCount(0);
+    await expect(page.getByRole("heading", {
+      level: 2,
+      name: "当前仅接受受邀学习者。",
+    })).toBeVisible();
 
     stage = "browser runtime instance binding";
     await clerk.loaded({ page });
@@ -552,13 +580,164 @@ test("a temporary Development user can traverse the protected smoke path and is 
     });
 
     stage = "real Clerk sign-in";
+    stage = "real Clerk sign-in page";
     await page.goto("/", { waitUntil: "domcontentloaded" });
+    stage = "real Clerk sign-in runtime";
     await clerk.loaded({ page });
+    stage = "real Clerk sign-in session";
     await clerk.signIn({
       emailAddress: temporaryEmail,
       page,
       setupClerkTestingTokenOptions: { frontendApiUrl: keyPair.frontendApiHost },
     });
+
+    stage = "signed-in uninvited session claim refresh";
+    const refreshedUninvitedSessionClaim = await page.evaluate(async () => {
+      const runtime = (window as Window & {
+        Clerk?: { session?: { getToken(options: { skipCache: boolean }): Promise<string | null> } };
+      }).Clerk;
+      if (!runtime?.session) return false;
+      return Boolean(await runtime.session.getToken({ skipCache: true }));
+    });
+    expect(refreshedUninvitedSessionClaim).toBe(true);
+
+    stage = "signed-in uninvited Sofia local-data isolation";
+    await page.evaluate(
+      ({ chatKey, workspaceKey }) => {
+        window.localStorage.setItem(workspaceKey, JSON.stringify({ previousLearnerMarker: true }));
+        window.localStorage.setItem(chatKey, JSON.stringify({ previousPrivateQuestion: true }));
+        window.sessionStorage.setItem("sufeiya_clerk_uninvited_storage_probe", "active");
+      },
+      { chatKey: SOFIA_CHAT_KEY, workspaceKey: SOFIA_WORKSPACE_KEY },
+    );
+    await page.addInitScript(
+      ({ chatKey, workspaceKey }) => {
+        if (window.sessionStorage.getItem("sufeiya_clerk_uninvited_storage_probe") !== "active") return;
+        const trackedWindow = window as Window & {
+          __sufeiyaUninvitedPrivateStorageReads?: string[];
+        };
+        trackedWindow.__sufeiyaUninvitedPrivateStorageReads = [];
+        const originalGetItem = Storage.prototype.getItem;
+        Storage.prototype.getItem = function getTrackedUninvitedPrivateItem(key: string) {
+          if (
+            this === window.localStorage
+            && (key === chatKey || key === workspaceKey)
+          ) {
+            trackedWindow.__sufeiyaUninvitedPrivateStorageReads?.push(key);
+          }
+          return originalGetItem.call(this, key);
+        };
+      },
+      { chatKey: SOFIA_CHAT_KEY, workspaceKey: SOFIA_WORKSPACE_KEY },
+    );
+    stage = "signed-in uninvited Sofia page isolation";
+    const uninvitedSofiaPageResponse = await page.goto("/super-teacher", {
+      waitUntil: "domcontentloaded",
+    });
+    stage = "signed-in uninvited Sofia page access context";
+    expect(uninvitedSofiaPageResponse?.status()).toBe(200);
+    expect(uninvitedSofiaPageResponse?.headers()["x-sufeiya-beta-access"]).toBe(
+      "invitation_required",
+    );
+    await expect(page.locator('[data-beta-access-state="waiting"]')).toHaveCount(0);
+    stage = "signed-in uninvited Sofia page copy";
+    await expect(page.getByRole("heading", {
+      level: 2,
+      name: "当前账户没有有效内测资格。",
+    })).toBeVisible();
+    stage = "signed-in uninvited Sofia page controls";
+    await expect(page.getByRole("textbox", { name: "输入学习问题" })).toHaveCount(0);
+    stage = "signed-in uninvited Sofia page storage";
+    expect(await page.evaluate(() => (
+      window as Window & { __sufeiyaUninvitedPrivateStorageReads?: string[] }
+    ).__sufeiyaUninvitedPrivateStorageReads ?? [])).toEqual([]);
+
+    stage = "signed-in uninvited Sofia floating isolation";
+    await page.goto("/resources", { waitUntil: "domcontentloaded" });
+    await page.getByRole("button", { name: "打开 Sofia智能老师公开介绍" }).click();
+    await expect(page.getByRole("dialog")).toContainText("当前账户没有有效内测资格。");
+    await expect(page.getByRole("textbox", { name: "输入学习问题" })).toHaveCount(0);
+    expect(await page.evaluate(() => (
+      window as Window & { __sufeiyaUninvitedPrivateStorageReads?: string[] }
+    ).__sufeiyaUninvitedPrivateStorageReads ?? [])).toEqual([]);
+    stage = "signed-in uninvited Sofia marker preservation";
+    const retainedUninvitedMarkers = await page.evaluate(
+      ({ chatKey, workspaceKey }) => ({
+        chat: window.localStorage.getItem(chatKey),
+        workspace: window.localStorage.getItem(workspaceKey),
+      }),
+      { chatKey: SOFIA_CHAT_KEY, workspaceKey: SOFIA_WORKSPACE_KEY },
+    );
+    expect(retainedUninvitedMarkers).toEqual({
+      chat: JSON.stringify({ previousPrivateQuestion: true }),
+      workspace: JSON.stringify({ previousLearnerMarker: true }),
+    });
+    await page.evaluate(({ chatKey, workspaceKey }) => {
+      window.sessionStorage.removeItem("sufeiya_clerk_uninvited_storage_probe");
+      window.localStorage.removeItem(chatKey);
+      window.localStorage.removeItem(workspaceKey);
+    }, { chatKey: SOFIA_CHAT_KEY, workspaceKey: SOFIA_WORKSPACE_KEY });
+
+    stage = "signed-in uninvited workspace denial";
+    await page.goto("/workspace/private.js", { waitUntil: "domcontentloaded" });
+    await expect(page).toHaveURL((url) => (
+      url.pathname === "/beta-access"
+      && url.searchParams.get("return_path") === "/workspace/private.js"
+    ));
+    await expect(page.locator('[data-beta-access-state="waiting"]')).toBeVisible();
+    await expect(page.getByRole("heading", {
+      level: 2,
+      name: "当前账户没有有效内测资格。",
+    })).toBeVisible();
+    await expect(page.locator("main.workspace-page")).toHaveCount(0);
+
+    stage = "signed-in uninvited API denial";
+    const deniedApi = await page.evaluate(async () => {
+      const response = await fetch("/api/super-teacher", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "{}",
+      });
+      return {
+        body: await response.json() as { error?: string },
+        status: response.status,
+      };
+    });
+    expect(deniedApi).toEqual({
+      body: { error: "beta_invitation_required", requestId: expect.any(String) },
+      status: 403,
+    });
+
+    stage = "temporary synthetic invitation approval";
+    await client.users.updateUserMetadata(temporaryUser.id, {
+      publicMetadata: {
+        sufeiyaBetaAccess: {
+          protocolVersion: "sufeiya_invite_only_beta_v1",
+          status: "approved",
+        },
+      },
+    });
+
+    stage = "temporary synthetic invitation visibility";
+    await expect.poll(async () => {
+      const visibleUser = await client.users.getUser(temporaryUser.id);
+      return visibleUser.publicMetadata;
+    }).toEqual({
+      sufeiyaBetaAccess: {
+        protocolVersion: "sufeiya_invite_only_beta_v1",
+        status: "approved",
+      },
+    });
+
+    stage = "temporary synthetic signed session claim refresh";
+    const refreshedSessionClaim = await page.evaluate(async () => {
+      const runtime = (window as Window & {
+        Clerk?: { session?: { getToken(options: { skipCache: boolean }): Promise<string | null> } };
+      }).Clerk;
+      if (!runtime?.session) return false;
+      return Boolean(await runtime.session.getToken({ skipCache: true }));
+    });
+    expect(refreshedSessionClaim).toBe(true);
 
     stage = "authenticated workspace";
     await page.goto("/workspace", { waitUntil: "domcontentloaded" });
@@ -772,7 +951,7 @@ test("a temporary Development user can traverse the protected smoke path and is 
     );
     await page.goto("/super-teacher", { waitUntil: "domcontentloaded" });
     await expect(page).toHaveURL((url) => url.pathname === "/super-teacher");
-    await expect(page.getByRole("heading", { level: 2, name: "登录后继续本机学习对话。" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 2, name: "受邀账户登录后继续本机学习对话。" })).toBeVisible();
     await expect(page.getByText(sofiaQuestion, { exact: true })).toHaveCount(0);
     await expect(page.getByRole("textbox", { name: "输入学习问题" })).toHaveCount(0);
     const publicPagePrivateReads = await page.evaluate(() => (

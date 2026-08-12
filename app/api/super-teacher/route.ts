@@ -8,6 +8,7 @@ import {
   hasApplicationJsonContentType,
   isSameOriginBrowserRequest,
 } from "@/lib/auth/clerk-config";
+import { betaAccessFromSessionClaims } from "@/lib/auth/beta-access";
 import { evaluateReleaseSurface } from "@/lib/release-governance";
 import {
   superTeacherRequestSchema,
@@ -28,7 +29,7 @@ function responseHeaders(mode?: string) {
     "Cache-Control": "private, no-store, max-age=0",
     "X-Content-Type-Options": "nosniff",
     "X-Robots-Tag": "noindex, nofollow",
-    "X-Sufeiya-Account-Mode": "clerk-access-local-learning-data",
+    "X-Sufeiya-Account-Mode": "clerk-invite-gated-local-learning-data",
     ...(mode ? { "X-Sufeiya-Teacher-Mode": mode } : {}),
   };
 }
@@ -58,9 +59,22 @@ export async function POST(request: Request) {
   if (!clerkState.configured) {
     return json({ error: "account_service_unavailable", requestId }, { status: 503 });
   }
-  const { userId } = await auth();
+  const { sessionClaims, userId } = await auth();
   if (!userId) {
     return json({ error: "authentication_required", requestId }, { status: 401 });
+  }
+  const betaAccess = betaAccessFromSessionClaims(sessionClaims);
+  if (betaAccess.context === "verification_unavailable") {
+    return json({ error: "beta_access_verification_unavailable", requestId }, {
+      status: 503,
+      headers: { "Retry-After": "30", "X-Sufeiya-Beta-Access": betaAccess.context },
+    });
+  }
+  if (!betaAccess.approved) {
+    return json({ error: "beta_invitation_required", requestId }, {
+      status: 403,
+      headers: { "X-Sufeiya-Beta-Access": betaAccess.context },
+    });
   }
   if (!firstPartyProcessing.enabled) {
     return json({ error: "student_data_processing_not_approved", requestId }, { status: 503 });

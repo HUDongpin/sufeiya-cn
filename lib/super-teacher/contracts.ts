@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const SUPER_TEACHER_PROTOCOL = "sufeiya_super_teacher_v1" as const;
-export const SUPER_TEACHER_STATUS_PROTOCOL = "sufeiya_super_teacher_status_v3" as const;
+export const SUPER_TEACHER_STATUS_PROTOCOL = "sufeiya_super_teacher_status_v4" as const;
 
 export const skillSchema = z.enum(["Reading", "Listening", "Writing", "Speaking", "Balanced"]);
 
@@ -41,9 +41,9 @@ export const superTeacherStatusResponseSchema = z.object({
     blockedBindingIds: z.array(z.string().regex(/^[a-z][a-z0-9_.]{2,159}$/)).max(100),
   }).strict(),
   teacherSurfaceAccess: z.literal("public_teaser"),
-  interactiveTeacherAccess: z.literal("clerk_authenticated"),
-  modelSubmitAccess: z.enum(["clerk_authenticated", "disabled_pending_first_party_processing_approval"]),
-  learningPageAccess: z.literal("clerk_protected"),
+  interactiveTeacherAccess: z.literal("clerk_invitation_approved"),
+  modelSubmitAccess: z.enum(["clerk_invitation_approved", "disabled_pending_first_party_processing_approval"]),
+  learningPageAccess: z.literal("clerk_invitation_approved"),
   learningDataStorage: z.literal("browser_local_not_account_bound"),
   sourceBoundary: z.object({
     gateAStaticClaimSources: z.number().int().min(0).max(1_000),
@@ -94,7 +94,7 @@ export const superTeacherStatusResponseSchema = z.object({
     });
   }
   const expectedSubmitAccess = status.firstPartyServerProcessingEnabled
-    ? "clerk_authenticated"
+    ? "clerk_invitation_approved"
     : "disabled_pending_first_party_processing_approval";
   if (status.modelSubmitAccess !== expectedSubmitAccess) {
     context.addIssue({
