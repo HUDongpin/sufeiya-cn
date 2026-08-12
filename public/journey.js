@@ -3308,6 +3308,8 @@
     const form = document.querySelector("#review-form");
     const empty = document.querySelector("[data-review-empty]");
     const ready = document.querySelector("[data-review-ready]");
+    const errorMessage = document.querySelector("[data-review-error]");
+    const successMessage = document.querySelector("[data-review-message]");
     if (!form || !empty || !ready) return;
     const chain = validateCycleEvidence();
     const cycle = chain.cycle;
@@ -3344,18 +3346,20 @@
     if (next) next.hidden = !confirmed;
     if (confirmed) {
       form.hidden = true;
+      if (successMessage) successMessage.hidden = false;
       setText("[data-review-status]", "学习者已确认");
       setText("[data-review-id]", review.reviewId);
       setText("[data-review-checkin-id]", record.checkInId);
       setText("[data-review-message]", "这份复盘已经由学习者明确确认并保存在本机。");
       return;
     }
+    if (successMessage) successMessage.hidden = true;
     setText("[data-review-status]", "等待你的明确确认");
     form.addEventListener("submit", (event) => {
       event.preventDefault();
-      const message = document.querySelector("[data-review-message]");
+      if (errorMessage) errorMessage.textContent = "";
       if (!form.elements.learnerConfirmed.checked) {
-        if (message) message.textContent = "请先核对记录，并勾选学习者确认。";
+        if (errorMessage) errorMessage.textContent = "请先核对记录，并勾选学习者确认。";
         form.elements.learnerConfirmed.focus();
         return;
       }
@@ -3365,7 +3369,7 @@
         latestChain.cycle?.cycleId !== cycle.cycleId ||
         latestChain.checkIn?.checkInId !== record.checkInId
       ) {
-        if (message) message.textContent = "待确认记录已经变化，请刷新后重新核对。";
+        if (errorMessage) errorMessage.textContent = "待确认记录已经变化，请刷新后重新核对。";
         return;
       }
       const reviewId = makeId("review");
@@ -3395,16 +3399,18 @@
       state.journey.planUpdate = null;
       if (!persist()) {
         state = before;
-        if (message) message.textContent = "当前无法保存；本次确认尚未形成正式 review_id。";
+        if (errorMessage) errorMessage.textContent = "当前无法保存；本次确认尚未形成正式 review_id。";
         return;
       }
       form.hidden = true;
       if (receipt) receipt.hidden = false;
       if (next) next.hidden = false;
+      if (successMessage) successMessage.hidden = false;
       setText("[data-review-status]", "学习者已确认");
       setText("[data-review-id]", reviewId);
       setText("[data-review-checkin-id]", record.checkInId);
       setText("[data-review-message]", "复盘确认已保存在本机。");
+      successMessage?.focus();
     });
   };
 
@@ -3527,7 +3533,13 @@
     if (skill === "Reading" || skill === "Listening") {
       const fieldName = skill === "Reading" ? "retestReading" : "retestListening";
       const selected = form.querySelector(`input[name="${fieldName}"]:checked`)?.value;
-      if (!selected) return { error: "请先选择一个答案。" };
+      if (!selected) {
+        return {
+          error: "请先选择一个答案。",
+          errorKey: skill.toLowerCase(),
+          target: form.querySelector(`input[name="${fieldName}"]`),
+        };
+      }
       const taskCatalog = RETEST_TASK_CATALOG[skill];
       return {
         evidence: {
@@ -3551,17 +3563,36 @@
       const value = form.elements.retestWriting.value.trim();
       const words = value ? value.split(/\s+/).filter(Boolean).length : 0;
       const checks = [...form.querySelectorAll("[data-retest-writing-review]")];
-      if (words < RETEST_TASK_CATALOG.Writing.minimumWordCount || !checks.every((item) => item.checked)) {
-        return { error: `Writing 任务需要至少 ${RETEST_TASK_CATALOG.Writing.minimumWordCount} 个英文词，并完成三项自查。` };
+      if (words < RETEST_TASK_CATALOG.Writing.minimumWordCount) {
+        return {
+          error: `Writing 任务需要至少 ${RETEST_TASK_CATALOG.Writing.minimumWordCount} 个英文词。`,
+          errorKey: "writing",
+          target: form.elements.retestWriting,
+        };
+      }
+      const firstUnchecked = checks.find((item) => !item.checked);
+      if (firstUnchecked) {
+        return {
+          error: "请完成 Writing 的三项自查。",
+          errorKey: "writing",
+          target: firstUnchecked,
+        };
       }
       return { evidence: { responseType: "self_reviewed_writing", wordCount: words, selfChecksComplete: true, resultType: "task_completed_no_score" } };
     }
     if (skill === "Speaking") {
       const checks = [...form.querySelectorAll("[data-retest-speaking-review]")];
-      if (!checks.every((item) => item.checked)) return { error: "请先大声完成任务并勾选三项自查。" };
+      const firstUnchecked = checks.find((item) => !item.checked);
+      if (firstUnchecked) {
+        return {
+          error: "请先大声完成任务并勾选三项自查。",
+          errorKey: "speaking",
+          target: firstUnchecked,
+        };
+      }
       return { evidence: { responseType: "learner_confirmed_speaking", selfChecksComplete: true, audioRecorded: false, resultType: "task_completed_no_score" } };
     }
-    return { error: "无法识别所选任务，请刷新后重试。" };
+    return { error: "无法识别所选任务，请刷新后重试。", target: document.querySelector("[data-retest-skill-label]") };
   };
 
   const retestGate = () => {
@@ -3583,14 +3614,16 @@
     return { cycle, diagnostic, record, linkedPracticeTask, linkedPracticeReceipt, review, peerHelp, targetSkill, ready, evidenceAlreadyRecorded, completed: chain.planUpdateRecorded };
   };
 
-  const renderRetest = () => {
+  const renderRetest = ({ focusCompletion = false } = {}) => {
     const chain = validateCycleEvidence();
     const { retest, planUpdate } = chain;
     const result = document.querySelector("[data-retest-result]");
     const updateForm = document.querySelector("#plan-update-form");
+    const completion = document.querySelector("[data-plan-update-receipt]");
     if (!chain.retestEvidenceComplete) {
       if (result) result.hidden = true;
       if (updateForm) updateForm.hidden = true;
+      if (completion) completion.hidden = true;
       return;
     }
     const selector = document.querySelector("[data-retest-skill]");
@@ -3619,26 +3652,63 @@
           : "本次任务已经完成并保存；结果不形成分数、能力等级或增长结论。",
     );
 
-    const receipt = document.querySelector("[data-plan-update-receipt]");
     if (chain.planUpdateRecorded) {
-      if (receipt) receipt.hidden = false;
+      if (completion) completion.hidden = false;
       if (updateForm) updateForm.hidden = true;
       setText("[data-updated-plan-id]", planUpdate.updatedPlanId);
       setText("[data-superseded-plan-id]", planUpdate.supersedesPlanId);
       setText(
-        "[data-plan-update-message]",
+        "[data-plan-update-completion-title]",
         chain.provisionalUpdateRecorded
-          ? "学习者已选择下一轮重点并保存临时计划；本轮仍等待具备资质的人工确认，不能计作完整闭环。"
-          : "学习者已确认下一轮重点，更新后的计划已保存在本机。",
+          ? "临时计划已保存在本机"
+          : "本机演示闭环已关闭",
       );
-    } else if (receipt) {
-      receipt.hidden = true;
+      setText(
+        "[data-plan-update-completion-copy]",
+        chain.provisionalUpdateRecorded
+          ? "本轮仍等待具备资质的人工确认，尚未计作完整闭环；这不是正式 Gate A PASS。"
+          : "更新计划与旧计划回链已保存在当前浏览器；这不是正式 Gate A PASS、能力增长证明或教师确认。",
+      );
+      if (focusCompletion) document.querySelector("[data-plan-update-completion-title]")?.focus();
+    } else if (completion) {
+      completion.hidden = true;
     }
   };
 
   const setupRetest = () => {
     const form = document.querySelector("#retest-form");
     if (!form) return;
+    const message = document.querySelector("[data-retest-message]");
+    const clearRetestValidation = () => {
+      form.querySelectorAll("[data-retest-error]").forEach((node) => { node.textContent = ""; });
+      form.querySelectorAll('[aria-invalid="true"]').forEach((control) => {
+        control.removeAttribute("aria-invalid");
+        if (control.getAttribute("aria-describedby")?.startsWith("retest-")) control.removeAttribute("aria-describedby");
+      });
+    };
+    const showRetestValidationError = ({ error, errorKey, target }) => {
+      const inlineError = errorKey ? form.querySelector(`[data-retest-error="${errorKey}"]`) : null;
+      if (inlineError) inlineError.textContent = error;
+      else if (message) message.textContent = error;
+      if (target?.focus) {
+        target.setAttribute("aria-invalid", "true");
+        if (inlineError?.id) target.setAttribute("aria-describedby", inlineError.id);
+        target.focus();
+      } else {
+        message?.focus();
+      }
+    };
+    const clearPanelValidation = (target) => {
+      const panel = target?.closest?.("[data-retest-panel]");
+      if (!panel) return;
+      panel.querySelectorAll("[data-retest-error]").forEach((node) => { node.textContent = ""; });
+      panel.querySelectorAll('[aria-invalid="true"]').forEach((control) => {
+        control.removeAttribute("aria-invalid");
+        if (control.getAttribute("aria-describedby")?.startsWith("retest-")) control.removeAttribute("aria-describedby");
+      });
+    };
+    form.addEventListener("input", (event) => clearPanelValidation(event.target));
+    form.addEventListener("change", (event) => clearPanelValidation(event.target));
     const listeningAudio = form.querySelector("[data-retest-listening-audio]");
     const listeningTranscript = form.querySelector('[data-retest-panel="Listening"] .listening-transcript');
     listeningAudio?.addEventListener("play", () => {
@@ -3691,17 +3761,20 @@
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       const skill = form.elements.retestSkill.value;
-      const message = document.querySelector("[data-retest-message]");
+      clearRetestValidation();
+      if (message) message.textContent = "";
       const expectedTarget = retestGate().targetSkill;
       if (!VALID_SKILLS.has(skill) || skill === "Balanced" || skill !== expectedTarget) {
         if (message) message.textContent = "平行任务必须与本轮诊断、计划和练习记录保持同技能；当前状态已变化，请刷新后核对。";
+        message?.focus();
         return;
       }
-      const { evidence, error } = readRetestEvidence(form, skill);
-      if (error) {
-        if (message) message.textContent = error;
+      const evidenceResult = readRetestEvidence(form, skill);
+      if (evidenceResult.error) {
+        showRetestValidationError(evidenceResult);
         return;
       }
+      const { evidence } = evidenceResult;
       const outcome = await withExclusiveJourneyWrite(async () => {
         if (!persistedStateIsFresh()) return { status: "stale" };
         const { cycle, diagnostic, record, linkedPracticeTask, linkedPracticeReceipt, review, peerHelp, targetSkill, ready, evidenceAlreadyRecorded } = retestGate();
@@ -3788,6 +3861,7 @@
       form.querySelectorAll("input, select, textarea, button").forEach((control) => { control.disabled = true; });
       renderRetest();
       document.querySelector("[data-retest-result]")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      document.querySelector("[data-retest-result-title]")?.focus();
     });
 
     const updateForm = document.querySelector("#plan-update-form");
@@ -3795,12 +3869,17 @@
       event.preventDefault();
       const message = document.querySelector("[data-plan-update-message]");
       const focusSkill = updateForm.elements.nextFocusSkill.value;
+      updateForm.querySelectorAll('[aria-invalid="true"]').forEach((control) => control.removeAttribute("aria-invalid"));
+      if (message) message.textContent = "";
       if (!VALID_SKILLS.has(focusSkill)) {
         if (message) message.textContent = "请选择可识别的下一轮重点。";
+        updateForm.elements.nextFocusSkill.setAttribute("aria-invalid", "true");
+        updateForm.elements.nextFocusSkill.focus();
         return;
       }
       if (!updateForm.elements.learnerConfirmed.checked) {
         if (message) message.textContent = "请确认这是你自己的下一轮学习计划选择。";
+        updateForm.elements.learnerConfirmed.setAttribute("aria-invalid", "true");
         updateForm.elements.learnerConfirmed.focus();
         return;
       }
@@ -3898,12 +3977,7 @@
               : "本机记录已在另一个页面发生变化；未覆盖首份更新计划，请刷新后核对。";
         return;
       }
-      if (message) {
-        message.textContent = outcome.provisional
-          ? "临时 7 天计划已生成；本轮仍等待具备资质的人工确认，尚未计作完整闭环。"
-          : "更新后的 7 天计划已生成，旧计划完整归档，本轮闭环已关闭。";
-      }
-      renderRetest();
+      renderRetest({ focusCompletion: true });
     });
   };
 

@@ -905,13 +905,29 @@ const workspacePrototype = `
     </section>
   </main>`;
 
+const studyJourneySteps = [
+  ["diagnostic", "01", "诊断", "/diagnostic"],
+  ["plan", "02", "计划", "/plan"],
+  ["recommendations", "03", "推荐", "/recommendations"],
+  ["check-in", "04", "打卡", "/check-in"],
+  ["review", "05", "确认复盘", "/review"],
+  ["community", "06", "互助状态", "/community"],
+  ["retest", "07", "微复测与更新", "/retest"],
+];
+
+const studySupportTools = [
+  ["today", "今日任务", "/today"],
+  ["practice", "英文练习", "/practice"],
+  ["focus", "专注计时", "/focus"],
+];
+
 const studyToolNav = (current) => `
-  <nav class="study-tool-nav" aria-label="学生功能导航">
-    <a href="/plan"${current === "plan" ? ' aria-current="page"' : ""}><span>01</span>7 天计划</a>
-    <a href="/today"${current === "today" ? ' aria-current="page"' : ""}><span>02</span>今日任务</a>
-    <a href="/practice"${current === "practice" ? ' aria-current="page"' : ""}><span>03</span>英文练习</a>
-    <a href="/focus"${current === "focus" ? ' aria-current="page"' : ""}><span>04</span>专注计时</a>
-    <a href="/check-in"${current === "check-in" ? ' aria-current="page"' : ""}><span>05</span>学习复盘</a>
+  <nav class="study-tool-nav" aria-label="七步学习闭环">
+    ${studyJourneySteps.map(([key, number, label, href]) => `<a href="${href}"${current === key ? ' aria-current="step"' : ""}><span>${number}</span>${label}</a>`).join("")}
+  </nav>
+  <nav class="study-support-nav" aria-label="辅助学习工具">
+    <span class="study-support-label">辅助工具</span>
+    ${studySupportTools.map(([key, label, href]) => `<a href="${href}"${current === key ? ' aria-current="page"' : ""}>${label}</a>`).join("")}
   </nav>`;
 
 const studyPageHero = ({ current, number, label, title, lead, note }) => `
@@ -1131,7 +1147,7 @@ const renderDiagnosticTask = (task, index) => {
 
 const diagnosticContent = `
   <main id="main-content" class="study-tool-page">
-    ${studyPageHero({ current: "", number: "01", label: "Gate A 诊断证据包", title: "先做六项原创任务，<br />再确认下一步练什么。", lead: "2 项 Reading、2 项 Listening、90 秒 Speaking 与 3 分钟 Writing 共同形成一份本机证据报告。它只验证流程和可解释性，不生成能力等级、DET 估分或自动开放题诊断。", note: "约 10–12 分钟 · 仅限 18+ 演示" })}
+    ${studyPageHero({ current: "diagnostic", number: "01", label: "Gate A 诊断证据包", title: "先做六项原创任务，<br />再确认下一步练什么。", lead: "2 项 Reading、2 项 Listening、90 秒 Speaking 与 3 分钟 Writing 共同形成一份本机证据报告。它只验证流程和可解释性，不生成能力等级、DET 估分或自动开放题诊断。", note: "约 10–12 分钟 · 仅限 18+ 演示" })}
     <section class="single-tool-section journey-tool-section" aria-labelledby="diagnostic-title" data-diagnostic-app data-task-set-version="${escapeHtml(diagnosticTaskRegister.taskSetVersion)}" data-task-set-digest="${escapeHtml(diagnosticTaskRegister.taskSetDigest)}">
       <div class="single-tool-inner diagnostic-tool-inner">
         <header class="tool-panel-header"><div><span>01</span><div><p>诊断证据会话</p><h2 id="diagnostic-title">完成设备预检与六项版本化任务</h2></div></div><small data-diagnostic-status>尚未开始</small></header>
@@ -1189,7 +1205,7 @@ const diagnosticContent = `
 
 const recommendationsContent = `
   <main id="main-content" class="study-tool-page">
-    ${studyPageHero({ current: "", number: "03", label: "可解释推荐", title: "一个主任务，<br />至多两个可选补充。", lead: "推荐只基于本机计划与已冻结的原创练习入口；每项显示原因、时长和验证方式。当前不使用 RAG、不自由上网，也不把打开链接当成完成学习。", note: "接受或明确跳过都可留证" })}
+    ${studyPageHero({ current: "recommendations", number: "03", label: "可解释推荐", title: "一个主任务，<br />至多两个可选补充。", lead: "推荐只基于本机计划与已冻结的原创练习入口；每项显示原因、时长和验证方式。当前不使用 RAG、不自由上网，也不把打开链接当成完成学习。", note: "接受或明确跳过都可留证" })}
     <section class="single-tool-section journey-tool-section" aria-labelledby="recommendation-title"><div class="single-tool-inner">
       <header class="tool-panel-header"><div><span>03</span><div><p>内容推荐</p><h2 id="recommendation-title">今天先做哪一项</h2></div></div><small data-recommendation-status>正在读取计划</small></header>
       <div class="gate-a-notice"><strong>来源边界</strong><p>主任务来自本站原创微练习；补充入口只连接已审阅的公开目录或非评分工具。页面不会声称 Bilibili 目录已经成为 RAG 语料。</p></div>
@@ -1200,7 +1216,7 @@ const recommendationsContent = `
 
 const communityContent = `
   <main id="main-content" class="study-tool-page">
-    ${studyPageHero({ current: "", number: "06", label: "自愿社区互助", title: "需要就使用，<br />不需要也不影响学习。", lead: "真实社区、导师与陌生人互动尚未开放。本页只用一张明确标注的合成演示经验卡，验证学习者能主动选择使用、谢绝、不需要或暂不可用。", note: "四种状态都不会阻断闭环" })}
+    ${studyPageHero({ current: "community", number: "06", label: "自愿社区互助", title: "需要就使用，<br />不需要也不影响学习。", lead: "真实社区、导师与陌生人互动尚未开放。本页只用一张明确标注的合成演示经验卡，验证学习者能主动选择使用、谢绝、不需要或暂不可用。", note: "四种状态都不会阻断闭环" })}
     <section class="single-tool-section journey-tool-section" aria-labelledby="community-title"><div class="single-tool-inner narrow-tool">
       <header class="tool-panel-header"><div><span>06</span><div><p>互助选择</p><h2 id="community-title">记录你的自愿状态</h2></div></div><small data-community-status>尚未选择</small></header>
       <article class="demo-peer-card"><span>合成演示经验卡 · 非真实学员材料</span><h3>先把口语回答写成三行提纲</h3><p>“我会先写主题、一个原因和一个例子，再开始 60 秒练习。这样做只是我的个人练习方式，不代表官方规则，也不保证适合每个人。”</p><small>来源：Gate A 合成示例；不含姓名、成绩、截图或可识别经历。</small></article>
@@ -1220,21 +1236,21 @@ const communityContent = `
 
 const retestContent = `
   <main id="main-content" class="study-tool-page">
-    ${studyPageHero({ current: "", number: "07", label: "平行微复测与更新计划", title: "再收集一条证据，<br />不把单题写成能力增长。", lead: "系统会锁定与本轮诊断优先项、计划任务和练习回执相同的技能，再提供一项原创平行任务。结果只说明本次任务证据；随后由你确认下一轮重点。", note: "同技能锁定 · 不评分 · 可解释更新" })}
+    ${studyPageHero({ current: "retest", number: "07", label: "平行微复测与更新计划", title: "再收集一条证据，<br />不把单题写成能力增长。", lead: "系统会锁定与本轮诊断优先项、计划任务和练习回执相同的技能，再提供一项原创平行任务。结果只说明本次任务证据；随后由你确认下一轮重点。", note: "同技能锁定 · 不评分 · 可解释更新" })}
     <section class="single-tool-section journey-tool-section" aria-labelledby="retest-title"><div class="single-tool-inner">
       <header class="tool-panel-header"><div><span>07</span><div><p>平行微复测</p><h2 id="retest-title">完成一条可回链的新证据</h2></div></div><small data-retest-status>尚未完成</small></header>
       <div class="gate-a-notice"><strong>解释边界</strong><p>答对一题或完成一次自查都不能证明真实能力增长、教学因果效果或 DET 分数变化。页面只保存任务版本、结果类型和学习者确认的下一步。</p></div>
       <form id="retest-form" class="journey-form retest-form" novalidate>
-        <section class="locked-retest-target" aria-labelledby="locked-retest-title"><span>LOCKED SAME-SKILL TARGET</span><h3 id="locked-retest-title" data-retest-skill-label>等待同技能练习记录</h3><p data-retest-comparability>完成前置步骤后，系统才会锁定本轮平行任务。</p><input type="hidden" name="retestSkill" data-retest-skill value="" /></section>
-        <section class="retest-panel" data-retest-panel="Reading"><h3 lang="en">Reading parallel task</h3><div class="english-material" lang="en"><p>After the community garden added labels to each planting area, fewer volunteers placed tools in the wrong shed. The labels did not change the gardening tasks, but they made it easier for new volunteers to understand where materials belonged.</p><fieldset><legend>What was the main effect of the labels?</legend><label><input type="radio" name="retestReading" value="a" /> They reduced the number of gardening tasks.</label><label><input type="radio" name="retestReading" value="b" /> They helped new volunteers organize materials correctly.</label><label><input type="radio" name="retestReading" value="c" /> They encouraged volunteers to plant more vegetables.</label></fieldset></div></section>
-        <section class="retest-panel" data-retest-panel="Listening" hidden><h3 lang="en">Listening parallel task</h3><audio controls preload="metadata" data-retest-listening-audio aria-label="Listening 平行微复测英文材料；需完整播放后再提交" src="/assets/listening-writing-center.mp3"><p>当前浏览器无法播放音频，请展开英文原文继续任务。</p></audio><div class="english-material" lang="en"><fieldset><legend>When and where will the workshop take place?</legend><label><input type="radio" name="retestListening" value="a" /> Wednesday at 2:15 in Room 204.</label><label><input type="radio" name="retestListening" value="b" /> Friday at 2:50 in Room 204.</label><label><input type="radio" name="retestListening" value="c" /> Friday at 2:15 in Room 204.</label></fieldset></div><details class="listening-transcript"><summary>音频不可用或需要核对时，查看英文原文</summary><p lang="en">The campus writing center has changed its workshop schedule. The session originally planned for Wednesday will take place on Friday at two fifteen in Room 204. Students who already registered do not need to sign up again.</p></details></section>
-        <section class="retest-panel" data-retest-panel="Writing" hidden><h3 lang="en">Writing parallel task</h3><p class="english-prompt" lang="en">Describe one small habit that can help a student learn more consistently. Explain why it may help.</p><label class="writing-field"><span lang="en">Your response</span><textarea name="retestWriting" rows="8" maxlength="1200" lang="en" spellcheck="true"></textarea></label><fieldset class="self-review" lang="en"><legend>Self-review</legend><label><input type="checkbox" data-retest-writing-review /> I stated one clear habit.</label><label><input type="checkbox" data-retest-writing-review /> I explained why it may help.</label><label><input type="checkbox" data-retest-writing-review /> I checked my response.</label></fieldset></section>
-        <section class="retest-panel" data-retest-panel="Speaking" hidden><h3 lang="en">Speaking parallel task</h3><p class="english-prompt" lang="en">Describe a place where you can study effectively. Explain what makes the place useful for you.</p><fieldset class="self-review" lang="en"><legend>After speaking aloud</legend><label><input type="checkbox" data-retest-speaking-review /> I spoke aloud for about 45–60 seconds.</label><label><input type="checkbox" data-retest-speaking-review /> I answered both parts of the prompt.</label><label><input type="checkbox" data-retest-speaking-review /> I gave one specific detail.</label></fieldset><p>本站不请求麦克风权限、不录音；完成状态由你确认。</p></section>
-        <button class="button button-ink" type="submit">保存本次平行任务证据${arrow}</button><p class="form-inline-message" data-retest-message role="alert"></p>
+        <section class="locked-retest-target" aria-labelledby="locked-retest-title"><span>LOCKED SAME-SKILL TARGET</span><h3 id="locked-retest-title" data-retest-skill-label tabindex="-1">等待同技能练习记录</h3><p data-retest-comparability>完成前置步骤后，系统才会锁定本轮平行任务。</p><input type="hidden" name="retestSkill" data-retest-skill value="" /></section>
+        <section class="retest-panel" data-retest-panel="Reading"><h3 lang="en">Reading parallel task</h3><div class="english-material" lang="en"><p>After the community garden added labels to each planting area, fewer volunteers placed tools in the wrong shed. The labels did not change the gardening tasks, but they made it easier for new volunteers to understand where materials belonged.</p><fieldset><legend>What was the main effect of the labels?</legend><label><input type="radio" name="retestReading" value="a" /> They reduced the number of gardening tasks.</label><label><input type="radio" name="retestReading" value="b" /> They helped new volunteers organize materials correctly.</label><label><input type="radio" name="retestReading" value="c" /> They encouraged volunteers to plant more vegetables.</label></fieldset><p class="field-error" id="retest-reading-error" data-retest-error="reading" role="alert"></p></div></section>
+        <section class="retest-panel" data-retest-panel="Listening" hidden><h3 lang="en">Listening parallel task</h3><audio controls preload="metadata" data-retest-listening-audio aria-label="Listening 平行微复测英文材料；需完整播放后再提交" src="/assets/listening-writing-center.mp3"><p>当前浏览器无法播放音频，请展开英文原文继续任务。</p></audio><div class="english-material" lang="en"><fieldset><legend>When and where will the workshop take place?</legend><label><input type="radio" name="retestListening" value="a" /> Wednesday at 2:15 in Room 204.</label><label><input type="radio" name="retestListening" value="b" /> Friday at 2:50 in Room 204.</label><label><input type="radio" name="retestListening" value="c" /> Friday at 2:15 in Room 204.</label></fieldset><p class="field-error" id="retest-listening-error" data-retest-error="listening" role="alert"></p></div><details class="listening-transcript"><summary>音频不可用或需要核对时，查看英文原文</summary><p lang="en">The campus writing center has changed its workshop schedule. The session originally planned for Wednesday will take place on Friday at two fifteen in Room 204. Students who already registered do not need to sign up again.</p></details></section>
+        <section class="retest-panel" data-retest-panel="Writing" hidden><h3 lang="en">Writing parallel task</h3><p class="english-prompt" lang="en">Describe one small habit that can help a student learn more consistently. Explain why it may help.</p><label class="writing-field"><span lang="en">Your response</span><textarea name="retestWriting" rows="8" maxlength="1200" lang="en" spellcheck="true"></textarea></label><fieldset class="self-review" lang="en"><legend>Self-review</legend><label><input type="checkbox" data-retest-writing-review /> I stated one clear habit.</label><label><input type="checkbox" data-retest-writing-review /> I explained why it may help.</label><label><input type="checkbox" data-retest-writing-review /> I checked my response.</label></fieldset><p class="field-error" id="retest-writing-error" data-retest-error="writing" role="alert"></p></section>
+        <section class="retest-panel" data-retest-panel="Speaking" hidden><h3 lang="en">Speaking parallel task</h3><p class="english-prompt" lang="en">Describe a place where you can study effectively. Explain what makes the place useful for you.</p><fieldset class="self-review" lang="en"><legend>After speaking aloud</legend><label><input type="checkbox" data-retest-speaking-review /> I spoke aloud for about 45–60 seconds.</label><label><input type="checkbox" data-retest-speaking-review /> I answered both parts of the prompt.</label><label><input type="checkbox" data-retest-speaking-review /> I gave one specific detail.</label></fieldset><p class="field-error" id="retest-speaking-error" data-retest-error="speaking" role="alert"></p><p>本站不请求麦克风权限、不录音；完成状态由你确认。</p></section>
+        <button class="button button-ink" type="submit">保存本次平行任务证据${arrow}</button><p class="form-inline-message" id="retest-form-message" data-retest-message role="alert" tabindex="-1"></p>
       </form>
-      <div class="chain-receipt" data-retest-result hidden aria-live="polite"><span>PARALLEL RETEST RECEIPT</span><h3 data-retest-result-title>平行任务已留证</h3><p data-retest-result-copy></p><dl><div><dt>retest_id</dt><dd data-retest-id></dd></div><div><dt>target_skill</dt><dd data-retest-target-skill></dd></div><div><dt>same_skill</dt><dd data-retest-same-skill></dd></div><div><dt>parallel_form_pair</dt><dd data-retest-parallel-pair></dd></div><div><dt>parallel_retest</dt><dd>true</dd></div></dl></div>
-      <form id="plan-update-form" class="journey-form plan-update-form" hidden novalidate><h3>由你确认下一轮重点</h3><p>系统不会根据单题自动改分或决定能力。请选择下一轮计划重点；保存后会生成新的 plan_id，并保留上一轮计划的回链。</p><label><span>下一轮重点</span><select name="nextFocusSkill"><option value="Balanced">综合训练</option><option value="Reading">Reading · 阅读</option><option value="Listening">Listening · 听力</option><option value="Writing">Writing · 写作</option><option value="Speaking">Speaking · 口语</option></select></label><label class="consent-check"><input type="checkbox" name="learnerConfirmed" /><span><strong>我确认这是我的学习计划选择</strong><small>它不是系统自动诊断结论。</small></span></label><button class="button button-accent" type="submit">生成更新后的 7 天计划${arrow}</button><p class="form-inline-message" data-plan-update-message role="alert"></p></form>
-      <dl class="compact-receipt" data-plan-update-receipt hidden><div><dt>updated_plan_id</dt><dd data-updated-plan-id></dd></div><div><dt>supersedes_plan_id</dt><dd data-superseded-plan-id></dd></div></dl>
+      <div class="chain-receipt" data-retest-result hidden aria-live="polite"><span>PARALLEL RETEST RECEIPT</span><h3 data-retest-result-title tabindex="-1">平行任务已留证</h3><p data-retest-result-copy></p><dl><div><dt>retest_id</dt><dd data-retest-id></dd></div><div><dt>target_skill</dt><dd data-retest-target-skill></dd></div><div><dt>same_skill</dt><dd data-retest-same-skill></dd></div><div><dt>parallel_form_pair</dt><dd data-retest-parallel-pair></dd></div><div><dt>parallel_retest</dt><dd>true</dd></div></dl></div>
+      <form id="plan-update-form" class="journey-form plan-update-form" hidden novalidate><h3>由你确认下一轮重点</h3><p>系统不会根据单题自动改分或决定能力。请选择下一轮计划重点；保存后会生成新的 plan_id，并保留上一轮计划的回链。</p><label><span>下一轮重点</span><select name="nextFocusSkill" aria-describedby="plan-update-message"><option value="Balanced">综合训练</option><option value="Reading">Reading · 阅读</option><option value="Listening">Listening · 听力</option><option value="Writing">Writing · 写作</option><option value="Speaking">Speaking · 口语</option></select></label><label class="consent-check"><input type="checkbox" name="learnerConfirmed" aria-describedby="plan-update-message" /><span><strong>我确认这是我的学习计划选择</strong><small>它不是系统自动诊断结论。</small></span></label><button class="button button-accent" type="submit">生成更新后的 7 天计划${arrow}</button><p class="form-inline-message" id="plan-update-message" data-plan-update-message role="alert"></p></form>
+      <section class="chain-receipt plan-update-completion" data-plan-update-receipt hidden aria-live="polite" aria-labelledby="plan-update-completion-title"><span>UPDATED PLAN RECEIPT</span><h3 id="plan-update-completion-title" data-plan-update-completion-title tabindex="-1">更新计划已保存在本机</h3><p data-plan-update-completion-copy></p><dl><div><dt>updated_plan_id</dt><dd data-updated-plan-id></dd></div><div><dt>supersedes_plan_id</dt><dd data-superseded-plan-id></dd></div></dl><div class="diagnostic-next-actions"><a class="button button-ink" href="/workspace">回到学习工作台${arrow}</a><a class="button button-ghost" href="/plan">查看更新后的 7 天计划${arrow}</a></div></section>
     </div></section>
   </main>`;
 
@@ -1250,7 +1266,7 @@ const planContent = `
     })}
     <section class="single-tool-section" aria-labelledby="plan-title">
       <div class="single-tool-inner">
-        <header class="tool-panel-header"><div><span>01</span><div><p>计划生成器</p><h2 id="plan-title">设置你的学习节奏</h2></div></div><small data-plan-status>尚未生成</small></header>
+        <header class="tool-panel-header"><div><span>02</span><div><p>计划生成器</p><h2 id="plan-title">设置你的学习节奏</h2></div></div><small data-plan-status>尚未生成</small></header>
         <div class="plan-layout">
           <form id="plan-form" class="plan-form" novalidate>
             <label><span>你的称呼 <small>选填</small></span><input name="nickname" type="text" maxlength="20" autocomplete="nickname" placeholder="例如：小林" /></label>
@@ -1262,7 +1278,7 @@ const planContent = `
           </form>
           <div class="plan-output" aria-live="polite">
             <div class="plan-empty" data-plan-empty><span aria-hidden="true">7</span><h3>完成设置后，<br />这里会出现每天的任务。</h3><p>生成后可前往“今日任务”逐项完成。</p></div>
-            <div data-plan-result hidden><div class="plan-result-heading"><div><span data-plan-owner>你的</span><h3>7 天学习计划</h3></div><p data-plan-summary></p></div><ol class="plan-days" data-plan-days></ol><a class="button button-accent plan-next-button" href="/today">查看今日任务${arrow}</a></div>
+            <div data-plan-result hidden><div class="plan-result-heading"><div><span data-plan-owner>你的</span><h3>7 天学习计划</h3></div><p data-plan-summary></p></div><ol class="plan-days" data-plan-days></ol><a class="button button-accent plan-next-button" href="/today" data-plan-next><span data-plan-next-label>查看今日任务</span>${arrow}</a></div>
           </div>
         </div>
       </div>
@@ -1437,13 +1453,14 @@ const checkInContent = `
 
 const reviewContent = `
   <main id="main-content" class="study-tool-page">
-    ${studyPageHero({ current: "", number: "05", label: "学生确认复盘", title: "先核对内容，<br />再由你明确确认。", lead: "本页读取当前闭环中刚保存的证据式打卡。你可以返回修正；只有勾选确认并提交后，才生成独立 review_id 与 learner_confirmed_review。", note: "确认与打卡分开留证" })}
+    ${studyPageHero({ current: "review", number: "05", label: "学生确认复盘", title: "先核对内容，<br />再由你明确确认。", lead: "本页读取当前闭环中刚保存的证据式打卡。你可以返回修正；只有勾选确认并提交后，才生成独立 review_id 与 learner_confirmed_review。", note: "确认与打卡分开留证" })}
     <section class="single-tool-section journey-tool-section" aria-labelledby="review-title"><div class="single-tool-inner narrow-tool">
       <header class="tool-panel-header"><div><span>05</span><div><p>复盘确认</p><h2 id="review-title">这是你愿意确认的记录吗？</h2></div></div><small data-review-status>等待证据式打卡</small></header>
       <div class="review-empty" data-review-empty><h3>当前闭环还没有待确认打卡</h3><p>先保存“做了什么 + 一条学习证据 + 一个问题”，再回到这里核对。</p><a class="button button-ink" href="/check-in">先完成证据式打卡${arrow}</a></div>
       <div class="review-ready" data-review-ready hidden>
         <article class="review-record" aria-labelledby="review-record-title"><span>CHECK-IN DRAFT FOR REVIEW</span><h3 id="review-record-title" data-review-date></h3><dl><div><dt>做了什么</dt><dd data-review-did></dd></div><div><dt>学习证据</dt><dd data-review-evidence></dd></div><div><dt>证据来源</dt><dd data-review-evidence-class></dd></div><div><dt>练习回执</dt><dd data-review-practice-receipt-id></dd></div><div><dt>问题状态</dt><dd data-review-question></dd></div></dl><a class="text-link" href="/check-in">返回修正打卡 →</a></article>
-        <form id="review-form" class="journey-form" novalidate><label class="consent-check"><input type="checkbox" name="learnerConfirmed" /><span><strong>我已核对，并确认这份复盘反映了我的学习记录</strong><small>如果内容不准确，请先返回修正；系统不会替你自动确认。</small></span></label><button class="button button-accent" type="submit">确认这份复盘${arrow}</button><p class="form-inline-message" data-review-message role="alert"></p></form>
+        <form id="review-form" class="journey-form" novalidate><label class="consent-check"><input type="checkbox" name="learnerConfirmed" /><span><strong>我已核对，并确认这份复盘反映了我的学习记录</strong><small>如果内容不准确，请先返回修正；系统不会替你自动确认。</small></span></label><button class="button button-accent" type="submit">确认这份复盘${arrow}</button><p class="form-inline-message" data-review-error role="alert"></p></form>
+        <p class="review-success-message" data-review-message role="status" aria-live="polite" tabindex="-1" hidden></p>
         <dl class="compact-receipt" data-review-receipt hidden><div><dt>review_id</dt><dd data-review-id></dd></div><div><dt>check_in_id</dt><dd data-review-checkin-id></dd></div><div><dt>learner_confirmed_review</dt><dd>true</dd></div></dl>
         <a class="button button-ink journey-next-button" href="/community" data-review-next hidden>下一步：选择是否使用互助${arrow}</a>
       </div>

@@ -1834,6 +1834,9 @@ await checkExecutableAsync(
 );
 
 const practice = await read("practice.html");
+const planPage = await read("plan.html");
+const reviewPage = await read("review.html");
+const retestPage = await read("retest.html");
 const practiceTargets = [...practice.matchAll(/class="practice-launch-grid"[\s\S]*?<\/div>/g)]
   .flatMap((match) => [...match[0].matchAll(/href="([^"]+)"/g)].map((link) => link[1]));
 check(
@@ -1842,7 +1845,7 @@ check(
   "four skill buttons target four distinct practice pages",
 );
 
-check(/id="plan-form"/.test(await read("plan.html")), "plan page contains a directly usable plan form");
+check(/id="plan-form"/.test(planPage), "plan page contains a directly usable plan form");
 check(/id="diagnostic-start-form"[\s\S]*name="adultConfirmed"/.test(diagnosticPage), "diagnostic page requires an explicit 18+ demo declaration");
 check(/data-recommendation-items[\s\S]*data-accept-recommendation[\s\S]*data-skip-recommendation/.test(await read("recommendations.html")), "recommendation page supports accept and explicit skip states");
 check(/data-today-tasks/.test(await read("today.html")), "today page contains a directly usable task list");
@@ -1853,15 +1856,65 @@ check(/data-speaking-time[\s\S]*data-speaking-review/.test(await read("practice-
 check(/data-focus-time[\s\S]*data-focus-stop/.test(await read("focus.html")), "focus page includes start, pause, stop, and reset-capable controls");
 check(/name="didText"[\s\S]*name="evidenceText"[\s\S]*name="questionStatus"/.test(await read("check-in.html")), "check-in page collects action, evidence, and question state");
 check(/data-checkin-receipt[\s\S]*data-checkin-id[\s\S]*data-checkin-plan-id/.test(await read("check-in.html")), "check-in page exposes check_in_id and plan_id receipts");
-check(/id="review-form"[\s\S]*name="learnerConfirmed"[\s\S]*data-review-id/.test(await read("review.html")), "review page requires a distinct learner confirmation and review_id");
+check(/id="review-form"[\s\S]*name="learnerConfirmed"[\s\S]*data-review-id/.test(reviewPage), "review page requires a distinct learner confirmation and review_id");
 check(/value="used"[\s\S]*value="declined"[\s\S]*value="not_needed"[\s\S]*value="unavailable"/.test(await read("community.html")), "community page exposes all four valid voluntary states");
 check(/href="\/retest" data-community-next hidden/.test(await read("community.html")), "community keeps the retest action hidden until a voluntary state is validly saved");
-check(/data-retest-panel="Reading"[\s\S]*data-retest-panel="Listening"[\s\S]*data-retest-panel="Writing"[\s\S]*data-retest-panel="Speaking"/.test(await read("retest.html")), "retest page contains four original parallel task modes");
-check(/data-retest-id[\s\S]*data-updated-plan-id[\s\S]*data-superseded-plan-id/.test(await read("retest.html")), "retest page exposes retest and updated-plan chain receipts");
-check(/data-retest-skill-label[\s\S]*type="hidden"[^>]*name="retestSkill"[\s\S]*data-retest-same-skill[\s\S]*data-retest-parallel-pair/.test(await read("retest.html")), "retest target is locked and exposes auditable same-skill evidence");
+check(/data-retest-panel="Reading"[\s\S]*data-retest-panel="Listening"[\s\S]*data-retest-panel="Writing"[\s\S]*data-retest-panel="Speaking"/.test(retestPage), "retest page contains four original parallel task modes");
+check(/data-retest-id[\s\S]*data-updated-plan-id[\s\S]*data-superseded-plan-id/.test(retestPage), "retest page exposes retest and updated-plan chain receipts");
+check(/data-retest-skill-label[\s\S]*type="hidden"[^>]*name="retestSkill"[\s\S]*data-retest-same-skill[\s\S]*data-retest-parallel-pair/.test(retestPage), "retest target is locked and exposes auditable same-skill evidence");
 check(/data-checkin-evidence-status[\s\S]*data-checkin-evidence-class[\s\S]*data-checkin-practice-receipt-id/.test(await read("check-in.html")), "check-in exposes practice-receipt qualification and evidence class");
 check(/data-review-evidence-class[\s\S]*data-review-practice-receipt-id/.test(await read("review.html")), "learner review displays the exact check-in evidence source and practice receipt");
 check(/data-recommendation-binding-id/.test(await read("recommendations.html")), "recommendation receipt exposes its diagnostic-to-practice binding ID");
+const journeyNavigationPages = [
+  ["diagnostic.html", "/diagnostic"],
+  ["plan.html", "/plan"],
+  ["recommendations.html", "/recommendations"],
+  ["check-in.html", "/check-in"],
+  ["review.html", "/review"],
+  ["community.html", "/community"],
+  ["retest.html", "/retest"],
+];
+const expectedJourneyNavigationTargets = [
+  "/diagnostic",
+  "/plan",
+  "/recommendations",
+  "/check-in",
+  "/review",
+  "/community",
+  "/retest",
+];
+check(
+  journeyNavigationPages.every(([filename, currentTarget]) => {
+    const html = runtimePageSources.get(filename) || "";
+    const nav = html.match(/<nav class="study-tool-nav" aria-label="七步学习闭环">([\s\S]*?)<\/nav>/)?.[1] || "";
+    const targets = [...nav.matchAll(/href="([^"]+)"/g)].map((match) => match[1]);
+    return JSON.stringify(targets) === JSON.stringify(expectedJourneyNavigationTargets) &&
+      (nav.match(/aria-current="step"/g) || []).length === 1 &&
+      new RegExp(`href="${currentTarget}" aria-current="step"`).test(nav);
+  }),
+  "all seven Gate A pages expose one canonical seven-step navigation with the correct current step",
+);
+check(
+  /data-plan-next[\s\S]*data-plan-next-label/.test(planPage) &&
+    /const linkedPlan = completedPlanChain\(\)[\s\S]*continuesCurrentCycle[\s\S]*next\.href = continuesCurrentCycle \? "\/recommendations" : "\/today"/.test(workspaceScript),
+  "plan sends diagnostic-bound cycles to recommendations while standalone plans continue to today",
+);
+check(
+  /id="review-form"[\s\S]*data-review-error[\s\S]*<\/form>\s*<p class="review-success-message" data-review-message role="status" aria-live="polite" tabindex="-1" hidden>/.test(reviewPage) &&
+    /successMessage\.hidden = false[\s\S]*successMessage\?\.focus\(\)/.test(journeyScript),
+  "review success remains visible outside the hidden form and receives programmatic focus after save",
+);
+check(
+  /data-plan-update-receipt hidden aria-live="polite"[\s\S]*data-plan-update-completion-title tabindex="-1"[\s\S]*href="\/workspace"[\s\S]*href="\/plan"/.test(retestPage) &&
+    /renderRetest\(\{ focusCompletion: true \}\)/.test(journeyScript) &&
+    /Gate A PASS/.test(journeyScript),
+  "updated-plan completion stays visible, distinguishes local or provisional status, offers next actions, and receives focus",
+);
+check(
+  (retestPage.match(/data-retest-error=/g) || []).length === 4 &&
+    /showRetestValidationError[\s\S]*aria-invalid[\s\S]*aria-describedby[\s\S]*target\.focus\(\)/.test(journeyScript),
+  "parallel-retest validation exposes inline errors and focuses an associated invalid control",
+);
 for (const [file, exerciseId] of [
   ["practice-reading.html", "reading-library-v1"],
   ["practice-listening.html", "listening-club-v1"],

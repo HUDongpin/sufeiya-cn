@@ -106,17 +106,17 @@
       <aside><strong>约 1 分钟完成设置</strong><span>数据只保存在当前浏览器，不上传。</span></aside>
     </div>
     <div class="study-nav-wrap">
-  <nav class="study-tool-nav" aria-label="学生功能导航">
-    <a href="/plan" aria-current="page"><span>01</span>7 天计划</a>
-    <a href="/today"><span>02</span>今日任务</a>
-    <a href="/practice"><span>03</span>英文练习</a>
-    <a href="/focus"><span>04</span>专注计时</a>
-    <a href="/check-in"><span>05</span>学习复盘</a>
+  <nav class="study-tool-nav" aria-label="七步学习闭环">
+    <a href="/diagnostic"><span>01</span>诊断</a><a href="/plan" aria-current="step"><span>02</span>计划</a><a href="/recommendations"><span>03</span>推荐</a><a href="/check-in"><span>04</span>打卡</a><a href="/review"><span>05</span>确认复盘</a><a href="/community"><span>06</span>互助状态</a><a href="/retest"><span>07</span>微复测与更新</a>
+  </nav>
+  <nav class="study-support-nav" aria-label="辅助学习工具">
+    <span class="study-support-label">辅助工具</span>
+    <a href="/today">今日任务</a><a href="/practice">英文练习</a><a href="/focus">专注计时</a>
   </nav></div>
   </section>
     <section class="single-tool-section" aria-labelledby="plan-title">
       <div class="single-tool-inner">
-        <header class="tool-panel-header"><div><span>01</span><div><p>计划生成器</p><h2 id="plan-title">设置你的学习节奏</h2></div></div><small data-plan-status>尚未生成</small></header>
+        <header class="tool-panel-header"><div><span>02</span><div><p>计划生成器</p><h2 id="plan-title">设置你的学习节奏</h2></div></div><small data-plan-status>尚未生成</small></header>
         <div class="plan-layout">
           <form id="plan-form" class="plan-form" novalidate>
             <label><span>你的称呼 <small>选填</small></span><input name="nickname" type="text" maxlength="20" autocomplete="nickname" placeholder="例如：小林" /></label>
@@ -131,7 +131,7 @@
           </form>
           <div class="plan-output" aria-live="polite">
             <div class="plan-empty" data-plan-empty><span aria-hidden="true">7</span><h3>完成设置后，<br />这里会出现每天的任务。</h3><p>生成后可前往“今日任务”逐项完成。</p></div>
-            <div data-plan-result hidden><div class="plan-result-heading"><div><span data-plan-owner>你的</span><h3>7 天学习计划</h3></div><p data-plan-summary></p></div><ol class="plan-days" data-plan-days></ol><a class="button button-accent plan-next-button" href="/today">查看今日任务
+            <div data-plan-result hidden><div class="plan-result-heading"><div><span data-plan-owner>你的</span><h3>7 天学习计划</h3></div><p data-plan-summary></p></div><ol class="plan-days" data-plan-days></ol><a class="button button-accent plan-next-button" href="/today" data-plan-next><span data-plan-next-label>查看今日任务</span>
   <svg viewBox="0 0 24 24" aria-hidden="true">
     <path d="M5 12h13M14 7l5 5-5 5" />
   </svg></a></div>
