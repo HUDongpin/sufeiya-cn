@@ -168,10 +168,11 @@
     return aliases.length === new Set(aliases).size && !aliases.includes(bindings.subjectId.replace(/^anon_/, ""));
   };
 
-  const bindDomainId = (bindings, kind, domainId) => {
+  const bindDomainId = (bindings, kind, domainId, { allowCreate = true } = {}) => {
     if (!RECORD_KIND_SET.has(kind) || !safeDomainId(domainId)) throw new Error("invalid_domain_binding");
     const existing = bindings.records[kind][domainId];
     if (existing) return existing;
+    if (!allowCreate) throw new Error("domain_binding_missing");
     const alias = createUuid();
     if (new Set(allRecordAliases(bindings)).has(alias)) throw new Error("alias_collision");
     bindings.records[kind][domainId] = alias;
@@ -615,9 +616,9 @@
     return { ok: true, code: "ledger_valid", eventCount: events.length, headHash: previousEventHash };
   };
 
-  const addContext = (bindings, context, aliasKey, kind, domainId) => {
+  const addContext = (bindings, context, aliasKey, kind, domainId, options) => {
     if (domainId === null || domainId === undefined) return;
-    context[aliasKey] = bindDomainId(bindings, kind, domainId);
+    context[aliasKey] = bindDomainId(bindings, kind, domainId, options);
   };
   const assertIso = (value) => {
     if (!isExactUtc(value)) throw new Error("invalid_domain_timestamp");
@@ -628,9 +629,10 @@
     return value;
   };
 
-  const projectDomainEvent = (bindings, eventType, domain) => {
+  const projectDomainEvent = (bindings, eventType, domain, { allowNewBindings = true } = {}) => {
     if (!EVENT_TYPE_SET.has(eventType) || !isRecord(domain)) throw new Error("invalid_domain_event");
     const context = {};
+    const bindingOptions = { allowCreate: allowNewBindings };
     if (eventType === "learning_cycle.started") {
       const { cycle, diagnostic } = domain;
       if (
@@ -645,8 +647,8 @@
         diagnostic.taskSetVersion !== "gate_a_original_6_v1" ||
         diagnostic.taskSetDigest !== "c1b2922ca96677665690bf790281be2438a016bbbe0d9f85478685af3c8dfc2c"
       ) throw new Error("invalid_cycle_start_domain");
-      addContext(bindings, context, "learningCycleId", "cycle", cycle.cycleId);
-      addContext(bindings, context, "diagnosticSessionId", "diagnostic", cycle.diagnosticSessionId);
+      addContext(bindings, context, "learningCycleId", "cycle", cycle.cycleId, bindingOptions);
+      addContext(bindings, context, "diagnosticSessionId", "diagnostic", cycle.diagnosticSessionId, bindingOptions);
       return {
         context,
         attributes: {
@@ -672,11 +674,11 @@
         record.evidenceBinding.measurementReviewed !== false
       ) throw new Error("invalid_recommendation_domain");
       assertSkill(record.primary?.skill);
-      addContext(bindings, context, "learningCycleId", "cycle", record.cycleId);
-      addContext(bindings, context, "diagnosticSessionId", "diagnostic", record.diagnosticSessionId);
-      addContext(bindings, context, "planId", "plan", record.planId);
-      addContext(bindings, context, "recommendationId", "recommendation", record.recommendationId);
-      addContext(bindings, context, "bindingId", "binding", record.evidenceBinding.bindingId);
+      addContext(bindings, context, "learningCycleId", "cycle", record.cycleId, bindingOptions);
+      addContext(bindings, context, "diagnosticSessionId", "diagnostic", record.diagnosticSessionId, bindingOptions);
+      addContext(bindings, context, "planId", "plan", record.planId, bindingOptions);
+      addContext(bindings, context, "recommendationId", "recommendation", record.recommendationId, bindingOptions);
+      addContext(bindings, context, "bindingId", "binding", record.evidenceBinding.bindingId, bindingOptions);
       return {
         context,
         attributes: { decision: record.status, bindingReviewStatus: "gate_a_unreviewed" },
@@ -720,14 +722,14 @@
               recommendation.primary?.taskId === receipt.taskId
         )
       ) throw new Error("invalid_practice_domain");
-      addContext(bindings, context, "learningCycleId", "cycle", receipt.cycleId);
-      addContext(bindings, context, "diagnosticSessionId", "diagnostic", receipt.diagnosticSessionId);
-      addContext(bindings, context, "planId", "plan", receipt.planId);
-      addContext(bindings, context, "recommendationId", "recommendation", receipt.recommendationId);
-      addContext(bindings, context, "bindingId", "binding", recommendation.evidenceBinding.bindingId);
-      addContext(bindings, context, "taskId", "task", receipt.taskId);
-      addContext(bindings, context, "attemptId", "practiceAttempt", receipt.practiceAttemptId);
-      addContext(bindings, context, "practiceReceiptId", "practiceReceipt", receipt.completionReceiptId);
+      addContext(bindings, context, "learningCycleId", "cycle", receipt.cycleId, bindingOptions);
+      addContext(bindings, context, "diagnosticSessionId", "diagnostic", receipt.diagnosticSessionId, bindingOptions);
+      addContext(bindings, context, "planId", "plan", receipt.planId, bindingOptions);
+      addContext(bindings, context, "recommendationId", "recommendation", receipt.recommendationId, bindingOptions);
+      addContext(bindings, context, "bindingId", "binding", recommendation.evidenceBinding.bindingId, bindingOptions);
+      addContext(bindings, context, "taskId", "task", receipt.taskId, bindingOptions);
+      addContext(bindings, context, "attemptId", "practiceAttempt", receipt.practiceAttemptId, bindingOptions);
+      addContext(bindings, context, "practiceReceiptId", "practiceReceipt", receipt.completionReceiptId, bindingOptions);
       const objective = ["Reading", "Listening"].includes(skill);
       const attributes = {
         outcome: objective
@@ -784,14 +786,14 @@
             : recommendation.status !== "skipped" || record.linkedTaskId === recommendation.primary?.taskId
         )
       ) throw new Error("invalid_check_in_domain");
-      addContext(bindings, context, "learningCycleId", "cycle", record.cycleId);
-      addContext(bindings, context, "diagnosticSessionId", "diagnostic", record.diagnosticSessionId);
-      addContext(bindings, context, "planId", "plan", record.planId);
-      addContext(bindings, context, "recommendationId", "recommendation", record.recommendationId);
-      addContext(bindings, context, "bindingId", "binding", recommendation.evidenceBinding.bindingId);
-      addContext(bindings, context, "taskId", "task", record.linkedTaskId);
-      addContext(bindings, context, "practiceReceiptId", "practiceReceipt", record.taskCompletionReceiptId);
-      addContext(bindings, context, "checkInId", "checkIn", record.checkInId);
+      addContext(bindings, context, "learningCycleId", "cycle", record.cycleId, bindingOptions);
+      addContext(bindings, context, "diagnosticSessionId", "diagnostic", record.diagnosticSessionId, bindingOptions);
+      addContext(bindings, context, "planId", "plan", record.planId, bindingOptions);
+      addContext(bindings, context, "recommendationId", "recommendation", record.recommendationId, bindingOptions);
+      addContext(bindings, context, "bindingId", "binding", recommendation.evidenceBinding.bindingId, bindingOptions);
+      addContext(bindings, context, "taskId", "task", record.linkedTaskId, bindingOptions);
+      addContext(bindings, context, "practiceReceiptId", "practiceReceipt", record.taskCompletionReceiptId, bindingOptions);
+      addContext(bindings, context, "checkInId", "checkIn", record.checkInId, bindingOptions);
       return {
         context,
         attributes: {
@@ -826,16 +828,16 @@
         record.comparability?.constructAlignment !== "same_skill_unreviewed_construct" ||
         record.comparability?.officialEquivalenceClaimed !== false
       ) throw new Error("invalid_retest_domain");
-      addContext(bindings, context, "learningCycleId", "cycle", record.cycleId);
-      addContext(bindings, context, "diagnosticSessionId", "diagnostic", record.diagnosticSessionId);
-      addContext(bindings, context, "planId", "plan", record.planId);
-      addContext(bindings, context, "recommendationId", "recommendation", record.recommendationId);
-      addContext(bindings, context, "bindingId", "binding", recommendation.evidenceBinding.bindingId);
-      addContext(bindings, context, "checkInId", "checkIn", record.checkInId);
-      addContext(bindings, context, "retestId", "retest", record.retestId);
-      addContext(bindings, context, "baselinePracticeReceiptId", "practiceReceipt", record.baselinePracticeReceiptId);
+      addContext(bindings, context, "learningCycleId", "cycle", record.cycleId, bindingOptions);
+      addContext(bindings, context, "diagnosticSessionId", "diagnostic", record.diagnosticSessionId, bindingOptions);
+      addContext(bindings, context, "planId", "plan", record.planId, bindingOptions);
+      addContext(bindings, context, "recommendationId", "recommendation", record.recommendationId, bindingOptions);
+      addContext(bindings, context, "bindingId", "binding", recommendation.evidenceBinding.bindingId, bindingOptions);
+      addContext(bindings, context, "checkInId", "checkIn", record.checkInId, bindingOptions);
+      addContext(bindings, context, "retestId", "retest", record.retestId, bindingOptions);
+      addContext(bindings, context, "baselinePracticeReceiptId", "practiceReceipt", record.baselinePracticeReceiptId, bindingOptions);
       if (record.humanConfirmationStatus === "completed") {
-        addContext(bindings, context, "humanReviewReceiptId", "humanReviewReceipt", domain.humanReviewReceiptId);
+        addContext(bindings, context, "humanReviewReceiptId", "humanReviewReceipt", domain.humanReviewReceiptId, bindingOptions);
       }
       return {
         context,
@@ -875,13 +877,13 @@
       !["not_required_for_gate_a_flow", "completed"].includes(planUpdate.humanConfirmationStatus) ||
       !FOCUS_SKILLS.has(planUpdate.focusSkill)
     ) throw new Error("invalid_cycle_completion_domain");
-    addContext(bindings, context, "learningCycleId", "cycle", cycle.cycleId);
-    addContext(bindings, context, "diagnosticSessionId", "diagnostic", cycle.diagnosticSessionId);
-    addContext(bindings, context, "planId", "plan", planUpdate.supersedesPlanId);
-    addContext(bindings, context, "retestId", "retest", retest.retestId);
-    addContext(bindings, context, "updatedPlanId", "updatedPlan", planUpdate.updatedPlanId);
+    addContext(bindings, context, "learningCycleId", "cycle", cycle.cycleId, bindingOptions);
+    addContext(bindings, context, "diagnosticSessionId", "diagnostic", cycle.diagnosticSessionId, bindingOptions);
+    addContext(bindings, context, "planId", "plan", planUpdate.supersedesPlanId, bindingOptions);
+    addContext(bindings, context, "retestId", "retest", retest.retestId, bindingOptions);
+    addContext(bindings, context, "updatedPlanId", "updatedPlan", planUpdate.updatedPlanId, bindingOptions);
     if (planUpdate.humanConfirmationStatus === "completed") {
-      addContext(bindings, context, "humanReviewReceiptId", "humanReviewReceipt", domain.humanReviewReceiptId);
+      addContext(bindings, context, "humanReviewReceiptId", "humanReviewReceipt", domain.humanReviewReceiptId, bindingOptions);
     }
     return {
       context,
@@ -902,6 +904,63 @@
   const appendDomainEvent = async (state, eventType, domain) => {
     const ledgerStatus = await validateLedger(state);
     if (!ledgerStatus.ok) return { status: "ledger_invalid", code: ledgerStatus.code };
+    const eventLimit = globalThis.SufeiyaWorkspaceBackup?.CAPACITY_LIMITS?.learningEvents;
+    if (!Number.isInteger(eventLimit) || eventLimit < 1) {
+      return { status: "ledger_invalid", code: "capacity_runtime_unavailable" };
+    }
+    const events = Array.isArray(state.learningEvents) ? clone(state.learningEvents) : [];
+    if (events.length > eventLimit) {
+      return { status: "ledger_invalid", code: "learning_events_capacity_exceeded" };
+    }
+    const primaryDomainReference = (() => {
+      if (eventType === "learning_cycle.started") return { kind: "cycle", domainId: domain?.cycle?.cycleId };
+      if (eventType === "recommendation.decided") return { kind: "recommendation", domainId: domain?.recommendation?.recommendationId };
+      if (eventType === "practice_attempt.finalized") return { kind: "practiceReceipt", domainId: domain?.receipt?.completionReceiptId };
+      if (eventType === "check_in.committed") return { kind: "checkIn", domainId: domain?.checkIn?.checkInId };
+      if (eventType === "retest.completed") return { kind: "retest", domainId: domain?.retest?.retestId };
+      if (eventType === "learning_cycle.completed") return { kind: "updatedPlan", domainId: domain?.planUpdate?.updatedPlanId };
+      return null;
+    })();
+    if (events.length === eventLimit) {
+      const bindings = state.learningEventBindings ? clone(state.learningEventBindings) : null;
+      if (!bindingShapeValid(bindings)) return { status: "ledger_invalid", code: "binding_shape_invalid" };
+      if (!primaryDomainReference || !safeDomainId(primaryDomainReference.domainId)) {
+        return { status: "domain_invalid", code: "invalid_domain_event" };
+      }
+      const primaryAlias = bindings.records[primaryDomainReference.kind]?.[primaryDomainReference.domainId];
+      if (!primaryAlias) {
+        return { status: "capacity_reached", code: "learning_events_capacity_reached", limit: eventLimit };
+      }
+      const primaryKey = PRIMARY_CONTEXT_KEY[eventType];
+      const existing = events.find((event) => event.eventType === eventType && event.context?.[primaryKey] === primaryAlias);
+      if (!existing) {
+        return { status: "capacity_reached", code: "learning_events_capacity_reached", limit: eventLimit };
+      }
+      let projection;
+      try {
+        projection = projectDomainEvent(bindings, eventType, domain, { allowNewBindings: false });
+      } catch (error) {
+        return { status: "domain_invalid", code: error instanceof Error ? error.message : "domain_invalid" };
+      }
+      const expectedSubject = {
+        subjectId: bindings.subjectId,
+        subjectType: bindings.subjectType,
+        identityAssurance: "local_random_alias",
+        assignedBy: bindings.assignmentBoundary,
+      };
+      const existingContext = Object.fromEntries(
+        Object.entries(existing.context).filter(([key]) => key !== "causationEventId"),
+      );
+      const semanticReplayMatches =
+        canonicalJson(existing.subject) === canonicalJson(expectedSubject) &&
+        canonicalJson(existingContext) === canonicalJson(projection.context) &&
+        canonicalJson(existing.activity) === canonicalJson(projection.activity) &&
+        canonicalJson(existing.attributes) === canonicalJson(projection.attributes) &&
+        existing.occurredAt === projection.occurredAt;
+      return semanticReplayMatches
+        ? { status: "already_recorded", event: clone(existing) }
+        : { status: "idempotency_conflict", code: "semantic_replay_mismatch" };
+    }
     const recordedAt = new Date().toISOString();
     const bindings = state.learningEventBindings ? clone(state.learningEventBindings) : createBindings(recordedAt);
     if (!bindingShapeValid(bindings)) return { status: "ledger_invalid", code: "binding_shape_invalid" };
@@ -911,7 +970,6 @@
     } catch (error) {
       return { status: "domain_invalid", code: error instanceof Error ? error.message : "domain_invalid" };
     }
-    const events = Array.isArray(state.learningEvents) ? clone(state.learningEvents) : [];
     const primaryKey = PRIMARY_CONTEXT_KEY[eventType];
     const existing = events.find((event) => event.eventType === eventType && event.context?.[primaryKey] === projection.context[primaryKey]);
     if (existing) {

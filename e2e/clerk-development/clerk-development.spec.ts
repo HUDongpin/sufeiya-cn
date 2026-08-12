@@ -92,8 +92,10 @@ type SmokeStage =
   | "authenticated Gate A priority confirmation"
   | "authenticated Gate A plan"
   | "authenticated Gate A recommendation"
+  | "authenticated Gate A sealed recommendation plan protection"
   | "authenticated Gate A bound Reading practice"
   | "authenticated Gate A evidence check-in"
+  | "authenticated Gate A sealed check-in revision protection"
   | "authenticated Gate A learner review"
   | "authenticated Gate A community decision"
   | "authenticated Gate A Reading retest"
@@ -114,6 +116,10 @@ type SmokeStage =
   | "authenticated Gate A restored same-page event clear"
   | "authenticated Gate A second atomic restore"
   | "authenticated Gate A restored continuity"
+  | "synthetic capacity UI probe only — journey composite, not 7/7 evidence"
+  | "synthetic capacity UI probe only — standalone practice, not 7/7 evidence"
+  | "synthetic capacity UI probe only — focus terminal, not 7/7 evidence"
+  | "synthetic capacity UI probe only — focus start, not 7/7 evidence"
   | "authenticated teaching-review demo"
   | "authenticated Sofia local explanation"
   | "authenticated Sofia landscape dialog"
@@ -699,6 +705,30 @@ test("a temporary Development user can traverse the protected smoke path and is 
         workspaceKey: SOFIA_WORKSPACE_KEY,
       },
     );
+    const readWorkspaceByteSnapshot = () => page.evaluate((workspaceKey) => {
+      const raw = window.localStorage.getItem(workspaceKey);
+      if (raw === null) throw new Error("workspace namespace is unexpectedly absent");
+      const parsed = JSON.parse(raw) as {
+        journey?: unknown;
+        plan?: unknown;
+        planHistory?: unknown;
+        learningEvents?: unknown;
+        learningEventBindings?: unknown;
+      };
+      return {
+        raw,
+        stateBytes: JSON.stringify(parsed),
+        journeyBytes: JSON.stringify({
+          journey: parsed.journey,
+          plan: parsed.plan,
+          planHistory: parsed.planHistory,
+        }),
+        ledgerBytes: JSON.stringify({
+          learningEvents: parsed.learningEvents,
+          learningEventBindings: parsed.learningEventBindings,
+        }),
+      };
+    }, SOFIA_WORKSPACE_KEY);
 
     stage = "authenticated Gate A fresh workspace";
     await gotoApprovedRoute("/workspace");
@@ -833,6 +863,37 @@ test("a temporary Development user can traverse the protected smoke path and is 
       "href",
       /\/practice-reading\?plan_id=[^&]+&task_id=[^&]+/,
     );
+
+    stage = "authenticated Gate A sealed recommendation plan protection";
+    const sealedRecommendationSnapshot = await readWorkspaceByteSnapshot();
+    await gotoApprovedRoute("/plan");
+    await expect(planForm).toBeVisible();
+    await expect(planForm.locator('select[name="focusSkill"]')).toBeDisabled();
+    await expect(planForm.locator('select[name="focusSkill"]')).toHaveValue("Reading");
+    await planForm.locator('select[name="dailyMinutes"]').selectOption("30");
+    await planForm.getByRole("button", { name: "生成 7 天计划" }).click();
+    const sealedPlanAlert = page.locator("[data-workspace-sealed-alert]");
+    await expect(sealedPlanAlert).toBeVisible();
+    await expect(sealedPlanAlert).toHaveAttribute("role", "alert");
+    await expect(sealedPlanAlert).toHaveAttribute("tabindex", "-1");
+    await expect(sealedPlanAlert).toBeFocused();
+    await expect(sealedPlanAlert).toContainText("已封存推荐或后续证据");
+    await expect(sealedPlanAlert).toContainText("不能手动替换绑定计划");
+    await expect(sealedPlanAlert).toContainText("不会删除已封存事件");
+    await expect(sealedPlanAlert.getByRole("link", { name: /开始新诊断/ }))
+      .toHaveAttribute("href", "/diagnostic");
+    expect(await readWorkspaceByteSnapshot()).toEqual(sealedRecommendationSnapshot);
+
+    await gotoApprovedRoute("/recommendations");
+    await expect(page.locator("[data-recommendation-receipt]")).toBeVisible();
+    await expect(page.locator("[data-recommendation-status]")).toHaveText("已接受主任务");
+    expect(await expectNonemptyText(page.locator("[data-recommendation-id]"))).toBe(recommendationId);
+    expect(await expectNonemptyText(page.locator("[data-recommendation-plan-id]"))).toBe(recommendationPlanId);
+    await expect(recommendationStart).toBeVisible();
+    await expect(recommendationStart).toHaveAttribute(
+      "href",
+      /\/practice-reading\?plan_id=[^&]+&task_id=[^&]+/,
+    );
     const [practiceResponse] = await Promise.all([
       page.waitForResponse((response) => (
         response.request().resourceType() === "document"
@@ -874,7 +935,9 @@ test("a temporary Development user can traverse the protected smoke path and is 
     await expect(checkInForm.locator("[data-linked-task]")).not.toHaveValue("");
     await expect(page.locator("[data-checkin-evidence-status]"))
       .toHaveAttribute("data-evidence-class", "practice_receipt");
-    await checkInForm.locator('textarea[name="didText"]').fill("完成了本轮绑定的阅读练习并核对答案。");
+    const savedCheckInDidText = "完成了本轮绑定的阅读练习并核对答案。";
+    const checkInDidText = checkInForm.locator('textarea[name="didText"]');
+    await checkInDidText.fill(savedCheckInDidText);
     await checkInForm.locator('textarea[name="evidenceText"]').fill("能够从短文细节判断图书馆改造支持不同学习方式。");
     const checkInQuestion = checkInForm.locator('textarea[name="questionText"]');
     await checkInForm.locator('input[name="questionStatus"][value="has_question"]').check();
@@ -887,6 +950,41 @@ test("a temporary Development user can traverse the protected smoke path and is 
     await expect(page.locator("[data-checkin-receipt]")).toBeVisible();
     await expect(page.locator("[data-checkin-evidence-class]")).toContainText("practice_receipt");
     await expectNonemptyText(page.locator("[data-checkin-practice-receipt-id]"));
+
+    stage = "authenticated Gate A sealed check-in revision protection";
+    const sealedCheckInSnapshot = await readWorkspaceByteSnapshot();
+    const checkInSubmit = checkInForm.getByRole("button", { name: "保存证据式打卡" });
+    const checkInDraftStatus = page.locator("[data-checkin-draft-status]");
+    const checkInNoteStatus = page.locator("[data-note-status]");
+
+    await checkInDidText.focus();
+    await page.keyboard.press("End");
+    await page.keyboard.insertText(" ");
+    await page.keyboard.press("Backspace");
+    await expect(checkInDidText).toHaveValue(savedCheckInDidText);
+    await expect(checkInSubmit).toBeEnabled();
+    await checkInSubmit.click();
+    await expect(checkInDraftStatus).toHaveText("证据式打卡与已保存版本一致");
+    await expect(checkInNoteStatus).toContainText("内容没有变化；原打卡记录保持有效");
+    await expect(checkInNoteStatus).not.toContainText("不可变学习事件");
+    expect(await readWorkspaceByteSnapshot()).toEqual(sealedCheckInSnapshot);
+
+    await checkInDidText.fill(`${savedCheckInDidText} 这里尝试修改已经封存的闭环打卡。`);
+    await expect(checkInSubmit).toBeEnabled();
+    await checkInSubmit.click();
+    await expect(checkInForm).not.toHaveAttribute("aria-busy", "true");
+    await expect(checkInNoteStatus).toContainText("这份闭环打卡已有不可变学习事件");
+    await expect(checkInNoteStatus).toContainText("不能在原轮次内修改或换绑");
+    await expect(checkInNoteStatus).toContainText("原记录已完整保留");
+    await expect(checkInNoteStatus).toContainText("请开始新诊断并进入新闭环");
+    expect(await readWorkspaceByteSnapshot()).toEqual(sealedCheckInSnapshot);
+
+    await checkInDidText.fill(savedCheckInDidText);
+    await expect(checkInSubmit).toBeEnabled();
+    await checkInSubmit.click();
+    await expect(checkInDraftStatus).toHaveText("证据式打卡与已保存版本一致");
+    await expect(checkInNoteStatus).toContainText("内容没有变化；原打卡记录保持有效");
+    expect(await readWorkspaceByteSnapshot()).toEqual(sealedCheckInSnapshot);
     const savedCheckInQuestion = await page.evaluate((workspaceKey) => {
       const parsed = JSON.parse(window.localStorage.getItem(workspaceKey) || "null") as {
         checkIns?: Record<string, { questionStatus?: string; questionText?: string; status?: string }>;
@@ -1134,7 +1232,8 @@ test("a temporary Development user can traverse the protected smoke path and is 
     }
     const workspaceBackupDownload = await workspaceBackupDownloadPromise;
     if (!workspaceBackupDownload) throw new Error("browser did not emit the workspace backup download");
-    expect(workspaceBackupDownload.suggestedFilename()).toMatch(
+    const workspaceBackupSuggestedFilename = workspaceBackupDownload.suggestedFilename();
+    expect(workspaceBackupSuggestedFilename).toMatch(
       /^sufeiya-workspace-backup-\d{4}-\d{2}-\d{2}\.json$/,
     );
     expect(await workspaceBackupDownload.failure()).toBeNull();
@@ -1261,6 +1360,10 @@ test("a temporary Development user can traverse the protected smoke path and is 
     const confirmWorkspaceRestore = page.locator("[data-confirm-workspace-restore]");
     const restoreWorkspaceBackup = page.locator("[data-restore-workspace-backup]");
     const workspaceBackupMessage = page.locator("[data-workspace-backup-message]");
+    const workspaceBackupFileSummary = page.locator("[data-workspace-backup-file-summary]");
+    const workspaceBackupFileName = workspaceBackupFileSummary.locator("[data-backup-file-name]");
+    const workspaceBackupFileSize = workspaceBackupFileSummary.locator("[data-backup-file-size]");
+    const workspaceBackupFileStatus = workspaceBackupFileSummary.locator("[data-backup-file-status]");
 
     stage = "authenticated Gate A tampered backup rejection";
     const tamperedEnvelope = JSON.parse(workspaceBackupText) as {
@@ -1275,6 +1378,10 @@ test("a temporary Development user can traverse the protected smoke path and is 
       mimeType: "application/json",
       buffer: Buffer.from(JSON.stringify(tamperedEnvelope)),
     });
+    await expect(workspaceBackupFileSummary).toBeVisible();
+    await expect(workspaceBackupFileName).toHaveText("tampered-sufeiya-workspace-backup.json");
+    await expect(workspaceBackupFileSize).toContainText("字节");
+    await expect(workspaceBackupFileStatus).toHaveText("已选择 · 尚未读取或验证");
     await expect(validateWorkspaceBackup).toBeEnabled();
     await expect(restoreWorkspaceBackup).toBeDisabled();
     await validateWorkspaceBackup.click();
@@ -1284,6 +1391,7 @@ test("a temporary Development user can traverse the protected smoke path and is 
     await expect(workspaceBackupPreview).toBeHidden();
     await expect(confirmWorkspaceRestore).toBeDisabled();
     await expect(restoreWorkspaceBackup).toBeDisabled();
+    await expect(workspaceBackupFileStatus).toHaveText("已拒绝 · 未通过严格验证");
     expect(await readLocalNamespaces()).toEqual({
       chat: namespaceRawBeforeRestoreExercise.chat,
       teachingReview: namespaceRawBeforeRestoreExercise.teachingReview,
@@ -1312,6 +1420,10 @@ test("a temporary Development user can traverse the protected smoke path and is 
       mimeType: "application/json",
       buffer: Buffer.from(JSON.stringify(rehashedInvalidDomainEnvelope)),
     });
+    await expect(workspaceBackupFileName).toHaveText(
+      "rehashed-invalid-domain-sufeiya-workspace-backup.json",
+    );
+    await expect(workspaceBackupFileStatus).toHaveText("已选择 · 尚未读取或验证");
     await expect(validateWorkspaceBackup).toBeEnabled();
     await expect(restoreWorkspaceBackup).toBeDisabled();
     await validateWorkspaceBackup.click();
@@ -1322,6 +1434,7 @@ test("a temporary Development user can traverse the protected smoke path and is 
     await expect(workspaceBackupPreview).toBeHidden();
     await expect(confirmWorkspaceRestore).toBeDisabled();
     await expect(restoreWorkspaceBackup).toBeDisabled();
+    await expect(workspaceBackupFileStatus).toHaveText("已拒绝 · 未通过严格验证");
     expect(await readLocalNamespaces()).toEqual({
       chat: namespaceRawBeforeRestoreExercise.chat,
       teachingReview: namespaceRawBeforeRestoreExercise.teachingReview,
@@ -1330,12 +1443,22 @@ test("a temporary Development user can traverse the protected smoke path and is 
 
     stage = "authenticated Gate A valid backup preview";
     backupInteractionPhase = "valid_validation";
-    await workspaceBackupFile.setInputFiles(workspaceBackupPath);
+    await workspaceBackupFile.setInputFiles({
+      name: workspaceBackupSuggestedFilename,
+      mimeType: "application/json",
+      buffer: workspaceBackupBuffer,
+    });
+    await expect(workspaceBackupFileName).toHaveText(workspaceBackupSuggestedFilename);
+    await expect(workspaceBackupFileSize).toContainText(
+      `${new Intl.NumberFormat("zh-CN").format(workspaceBackupBuffer.length)} 字节`,
+    );
+    await expect(workspaceBackupFileStatus).toHaveText("已选择 · 尚未读取或验证");
     await expect(validateWorkspaceBackup).toBeEnabled();
     await expect(restoreWorkspaceBackup).toBeDisabled();
     await validateWorkspaceBackup.click();
     await expect(workspaceBackupPreview).toBeVisible({ timeout: 15_000 });
     await expect(workspaceBackupPreview).toBeFocused();
+    await expect(workspaceBackupFileStatus).toHaveText("已通过 · 等待明确确认");
     await expect(workspaceBackupPreview.locator("[data-backup-stage]")).toHaveText(
       "本轮 Gate A 闭环已完成",
     );
@@ -1374,6 +1497,7 @@ test("a temporary Development user can traverse the protected smoke path and is 
     await expect(workspaceBackupMessage).toContainText(
       "Sofia 对话与教研复核演示草稿未被读取或修改",
     );
+    await expect(workspaceBackupFileStatus).toHaveText("已恢复 · 写后复核通过");
     backupInteractionPhase = null;
     page.off("request", recordBackupInteractionRequest);
     stage = "authenticated Gate A restore network isolation";
@@ -1466,7 +1590,17 @@ test("a temporary Development user can traverse the protected smoke path and is 
     expect(canonicalJson(eventClearedDomainState)).toBe(canonicalJson(restoredDomainState));
 
     stage = "authenticated Gate A second atomic restore";
-    await workspaceBackupFile.setInputFiles(workspaceBackupPath);
+    await workspaceBackupFile.setInputFiles({
+      name: workspaceBackupSuggestedFilename,
+      mimeType: "application/json",
+      buffer: workspaceBackupBuffer,
+    });
+    await expect(workspaceBackupFileSummary).toBeVisible();
+    await expect(workspaceBackupFileName).toHaveText(workspaceBackupSuggestedFilename);
+    await expect(workspaceBackupFileSize).toContainText(
+      `${new Intl.NumberFormat("zh-CN").format(workspaceBackupBuffer.length)} 字节`,
+    );
+    await expect(workspaceBackupFileStatus).toHaveText("已选择 · 尚未读取或验证");
     await expect(validateWorkspaceBackup).toBeEnabled();
     await validateWorkspaceBackup.click();
     await expect(workspaceBackupPreview).toBeVisible({ timeout: 15_000 });
@@ -1501,6 +1635,300 @@ test("a temporary Development user can traverse the protected smoke path and is 
     expect(canonicalJson(JSON.parse(finalNamespaceRaw.workspace!))).toBe(exportedWorkspaceCanonical);
     expect((JSON.parse(finalNamespaceRaw.workspace!) as { learningEvents?: unknown[] }).learningEvents)
       .toHaveLength(gateAState!.eventChain.length);
+
+    /*
+     * Synthetic capacity UI probes only. These fixtures are derived from the already
+     * verified/restored Gate A workspace solely to exercise fail-closed writer UI at
+     * exact capacity boundaries. They are not positive 7/7 journey evidence. Every
+     * probe restores the exact verified raw namespace before and after it runs.
+     */
+    const verifiedGateAWorkspaceRaw = finalNamespaceRaw.workspace;
+    if (!verifiedGateAWorkspaceRaw) throw new Error("verified Gate A workspace raw is unavailable");
+    type SyntheticCapacityWorkspace = {
+      focus: {
+        active: Record<string, unknown> | null;
+        sessions: Array<Record<string, unknown>>;
+      };
+      plan: Record<string, unknown> | null;
+      planHistory: Array<Record<string, unknown>>;
+      practice: Record<string, Record<string, unknown>>;
+      practiceReceipts: Record<string, Record<string, unknown>>;
+    } & Record<string, unknown>;
+    const replaceWorkspaceRaw = async (raw: string) => {
+      await page.evaluate(({ workspaceKey, workspaceRaw }) => {
+        window.localStorage.setItem(workspaceKey, workspaceRaw);
+      }, {
+        workspaceKey: SOFIA_WORKSPACE_KEY,
+        workspaceRaw: raw,
+      });
+      expect(await page.evaluate(
+        (workspaceKey) => window.localStorage.getItem(workspaceKey),
+        SOFIA_WORKSPACE_KEY,
+      )).toBe(raw);
+    };
+    const restoreVerifiedGateAWorkspace = async () => {
+      await replaceWorkspaceRaw(verifiedGateAWorkspaceRaw);
+      await gotoApprovedRoute("/workspace");
+      expect(await page.evaluate(
+        (workspaceKey) => window.localStorage.getItem(workspaceKey),
+        SOFIA_WORKSPACE_KEY,
+      )).toBe(verifiedGateAWorkspaceRaw);
+      await expect(page.locator("[data-journey-summary]")).toHaveText("7 / 7 步已留证");
+      await expect(page.locator("[data-cycle-ledger]")).toHaveAttribute("data-cycle-state", "complete");
+    };
+    const expectFocusedCapacityAlert = async (
+      label: string,
+      current: number,
+      limit: number,
+    ) => {
+      const alert = page.locator("[data-workspace-capacity-alert]");
+      await expect(alert).toBeVisible();
+      await expect(alert).toHaveAttribute("role", "alert");
+      await expect(alert).toHaveAttribute("tabindex", "-1");
+      await expect(alert).toBeFocused();
+      await expect(alert).toContainText(
+        `${label}当前 ${current} 条，安全上限 ${limit} 条`,
+      );
+      await expect(alert).toContainText("不会静默删除");
+      await expect(alert.getByRole("link", { name: /前往我的本机数据/ }))
+        .toHaveAttribute("href", "/my-data");
+      return alert;
+    };
+    const parseSyntheticWorkspace = () => (
+      JSON.parse(verifiedGateAWorkspaceRaw) as SyntheticCapacityWorkspace
+    );
+
+    stage = "synthetic capacity UI probe only — journey composite, not 7/7 evidence";
+    await restoreVerifiedGateAWorkspace();
+    const journeyCapacityWorkspace = parseSyntheticWorkspace();
+    const planTemplate = journeyCapacityWorkspace.planHistory[0]
+      ?? journeyCapacityWorkspace.plan;
+    if (!planTemplate) throw new Error("synthetic journey capacity probe has no valid plan template");
+    const verifiedPlanHistory = structuredClone(journeyCapacityWorkspace.planHistory);
+    journeyCapacityWorkspace.planHistory = Array.from({ length: 64 }, (_, index) => (
+      index < verifiedPlanHistory.length
+        ? verifiedPlanHistory[index]
+        : (() => {
+            const syntheticPlan = structuredClone(planTemplate) as Record<string, unknown> & {
+              createdAt?: string;
+              days?: Array<{ tasks?: Array<Record<string, unknown>> }>;
+            };
+            const syntheticPlanId = `plan-capacity-probe-${String(index).padStart(2, "0")}-${randomUUID()}`;
+            delete syntheticPlan.supersededByRetestId;
+            syntheticPlan.planId = syntheticPlanId;
+            syntheticPlan.status = "superseded";
+            syntheticPlan.diagnosticSessionId = null;
+            syntheticPlan.provenance = { source: "learner_configured_standalone" };
+            syntheticPlan.supersededReason = "learner_manual_regeneration";
+            syntheticPlan.supersededAt = new Date(
+              Date.parse(syntheticPlan.createdAt ?? "2026-08-12T00:00:00.000Z") + 1,
+            ).toISOString();
+            syntheticPlan.days = syntheticPlan.days?.map((day, dayIndex) => ({
+              ...day,
+              tasks: day.tasks?.map((task, taskIndex) => ({
+                ...task,
+                taskId: `${syntheticPlanId}-day-${dayIndex + 1}-task-${taskIndex + 1}`,
+              })),
+            }));
+            return syntheticPlan;
+          })()
+    ));
+    const journeyCapacityRaw = JSON.stringify(journeyCapacityWorkspace);
+    await replaceWorkspaceRaw(journeyCapacityRaw);
+    await gotoApprovedRoute("/diagnostic");
+    expect(await page.evaluate(
+      (workspaceKey) => window.localStorage.getItem(workspaceKey),
+      SOFIA_WORKSPACE_KEY,
+    )).toBe(journeyCapacityRaw);
+    await expect(page.locator("[data-diagnostic-report]")).toBeVisible();
+    const restartCompletedDiagnostic = page.getByRole("button", {
+      name: "重新完成一轮任务",
+    });
+    await expect(restartCompletedDiagnostic).toBeVisible();
+    const restartDiagnosticDialogPromise = page.waitForEvent("dialog");
+    const restartDiagnosticClick = restartCompletedDiagnostic.click();
+    const restartDiagnosticDialog = await restartDiagnosticDialogPromise;
+    expect(restartDiagnosticDialog.type()).toBe("confirm");
+    expect(restartDiagnosticDialog.message()).toContain("当前计划将转入历史");
+    await restartDiagnosticDialog.accept();
+    await restartDiagnosticClick;
+    await expectFocusedCapacityAlert("历史计划", 64, 64);
+    const journeyCapacityAfter = await page.evaluate(
+      (workspaceKey) => window.localStorage.getItem(workspaceKey),
+      SOFIA_WORKSPACE_KEY,
+    );
+    expect(journeyCapacityAfter).toBe(journeyCapacityRaw);
+    expect((JSON.parse(journeyCapacityAfter!) as SyntheticCapacityWorkspace).planHistory)
+      .toHaveLength(64);
+    await restoreVerifiedGateAWorkspace();
+
+    stage = "synthetic capacity UI probe only — standalone practice, not 7/7 evidence";
+    await restoreVerifiedGateAWorkspace();
+    const practiceCapacityWorkspace = parseSyntheticWorkspace();
+    const receiptTemplate = Object.values(practiceCapacityWorkspace.practiceReceipts)[0];
+    if (!receiptTemplate) throw new Error("synthetic practice capacity probe has no valid receipt template");
+    const saturatedPracticeReceipts: Record<string, Record<string, unknown>> = {};
+    for (let index = 0; index < 256; index += 1) {
+      const completionReceiptId = index === 0 && typeof receiptTemplate.completionReceiptId === "string"
+        ? receiptTemplate.completionReceiptId
+        : randomUUID();
+      const practiceAttemptId = index === 0 && typeof receiptTemplate.practiceAttemptId === "string"
+        ? receiptTemplate.practiceAttemptId
+        : randomUUID();
+      saturatedPracticeReceipts[completionReceiptId] = {
+        ...structuredClone(receiptTemplate),
+        completionReceiptId,
+        practiceAttemptId,
+        ...(index === 0 ? {} : {
+          taskId: null,
+          taskDate: null,
+          planId: null,
+          cycleId: null,
+          diagnosticSessionId: null,
+          recommendationId: null,
+          taskRef: null,
+        }),
+      };
+    }
+    practiceCapacityWorkspace.practiceReceipts = saturatedPracticeReceipts;
+    delete practiceCapacityWorkspace.practice["reading-library-v1"];
+    await replaceWorkspaceRaw(JSON.stringify(practiceCapacityWorkspace));
+    await gotoApprovedRoute("/practice-reading");
+    await expect(page.locator("[data-practice-binding-status]"))
+      .toHaveAttribute("data-binding-status", "standalone");
+    const syntheticCorrectReadingOption = page.locator('input[name="reading-answer"][value="b"]');
+    const syntheticReadingSubmit = page.locator("[data-check-reading]");
+    await syntheticCorrectReadingOption.check();
+    await expect(syntheticReadingSubmit).toBeEnabled();
+    const practiceCapacityBaselineRaw = await page.evaluate(
+      (workspaceKey) => window.localStorage.getItem(workspaceKey),
+      SOFIA_WORKSPACE_KEY,
+    );
+    if (!practiceCapacityBaselineRaw) throw new Error("synthetic practice baseline raw is unavailable");
+    expect(Object.keys(
+      (JSON.parse(practiceCapacityBaselineRaw) as SyntheticCapacityWorkspace).practiceReceipts,
+    )).toHaveLength(256);
+    await syntheticReadingSubmit.click();
+    await expectFocusedCapacityAlert("练习回执", 256, 256);
+    await expect(page.locator("[data-reading-feedback]"))
+      .toContainText("本次练习回执未写入");
+    await expect(syntheticCorrectReadingOption).toBeEnabled();
+    await expect(syntheticCorrectReadingOption).toBeChecked();
+    await expect(syntheticReadingSubmit).toBeEnabled();
+    const practiceCapacityAfter = await page.evaluate(
+      (workspaceKey) => window.localStorage.getItem(workspaceKey),
+      SOFIA_WORKSPACE_KEY,
+    );
+    expect(practiceCapacityAfter).toBe(practiceCapacityBaselineRaw);
+    expect(Object.keys(
+      (JSON.parse(practiceCapacityAfter!) as SyntheticCapacityWorkspace).practiceReceipts,
+    )).toHaveLength(256);
+    await restoreVerifiedGateAWorkspace();
+
+    const makeSyntheticFocusSessions = (count: number) => Array.from(
+      { length: count },
+      (_, index) => {
+        const startedAtMs = Date.UTC(2026, 0, 1, 0, 0, 0) + (index * 1_000);
+        return {
+          sessionId: `focus-capacityprobe${String(index).padStart(3, "0")}`,
+          status: "completed",
+          durationSeconds: 900,
+          startedAt: new Date(startedAtMs).toISOString(),
+          endedAt: new Date(startedAtMs + 900_000).toISOString(),
+        };
+      },
+    );
+
+    stage = "synthetic capacity UI probe only — focus terminal, not 7/7 evidence";
+    await restoreVerifiedGateAWorkspace();
+    const focusReservationWorkspace = parseSyntheticWorkspace();
+    focusReservationWorkspace.focus = {
+      active: null,
+      sessions: makeSyntheticFocusSessions(511),
+    };
+    const focusReservationRaw = JSON.stringify(focusReservationWorkspace);
+    await replaceWorkspaceRaw(focusReservationRaw);
+    await gotoApprovedRoute("/focus");
+    expect(await page.evaluate(
+      (workspaceKey) => window.localStorage.getItem(workspaceKey),
+      SOFIA_WORKSPACE_KEY,
+    )).toBe(focusReservationRaw);
+    const focusStart = page.locator("[data-focus-start]");
+    const focusStop = page.locator("[data-focus-stop]");
+    const focusReset = page.locator("[data-focus-reset]");
+    const focusState = page.locator("[data-focus-state]");
+    const focusAnnouncement = page.locator("[data-focus-announcement]");
+    await focusStart.click();
+    await expect(focusState).toHaveText("正在专注");
+    await expect(focusStart).toHaveText("暂停");
+    await expect(focusStop).toBeEnabled();
+    const focusStartedRaw = await page.evaluate(
+      (workspaceKey) => window.localStorage.getItem(workspaceKey),
+      SOFIA_WORKSPACE_KEY,
+    );
+    if (!focusStartedRaw) throw new Error("synthetic focus reservation raw is unavailable");
+    const focusStartedWorkspace = JSON.parse(focusStartedRaw) as SyntheticCapacityWorkspace;
+    expect(focusStartedWorkspace.focus.sessions).toHaveLength(511);
+    expect(focusStartedWorkspace.focus.active?.status).toBe("running");
+
+    focusStartedWorkspace.focus.sessions = makeSyntheticFocusSessions(512);
+    const focusTerminalCapacityRaw = JSON.stringify(focusStartedWorkspace);
+    await replaceWorkspaceRaw(focusTerminalCapacityRaw);
+    await gotoApprovedRoute("/focus");
+    expect(await page.evaluate(
+      (workspaceKey) => window.localStorage.getItem(workspaceKey),
+      SOFIA_WORKSPACE_KEY,
+    )).toBe(focusTerminalCapacityRaw);
+    await expect(focusState).toHaveText("正在专注");
+    await expect(focusStop).toBeEnabled();
+    await focusStop.click();
+    await expectFocusedCapacityAlert("专注记录", 512, 512);
+    await expect(focusAnnouncement).toContainText("本轮专注记录未写入");
+    expect(await page.evaluate(
+      (workspaceKey) => window.localStorage.getItem(workspaceKey),
+      SOFIA_WORKSPACE_KEY,
+    )).toBe(focusTerminalCapacityRaw);
+    await expect(focusStop).toBeEnabled();
+    await expect(focusReset).toBeEnabled();
+    await focusReset.click();
+    await expect(focusState).toHaveText("准备开始");
+    await expect(focusAnnouncement).toHaveText("专注计时已重置。");
+    const resetFocusWorkspace = JSON.parse((await page.evaluate(
+      (workspaceKey) => window.localStorage.getItem(workspaceKey),
+      SOFIA_WORKSPACE_KEY,
+    ))!) as SyntheticCapacityWorkspace;
+    expect(resetFocusWorkspace.focus.active).toBeNull();
+    expect(resetFocusWorkspace.focus.sessions).toHaveLength(512);
+    await restoreVerifiedGateAWorkspace();
+
+    stage = "synthetic capacity UI probe only — focus start, not 7/7 evidence";
+    await restoreVerifiedGateAWorkspace();
+    const focusStartCapacityWorkspace = parseSyntheticWorkspace();
+    focusStartCapacityWorkspace.focus = {
+      active: null,
+      sessions: makeSyntheticFocusSessions(512),
+    };
+    const focusStartCapacityRaw = JSON.stringify(focusStartCapacityWorkspace);
+    await replaceWorkspaceRaw(focusStartCapacityRaw);
+    await gotoApprovedRoute("/focus");
+    expect(await page.evaluate(
+      (workspaceKey) => window.localStorage.getItem(workspaceKey),
+      SOFIA_WORKSPACE_KEY,
+    )).toBe(focusStartCapacityRaw);
+    await expect(focusStart).toHaveText("开始专注");
+    await expect(focusStart).toBeEnabled();
+    await focusStart.click();
+    await expectFocusedCapacityAlert("专注记录", 512, 512);
+    await expect(focusAnnouncement).toContainText("新专注计时未写入");
+    expect(await page.evaluate(
+      (workspaceKey) => window.localStorage.getItem(workspaceKey),
+      SOFIA_WORKSPACE_KEY,
+    )).toBe(focusStartCapacityRaw);
+    await expect(focusStart).toBeEnabled();
+    await expect(focusStop).toBeDisabled();
+    await expect(focusReset).toBeEnabled();
+    await restoreVerifiedGateAWorkspace();
+
     await page.evaluate(({ chatKey, teachingReviewKey }) => {
       window.localStorage.removeItem(chatKey);
       window.localStorage.removeItem(teachingReviewKey);

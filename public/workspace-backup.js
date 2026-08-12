@@ -9,7 +9,10 @@
   const MAX_FILE_BYTES = 2 * 1024 * 1024;
   const MAX_WORKSPACE_BYTES = 1024 * 1024;
   const MAX_DEPTH = 24;
-  const MAX_NODES = 25_000;
+  // Independent structural-complexity ceiling. 131,072 is the next power of two
+  // above four times the measured 30,014-node, production-valid 19-cycle high water.
+  // The 1 MiB canonical byte ceiling remains the primary payload bound.
+  const MAX_NODES = 131_072;
   const MAX_STRING_LENGTH = 4_096;
   const HASH_PATTERN = /^[0-9a-f]{64}$/;
   const ISO_UTC_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
@@ -77,13 +80,24 @@
     taskProgress: 2_048,
     practice: 16,
     practiceReceipts: 256,
-    learningEvents: 512,
+    // Conservative governance ceiling measured with 64 real cycle owners:
+    // 37 complete five-event superseded prefixes plus 27 started-only prefixes.
+    // That production-valid state remains below 1 MiB; lighter mixes may leave
+    // unused byte room, but this version fails closed instead of using it.
+    learningEvents: 212,
     checkIns: 366,
     checkInHistory: 256,
     focusSessions: 512,
-    journeyHistory: 64,
+    journeyHistory: 19,
     supersededCycles: 64,
     bindingAliases: 4_096,
+  });
+  const CAPACITY_LIMITS = Object.freeze({
+    ...COUNT_LIMITS,
+    workspaceBytes: MAX_WORKSPACE_BYTES,
+    jsonDepth: MAX_DEPTH,
+    jsonNodes: MAX_NODES,
+    stringLength: MAX_STRING_LENGTH,
   });
 
   const isRecord = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -175,6 +189,68 @@
     return true;
   };
 
+  const workspaceCountFor = (workspace, field) => {
+    if (field === "focusSessions") return workspace.focus.sessions.length;
+    if (field === "journeyHistory") return workspace.journey.history.length;
+    if (field === "supersededCycles") return workspace.journey.supersededCycles.length;
+    if (field === "bindingAliases") {
+      return Object.values(workspace.learningEventBindings?.records || {}).reduce(
+        (total, records) => total + Object.keys(records || {}).length,
+        0,
+      );
+    }
+    const value = workspace[field];
+    return Array.isArray(value) ? value.length : Object.keys(value || {}).length;
+  };
+
+  const inspectWorkspaceCapacity = (workspace) => {
+    if (!exactKeys(workspace, WORKSPACE_KEYS) || workspace.schemaVersion !== WORKSPACE_SCHEMA_VERSION) {
+      return { status: "invalid_workspace", code: "workspace_shape" };
+    }
+    const scan = scanJsonTree(workspace);
+    if (!scan.ok) return { status: "invalid_workspace", code: scan.code };
+    for (const [field, limit] of Object.entries(COUNT_LIMITS)) {
+      let current;
+      try {
+        current = workspaceCountFor(workspace, field);
+      } catch {
+        return { status: "invalid_workspace", code: "workspace_count_shape", field };
+      }
+      if (!Number.isInteger(current) || current < 0) {
+        return { status: "invalid_workspace", code: "workspace_count_shape", field };
+      }
+      if (current > limit) {
+        return { status: "invalid_workspace", code: "workspace_count_limit", field, current, limit };
+      }
+    }
+    if (!workspaceCountBoundariesValid(workspace)) {
+      return { status: "invalid_workspace", code: "workspace_count_shape" };
+    }
+    const workspaceBytes = byteLength(canonicalJson(workspace));
+    if (workspaceBytes > MAX_WORKSPACE_BYTES) {
+      return { status: "invalid_workspace", code: "workspace_too_large", workspaceBytes };
+    }
+    return { status: "ready", code: "within_capacity", workspaceBytes };
+  };
+
+  const inspectWorkspaceAppendCapacity = (workspace, additions) => {
+    const current = inspectWorkspaceCapacity(workspace);
+    if (current.status !== "ready") return current;
+    if (!isRecord(additions) || !Object.keys(additions).every((field) => Object.hasOwn(COUNT_LIMITS, field))) {
+      return { status: "invalid_request", code: "append_fields_invalid" };
+    }
+    for (const [field, amount] of Object.entries(additions)) {
+      if (!Number.isInteger(amount) || amount < 0) {
+        return { status: "invalid_request", code: "append_amount_invalid", field };
+      }
+      if (workspaceCountFor(workspace, field) + amount > COUNT_LIMITS[field]) {
+        const current = workspaceCountFor(workspace, field);
+        return { status: "capacity_reached", code: "workspace_count_limit", field, current, limit: COUNT_LIMITS[field] };
+      }
+    }
+    return { status: "ready", code: "append_within_count_capacity", workspaceBytes: current.workspaceBytes };
+  };
+
   const buildIntegrity = async (workspace) => {
     const canonical = canonicalJson(workspace);
     const events = Array.isArray(workspace.learningEvents) ? workspace.learningEvents : [];
@@ -189,18 +265,9 @@
   };
 
   const createEnvelope = async (workspace) => {
-    if (!exactKeys(workspace, WORKSPACE_KEYS) || workspace.schemaVersion !== WORKSPACE_SCHEMA_VERSION) {
-      return { status: "invalid_workspace", code: "workspace_shape" };
-    }
-    const scan = scanJsonTree(workspace);
-    if (!scan.ok) return { status: "invalid_workspace", code: scan.code };
-    if (!workspaceCountBoundariesValid(workspace)) {
-      return { status: "invalid_workspace", code: "workspace_count_limit" };
-    }
+    const capacity = inspectWorkspaceCapacity(workspace);
+    if (capacity.status !== "ready") return capacity;
     const integrity = await buildIntegrity(workspace);
-    if (integrity.byteLength > MAX_WORKSPACE_BYTES) {
-      return { status: "invalid_workspace", code: "workspace_too_large" };
-    }
     const envelope = {
       backupProtocol: BACKUP_PROTOCOL,
       exportedAt: new Date().toISOString(),
@@ -247,17 +314,10 @@
       !(envelope.integrity.learningEventHeadHash === null || HASH_PATTERN.test(envelope.integrity.learningEventHeadHash || ""))
     ) return { status: "invalid", code: "envelope_contract" };
     const workspace = envelope.workspace;
-    if (!exactKeys(workspace, WORKSPACE_KEYS) || workspace.schemaVersion !== WORKSPACE_SCHEMA_VERSION) {
-      return { status: "invalid", code: "workspace_shape" };
-    }
-    const scan = scanJsonTree(workspace);
-    if (!scan.ok) return { status: "invalid", code: scan.code };
-    if (!workspaceCountBoundariesValid(workspace)) {
-      return { status: "invalid", code: "workspace_count_limit" };
-    }
+    const capacity = inspectWorkspaceCapacity(workspace);
+    if (capacity.status !== "ready") return { status: "invalid", code: capacity.code };
     const canonical = canonicalJson(workspace);
     const workspaceBytes = byteLength(canonical);
-    if (workspaceBytes > MAX_WORKSPACE_BYTES) return { status: "invalid", code: "workspace_too_large" };
     const events = workspace.learningEvents;
     const expectedHeadHash = events.at(-1)?.eventHash || null;
     if (
@@ -355,11 +415,14 @@
     RESTORE_POLICY,
     MAX_FILE_BYTES,
     MAX_WORKSPACE_BYTES,
+    CAPACITY_LIMITS,
     WORKSPACE_KEYS,
     JOURNEY_KEYS,
     canonicalJson,
     sha256Hex,
     scanJsonTree,
+    inspectWorkspaceCapacity,
+    inspectWorkspaceAppendCapacity,
     createEnvelope,
     inspectEnvelopeText,
     replaceWorkspaceAtomically,

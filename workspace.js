@@ -12,6 +12,7 @@
   const LEGACY_PRACTICE_RECEIPT_VERSION = "sufeiya_practice_receipt_v1";
   const WRITING_PRACTICE_MAX_CHARACTERS = 4096;
   const learningEventsRuntime = window.SufeiyaLearningEvents;
+  const workspaceBackupRuntime = window.SufeiyaWorkspaceBackup;
   const PRACTICE_ACTIVITY_CATALOG = Object.freeze({
     "reading-library-v1": Object.freeze({
       activityId: "https://sufeiya.cn/activities/practice/reading-library/v1",
@@ -104,7 +105,18 @@
     checkIns: {},
     checkInHistory: [],
     focus: { active: null, sessions: [] },
-    journey: { protocolVersion: "gate_a_local_v1", activeCycle: null, history: [] },
+    journey: {
+      protocolVersion: "gate_a_local_v1",
+      activeCycle: null,
+      diagnostic: null,
+      recommendation: null,
+      review: null,
+      peerHelp: null,
+      retest: null,
+      planUpdate: null,
+      history: [],
+      supersededCycles: [],
+    },
   });
 
   let state = freshState();
@@ -660,6 +672,143 @@
   };
 
   const snapshotState = () => JSON.parse(JSON.stringify(state));
+  const CAPACITY_FIELD_LABELS = Object.freeze({
+    planHistory: "历史计划",
+    journeyHistory: "闭环历史",
+    practiceReceipts: "练习回执",
+    learningEvents: "学习事件",
+    checkInHistory: "打卡历史",
+    focusSessions: "专注记录",
+    supersededCycles: "中止诊断摘要",
+  });
+  const capacityResultMessage = (result, noun = "本次操作") => {
+    if (result?.status === "capacity_reached" && Number.isInteger(result.current) && Number.isInteger(result.limit)) {
+      return `${noun}未写入：${CAPACITY_FIELD_LABELS[result.field] || result.field}当前 ${result.current} 条，安全上限 ${result.limit} 条。`;
+    }
+    if (result?.code === "workspace_too_large") {
+      return `${noun}未写入：当前工作区 canonical JSON 已超过 1 MiB 可恢复上限。`;
+    }
+    if (result?.code === "too_many_values") {
+      return `${noun}未写入：当前工作区已超过 131,072 个 JSON 值节点的结构复杂度上限。`;
+    }
+    return `${noun}未写入：当前工作区未通过可恢复容量合同（${result?.code || "unknown"}）。`;
+  };
+  const presentCapacityFailure = (result, noun = "本次操作") => {
+    let banner = document.querySelector("[data-workspace-capacity-alert]");
+    if (!banner) {
+      banner = document.createElement("div");
+      banner.className = "storage-warning";
+      banner.dataset.workspaceCapacityAlert = "true";
+      banner.setAttribute("role", "alert");
+      banner.setAttribute("tabindex", "-1");
+      document.querySelector("main")?.before(banner);
+    }
+    const text = document.createElement("span");
+    const recovery = result?.status === "capacity_reached"
+      ? "请先到“我的本机数据”导出原始保全 JSON；若严格预检仍通过，再生成可恢复备份。完成保全后，请明确清除整个学习工作区再继续。"
+      : "请先到“我的本机数据”导出原始保全 JSON；当前不保证能够生成可恢复备份。完成原始保全后，请明确清除整个学习工作区。";
+    text.textContent = `${capacityResultMessage(result, noun)} ${recovery} 系统不会静默删除、截断或覆盖旧证据。 `;
+    const link = document.createElement("a");
+    link.href = "/my-data";
+    link.textContent = "前往我的本机数据 →";
+    banner.replaceChildren(text, link);
+    banner.focus();
+  };
+  const workspaceAppendCapacity = (additions) => {
+    if (!workspaceBackupRuntime?.inspectWorkspaceAppendCapacity) {
+      return { status: "capacity_invalid", code: "capacity_runtime_unavailable" };
+    }
+    const result = workspaceBackupRuntime.inspectWorkspaceAppendCapacity(state, additions);
+    if (result.status === "ready") return result;
+    const failure = result.status === "capacity_reached"
+      ? result
+      : { ...result, status: "capacity_invalid", code: result.code || "workspace_capacity_invalid" };
+    presentCapacityFailure(failure);
+    return failure;
+  };
+  const workspaceCandidateCapacity = (candidate) => {
+    if (!workspaceBackupRuntime?.inspectWorkspaceCapacity) {
+      return { status: "capacity_invalid", code: "capacity_runtime_unavailable" };
+    }
+    const result = workspaceBackupRuntime.inspectWorkspaceCapacity(candidate);
+    if (result.status === "ready") return result;
+    const capacityCodes = new Set(["workspace_count_limit", "workspace_too_large", "too_many_values", "too_deep", "string_too_long"]);
+    const failure = {
+      ...result,
+      status: capacityCodes.has(result.code) ? "capacity_reached" : "capacity_invalid",
+      code: result.code || "workspace_capacity_invalid",
+    };
+    presentCapacityFailure(failure);
+    return failure;
+  };
+  const capacityFailureMessage = (noun, result) =>
+    `${capacityResultMessage(result || { status: "capacity_reached" }, noun)} 请先到“我的本机数据”导出原始保全 JSON；若严格预检仍通过，再生成可恢复备份。完成保全后，请明确清除整个学习工作区再继续；系统不会静默删除或截断旧证据。`;
+  const invalidCapacityMessage = (noun) =>
+    `${noun}未写入：现有本机学习数据已超出可恢复合同。请先到“我的本机数据”导出原始保全 JSON；当前不保证能够生成可恢复备份。完成保全后，请明确清除整个学习工作区；系统不会覆盖现有记录。`;
+  const presentSealedPlanFailure = () => {
+    let banner = document.querySelector("[data-workspace-sealed-alert]");
+    if (!banner) {
+      banner = document.createElement("div");
+      banner.className = "storage-warning";
+      banner.dataset.workspaceSealedAlert = "true";
+      banner.setAttribute("role", "alert");
+      banner.setAttribute("tabindex", "-1");
+      banner.setAttribute("aria-atomic", "true");
+      document.querySelector("main")?.before(banner);
+    }
+    const text = document.createElement("span");
+    text.textContent = "当前诊断闭环已封存推荐或后续证据，不能手动替换绑定计划。原计划、领域记录与学习事件均保持不变；系统不会删除已封存事件。请从“开始新诊断”入口归档当前闭环后重建。 ";
+    const link = document.createElement("a");
+    link.href = "/diagnostic";
+    link.textContent = "开始新诊断 →";
+    banner.replaceChildren(text, link);
+    banner.focus();
+  };
+  const domainEventRecorded = (targetState, eventType, kind, domainId) => {
+    const alias = targetState.learningEventBindings?.records?.[kind]?.[domainId];
+    if (!alias) return false;
+    const contextKey = {
+      cycle: "learningCycleId",
+      recommendation: "recommendationId",
+      practiceReceipt: "practiceReceiptId",
+      checkIn: "checkInId",
+      retest: "retestId",
+      updatedPlan: "updatedPlanId",
+    }[kind];
+    return Boolean(contextKey && targetState.learningEvents.some(
+      (event) => event?.eventType === eventType && event.context?.[contextKey] === alias,
+    ));
+  };
+  const cycleHasSealedDownstream = (targetState, cycle) => {
+    if (!cycle?.cycleId) return false;
+    const hasDomainIds = [
+      cycle.recommendationId,
+      cycle.checkInId,
+      cycle.reviewId,
+      cycle.peerHelpId,
+      cycle.retestId,
+      cycle.updatedPlanId,
+    ].some(Boolean);
+    const hasDomainObjects = [
+      targetState.journey?.recommendation,
+      targetState.journey?.review,
+      targetState.journey?.peerHelp,
+      targetState.journey?.retest,
+      targetState.journey?.planUpdate,
+    ].some((record) => record?.cycleId === cycle.cycleId);
+    const cycleAlias = targetState.learningEventBindings?.records?.cycle?.[cycle.cycleId];
+    const hasDownstreamEvent = Boolean(cycleAlias && targetState.learningEvents.some(
+      (event) => event?.context?.learningCycleId === cycleAlias && event.eventType !== "learning_cycle.started",
+    ));
+    return hasDomainIds || hasDomainObjects || hasDownstreamEvent;
+  };
+  const sealedCurrentCycleCheckIn = (targetState, record) => Boolean(
+    record?.status === "saved" &&
+    record.cycleId &&
+    targetState.journey?.activeCycle?.cycleId === record.cycleId &&
+    targetState.journey.activeCycle.checkInId === record.checkInId &&
+    domainEventRecorded(targetState, "check_in.committed", "checkIn", record.checkInId)
+  );
   const withExclusiveWorkspaceWrite = async (write) => {
     if (!storageWritable || !navigator.locks?.request) return { status: "lock_unavailable" };
     try {
@@ -692,21 +841,242 @@
       return { status: "lock_unavailable" };
     }
   };
-  const appendLearningEvent = async (eventType, domain) => {
+  const appendLearningEvent = async (eventType, domain, targetState = state) => {
     if (!learningEventsRuntime) return { status: "ledger_invalid", code: "runtime_unavailable" };
     try {
-      return await learningEventsRuntime.appendDomainEvent(state, eventType, domain);
+      return await learningEventsRuntime.appendDomainEvent(targetState, eventType, domain);
     } catch {
       return { status: "ledger_invalid", code: "runtime_exception" };
     }
   };
-  const appendPracticeFinalizationEvent = async (receipt) => {
+  const appendPracticeFinalizationEvent = async (receipt, targetState = state) => {
     if (!receipt?.cycleId) return { status: "not_applicable" };
     return appendLearningEvent("practice_attempt.finalized", {
       receipt,
-      recommendation: state.journey?.recommendation,
-    });
+      recommendation: targetState.journey?.recommendation,
+    }, targetState);
   };
+  const sameCheckinContent = (record, values) =>
+    ["linkedTaskId", "didText", "evidenceText", "questionStatus", "questionText"].every(
+      (key) => (record?.[key] || "") === (values?.[key] || ""),
+    );
+  const archiveCheckIn = (targetState, record, reason, archivedAt) => {
+    if (!record?.checkInId) return;
+    targetState.checkInHistory = [
+      ...targetState.checkInHistory,
+      { ...record, archivedAt, archivedReason: reason },
+    ];
+  };
+  const commitCheckInRecord = ({
+    date,
+    values,
+    cycleEligible,
+    cycleId,
+    planId,
+    diagnosticSessionId,
+    recommendationId,
+    linkedPracticeReceipt,
+    reflectionTask,
+  }) => withExclusiveWorkspaceWrite(async () => {
+    const currentPrevious = state.checkIns[date] || {};
+    const currentPreviousSaved = Boolean(currentPrevious.checkInId && currentPrevious.status === "saved");
+    const currentPreviousConfirmed = Boolean(
+      currentPreviousSaved && (currentPrevious.learnerConfirmedReview === true || currentPrevious.reviewId),
+    );
+    const currentContentChanged = !sameCheckinContent(currentPrevious, values);
+    const currentSameScope = Boolean(
+      currentPrevious.checkInId &&
+      currentPrevious.cycleId === cycleId &&
+      currentPrevious.planId === planId &&
+      (currentPrevious.recommendationId || null) === recommendationId,
+    );
+    const replacesSavedVersion = currentPreviousSaved && currentContentChanged;
+    if (currentPreviousSaved && currentSameScope && !currentContentChanged) {
+      return { status: "already_saved", record: currentPrevious, confirmed: currentPreviousConfirmed };
+    }
+    const shouldArchive = Boolean(currentPrevious.checkInId && (replacesSavedVersion || !currentSameScope));
+    if (shouldArchive && sealedCurrentCycleCheckIn(state, currentPrevious)) {
+      return { status: "sealed_cycle_check_in" };
+    }
+    const appendCapacity = workspaceAppendCapacity({
+      checkInHistory: shouldArchive ? 1 : 0,
+      learningEvents: cycleEligible ? 1 : 0,
+    });
+    if (appendCapacity.status !== "ready") return appendCapacity;
+    const before = snapshotState();
+    const candidate = snapshotState();
+    const candidatePrevious = candidate.checkIns[date] || {};
+    const savedAt = new Date().toISOString();
+    if (shouldArchive) {
+      archiveCheckIn(
+        candidate,
+        candidatePrevious,
+        replacesSavedVersion
+          ? (currentPreviousConfirmed ? "learner_revision_after_confirmation" : "learner_revision_after_save")
+          : "scope_changed",
+        savedAt,
+      );
+    }
+    candidate.checkIns[date] = {
+      ...values,
+      checkInId:
+        currentSameScope && !replacesSavedVersion
+          ? currentPrevious.checkInId
+          : `check-in-${Date.now().toString(36)}`,
+      cycleId,
+      planId,
+      diagnosticSessionId: cycleEligible ? diagnosticSessionId : null,
+      recommendationId,
+      evidenceClass: linkedPracticeReceipt ? "practice_receipt" : "learner_self_report",
+      practiceAttemptId: linkedPracticeReceipt?.practiceAttemptId || null,
+      taskCompletionReceiptId: linkedPracticeReceipt?.completionReceiptId || null,
+      practiceReceipt: linkedPracticeReceipt ? JSON.parse(JSON.stringify(linkedPracticeReceipt)) : null,
+      visibility: "local_only",
+      anomalyReviewStatus: "not_flagged",
+      status: "saved",
+      learnerConfirmedReview: false,
+      reviewId: null,
+      reviewedAt: null,
+      savedAt,
+      updatedAt: savedAt,
+    };
+    if (cycleEligible) {
+      const candidateCycle = candidate.journey.activeCycle;
+      candidateCycle.checkInId = candidate.checkIns[date].checkInId;
+      candidateCycle.reviewId = null;
+      candidateCycle.peerHelpId = null;
+      candidateCycle.retestId = null;
+      candidateCycle.updatedPlanId = null;
+      candidateCycle.updatedAt = savedAt;
+      candidate.journey.review = null;
+      candidate.journey.peerHelp = null;
+      candidate.journey.retest = null;
+      candidate.journey.planUpdate = null;
+    }
+    if (reflectionTask) {
+      candidate.taskProgress[reflectionTask.taskId] = {
+        status: "completed",
+        completedAt: savedAt,
+        updatedAt: savedAt,
+        selfReported: false,
+        completionClass: "workflow_receipt",
+        source: "check-in",
+        workflowReceipt: {
+          protocolVersion: "sufeiya_check_in_completion_v1",
+          checkInId: candidate.checkIns[date].checkInId,
+          taskId: reflectionTask.taskId,
+          completedAt: savedAt,
+        },
+      };
+    }
+    if (cycleEligible) {
+      const eventOutcome = await appendLearningEvent("check_in.committed", {
+        checkIn: candidate.checkIns[date],
+        recommendation: candidate.journey?.recommendation,
+      }, candidate);
+      if (!["appended", "already_recorded"].includes(eventOutcome.status)) {
+        return { status: eventOutcome.status, code: eventOutcome.code };
+      }
+    }
+    const candidateCapacity = workspaceCandidateCapacity(candidate);
+    if (candidateCapacity.status !== "ready") return candidateCapacity;
+    state = candidate;
+    if (!persist()) {
+      state = before;
+      return { status: "persist_failed" };
+    }
+    return { status: "saved", record: state.checkIns[date] };
+  });
+  const focusRemainingSeconds = (active, fallbackMinutes = 25) => {
+    if (!active) return Number(fallbackMinutes) * 60;
+    if (active.status === "running" && active.endsAt) {
+      return Math.max(0, Math.ceil((active.endsAt - Date.now()) / 1000));
+    }
+    const storedRemaining = Number(active.remainingSeconds);
+    const fallbackDuration = Number(active.durationSeconds);
+    if (Number.isFinite(storedRemaining)) return Math.max(0, storedRemaining);
+    return Math.max(0, Number.isFinite(fallbackDuration) ? fallbackDuration : 0);
+  };
+  const recordFocusSession = (targetFocus, status, active, endedAt, sessionId) => {
+    if (!active || active.recordedAt) return;
+    targetFocus.sessions.push({
+      sessionId,
+      status,
+      durationSeconds: active.durationSeconds,
+      startedAt: active.startedAt,
+      endedAt,
+    });
+    active.recordedAt = endedAt;
+  };
+  const commitFocusTerminal = (status) => withExclusiveWorkspaceWrite(() => {
+    const active = state.focus.active;
+    if (!active || ["completed", "stopped"].includes(active.status)) return { status: "not_applicable" };
+    const appendCapacity = workspaceAppendCapacity({ focusSessions: 1 });
+    if (appendCapacity.status !== "ready") return appendCapacity;
+    const before = snapshotState();
+    const candidate = snapshotState();
+    const candidateActive = candidate.focus.active;
+    const endedAt = new Date().toISOString();
+    candidateActive.status = status;
+    candidateActive.remainingSeconds = status === "completed" ? 0 : focusRemainingSeconds(active);
+    candidateActive.endsAt = null;
+    recordFocusSession(candidate.focus, status, candidateActive, endedAt, `focus-${Date.now().toString(36)}`);
+    const candidateCapacity = workspaceCandidateCapacity(candidate);
+    if (candidateCapacity.status !== "ready") return candidateCapacity;
+    state = candidate;
+    if (!persist()) {
+      state = before;
+      return { status: "persist_failed" };
+    }
+    return { status: "saved" };
+  });
+  const commitFocusControlAction = (durationMinutes) => withExclusiveWorkspaceWrite(() => {
+    const before = snapshotState();
+    const candidate = snapshotState();
+    const active = candidate.focus.active;
+    let action;
+    if (!active || ["idle", "completed", "stopped"].includes(active.status)) {
+      const appendCapacity = workspaceAppendCapacity({ focusSessions: 1 });
+      if (appendCapacity.status !== "ready") return appendCapacity;
+      const durationSeconds = Number(durationMinutes) * 60;
+      const startedAt = new Date().toISOString();
+      candidate.focus.active = {
+        status: "running",
+        durationSeconds,
+        remainingSeconds: durationSeconds,
+        startedAt,
+        endsAt: Date.now() + durationSeconds * 1000,
+      };
+      const reservation = JSON.parse(JSON.stringify(candidate));
+      recordFocusSession(
+        reservation.focus,
+        "completed",
+        reservation.focus.active,
+        startedAt,
+        `focus-${Date.now().toString(36)}`,
+      );
+      const reservationCapacity = workspaceCandidateCapacity(reservation);
+      if (reservationCapacity.status !== "ready") return reservationCapacity;
+      action = "started";
+    } else if (active.status === "running") {
+      active.remainingSeconds = focusRemainingSeconds(active);
+      active.status = "paused";
+      active.endsAt = null;
+      action = "paused";
+    } else if (active.status === "paused") {
+      active.status = "running";
+      active.endsAt = Date.now() + active.remainingSeconds * 1000;
+      action = "resumed";
+    }
+    const candidateCapacity = workspaceCandidateCapacity(candidate);
+    if (candidateCapacity.status !== "ready") return candidateCapacity;
+    state = candidate;
+    if (!persist()) {
+      state = before;
+      return { status: "persist_failed" };
+    }
+    return { status: "saved", action };
+  });
 
   const disableWorkspaceControls = ({
     allowEventExport = false,
@@ -930,6 +1300,54 @@
     };
   };
 
+  const commitPlanRegeneration = (nextProfile) => withExclusiveWorkspaceWrite(() => {
+    const lockedCycle = state.journey?.activeCycle;
+    if (
+      state.plan?.diagnosticSessionId &&
+      state.plan.diagnosticSessionId === lockedCycle?.diagnosticSessionId &&
+      cycleHasSealedDownstream(state, lockedCycle)
+    ) return { status: "sealed_cycle_downstream" };
+    const additions = { planHistory: state.plan ? 1 : 0 };
+    const appendCapacity = workspaceAppendCapacity(additions);
+    if (appendCapacity.status !== "ready") return appendCapacity;
+    const before = snapshotState();
+    const candidate = snapshotState();
+    const previousPlan = candidate.plan;
+    candidate.profile = { ...nextProfile };
+    if (previousPlan) {
+      candidate.planHistory = [
+        ...candidate.planHistory,
+        { ...previousPlan, status: "superseded", supersededAt: new Date().toISOString(), supersededReason: "learner_manual_regeneration" },
+      ];
+    }
+    candidate.plan = createPlan(candidate.profile);
+    const linkedDiagnostic = completedDiagnosticCycle();
+    const candidateCycle = candidate.journey?.activeCycle;
+    if (linkedDiagnostic && candidateCycle && candidate.plan.diagnosticSessionId === candidateCycle.diagnosticSessionId) {
+      candidateCycle.basePlanId = candidate.plan.planId;
+      candidateCycle.recommendationId = null;
+      candidateCycle.checkInId = null;
+      candidateCycle.reviewId = null;
+      candidateCycle.peerHelpId = null;
+      candidateCycle.retestId = null;
+      candidateCycle.updatedPlanId = null;
+      candidateCycle.updatedAt = new Date().toISOString();
+      candidate.journey.recommendation = null;
+      candidate.journey.review = null;
+      candidate.journey.peerHelp = null;
+      candidate.journey.retest = null;
+      candidate.journey.planUpdate = null;
+    }
+    const candidateCapacity = workspaceCandidateCapacity(candidate);
+    if (candidateCapacity.status !== "ready") return candidateCapacity;
+    state = candidate;
+    if (!persist()) {
+      state = before;
+      return { status: "persist_failed" };
+    }
+    return { status: "saved" };
+  });
+
   const clearChildren = (node) => node?.replaceChildren();
 
   const renderPlan = () => {
@@ -1001,7 +1419,7 @@
     }
     renderPlan();
 
-    planForm.addEventListener("submit", (event) => {
+    planForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       planForm.querySelectorAll(".form-error").forEach((node) => node.remove());
       const selectedDate = examDate.value;
@@ -1018,40 +1436,37 @@
         showStorageWarning("计划设置无法识别，请刷新页面后重新选择。当前输入尚未丢失。");
         return;
       }
+      const currentCycle = state.journey?.activeCycle;
+      if (
+        state.plan?.diagnosticSessionId &&
+        state.plan.diagnosticSessionId === currentCycle?.diagnosticSessionId &&
+        cycleHasSealedDownstream(state, currentCycle)
+      ) {
+        presentSealedPlanFailure();
+        return;
+      }
       const hasCompletedHistory = Object.values(state.taskProgress).some((progress) => progress?.status === "completed");
       if (state.plan && hasCompletedHistory && !window.confirm("重新生成会替换当前及未来计划；已经完成的历史记录会保留。确定继续吗？")) return;
-      const previousPlan = state.plan;
-      state.profile = {
+      const outcome = await commitPlanRegeneration({
         nickname: nickname.value.trim(),
         examDate: selectedDate,
         dailyMinutes: Number(dailyMinutes.value),
         focusSkill: focusSkill.value,
-      };
-      if (previousPlan) {
-        state.planHistory = [
-          ...state.planHistory,
-          { ...previousPlan, status: "superseded", supersededAt: new Date().toISOString(), supersededReason: "learner_manual_regeneration" },
-        ];
+      });
+      if (outcome.status !== "saved") {
+        if (outcome.status === "sealed_cycle_downstream") {
+          presentSealedPlanFailure();
+          return;
+        }
+        showStorageWarning(outcome.status === "capacity_invalid"
+          ? invalidCapacityMessage("新计划")
+          : outcome.status === "capacity_reached"
+            ? capacityFailureMessage("新计划")
+            : outcome.status === "lock_unavailable"
+              ? "当前浏览器无法取得安全写入锁；新计划未生成，原记录保持不变。"
+              : "当前无法保存新计划；原记录保持不变。");
+        return;
       }
-      state.plan = createPlan(state.profile);
-      const linkedDiagnostic = completedDiagnosticCycle();
-      const activeCycle = linkedDiagnostic?.cycle;
-      if (activeCycle && state.plan.diagnosticSessionId === activeCycle.diagnosticSessionId) {
-        activeCycle.basePlanId = state.plan.planId;
-        activeCycle.recommendationId = null;
-        activeCycle.checkInId = null;
-        activeCycle.reviewId = null;
-        activeCycle.peerHelpId = null;
-        activeCycle.retestId = null;
-        activeCycle.updatedPlanId = null;
-        activeCycle.updatedAt = new Date().toISOString();
-        state.journey.recommendation = null;
-        state.journey.review = null;
-        state.journey.peerHelp = null;
-        state.journey.retest = null;
-        state.journey.planUpdate = null;
-      }
-      if (!persist()) return;
       renderPlan();
       document.querySelector("[data-plan-result]")?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
@@ -1539,7 +1954,7 @@
   };
   renderToday();
 
-  const sealPracticeReceipt = (skill, exerciseId, completedAt, evidence = {}) => {
+  const sealPracticeReceipt = (skill, exerciseId, completedAt, evidence = {}, targetState = state) => {
     if (
       typeof completedAt !== "string" ||
       !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(completedAt) ||
@@ -1551,8 +1966,8 @@
     const taskContext = resolvePracticeTaskContext(skill, exerciseId);
     const task = taskContext?.task || null;
     const existingReceipt = task ? qualifyingPracticeReceiptForTask(task) : null;
-    const currentCycle = state.journey?.activeCycle;
-    const currentRecommendation = state.journey?.recommendation;
+    const currentCycle = targetState.journey?.activeCycle;
+    const currentRecommendation = targetState.journey?.recommendation;
     if (
       existingReceipt &&
       practiceReceiptMatchesJourneyScope({
@@ -1684,7 +2099,7 @@
     };
     if (!hasValidPracticeReceiptShape(receipt, receipt.completionReceiptId)) return null;
     if (task) {
-      state.taskProgress[task.taskId] = {
+      targetState.taskProgress[task.taskId] = {
         status: "completed",
         updatedAt: completedAt,
         completedAt,
@@ -1696,13 +2111,78 @@
         receiptEvidenceClass: receipt.receiptEvidenceClass,
       };
     }
-    state.practiceReceipts[receipt.completionReceiptId] = receipt;
-    state.practice[exerciseId] = {
-      ...(state.practice[exerciseId] || {}),
+    targetState.practiceReceipts[receipt.completionReceiptId] = receipt;
+    targetState.practice[exerciseId] = {
+      ...(targetState.practice[exerciseId] || {}),
       latestPracticeReceiptId: receipt.completionReceiptId,
     };
     return receipt;
   };
+
+  const commitChoicePracticeCompletion = ({ skill, exerciseId, selectedValue }) =>
+    withExclusiveWorkspaceWrite(async () => {
+      const existingReceiptId = state.practice[exerciseId]?.latestPracticeReceiptId;
+      const existingReceipt = existingReceiptId ? state.practiceReceipts[existingReceiptId] : null;
+      if (practiceReceiptMatchesCurrentPageScope(existingReceipt, skill, exerciseId)) {
+        return { status: "already_saved", receipt: existingReceipt };
+      }
+      const scopeContext = currentPracticeAttemptScope(skill, exerciseId).context;
+      const eventCount = scopeContext && closedLoopPracticeBinding(scopeContext)?.cycle?.cycleId ? 1 : 0;
+      const appendCapacity = workspaceAppendCapacity({ practiceReceipts: 1, learningEvents: eventCount });
+      if (appendCapacity.status !== "ready") return appendCapacity;
+      const before = snapshotState();
+      const candidate = snapshotState();
+      const previous = candidate.practice[exerciseId] || {};
+      const attempts = Number(previous.attempts || 0) + 1;
+      const firstResponse = previous.firstResponse || selectedValue;
+      const completedAt = new Date().toISOString();
+      candidate.practice[exerciseId] = {
+        ...previous,
+        status: "completed",
+        selectedAnswer: selectedValue,
+        firstResponse,
+        attempts,
+        startedAt: previous.startedAt || completedAt,
+        updatedAt: completedAt,
+        completedAt,
+      };
+      const practice = candidate.practice[exerciseId];
+      const qualityFlags = [];
+      if (attempts > 1) qualityFlags.push("multiple_attempts");
+      if (skill === "Listening") {
+        if (practice.audioPlayed !== true) qualityFlags.push("audio_not_played");
+        if (practice.audioCompleted !== true) qualityFlags.push("audio_not_completed");
+        if (practice.audioSeekDetected === true) qualityFlags.push("audio_seek_detected");
+        if (practice.audioPlaybackFailed === true) qualityFlags.push("audio_playback_failed");
+        if (practice.transcriptUsed === true) qualityFlags.push("transcript_used");
+      }
+      const receipt = sealPracticeReceipt(skill, exerciseId, completedAt, {
+        firstResponse,
+        finalResponse: selectedValue,
+        attemptCount: attempts,
+        audioPlayed: practice.audioPlayed === true,
+        audioCompleted: practice.audioCompleted === true,
+        playCount: Number(practice.playCount || 0),
+        transcriptUsed: practice.transcriptUsed === true,
+        seekDetected: practice.audioSeekDetected === true,
+        playbackFailed: practice.audioPlaybackFailed === true,
+        qualityFlags,
+        startedAt: practice.startedAt,
+      }, candidate);
+      if (!receipt) return { status: "receipt_invalid" };
+      const eventOutcome = await appendPracticeFinalizationEvent(receipt, candidate);
+      if (!["appended", "already_recorded", "not_applicable"].includes(eventOutcome.status)) {
+        return { status: eventOutcome.status, code: eventOutcome.code };
+      }
+      const candidateCapacity = workspaceCandidateCapacity(candidate);
+      if (candidateCapacity.status !== "ready") return candidateCapacity;
+      state = candidate;
+      if (!persist()) {
+        state = before;
+        return { status: "persist_failed" };
+      }
+      return { status: "saved", receipt };
+    });
 
   const setupChoicePractice = ({ name, exerciseId, buttonSelector, feedbackSelector, explanation, skill }) => {
     const options = [...document.querySelectorAll(`input[name="${name}"]`)];
@@ -1784,66 +2264,17 @@
       options.forEach((option) => { option.disabled = true; });
       button.disabled = true;
       feedback.textContent = "正在核对并封存本机练习回执…";
-      const outcome = await withExclusiveWorkspaceWrite(async () => {
-        const before = snapshotState();
-        const previous = state.practice[exerciseId] || {};
-        const attempts = Number(previous.attempts || 0) + 1;
-        const firstResponse = previous.firstResponse || selected.value;
-        const completedAt = new Date().toISOString();
-        state.practice[exerciseId] = {
-          ...previous,
-          status: "completed",
-          selectedAnswer: selected.value,
-          firstResponse,
-          attempts,
-          startedAt: previous.startedAt || completedAt,
-          updatedAt: completedAt,
-          completedAt,
-        };
-        const practice = state.practice[exerciseId];
-        const qualityFlags = [];
-        if (attempts > 1) qualityFlags.push("multiple_attempts");
-        if (skill === "Listening") {
-          if (practice.audioPlayed !== true) qualityFlags.push("audio_not_played");
-          if (practice.audioCompleted !== true) qualityFlags.push("audio_not_completed");
-          if (practice.audioSeekDetected === true) qualityFlags.push("audio_seek_detected");
-          if (practice.audioPlaybackFailed === true) qualityFlags.push("audio_playback_failed");
-          if (practice.transcriptUsed === true) qualityFlags.push("transcript_used");
-        }
-        const receipt = sealPracticeReceipt(skill, exerciseId, completedAt, {
-          firstResponse,
-          finalResponse: selected.value,
-          attemptCount: attempts,
-          audioPlayed: practice.audioPlayed === true,
-          audioCompleted: practice.audioCompleted === true,
-          playCount: Number(practice.playCount || 0),
-          transcriptUsed: practice.transcriptUsed === true,
-          seekDetected: practice.audioSeekDetected === true,
-          playbackFailed: practice.audioPlaybackFailed === true,
-          qualityFlags,
-          startedAt: practice.startedAt,
-        });
-        if (!receipt) {
-          state = before;
-          return { status: "receipt_invalid" };
-        }
-        const eventOutcome = await appendPracticeFinalizationEvent(receipt);
-        if (!["appended", "already_recorded", "not_applicable"].includes(eventOutcome.status)) {
-          state = before;
-          return { status: eventOutcome.status, code: eventOutcome.code };
-        }
-        if (!persist()) {
-          state = before;
-          return { status: "persist_failed" };
-        }
-        return { status: "saved", receipt };
-      });
-      if (outcome.status === "saved") {
+      const outcome = await commitChoicePracticeCompletion({ skill, exerciseId, selectedValue: selected.value });
+      if (["saved", "already_saved"].includes(outcome.status)) {
         feedback.textContent = `回答正确。${explanation}`;
         renderPracticeBindingStatus(exerciseId, outcome.receipt);
       } else {
         feedback.textContent = outcome.status === "lock_unavailable"
           ? "当前浏览器无法取得安全写入锁；本次答案未形成正式回执。"
+          : outcome.status === "capacity_invalid"
+            ? invalidCapacityMessage("本次练习回执")
+            : outcome.status === "capacity_reached"
+              ? capacityFailureMessage("本次练习回执")
           : outcome.status === "persist_failed"
             ? "当前无法保存；本次答案未形成正式回执。"
             : "练习证据或本机事件链未通过核对；本次答案未形成正式回执。";
@@ -2068,10 +2499,15 @@
       if (saveStatus) saveStatus.textContent = "正在封存回执…";
       const artifactHash = await sha256Hex(normalizedArtifact);
       const outcome = await withExclusiveWorkspaceWrite(async () => {
+        const scopeContext = currentPracticeAttemptScope("Writing", "writing-community-v1").context;
+        const eventCount = scopeContext && closedLoopPracticeBinding(scopeContext)?.cycle?.cycleId ? 1 : 0;
+        const appendCapacity = workspaceAppendCapacity({ practiceReceipts: 1, learningEvents: eventCount });
+        if (appendCapacity.status !== "ready") return appendCapacity;
         const before = snapshotState();
-        const previous = state.practice["writing-community-v1"] || {};
+        const candidate = snapshotState();
+        const previous = candidate.practice["writing-community-v1"] || {};
         const completedAt = new Date().toISOString();
-        state.practice["writing-community-v1"] = {
+        candidate.practice["writing-community-v1"] = {
           ...previous,
           status: "completed",
           draftText: normalizedArtifact,
@@ -2086,17 +2522,18 @@
           selfChecks,
           artifactHash,
           qualityFlags: ["open_response_not_human_reviewed"],
-          startedAt: state.practice["writing-community-v1"].startedAt,
-        });
+          startedAt: candidate.practice["writing-community-v1"].startedAt,
+        }, candidate);
         if (!receipt) {
-          state = before;
           return { status: "receipt_invalid" };
         }
-        const eventOutcome = await appendPracticeFinalizationEvent(receipt);
+        const eventOutcome = await appendPracticeFinalizationEvent(receipt, candidate);
         if (!["appended", "already_recorded", "not_applicable"].includes(eventOutcome.status)) {
-          state = before;
           return { status: eventOutcome.status, code: eventOutcome.code };
         }
+        const candidateCapacity = workspaceCandidateCapacity(candidate);
+        if (candidateCapacity.status !== "ready") return candidateCapacity;
+        state = candidate;
         if (!persist()) {
           state = before;
           return { status: "persist_failed" };
@@ -2115,7 +2552,11 @@
         if (saveStatus) saveStatus.textContent = outcome.status === "persist_failed" ? "保存失败，草稿仍保留" : "封存失败，草稿仍保留";
         if (feedback) feedback.textContent = outcome.status === "lock_unavailable"
           ? "当前浏览器无法取得安全写入锁；本次写作未形成正式回执。"
-          : "写作证据或本机事件链未通过核对；本次写作未形成正式回执。";
+          : outcome.status === "capacity_invalid"
+            ? invalidCapacityMessage("本次写作练习回执")
+            : outcome.status === "capacity_reached"
+              ? capacityFailureMessage("本次写作练习回执")
+              : "写作证据或本机事件链未通过核对；本次写作未形成正式回执。";
         if (!storageWritable) disableWorkspaceControls();
       }
     });
@@ -2193,10 +2634,15 @@
       if (resetButton) resetButton.disabled = true;
       if (feedback) feedback.textContent = "正在核对并封存本机练习回执…";
       const outcome = await withExclusiveWorkspaceWrite(async () => {
+        const scopeContext = currentPracticeAttemptScope("Speaking", "speaking-skill-v1").context;
+        const eventCount = scopeContext && closedLoopPracticeBinding(scopeContext)?.cycle?.cycleId ? 1 : 0;
+        const appendCapacity = workspaceAppendCapacity({ practiceReceipts: 1, learningEvents: eventCount });
+        if (appendCapacity.status !== "ready") return appendCapacity;
         const before = snapshotState();
-        const current = state.practice["speaking-skill-v1"] || {};
+        const candidate = snapshotState();
+        const current = candidate.practice["speaking-skill-v1"] || {};
         const completedAt = new Date().toISOString();
-        state.practice["speaking-skill-v1"] = {
+        candidate.practice["speaking-skill-v1"] = {
           ...current,
           status: "completed",
           selfChecks,
@@ -2212,17 +2658,18 @@
           timerCompleted: true,
           audioRecorded: false,
           qualityFlags: ["audio_not_recorded", "open_response_not_human_reviewed"],
-          startedAt: state.practice["speaking-skill-v1"].startedAt,
-        });
+          startedAt: candidate.practice["speaking-skill-v1"].startedAt,
+        }, candidate);
         if (!receipt) {
-          state = before;
           return { status: "receipt_invalid" };
         }
-        const eventOutcome = await appendPracticeFinalizationEvent(receipt);
+        const eventOutcome = await appendPracticeFinalizationEvent(receipt, candidate);
         if (!["appended", "already_recorded", "not_applicable"].includes(eventOutcome.status)) {
-          state = before;
           return { status: eventOutcome.status, code: eventOutcome.code };
         }
+        const candidateCapacity = workspaceCandidateCapacity(candidate);
+        if (candidateCapacity.status !== "ready") return candidateCapacity;
+        state = candidate;
         if (!persist()) {
           state = before;
           return { status: "persist_failed" };
@@ -2238,7 +2685,11 @@
         if (resetButton) resetButton.disabled = false;
         if (feedback) feedback.textContent = outcome.status === "lock_unavailable"
           ? "当前浏览器无法取得安全写入锁；本次口语练习未形成正式回执。"
-          : "口语证据或本机事件链未通过核对；本次口语练习未形成正式回执。";
+          : outcome.status === "capacity_invalid"
+            ? invalidCapacityMessage("本次口语练习回执")
+            : outcome.status === "capacity_reached"
+              ? capacityFailureMessage("本次口语练习回执")
+              : "口语证据或本机事件链未通过核对；本次口语练习未形成正式回执。";
         if (!storageWritable) disableWorkspaceControls();
       }
       updateSpeakingReviews();
@@ -2356,25 +2807,7 @@
     const announce = (message) => {
       if (announcement) announcement.textContent = message;
     };
-    const remainingSeconds = (active) => {
-      if (!active) return Number(durationSelect?.value || 25) * 60;
-      if (active.status === "running" && active.endsAt) return Math.max(0, Math.ceil((active.endsAt - Date.now()) / 1000));
-      const storedRemaining = Number(active.remainingSeconds);
-      const fallbackDuration = Number(active.durationSeconds);
-      if (Number.isFinite(storedRemaining)) return Math.max(0, storedRemaining);
-      return Math.max(0, Number.isFinite(fallbackDuration) ? fallbackDuration : 0);
-    };
-    const recordFocusSession = (status, active) => {
-      if (!active || active.recordedAt) return;
-      state.focus.sessions.push({
-        sessionId: `focus-${Date.now().toString(36)}`,
-        status,
-        durationSeconds: active.durationSeconds,
-        startedAt: active.startedAt,
-        endedAt: new Date().toISOString(),
-      });
-      active.recordedAt = new Date().toISOString();
-    };
+    const remainingSeconds = (active) => focusRemainingSeconds(active, durationSelect?.value || 25);
     const renderFocus = () => {
       const active = state.focus.active;
       const remaining = remainingSeconds(active);
@@ -2392,14 +2825,21 @@
       if (durationSelect) durationSelect.disabled = ["running", "paused"].includes(status);
       document.title = status === "running" ? `${formatClock(remaining)} · 专注计时` : baseTitle;
     };
-    const completeFocus = (status) => {
+    const completeFocus = async (status) => {
       const active = state.focus.active;
       if (!active || ["completed", "stopped"].includes(active.status)) return;
-      active.status = status;
-      active.remainingSeconds = status === "completed" ? 0 : remainingSeconds(active);
-      active.endsAt = null;
-      recordFocusSession(status, active);
-      persist();
+      const outcome = await commitFocusTerminal(status);
+      if (outcome.status !== "saved") {
+        window.clearInterval(timerId);
+        announce(outcome.status === "capacity_invalid"
+          ? invalidCapacityMessage("本轮专注记录")
+          : outcome.status === "capacity_reached"
+            ? capacityFailureMessage("本轮专注记录")
+            : outcome.status === "lock_unavailable"
+              ? "当前浏览器无法取得安全写入锁；本轮专注记录未写入，原计时状态保持不变。"
+              : "当前无法保存；本轮专注记录未写入，原计时状态保持不变。");
+        return;
+      }
       renderFocus();
       announce(status === "completed" ? "本轮专注计时已经完成。" : "本轮专注已提前结束。");
       window.clearInterval(timerId);
@@ -2407,7 +2847,7 @@
     const tickFocus = () => {
       const active = state.focus.active;
       if (active?.status !== "running") return;
-      if (remainingSeconds(active) <= 0) completeFocus("completed");
+      if (remainingSeconds(active) <= 0) void completeFocus("completed");
       else renderFocus();
     };
     const beginTicker = () => {
@@ -2415,34 +2855,28 @@
       timerId = window.setInterval(tickFocus, 250);
       tickFocus();
     };
-    startButton?.addEventListener("click", () => {
-      const active = state.focus.active;
-      if (!active || ["idle", "completed", "stopped"].includes(active.status)) {
-        const durationSeconds = Number(durationSelect.value) * 60;
-        state.focus.active = {
-          status: "running",
-          durationSeconds,
-          remainingSeconds: durationSeconds,
-          startedAt: new Date().toISOString(),
-          endsAt: Date.now() + durationSeconds * 1000,
-        };
-        announce("专注计时开始。");
-      } else if (active.status === "running") {
-        active.remainingSeconds = remainingSeconds(active);
-        active.status = "paused";
-        active.endsAt = null;
-        announce("专注计时已暂停。");
-      } else if (active.status === "paused") {
-        active.status = "running";
-        active.endsAt = Date.now() + active.remainingSeconds * 1000;
-        announce("专注计时继续。");
+    startButton?.addEventListener("click", async () => {
+      const outcome = await commitFocusControlAction(durationSelect.value);
+      if (outcome.status !== "saved") {
+        announce(outcome.status === "capacity_invalid"
+          ? invalidCapacityMessage("新专注计时")
+          : outcome.status === "capacity_reached"
+            ? capacityFailureMessage("新专注计时")
+            : outcome.status === "lock_unavailable"
+              ? "当前浏览器无法取得安全写入锁；专注计时未改变。"
+              : "当前无法保存；专注计时未改变。");
+        return;
       }
-      persist();
+      announce(outcome.action === "started"
+        ? "专注计时开始。"
+        : outcome.action === "paused"
+          ? "专注计时已暂停。"
+          : "专注计时继续。");
       renderFocus();
       if (state.focus.active?.status === "running") beginTicker();
       else window.clearInterval(timerId);
     });
-    stopButton?.addEventListener("click", () => completeFocus("stopped"));
+    stopButton?.addEventListener("click", () => void completeFocus("stopped"));
     resetButton?.addEventListener("click", () => {
       window.clearInterval(timerId);
       state.focus.active = null;
@@ -2597,17 +3031,6 @@
         questionText: questionStatus === "has_question" ? questionText?.value.trim() || "" : "",
       };
     };
-    const sameCheckinContent = (record, values) =>
-      ["linkedTaskId", "didText", "evidenceText", "questionStatus", "questionText"].every(
-        (key) => (record?.[key] || "") === (values?.[key] || ""),
-      );
-    const archiveCheckIn = (record, reason) => {
-      if (!record?.checkInId) return;
-      state.checkInHistory = [
-        ...state.checkInHistory,
-        { ...record, archivedAt: new Date().toISOString(), archivedReason: reason },
-      ];
-    };
     const selectedTask = () => currentCheckInCandidates.find((task) => task.taskId === linkedTaskId?.value) || null;
     const renderLinkedEvidenceStatus = () => {
       if (!linkedEvidenceStatus) return;
@@ -2679,7 +3102,7 @@
       if (evidenceClassNode) evidenceClassNode.textContent = record.evidenceClass === "practice_receipt" ? "practice_receipt · 练习记录" : "learner_self_report · 学习者自报";
       if (practiceReceiptNode) practiceReceiptNode.textContent = record.taskCompletionReceiptId || "无 · 不计入当前闭环";
     };
-    const saveDraft = () => {
+    const saveDraft = async () => {
       if (checkInCommitPending) return;
       const values = readCheckin();
       const previous = state.checkIns[date] || {};
@@ -2697,41 +3120,100 @@
         return;
       }
       const replacesSavedVersion = previousSaved && contentChanged;
-      if (replacesSavedVersion) {
-        archiveCheckIn(previous, previousConfirmed ? "learner_revision_after_confirmation" : "learner_revision_after_save");
+      if (replacesSavedVersion && sealedCurrentCycleCheckIn(state, previous)) {
+        if (draftStatus) draftStatus.textContent = "草稿未保存";
+        if (noteStatus) noteStatus.textContent = "这份闭环打卡已有不可变学习事件，不能在原轮次内修改或换绑。原记录已完整保留；如需更正，请开始新诊断并进入新闭环。";
+        return;
       }
-      state.checkIns[date] = {
-        ...previous,
-        ...values,
-        checkInId: replacesSavedVersion ? null : previous.checkInId || null,
-        status: "draft",
-        evidenceClass: "draft_unclassified",
-        practiceAttemptId: null,
-        taskCompletionReceiptId: null,
-        practiceReceipt: null,
-        learnerConfirmedReview: false,
-        reviewId: null,
-        reviewedAt: null,
-        updatedAt: new Date().toISOString(),
-      };
-      if (
-        state.journey?.activeCycle?.status === "in_progress" &&
-        state.journey.activeCycle.reviewId === previous.reviewId
-      ) {
-        if (replacesSavedVersion && state.journey.activeCycle.checkInId === previous.checkInId) {
-          state.journey.activeCycle.checkInId = null;
+      const outcome = await withExclusiveWorkspaceWrite(() => {
+        const candidatePrevious = state.checkIns[date] || {};
+        const candidatePreviousSaved = Boolean(candidatePrevious.checkInId && candidatePrevious.status === "saved");
+        const candidatePreviousConfirmed = Boolean(
+          candidatePreviousSaved && (candidatePrevious.learnerConfirmedReview === true || candidatePrevious.reviewId),
+        );
+        const candidateContentChanged = !sameCheckinContent(candidatePrevious, values);
+        const candidateReplacesSaved = candidatePreviousSaved && candidateContentChanged;
+        if (candidatePreviousSaved && !candidateContentChanged) {
+          return { status: "already_saved", record: candidatePrevious, confirmed: candidatePreviousConfirmed };
         }
-        state.journey.activeCycle.reviewId = null;
-        state.journey.activeCycle.peerHelpId = null;
-        state.journey.activeCycle.retestId = null;
-        state.journey.activeCycle.updatedPlanId = null;
-        state.journey.review = null;
-        state.journey.peerHelp = null;
-        state.journey.retest = null;
-        state.journey.planUpdate = null;
+        if (candidateReplacesSaved && sealedCurrentCycleCheckIn(state, candidatePrevious)) {
+          return { status: "sealed_cycle_check_in" };
+        }
+        const appendCapacity = workspaceAppendCapacity({ checkInHistory: candidateReplacesSaved ? 1 : 0 });
+        if (appendCapacity.status !== "ready") return appendCapacity;
+        const before = snapshotState();
+        const candidate = snapshotState();
+        const candidateRecord = candidate.checkIns[date] || {};
+        const updatedAt = new Date().toISOString();
+        if (candidateReplacesSaved) {
+          archiveCheckIn(
+            candidate,
+            candidateRecord,
+            candidatePreviousConfirmed ? "learner_revision_after_confirmation" : "learner_revision_after_save",
+            updatedAt,
+          );
+        }
+        candidate.checkIns[date] = {
+          ...candidateRecord,
+          ...values,
+          checkInId: candidateReplacesSaved ? null : candidatePrevious.checkInId || null,
+          status: "draft",
+          evidenceClass: "draft_unclassified",
+          practiceAttemptId: null,
+          taskCompletionReceiptId: null,
+          practiceReceipt: null,
+          learnerConfirmedReview: false,
+          reviewId: null,
+          reviewedAt: null,
+          updatedAt,
+        };
+        if (
+          candidate.journey?.activeCycle?.status === "in_progress" &&
+          candidate.journey.activeCycle.reviewId === candidatePrevious.reviewId
+        ) {
+          if (candidateReplacesSaved && candidate.journey.activeCycle.checkInId === candidatePrevious.checkInId) {
+            candidate.journey.activeCycle.checkInId = null;
+          }
+          candidate.journey.activeCycle.reviewId = null;
+          candidate.journey.activeCycle.peerHelpId = null;
+          candidate.journey.activeCycle.retestId = null;
+          candidate.journey.activeCycle.updatedPlanId = null;
+          candidate.journey.review = null;
+          candidate.journey.peerHelp = null;
+          candidate.journey.retest = null;
+          candidate.journey.planUpdate = null;
+        }
+        const candidateCapacity = workspaceCandidateCapacity(candidate);
+        if (candidateCapacity.status !== "ready") return candidateCapacity;
+        state = candidate;
+        if (!persist()) {
+          state = before;
+          return { status: "persist_failed" };
+        }
+        return { status: "saved", record: state.checkIns[date] };
+      });
+      if (outcome.status === "already_saved") {
+        renderCheckinReceipt(outcome.record);
+        if (draftStatus) draftStatus.textContent = "内容与已确认版本一致";
+        if (noteStatus) noteStatus.textContent = outcome.confirmed
+          ? "原确认、复盘与后续证据保持有效。"
+          : "已保存版本没有变化。";
+        return;
       }
-      persist();
-      renderCheckinReceipt(state.checkIns[date]);
+      if (outcome.status !== "saved") {
+        if (draftStatus) draftStatus.textContent = "草稿未保存";
+        if (noteStatus) noteStatus.textContent = outcome.status === "capacity_invalid"
+          ? invalidCapacityMessage("本次草稿修改")
+          : outcome.status === "capacity_reached"
+            ? capacityFailureMessage("本次草稿修改")
+            : outcome.status === "sealed_cycle_check_in"
+              ? "这份闭环打卡已有不可变学习事件，不能在原轮次内修改或换绑。原记录已完整保留；如需更正，请开始新诊断并进入新闭环。"
+            : outcome.status === "lock_unavailable"
+              ? "当前浏览器无法取得安全写入锁；本次草稿修改未写入。"
+              : "当前无法保存；本次草稿修改未写入，原记录保持不变。";
+        return;
+      }
+      renderCheckinReceipt(outcome.record);
       if (draftStatus) draftStatus.textContent = storageWritable ? "草稿已自动保存" : "草稿仅在本页暂存";
       if (noteStatus) noteStatus.textContent = "尚未形成正式证据式打卡。";
     };
@@ -2866,107 +3348,40 @@
       setCheckInCommitPending(true);
       let outcome;
       try {
-        outcome = await withExclusiveWorkspaceWrite(async () => {
-          const before = snapshotState();
-          const currentPrevious = state.checkIns[date] || {};
-          const currentPreviousSaved = Boolean(currentPrevious.checkInId && currentPrevious.status === "saved");
-          const currentPreviousConfirmed = Boolean(
-            currentPreviousSaved && (currentPrevious.learnerConfirmedReview === true || currentPrevious.reviewId),
-          );
-          const currentContentChanged = !sameCheckinContent(currentPrevious, values);
-          const currentSameScope = Boolean(
-            currentPrevious.checkInId &&
-            currentPrevious.cycleId === cycleId &&
-            currentPrevious.planId === planId &&
-            (currentPrevious.recommendationId || null) === recommendationId,
-          );
-          const replacesSavedVersion = currentPreviousSaved && currentContentChanged;
-          if (currentPrevious.checkInId && (replacesSavedVersion || !currentSameScope)) {
-            archiveCheckIn(
-              currentPrevious,
-              replacesSavedVersion
-                ? (currentPreviousConfirmed ? "learner_revision_after_confirmation" : "learner_revision_after_save")
-                : "scope_changed",
-            );
-          }
-          const savedAt = new Date().toISOString();
-          state.checkIns[date] = {
-            ...values,
-            checkInId:
-              currentSameScope && !replacesSavedVersion
-                ? currentPrevious.checkInId
-                : `check-in-${Date.now().toString(36)}`,
-            cycleId,
-            planId,
-            diagnosticSessionId: cycleEligible ? activeCycle.diagnosticSessionId : null,
-            recommendationId,
-            evidenceClass: linkedPracticeReceipt ? "practice_receipt" : "learner_self_report",
-            practiceAttemptId: linkedPracticeReceipt?.practiceAttemptId || null,
-            taskCompletionReceiptId: linkedPracticeReceipt?.completionReceiptId || null,
-            practiceReceipt: linkedPracticeReceipt ? JSON.parse(JSON.stringify(linkedPracticeReceipt)) : null,
-            visibility: "local_only",
-            anomalyReviewStatus: "not_flagged",
-            status: "saved",
-            learnerConfirmedReview: false,
-            reviewId: null,
-            reviewedAt: null,
-            savedAt,
-            updatedAt: savedAt,
-          };
-          if (cycleEligible) {
-            activeCycle.checkInId = state.checkIns[date].checkInId;
-            activeCycle.reviewId = null;
-            activeCycle.peerHelpId = null;
-            activeCycle.retestId = null;
-            activeCycle.updatedPlanId = null;
-            activeCycle.updatedAt = savedAt;
-            state.journey.review = null;
-            state.journey.peerHelp = null;
-            state.journey.retest = null;
-            state.journey.planUpdate = null;
-          }
-          const reflectionTask = getTodayTasks().find((task) => task.skill === "Reflection");
-          if (reflectionTask) {
-            state.taskProgress[reflectionTask.taskId] = {
-              status: "completed",
-              completedAt: savedAt,
-              updatedAt: savedAt,
-              selfReported: false,
-              completionClass: "workflow_receipt",
-              source: "check-in",
-              workflowReceipt: {
-                protocolVersion: "sufeiya_check_in_completion_v1",
-                checkInId: state.checkIns[date].checkInId,
-                taskId: reflectionTask.taskId,
-                completedAt: savedAt,
-              },
-            };
-          }
-          if (cycleEligible) {
-            const eventOutcome = await appendLearningEvent("check_in.committed", {
-              checkIn: state.checkIns[date],
-              recommendation: state.journey?.recommendation,
-            });
-            if (!["appended", "already_recorded"].includes(eventOutcome.status)) {
-              state = before;
-              return { status: eventOutcome.status, code: eventOutcome.code };
-            }
-          }
-          if (!persist()) {
-            state = before;
-            return { status: "persist_failed" };
-          }
-          return { status: "saved", record: state.checkIns[date] };
+        outcome = await commitCheckInRecord({
+          date,
+          values,
+          cycleEligible,
+          cycleId,
+          planId,
+          diagnosticSessionId: activeCycle?.diagnosticSessionId || null,
+          recommendationId,
+          linkedPracticeReceipt,
+          reflectionTask: getTodayTasks().find((task) => task.skill === "Reflection") || null,
         });
       } catch {
         outcome = { status: "runtime_exception" };
       } finally {
         setCheckInCommitPending(false);
       }
+      if (outcome.status === "already_saved") {
+        renderCheckinReceipt(outcome.record);
+        if (draftStatus) draftStatus.textContent = outcome.confirmed ? "证据式打卡与已确认版本一致" : "证据式打卡与已保存版本一致";
+        if (noteStatus) noteStatus.textContent = outcome.confirmed
+          ? "内容没有变化；原确认、复盘与后续证据保持有效。"
+          : "内容没有变化；原打卡记录保持有效。";
+        return;
+      }
       if (outcome.status !== "saved") {
         if (submitButton && storageWritable) submitButton.disabled = false;
         if (noteStatus) noteStatus.textContent = outcome.status === "lock_unavailable"
           ? "当前浏览器无法取得安全写入锁；本次打卡尚未形成正式记录。"
+          : outcome.status === "sealed_cycle_check_in"
+            ? "这份闭环打卡已有不可变学习事件，不能在原轮次内修改或换绑。原记录已完整保留；如需更正，请开始新诊断并进入新闭环。"
+          : outcome.status === "capacity_invalid"
+            ? invalidCapacityMessage("本次打卡")
+          : outcome.status === "capacity_reached"
+            ? capacityFailureMessage("本次打卡")
           : outcome.status === "persist_failed"
             ? "当前无法保存；本次打卡尚未形成正式记录。"
             : "打卡证据或本机事件链未通过核对；本次打卡尚未形成正式记录。";

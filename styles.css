@@ -3572,6 +3572,81 @@ button:disabled {
   line-height: 1.75;
 }
 
+.data-backup-file-summary {
+  min-width: 0;
+  margin-top: 18px;
+  padding: 20px;
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-accent);
+  background: var(--color-paper);
+}
+
+.data-backup-file-summary header > span {
+  display: block;
+  color: var(--color-accent-deep);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.1em;
+  line-height: 1.5;
+}
+
+.data-backup-file-summary h4 {
+  margin: 6px 0 0;
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+.data-backup-file-summary header > p {
+  margin: 7px 0 0;
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.data-backup-file-summary dl {
+  min-width: 0;
+  margin: 16px 0 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-top: 1px solid var(--color-border);
+  border-left: 1px solid var(--color-border);
+}
+
+.data-backup-file-summary dl > div {
+  min-width: 0;
+  padding: 12px 14px;
+  border-right: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-white);
+}
+
+.data-backup-file-summary .data-backup-file-name-row {
+  grid-column: 1 / -1;
+}
+
+.data-backup-file-summary dt {
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.data-backup-file-summary dd {
+  min-width: 0;
+  margin: 5px 0 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
+  color: var(--color-ink);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.65;
+}
+
 .data-workspace-backup-message {
   min-height: 28px;
   padding-left: 14px;
@@ -4698,10 +4773,12 @@ button:disabled {
   }
 
   .data-backup-boundary,
+  .data-backup-file-summary dl,
   .data-backup-preview dl {
     grid-template-columns: 1fr;
   }
 
+  .data-backup-file-summary .data-backup-file-name-row,
   .data-backup-preview .data-backup-hash-row {
     grid-column: auto;
   }

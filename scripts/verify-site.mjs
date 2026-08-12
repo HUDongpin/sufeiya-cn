@@ -264,7 +264,7 @@ const sourceSection = (source, startMarker, endMarker) => {
 const eventAppendTransactionsAreAtomic = (source, eventType) => {
   const practiceFinalization = eventType === "practice_attempt.finalized";
   const needle = practiceFinalization
-    ? "appendPracticeFinalizationEvent(receipt)"
+    ? "appendPracticeFinalizationEvent(receipt, candidate)"
     : `appendLearningEvent("${eventType}"`;
   const acceptedOutcomePattern = practiceFinalization
     ? /\["appended", "already_recorded", "not_applicable"\]\.includes\(eventOutcome\.status\)/
@@ -279,37 +279,43 @@ const eventAppendTransactionsAreAtomic = (source, eventType) => {
     indices.length &&
       indices.every((index) => {
         const prefix = source.slice(Math.max(0, index - 12000), index);
-        const snapshots = [...prefix.matchAll(/const\s+([A-Za-z][A-Za-z0-9]*)\s*=\s*snapshotState\(\);/g)];
-        const snapshotMatch = snapshots.at(-1);
-        const snapshotName = snapshotMatch?.[1];
-        if (!snapshotName || snapshotMatch.index === undefined) return false;
-        const businessMutationBody = prefix.slice(snapshotMatch.index + snapshotMatch[0].length);
-        const transactionBody = source.slice(index, index + 1800);
+        const transactionStarts = [...prefix.matchAll(
+          /const\s+([A-Za-z][A-Za-z0-9]*)\s*=\s*snapshotState\(\);\s*const\s+candidate\s*=\s*snapshotState\(\);/g,
+        )];
+        const transactionStart = transactionStarts.at(-1);
+        const snapshotName = transactionStart?.[1];
+        if (!snapshotName || transactionStart.index === undefined) return false;
+        const businessMutationBody = prefix.slice(transactionStart.index + transactionStart[0].length);
+        const transactionBody = source.slice(index, index + 3600);
+        const capacityIndex = transactionBody.indexOf("const candidateCapacity = workspaceCandidateCapacity(candidate)");
+        const stateSwapIndex = transactionBody.indexOf("state = candidate");
         const persistIndex = transactionBody.indexOf("if (!persist())");
-        if (persistIndex < 0) return false;
-        const eventOutcomeBody = transactionBody.slice(0, persistIndex);
-        const persistBody = transactionBody.slice(persistIndex, persistIndex + 420);
+        if (capacityIndex < 0 || stateSwapIndex < capacityIndex || persistIndex < stateSwapIndex) return false;
+        const eventOutcomeBody = transactionBody.slice(0, capacityIndex);
+        const afterEventBody = transactionBody.slice(capacityIndex, persistIndex + 520);
+        const rollbackPattern = new RegExp(`state\\s*=\\s*${snapshotName}`);
         return Boolean(
-          /(?:state(?:\.[A-Za-z][A-Za-z0-9]*|\[[^\]]+\])+|(?:cycle|latestCycle|activeCycle)\.[A-Za-z][A-Za-z0-9]*)\s*=/.test(
-            businessMutationBody,
-          ) &&
+          /(?:candidate(?:\.[A-Za-z][A-Za-z0-9]*|\[[^\]]+\])+|candidateCycle\.[A-Za-z][A-Za-z0-9]*)\s*=/.test(businessMutationBody) &&
+          !/\bstate\s*=/.test(businessMutationBody) &&
           acceptedOutcomePattern.test(eventOutcomeBody) &&
-          eventOutcomeBody.includes(`state = ${snapshotName}`) &&
-          persistBody.includes(`state = ${snapshotName}`)
+          (practiceFinalization
+            ? eventOutcomeBody.includes("appendPracticeFinalizationEvent(receipt, candidate)")
+            : /\}, candidate\);/.test(eventOutcomeBody)) &&
+          /if \(!\[[^\]]+\]\.includes\(eventOutcome\.status\)\)\s*\{[\s\S]*?return \{ status: eventOutcome\.status/.test(eventOutcomeBody) &&
+          /if \(candidateCapacity\.status !== "ready"\) return candidateCapacity;[\s\S]*state = candidate;/.test(afterEventBody) &&
+          rollbackPattern.test(afterEventBody)
         );
       })
   );
 };
 
 const createLearningEventsHarness = () => {
-  const window = {};
   let networkDispatchCount = 0;
   const forbiddenDispatch = () => {
     networkDispatchCount += 1;
     throw new Error("NETWORK_DISPATCH_FORBIDDEN");
   };
-  runInNewContext(learningEventsScript, {
-    window,
+  const sandbox = {
     crypto: webcrypto,
     TextEncoder,
     fetch: forbiddenDispatch,
@@ -317,10 +323,13 @@ const createLearningEventsHarness = () => {
     WebSocket: forbiddenDispatch,
     EventSource: forbiddenDispatch,
     navigator: { sendBeacon: forbiddenDispatch },
-  });
-  if (!window.SufeiyaLearningEvents) throw new Error("LEARNING_EVENTS_RUNTIME_UNAVAILABLE");
+  };
+  sandbox.window = sandbox;
+  runInNewContext(workspaceBackupScript, sandbox);
+  runInNewContext(learningEventsScript, sandbox);
+  if (!sandbox.SufeiyaLearningEvents) throw new Error("LEARNING_EVENTS_RUNTIME_UNAVAILABLE");
   return {
-    runtime: window.SufeiyaLearningEvents,
+    runtime: sandbox.SufeiyaLearningEvents,
     networkDispatchCount: () => networkDispatchCount,
   };
 };
@@ -1226,7 +1235,7 @@ const practiceFinalizationBoundarySource = sourceSection(
 );
 check(
   /if \(!receipt\?\.cycleId\) return \{ status: "not_applicable" \}/.test(practiceFinalizationBoundarySource) &&
-    /appendLearningEvent\("practice_attempt\.finalized", \{[\s\S]*receipt,[\s\S]*recommendation: state\.journey\?\.recommendation/.test(
+    /appendLearningEvent\("practice_attempt\.finalized", \{[\s\S]*receipt,[\s\S]*recommendation: targetState\.journey\?\.recommendation[\s\S]*\}, targetState\)/.test(
       practiceFinalizationBoundarySource,
     ) &&
     (workspaceScript.match(/\["appended", "already_recorded", "not_applicable"\]\.includes\(eventOutcome\.status\)/g) || []).length === 3,
@@ -1938,6 +1947,22 @@ check(
 );
 check(/data-today-plan-boundary/.test(await read("today.html")), "today page exposes whether tasks come from the current plan or independent practice");
 check(/data-export-workspace[\s\S]*data-clear-workspace[\s\S]*data-clear-super-teacher[\s\S]*data-clear-teaching-review-demo[\s\S]*data-clear-all-sufeiya/.test(await read("my-data.html")), "data page supports all-data export and three separately scoped namespace clears");
+check(
+  /id="workspace-backup-file"[^>]*aria-describedby="workspace-backup-file-help workspace-backup-file-summary workspace-backup-message"/.test(myDataPage) &&
+    /id="workspace-backup-file-summary"[^>]*data-workspace-backup-file-summary[^>]*aria-live="polite"[^>]*aria-atomic="true"[^>]*hidden/.test(myDataPage) &&
+    /data-backup-file-name[\s\S]*data-backup-file-size[\s\S]*data-backup-file-status/.test(myDataPage),
+  "restore file input exposes a hidden live metadata summary with name, byte size, and preflight status hooks",
+);
+check(
+  /\.data-backup-file-summary\s*\{[\s\S]*?min-width:\s*0;/.test(styles) &&
+    /\.data-backup-file-summary header > span\s*\{[\s\S]*?font-size:\s*11px;/.test(styles) &&
+    /\.data-backup-file-summary header > p\s*\{[\s\S]*?font-size:\s*12px;/.test(styles) &&
+    /\.data-backup-file-summary dt\s*\{[\s\S]*?font-size:\s*12px;/.test(styles) &&
+    /\.data-backup-file-summary dd\s*\{[\s\S]*?overflow-wrap:\s*anywhere;[\s\S]*?word-break:\s*break-word;[\s\S]*?white-space:\s*normal;/.test(styles) &&
+    /\.data-backup-file-summary dd\s*\{[\s\S]*?font-size:\s*14px;/.test(styles) &&
+    /@media \(max-width:\s*560px\)[\s\S]*?\.data-backup-file-summary dl,[\s\S]*?grid-template-columns:\s*1fr;/.test(styles),
+  "restore file metadata remains fully readable and collapses without narrow-screen horizontal overflow",
+);
 check(/sufeiya_workspace_v1/.test(workspaceScript), "workspace uses one versioned local-storage namespace");
 check(/sufeiya_workspace_v1/.test(journeyScript), "journey shares the versioned workspace namespace");
 check(/localStorage\.removeItem\(STORAGE_KEY\)/.test(workspaceScript), "clear action only removes the Sufeiya workspace namespace");
@@ -2007,10 +2032,10 @@ check(
   "autosave preserves every saved check-in when the final content is unchanged",
 );
 check(
-  /const replacesSavedVersion = previousSaved && contentChanged[\s\S]*archiveCheckIn\(previous, previousConfirmed \? "learner_revision_after_confirmation" : "learner_revision_after_save"\)[\s\S]*checkInId: replacesSavedVersion \? null : previous\.checkInId \|\| null/.test(
+  /const replacesSavedVersion = previousSaved && contentChanged[\s\S]*const candidate = snapshotState\(\)[\s\S]*archiveCheckIn\([\s\S]*candidate,[\s\S]*candidateRecord,[\s\S]*candidatePreviousConfirmed \? "learner_revision_after_confirmation" : "learner_revision_after_save"[\s\S]*updatedAt[\s\S]*candidate\.checkIns\[date\] = \{[\s\S]*checkInId: candidateReplacesSaved \? null : candidatePrevious\.checkInId \|\| null[\s\S]*workspaceCandidateCapacity\(candidate\)[\s\S]*state = candidate[\s\S]*state = before/.test(
     workspaceScript,
   ) &&
-    /const replacesSavedVersion = currentPreviousSaved && currentContentChanged[\s\S]*archiveCheckIn\([\s\S]*learner_revision_after_confirmation[\s\S]*learner_revision_after_save[\s\S]*currentSameScope && !replacesSavedVersion[\s\S]*currentPrevious\.checkInId[\s\S]*`check-in-\$\{Date\.now\(\)\.toString\(36\)\}`/.test(
+    /const replacesSavedVersion = currentPreviousSaved && currentContentChanged[\s\S]*const shouldArchive[\s\S]*const candidate = snapshotState\(\)[\s\S]*archiveCheckIn\([\s\S]*candidate,[\s\S]*candidatePrevious,[\s\S]*learner_revision_after_confirmation[\s\S]*learner_revision_after_save[\s\S]*savedAt[\s\S]*candidate\.checkIns\[date\] = \{[\s\S]*currentSameScope && !replacesSavedVersion[\s\S]*currentPrevious\.checkInId[\s\S]*`check-in-\$\{Date\.now\(\)\.toString\(36\)\}`[\s\S]*workspaceCandidateCapacity\(candidate\)[\s\S]*state = candidate[\s\S]*state = before/.test(
       workspaceScript,
     ),
   "every edited saved check-in is archived and forced onto a new evidence ID before or at final save",
@@ -2192,6 +2217,16 @@ const diagnosticRestartSource = sourceSection(
   'document.querySelectorAll("[data-diagnostic-restart]")',
   'document.addEventListener("visibilitychange"',
 );
+const diagnosticCommitNewSource = sourceSection(
+  journeyScript,
+  "const commitNewDiagnostic",
+  "const commitDiagnosticRestart",
+);
+const diagnosticCommitRestartSource = sourceSection(
+  journeyScript,
+  "const commitDiagnosticRestart",
+  "const buildDiagnosticReport",
+);
 const evaluateJourneySource = sourceSection(journeyScript, "const evaluateJourney", "const renderCycleEvidenceLedger");
 const retireCurrentPlanHarness = (() => {
   try {
@@ -2237,12 +2272,14 @@ checkExecutable(
   },
 );
 check(
-  /const createdAt = isoNow\(\)[\s\S]*retireCurrentPlanForNewDiagnostic\([\s\S]*learner_started_new_gate_a_evidence_pack[\s\S]*state = snapshot;[\s\S]*appendLearningEvent\("learning_cycle\.started"[\s\S]*state = snapshot;[\s\S]*if \(!persist\(\)\) \{[\s\S]*state = snapshot;/.test(
-    diagnosticStartSource,
+  /withExclusiveJourneyWrite[\s\S]*workspaceAppendCapacity[\s\S]*const snapshot = snapshotState\(\);[\s\S]*const candidate = snapshotState\(\);[\s\S]*archiveSupersededCycle\(candidate\)[\s\S]*const createdAt = isoNow\(\)[\s\S]*retireCurrentPlanForNewDiagnostic\([\s\S]*learner_started_new_gate_a_evidence_pack[\s\S]*\}, candidate\)[\s\S]*appendLearningEvent\("learning_cycle\.started"[\s\S]*\}, candidate\)[\s\S]*workspaceCandidateCapacity\(candidate\)[\s\S]*state = candidate[\s\S]*if \(!persist\(\)\) \{[\s\S]*state = snapshot;/.test(
+    diagnosticCommitNewSource,
   ) &&
-    /withExclusiveJourneyWrite[\s\S]*retireCurrentPlanForNewDiagnostic\([\s\S]*learner_restarted_gate_a_evidence_pack[\s\S]*state = snapshot;[\s\S]*if \(!persist\(\)\) \{[\s\S]*state = snapshot;/.test(
-      diagnosticRestartSource,
-    ),
+    /withExclusiveJourneyWrite[\s\S]*workspaceAppendCapacity[\s\S]*const snapshot = snapshotState\(\);[\s\S]*const candidate = snapshotState\(\);[\s\S]*archiveSupersededCycle\(candidate\)[\s\S]*retireCurrentPlanForNewDiagnostic\([\s\S]*learner_restarted_gate_a_evidence_pack[\s\S]*\}, candidate\)[\s\S]*workspaceCandidateCapacity\(candidate\)[\s\S]*state = candidate[\s\S]*if \(!persist\(\)\) \{[\s\S]*state = snapshot;/.test(
+      diagnosticCommitRestartSource,
+    ) &&
+    /const outcome = await commitNewDiagnostic\(\{/.test(diagnosticStartSource) &&
+    /const outcome = await commitDiagnosticRestart\(\)/.test(diagnosticRestartSource),
   "new-diagnostic start and restart retire the current plan inside rollback-safe exclusive writes",
 );
 check(
@@ -2451,6 +2488,11 @@ const workspaceCheckInLifecycleSource = sourceSection(
   "let draftTimer;",
   "const updateDataPage",
 );
+const workspaceCommitCheckInSource = sourceSection(
+  workspaceScript,
+  "const commitCheckInRecord",
+  "const focusRemainingSeconds",
+);
 const journeyValidationSource = sourceSection(journeyScript, "const validateCycleEvidence", "const cycleHistoryTopLevelKeys");
 const journeyCycleHistoryProjectionSource = sourceSection(
   journeyScript,
@@ -2545,6 +2587,11 @@ const workspaceNormalizeStateSource = sourceSection(workspaceScript, "const norm
 const workspaceSealPracticeReceiptSource = sourceSection(
   workspaceScript,
   "const sealPracticeReceipt",
+  "const commitChoicePracticeCompletion",
+);
+const workspaceCommitChoicePracticeSource = sourceSection(
+  workspaceScript,
+  "const commitChoicePracticeCompletion",
   "const setupChoicePractice",
 );
 const workspaceChoicePracticeSource = sourceSection(
@@ -4206,9 +4253,8 @@ check(
     /const toggleQuestion = \(\) => \{[\s\S]*if \(!hasQuestion && questionText\) questionText\.value = "";/.test(
       workspaceCheckInSetupSource,
     ) &&
-    /const values = readCheckin\(\);[\s\S]*state\.checkIns\[date\] = \{[\s\S]*\.\.\.values/.test(
-      workspaceCheckInSetupSource,
-    ),
+    /candidate\.checkIns\[date\]\s*=\s*\{[\s\S]{0,180}?\.\.\.values/.test(workspaceCheckInSetupSource) &&
+    /candidate\.checkIns\[date\]\s*=\s*\{[\s\S]{0,180}?\.\.\.values/.test(workspaceCommitCheckInSource),
   "check-in autosave and commit canonicalize no-question records to an empty questionText",
 );
 check(
@@ -4243,13 +4289,15 @@ check(
     /recommendation\.diagnosticSessionId !== linked\.cycle\.diagnosticSessionId/.test(completedRecommendationChainSource) &&
     /recommendation\.planId !== linked\.cycle\.basePlanId/.test(completedRecommendationChainSource) &&
     /const linkedRecommendation = completedRecommendationChain\(\)/.test(workspaceCheckInSubmitSource) &&
-    /diagnosticSessionId:\s*cycleEligible \? activeCycle\.diagnosticSessionId : null/.test(workspaceCheckInSubmitSource) &&
-    /recommendationId,/.test(workspaceCheckInSubmitSource),
+    /diagnosticSessionId:\s*activeCycle\?\.diagnosticSessionId \|\| null/.test(workspaceCheckInSubmitSource) &&
+    /diagnosticSessionId:\s*cycleEligible \? diagnosticSessionId : null/.test(workspaceCommitCheckInSource) &&
+    /recommendationId,/.test(workspaceCheckInSubmitSource) &&
+    /recommendationId,/.test(workspaceCommitCheckInSource),
   "check-in eligibility requires the complete recommendation, plan, and diagnostic chain from one cycle",
 );
 check(
   /let checkInCommitPending = false/.test(workspaceCheckInLifecycleSource) &&
-    /const saveDraft = \(\) => \{\s*if \(checkInCommitPending\) return;/.test(workspaceCheckInLifecycleSource) &&
+    /const saveDraft = async \(\) => \{\s*if \(checkInCommitPending\) return;/.test(workspaceCheckInLifecycleSource) &&
     /checkinForm\.addEventListener\("input", \(\) => \{\s*if \(checkInCommitPending\) return;/.test(
       workspaceCheckInLifecycleSource,
     ) &&
@@ -4259,8 +4307,11 @@ check(
     /checkInControlDisabledSnapshot = new Map\(controls\.map\(\(control\) => \[control, control\.disabled\]\)\)[\s\S]*controls\.forEach\(\(control\) => \{\s*control\.disabled = true;/.test(
       workspaceCheckInLifecycleSource,
     ) &&
-    /setCheckInCommitPending\(true\);[\s\S]*try \{[\s\S]*await withExclusiveWorkspaceWrite[\s\S]*\} finally \{\s*setCheckInCommitPending\(false\);/.test(
+    /setCheckInCommitPending\(true\);[\s\S]*try \{[\s\S]*outcome = await commitCheckInRecord\([\s\S]*\} finally \{\s*setCheckInCommitPending\(false\);/.test(
       workspaceCheckInLifecycleSource,
+    ) &&
+    /withExclusiveWorkspaceWrite\(async \(\) => \{[\s\S]*workspaceAppendCapacity\([\s\S]*const before = snapshotState\(\);[\s\S]*const candidate = snapshotState\(\);[\s\S]*workspaceCandidateCapacity\(candidate\)[\s\S]*state = candidate[\s\S]*state = before;/.test(
+      workspaceCommitCheckInSource,
     ),
   "check-in commit blocks autosave and freezes every form control until the sealed async transaction settles",
 );
@@ -4290,13 +4341,14 @@ check(
   "practice bindings require exact current plan, task, skill, and route context rather than a skill-only match",
 );
 check(
-  /const sealPracticeReceipt[\s\S]*state\.practiceReceipts\[receipt\.completionReceiptId\] = receipt/.test(workspaceScript) &&
+  /const sealPracticeReceipt[\s\S]*targetState\.practiceReceipts\[receipt\.completionReceiptId\] = receipt/.test(workspaceScript) &&
     /sealed:\s*true[\s\S]*ownerScope:\s*"browser_local_not_account_bound"[\s\S]*integrityClass:\s*"unsigned_local_receipt"/.test(workspaceScript) &&
+    !/delete\s+targetState\.practiceReceipts/.test(workspaceSealPracticeReceiptSource) &&
     !/const markMatchingTaskComplete/.test(workspaceScript),
   "practice completion seals an append-only local receipt and no longer completes the first matching skill task",
 );
 check(
-  /const sealPracticeReceipt = \(skill, exerciseId, completedAt, evidence = \{\}\) =>/.test(
+  /const sealPracticeReceipt = \(skill, exerciseId, completedAt, evidence = \{\}, targetState = state\) =>/.test(
     workspaceSealPracticeReceiptSource,
   ) &&
     /typeof completedAt !== "string"[\s\S]*Date\.parse\(completedAt\)[\s\S]*new Date\(completedAt\)\.toISOString\(\) !== completedAt/.test(
@@ -4304,8 +4356,8 @@ check(
     ) &&
     !/const completedAt = new Date\(\)\.toISOString\(\)/.test(workspaceSealPracticeReceiptSource) &&
     /existingReceipt\.completedAt === completedAt \? existingReceipt : null/.test(workspaceSealPracticeReceiptSource) &&
-    /updatedAt: completedAt,[\s\S]*completedAt,[\s\S]*sealPracticeReceipt\(skill, exerciseId, completedAt, \{/.test(
-      workspaceChoicePracticeSource,
+    /const completedAt = new Date\(\)\.toISOString\(\)[\s\S]*updatedAt: completedAt,[\s\S]*completedAt,[\s\S]*sealPracticeReceipt\(skill, exerciseId, completedAt, \{/.test(
+      workspaceCommitChoicePracticeSource,
     ) &&
     /setupChoicePractice\(\{[\s\S]*skill: "Reading"[\s\S]*setupChoicePractice\(\{[\s\S]*skill: "Listening"/.test(
       workspaceScript,
@@ -4325,9 +4377,12 @@ check(
 );
 check(
   /const linkedPracticeReceipt = qualifyingPracticeReceiptForTask\(linkedTask\)/.test(workspaceCheckInSubmitSource) &&
-    /practiceAttemptId:\s*linkedPracticeReceipt\?\.practiceAttemptId/.test(workspaceCheckInSubmitSource) &&
-    /taskCompletionReceiptId:\s*linkedPracticeReceipt\?\.completionReceiptId/.test(workspaceCheckInSubmitSource) &&
-    !/state\.taskProgress\[values\.linkedTaskId\]/.test(workspaceCheckInSubmitSource),
+    /linkedPracticeReceipt,/.test(workspaceCheckInSubmitSource) &&
+    /practiceAttemptId:\s*linkedPracticeReceipt\?\.practiceAttemptId/.test(workspaceCommitCheckInSource) &&
+    /taskCompletionReceiptId:\s*linkedPracticeReceipt\?\.completionReceiptId/.test(workspaceCommitCheckInSource) &&
+    /candidate\.taskProgress\[reflectionTask\.taskId\]/.test(workspaceCommitCheckInSource) &&
+    !/taskProgress\[values\.linkedTaskId\]/.test(workspaceCheckInSubmitSource) &&
+    !/taskProgress\[values\.linkedTaskId\]/.test(workspaceCommitCheckInSource),
   "check-in references an existing qualifying receipt and never marks the selected core task complete itself",
 );
 check(
@@ -4691,6 +4746,80 @@ check(
   "a second workspace writer tab becomes read-only before any page controls are initialized",
 );
 check(
+  /const MAX_NODES = 131_072;/.test(workspaceBackupScript) &&
+    /const COUNT_LIMITS = Object\.freeze\(\{[\s\S]*planHistory:\s*64[\s\S]*practiceReceipts:\s*256[\s\S]*learningEvents:\s*212[\s\S]*checkInHistory:\s*256[\s\S]*focusSessions:\s*512[\s\S]*journeyHistory:\s*19/.test(
+    workspaceBackupScript,
+  ) &&
+    /const CAPACITY_LIMITS = Object\.freeze\(\{\s*\.\.\.COUNT_LIMITS,[\s\S]*workspaceBytes:\s*MAX_WORKSPACE_BYTES,[\s\S]*jsonDepth:\s*MAX_DEPTH,[\s\S]*jsonNodes:\s*MAX_NODES,[\s\S]*stringLength:\s*MAX_STRING_LENGTH/.test(workspaceBackupScript) &&
+    /const inspectWorkspaceCapacity = \(workspace\) =>/.test(workspaceBackupScript) &&
+    /const inspectWorkspaceAppendCapacity = \(workspace, additions\) =>/.test(workspaceBackupScript) &&
+    /Object\.entries\(COUNT_LIMITS\)/.test(workspaceBackupScript) &&
+    /workspaceBytes > MAX_WORKSPACE_BYTES/.test(workspaceBackupScript) &&
+    /inspectWorkspaceCapacity,[\s\S]*inspectWorkspaceAppendCapacity,/.test(workspaceBackupScript),
+  "one backup runtime owns count, canonical-byte, JSON-node, depth, and string capacity inspection",
+);
+check(
+  (() => {
+    const appendSource = sourceSection(learningEventsScript, "const appendDomainEvent", "const summarize");
+    const fullStart = appendSource.indexOf("if (events.length === eventLimit)");
+    const newEventStart = appendSource.indexOf("const recordedAt = new Date().toISOString()");
+    if (fullStart < 0 || newEventStart <= fullStart) return false;
+    const fullLedgerBranch = appendSource.slice(fullStart, newEventStart);
+    return Boolean(
+      /projectDomainEvent\(bindings, eventType, domain, \{ allowNewBindings: false \}\)/.test(fullLedgerBranch) &&
+      /semanticReplayMatches[\s\S]*\? \{ status: "already_recorded", event: clone\(existing\) \}/.test(fullLedgerBranch) &&
+      (fullLedgerBranch.match(/learning_events_capacity_reached/g) || []).length >= 2 &&
+      !/createUuid\(|recordedAt\s*=|state\.learningEvents\s*=|state\.learningEventBindings\s*=/.test(fullLedgerBranch)
+    );
+  })(),
+  "the 212-event second line permits exact replay before rejecting new bindings, timestamps, and UUIDs",
+);
+check(
+  /const additions = \{ planHistory: state\.plan \? 1 : 0 \};[\s\S]*workspaceAppendCapacity\(additions\)/.test(workspaceScript) &&
+    /workspaceAppendCapacity\(\{ practiceReceipts: 1, learningEvents: eventCount \}\)/.test(workspaceScript) &&
+    (workspaceScript.match(/workspaceAppendCapacity\(\{ practiceReceipts: 1, learningEvents: eventCount \}\)/g) || []).length === 3 &&
+    (workspaceScript.match(/workspaceAppendCapacity\(\{ focusSessions: 1 \}\)/g) || []).length === 2 &&
+    /workspaceAppendCapacity\(\{ checkInHistory: candidateReplacesSaved \? 1 : 0 \}\)/.test(workspaceScript) &&
+    /checkInHistory: shouldArchive \? 1 : 0,[\s\S]*learningEvents: cycleEligible \? 1 : 0/.test(workspaceScript),
+  "workspace append writers reserve exact plan, receipt, focus, check-in history, and event deltas before committing",
+);
+check(
+  /planHistory: state\.plan \? 1 : 0,[\s\S]*supersededCycles: activeCycle\(\)\?\.diagnosticSessionId \? 1 : 0,[\s\S]*learningEvents: 1/.test(
+    journeyScript,
+  ) &&
+    /planHistory: 1,[\s\S]*journeyHistory: 1,[\s\S]*learningEvents: provisional \? 0 : 1/.test(journeyScript) &&
+    (journeyScript.match(/workspaceAppendCapacity\(\{ learningEvents: 1 \}\)/g) || []).length === 2 &&
+    /workspaceCandidateCapacity\(candidate\)/.test(journeyScript),
+  "journey composite writers preflight diagnostic archive, plan/history close, recommendation, retest, and event capacity",
+);
+check(
+  /cycleHasSealedDownstream\(state, currentCycle\)/.test(workspaceScript) &&
+    /sealedCurrentCycleCheckIn\(state, previous\)/.test(workspaceScript) &&
+    /不能手动替换绑定计划[\s\S]*开始新诊断/.test(workspaceScript) &&
+    /已有不可变学习事件[\s\S]*开始新诊断并进入新闭环/.test(workspaceScript) &&
+    /workspaceSealedAlert/.test(workspaceScript) &&
+    /link\.href = "\/diagnostic"/.test(workspaceScript) &&
+    workspaceScript.indexOf("cycleHasSealedDownstream(state, currentCycle)") <
+      workspaceScript.indexOf('window.confirm("重新生成会替换当前及未来计划'),
+  "sealed downstream plan and committed check-in revisions fail closed before confirmation, with focused recovery guidance and no ledger deletion",
+);
+check(
+  /workspaceCapacityAlert/.test(workspaceScript) &&
+    /workspaceCapacityAlert/.test(journeyScript) &&
+    /setAttribute\("role", "alert"\)[\s\S]*setAttribute\("tabindex", "-1"\)/.test(workspaceScript) &&
+    /link\.href = "\/my-data"/.test(workspaceScript) &&
+    /result\?\.status === "capacity_reached"[\s\S]*当前不保证能够生成可恢复备份/.test(workspaceScript),
+  "capacity failures upsert a focusable alert with a real my-data link and honest recovery boundary",
+);
+check(
+  /renderFileSummary\(file, file \? "已选择 · 尚未读取或验证"/.test(journeyScript) &&
+    /selectedFileStatus: "验证中 · 尚未写入"/.test(journeyScript) &&
+    /selectedFileStatus: "已通过 · 等待明确确认"/.test(journeyScript) &&
+    /selectedFileStatus: "已拒绝 · 未通过严格验证"/.test(journeyScript) &&
+    /renderFileSummary\(null, "已重置"\)/.test(journeyScript),
+  "restore file metadata distinguishes selected, validating, accepted, rejected, restored, and reset states",
+);
+check(
   publicLearningEventsScript === learningEventsScript &&
     publicWorkspaceScript === workspaceScript &&
     publicJourneyScript === journeyScript &&
@@ -4703,7 +4832,8 @@ check(
     /status:\s*"capacity_reached"/.test(journeyScript) &&
     /status:\s*"cycle_conflict"/.test(journeyScript) &&
     !/supersededCycles\s*=\s*\[\.\.\.existing, receipt\]\.slice/.test(journeyScript) &&
-    (journeyScript.match(/const archiveOutcome = archiveSupersededCycle\(\);/g) || []).length === 2 &&
+    /const archiveSupersededCycle = \(targetState = state\) =>/.test(journeyScript) &&
+    (journeyScript.match(/const archiveOutcome = archiveSupersededCycle\(candidate\);/g) || []).length === 2 &&
     (journeyScript.match(/superseded_cycle_capacity/g) || []).length >= 4,
   "superseded diagnostic receipts retain ledger coverage and fail closed at one shared 64-cycle capacity",
 );
