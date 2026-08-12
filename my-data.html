@@ -136,9 +136,17 @@
           </div>
           <div class="data-file-field">
             <label for="workspace-backup-file">选择学习闭环可恢复备份（JSON）</label>
-            <input id="workspace-backup-file" type="file" accept=".json,application/json" data-workspace-backup-file aria-describedby="workspace-backup-file-help workspace-backup-message" />
+            <input id="workspace-backup-file" type="file" accept=".json,application/json" data-workspace-backup-file aria-describedby="workspace-backup-file-help workspace-backup-file-summary workspace-backup-message" />
             <small id="workspace-backup-file-help">文件上限 2 MiB。预检会核对协议版本、结构、哈希链与闭环交叉引用；哈希用于发现意外损坏，不是服务器签名，也不能防止恶意本机重算。</small>
           </div>
+          <section id="workspace-backup-file-summary" class="data-backup-file-summary" data-workspace-backup-file-summary aria-labelledby="workspace-backup-file-summary-title" aria-live="polite" aria-atomic="true" hidden>
+            <header><span>SELECTED FILE · LOCAL METADATA</span><h4 id="workspace-backup-file-summary-title">所选恢复文件摘要</h4><p>只显示浏览器提供的文件元数据；点击本机预检前，不会读取文件内容。</p></header>
+            <dl>
+              <div class="data-backup-file-name-row"><dt>完整文件名</dt><dd data-backup-file-name>—</dd></div>
+              <div><dt>文件大小</dt><dd data-backup-file-size>—</dd></div>
+              <div><dt>当前预检状态</dt><dd data-backup-file-status>等待选择</dd></div>
+            </dl>
+          </section>
           <div class="data-actions data-restore-file-actions"><button class="button button-ink" type="button" data-validate-workspace-backup aria-controls="workspace-backup-preview" disabled>在本机预检文件</button><button class="button button-ghost" type="button" data-reset-workspace-backup>取消并重新选择</button></div>
           <p id="workspace-backup-message" class="data-workspace-backup-message" data-workspace-backup-message role="status" aria-live="polite" tabindex="-1">请选择由本页生成的学习闭环可恢复备份。选择文件不会修改当前数据。</p>
 

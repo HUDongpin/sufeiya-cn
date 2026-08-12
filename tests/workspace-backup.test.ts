@@ -17,9 +17,12 @@ interface BackupRuntime {
   WORKSPACE_NAMESPACE: string;
   MAX_FILE_BYTES: number;
   MAX_WORKSPACE_BYTES: number;
+  CAPACITY_LIMITS: Record<string, number>;
   canonicalJson(value: unknown): string;
   sha256Hex(value: string): Promise<string>;
   createEnvelope(workspace: unknown): Promise<MutableRecord>;
+  inspectWorkspaceCapacity(workspace: unknown): MutableRecord;
+  inspectWorkspaceAppendCapacity(workspace: unknown, additions: MutableRecord): MutableRecord;
   inspectEnvelopeText(
     text: string,
     validateWorkspace: (workspace: unknown) => Promise<MutableRecord>,
@@ -56,9 +59,43 @@ interface JourneyValidationHarness {
   buildDiagnosticReport(diagnostic: unknown): MutableRecord;
 }
 
+interface WorkspaceWriterHarness {
+  backup: BackupRuntime;
+  freshState(): MutableRecord;
+  getState(): MutableRecord;
+  getRaw(): string | null;
+  getLastCapacityCandidate(): MutableRecord | null;
+  setState(next: MutableRecord): void;
+  commitPlanRegeneration(profile: MutableRecord): Promise<MutableRecord>;
+  commitChoicePracticeCompletion(input: MutableRecord): Promise<MutableRecord>;
+  commitCheckInRecord(input: MutableRecord): Promise<MutableRecord>;
+  commitFocusControlAction(durationMinutes: number): Promise<MutableRecord>;
+  commitFocusTerminal(status: string): Promise<MutableRecord>;
+}
+
+interface JourneyWriterHarness {
+  backup: BackupRuntime;
+  learningEvents: LearningEventsRuntime;
+  freshState(): MutableRecord;
+  getState(): MutableRecord;
+  getRaw(): string | null;
+  setState(next: MutableRecord): void;
+  setNow(value: string): void;
+  validateCandidate(candidate: unknown): Promise<MutableRecord>;
+  commitNewDiagnostic(input: MutableRecord): Promise<MutableRecord>;
+  commitDiagnosticRestart(): Promise<MutableRecord>;
+  commitJourneyPlanClose(focusSkill: string): Promise<MutableRecord>;
+  validateCycleEvidence(): MutableRecord;
+  recommendationItems(): MutableRecord[];
+  createRecommendationBinding(chain: MutableRecord, primary: MutableRecord, createdAt: string): MutableRecord | null;
+  buildDiagnosticReport(diagnostic: unknown): MutableRecord;
+  deriveRetestOutcome(skill: string, evidence: unknown): MutableRecord | null;
+}
+
 const runtimeSource = readFileSync(new URL("../workspace-backup.js", import.meta.url), "utf8");
 const learningEventsSource = readFileSync(new URL("../learning-events.js", import.meta.url), "utf8");
 const journeySource = readFileSync(new URL("../journey.js", import.meta.url), "utf8");
+const workspaceSource = readFileSync(new URL("../workspace.js", import.meta.url), "utf8");
 const HASH = "a".repeat(64);
 
 function asRecord(value: unknown): MutableRecord {
@@ -68,6 +105,17 @@ function asRecord(value: unknown): MutableRecord {
 
 function hostClone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function workspaceTreeNodeCount(value: unknown): number {
+  let count = 0;
+  const visit = (candidate: unknown) => {
+    count += 1;
+    if (Array.isArray(candidate)) candidate.forEach(visit);
+    else if (candidate && typeof candidate === "object") Object.values(candidate).forEach(visit);
+  };
+  visit(value);
+  return count;
 }
 
 function loadRuntime(): BackupRuntime {
@@ -81,6 +129,256 @@ function loadRuntime(): BackupRuntime {
   const runtime = vm.runInContext("globalThis.SufeiyaWorkspaceBackup", context) as BackupRuntime | undefined;
   assert.ok(runtime, "workspace-backup.js must expose SufeiyaWorkspaceBackup");
   return runtime;
+}
+
+async function loadWorkspaceGuardHarness(): Promise<{
+  cycleHasSealedDownstream(state: unknown, cycle: unknown): boolean;
+  sealedCurrentCycleCheckIn(state: unknown, record: unknown): boolean;
+}> {
+  const storage: StorageContract = {
+    getItem: () => null,
+    setItem: () => undefined,
+    removeItem: () => undefined,
+  };
+  const document = {
+    body: { append: () => undefined },
+    createElement: () => ({
+      addEventListener: () => undefined,
+      append: () => undefined,
+      focus: () => undefined,
+      replaceChildren: () => undefined,
+      setAttribute: () => undefined,
+    }),
+    querySelector: () => null,
+    querySelectorAll: () => [],
+  };
+  const sandbox: MutableRecord = {
+    Blob,
+    Date,
+    Error,
+    URL,
+    URLSearchParams,
+    clearInterval,
+    clearTimeout,
+    console,
+    crypto: webcrypto,
+    document,
+    innerWidth: 1024,
+    localStorage: storage,
+    location: { hash: "", origin: "http://localhost", pathname: "/", search: "" },
+    navigator: { onLine: true },
+    setInterval,
+    setTimeout,
+    structuredClone,
+    TextEncoder,
+    addEventListener: () => undefined,
+  };
+  sandbox.window = sandbox;
+  sandbox.globalThis = sandbox;
+  const context = vm.createContext(sandbox);
+  vm.runInContext(runtimeSource, context, { filename: "workspace-backup.js" });
+  vm.runInContext(learningEventsSource, context, { filename: "learning-events.js" });
+  const instrumented = workspaceSource.replace(
+    "  const disableWorkspaceControls = ({",
+    "  window.__cycleHasSealedDownstream = cycleHasSealedDownstream;\n  window.__sealedCurrentCycleCheckIn = sealedCurrentCycleCheckIn;\n  const disableWorkspaceControls = ({",
+  );
+  assert.notEqual(instrumented, workspaceSource, "workspace guard instrumentation anchor must exist");
+  await vm.runInContext(instrumented, context, { filename: "workspace.js" });
+  const cycleHasSealedDownstream = sandbox.__cycleHasSealedDownstream as
+    | ((state: unknown, cycle: unknown) => boolean)
+    | undefined;
+  const sealedCurrentCycleCheckIn = sandbox.__sealedCurrentCycleCheckIn as
+    | ((state: unknown, record: unknown) => boolean)
+    | undefined;
+  assert.ok(cycleHasSealedDownstream && sealedCurrentCycleCheckIn);
+  return { cycleHasSealedDownstream, sealedCurrentCycleCheckIn };
+}
+
+function productionVmDocument() {
+  return {
+    body: { append: () => undefined },
+    createElement: () => ({
+      addEventListener: () => undefined,
+      append: () => undefined,
+      click: () => undefined,
+      focus: () => undefined,
+      remove: () => undefined,
+      replaceChildren: () => undefined,
+      setAttribute: () => undefined,
+      dataset: {},
+    }),
+    querySelector: () => null,
+    querySelectorAll: () => [],
+    title: "Sufeiya",
+    visibilityState: "visible",
+    addEventListener: () => undefined,
+  };
+}
+
+function productionVmStorage(): StorageContract & { raw(): string | null } {
+  const values = new Map<string, string>();
+  return {
+    getItem: (key) => values.get(key) ?? null,
+    setItem: (key, value) => { values.set(key, value); },
+    removeItem: (key) => { values.delete(key); },
+    raw: () => values.get("sufeiya_workspace_v1") ?? null,
+  };
+}
+
+function productionVmLocks() {
+  return {
+    request: (_name: string, _options: unknown, callback: (lock: MutableRecord) => unknown) =>
+      callback({ name: "test-lock" }),
+  };
+}
+
+async function loadWorkspaceWriterHarness({
+  pathname = "/",
+  search = "",
+}: { pathname?: string; search?: string } = {}): Promise<WorkspaceWriterHarness> {
+  const storage = productionVmStorage();
+  const sandbox: MutableRecord = {
+    Blob,
+    Date,
+    Error,
+    URL,
+    URLSearchParams,
+    clearInterval,
+    clearTimeout,
+    console,
+    crypto: webcrypto,
+    document: productionVmDocument(),
+    innerWidth: 1024,
+    localStorage: storage,
+    location: { hash: "", origin: "http://localhost", pathname, search, reload: () => undefined },
+    navigator: { locks: productionVmLocks(), onLine: true },
+    setInterval,
+    setTimeout,
+    structuredClone,
+    TextEncoder,
+    addEventListener: () => undefined,
+    confirm: () => true,
+  };
+  sandbox.window = sandbox;
+  sandbox.globalThis = sandbox;
+  const context = vm.createContext(sandbox);
+  vm.runInContext(runtimeSource, context, { filename: "workspace-backup.js" });
+  vm.runInContext(learningEventsSource, context, { filename: "learning-events.js" });
+  const instrumented = workspaceSource.replace(
+    "  const workspaceCandidateCapacity = (candidate) => {",
+    "  const workspaceCandidateCapacity = (candidate) => {\n    window.__lastWorkspaceCapacityCandidate = JSON.parse(JSON.stringify(candidate));",
+  ).replace(
+    '  window.addEventListener("storage", (event) => {',
+    `  window.__workspaceWriterHarness = {
+    freshState: () => JSON.parse(JSON.stringify(freshState())),
+    getState: () => JSON.parse(JSON.stringify(state)),
+    getLastCapacityCandidate: () => window.__lastWorkspaceCapacityCandidate
+      ? JSON.parse(JSON.stringify(window.__lastWorkspaceCapacityCandidate))
+      : null,
+    setState: (next) => {
+      state = JSON.parse(JSON.stringify(next));
+      storageWritable = true;
+      workspaceStateRecognized = true;
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    },
+    commitPlanRegeneration,
+    commitChoicePracticeCompletion,
+    commitCheckInRecord,
+    commitFocusControlAction,
+    commitFocusTerminal,
+  };
+  window.addEventListener("storage", (event) => {`,
+  );
+  assert.notEqual(instrumented, workspaceSource, "workspace writer instrumentation anchor must exist");
+  await vm.runInContext(instrumented, context, { filename: "workspace.js" });
+  const exposed = sandbox.__workspaceWriterHarness as Omit<WorkspaceWriterHarness, "backup" | "getRaw"> | undefined;
+  const backup = sandbox.SufeiyaWorkspaceBackup as BackupRuntime | undefined;
+  assert.ok(exposed && backup);
+  return { ...exposed, backup, getRaw: storage.raw };
+}
+
+async function loadJourneyWriterHarness(): Promise<JourneyWriterHarness> {
+  const storage = productionVmStorage();
+  const NativeDate = Date;
+  let currentTime = NativeDate.now();
+  class ControlledDate extends NativeDate {
+    constructor(value?: string | number) {
+      super(value === undefined ? currentTime : value);
+    }
+
+    static now(): number {
+      return currentTime;
+    }
+  }
+  const sandbox: MutableRecord = {
+    AbortController,
+    Blob,
+    Date: ControlledDate,
+    Error,
+    URL,
+    URLSearchParams,
+    clearInterval,
+    clearTimeout,
+    console,
+    crypto: webcrypto,
+    document: productionVmDocument(),
+    fetch: async () => ({ ok: false, status: 503, headers: { get: () => "application/json" }, text: async () => "{}", url: "http://localhost/api/gate0" }),
+    innerWidth: 1024,
+    localStorage: storage,
+    location: { origin: "http://localhost", pathname: "/diagnostic", search: "", reload: () => undefined },
+    navigator: { locks: productionVmLocks(), onLine: true },
+    setInterval,
+    setTimeout,
+    structuredClone,
+    TextEncoder,
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined,
+    confirm: () => true,
+  };
+  sandbox.window = sandbox;
+  sandbox.globalThis = sandbox;
+  const context = vm.createContext(sandbox);
+  vm.runInContext(runtimeSource, context, { filename: "workspace-backup.js" });
+  vm.runInContext(learningEventsSource, context, { filename: "learning-events.js" });
+  const instrumented = journeySource.replace(
+    '  window.addEventListener("storage", (event) => {',
+    `  window.__journeyWriterHarness = {
+    freshState: () => JSON.parse(JSON.stringify(freshState())),
+    getState: () => JSON.parse(JSON.stringify(state)),
+    setState: (next) => {
+      state = JSON.parse(JSON.stringify(next));
+      storageWritable = true;
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    },
+    validateCandidate: validateWorkspaceBackupCandidate,
+    commitNewDiagnostic,
+    commitDiagnosticRestart,
+    commitJourneyPlanClose,
+    validateCycleEvidence: () => JSON.parse(JSON.stringify(validateCycleEvidence())),
+    recommendationItems: () => JSON.parse(JSON.stringify(recommendationItems())),
+    createRecommendationBinding: (chain, primary, createdAt) => createRecommendationBinding(chain, primary, createdAt),
+    buildDiagnosticReport: (diagnostic) => JSON.parse(JSON.stringify(buildDiagnosticReport(diagnostic))),
+    deriveRetestOutcome: (skill, evidence) => deriveRetestOutcome(skill, evidence),
+  };
+  window.addEventListener("storage", (event) => {`,
+  );
+  assert.notEqual(instrumented, journeySource, "journey writer instrumentation anchor must exist");
+  await vm.runInContext(instrumented, context, { filename: "journey.js" });
+  const exposed = sandbox.__journeyWriterHarness as Omit<JourneyWriterHarness, "backup" | "learningEvents" | "getRaw"> | undefined;
+  const backup = sandbox.SufeiyaWorkspaceBackup as BackupRuntime | undefined;
+  const learningEvents = sandbox.SufeiyaLearningEvents as LearningEventsRuntime | undefined;
+  assert.ok(exposed && backup && learningEvents);
+  return {
+    ...exposed,
+    backup,
+    learningEvents,
+    getRaw: storage.raw,
+    setNow: (value: string) => {
+      const parsed = NativeDate.parse(value);
+      assert.ok(Number.isFinite(parsed), `controlled journey clock requires an ISO timestamp: ${value}`);
+      currentTime = parsed;
+    },
+  };
 }
 
 async function loadJourneyValidationHarness(): Promise<JourneyValidationHarness> {
@@ -1016,6 +1314,858 @@ function exactPlanFromTemplate({
   };
 }
 
+function capacityUuid(index: number, family: number): string {
+  const tail = (family * 1_000_000 + index + 1).toString(16).padStart(12, "0").slice(-12);
+  return `00000000-0000-4000-8${family.toString(16).padStart(3, "0").slice(-3)}-${tail}`;
+}
+
+function validStandaloneReceiptHistory(count: number): MutableRecord {
+  const templateState = standaloneReadingReceiptFixture();
+  const template = hostClone(Object.values(asRecord(templateState.practiceReceipts))[0] as MutableRecord);
+  return Object.fromEntries(Array.from({ length: count }, (_, index) => {
+    const completionReceiptId = capacityUuid(index, 1);
+    const receipt = hostClone(template);
+    receipt.completionReceiptId = completionReceiptId;
+    receipt.practiceAttemptId = capacityUuid(index, 2);
+    return [completionReceiptId, receipt];
+  }));
+}
+
+function validFocusSessionHistory(count: number): MutableRecord[] {
+  return Array.from({ length: count }, (_, index) => ({
+    sessionId: `focus-${(index + 1).toString(36)}`,
+    status: "completed",
+    durationSeconds: 900,
+    startedAt: "2026-08-12T00:00:00.000Z",
+    endedAt: "2026-08-12T00:15:00.000Z",
+  }));
+}
+
+function validArchivedCheckInHistory(count: number, state: MutableRecord): MutableRecord[] {
+  const current = hostClone(Object.values(asRecord(state.checkIns))[0] as MutableRecord);
+  return Array.from({ length: count }, (_, index) => ({
+    ...hostClone(current),
+    checkInId: `check-in-archived-${(index + 1).toString(36)}`,
+    archivedAt: "2026-08-12T00:03:00.000Z",
+    archivedReason: "learner_revision_after_save",
+  }));
+}
+
+function validStandalonePlanHistory(count: number): MutableRecord[] {
+  return Array.from({ length: count }, (_, index) => exactPlanFromTemplate({
+    planId: `plan-history-${(index + 1).toString(36)}`,
+    focusSkill: "Balanced",
+    createdAt: "2026-08-01T00:00:00.000Z",
+    diagnosticSessionId: null,
+    provenance: { source: "learner_configured_standalone" },
+    status: "superseded",
+    supersededAt: "2026-08-12T00:00:00.000Z",
+    supersededReason: "learner_manual_regeneration",
+  }));
+}
+
+const STRICT_CYCLE_TIMES = Object.freeze({
+  createdAt: "2026-08-12T00:00:00.000Z",
+  diagnosticCompletedAt: "2026-08-12T00:14:00.000Z",
+  planCreatedAt: "2026-08-12T00:15:00.000Z",
+  recommendationAt: "2026-08-12T00:16:00.000Z",
+  practiceStartedAt: "2026-08-12T00:17:00.000Z",
+  practiceCompletedAt: "2026-08-12T00:18:00.000Z",
+  checkInAt: "2026-08-12T00:19:00.000Z",
+  reviewAt: "2026-08-12T00:20:00.000Z",
+  peerHelpAt: "2026-08-12T00:21:00.000Z",
+  retestAt: "2026-08-12T00:22:00.000Z",
+  closeAt: "2026-08-12T00:23:00.000Z",
+});
+
+async function appendJourneyDomainEvent(
+  writer: JourneyWriterHarness,
+  candidate: MutableRecord,
+  eventType: string,
+  domain: MutableRecord,
+  occurredAt: string,
+): Promise<void> {
+  writer.setNow(occurredAt);
+  const outcome = await writer.learningEvents.appendDomainEvent(candidate, eventType, domain);
+  assert.equal(outcome.status, "appended", `${eventType}: ${String(outcome.code || "append failed")}`);
+}
+
+async function strictJourneyPreCloseFixture(
+  writer: JourneyWriterHarness,
+  validation: JourneyValidationHarness,
+): Promise<MutableRecord> {
+  const started = startedCycleFixture();
+  const candidate = started.candidate;
+  Object.assign(started.cycle, {
+    createdAt: STRICT_CYCLE_TIMES.createdAt,
+    updatedAt: STRICT_CYCLE_TIMES.createdAt,
+  });
+  Object.assign(started.diagnostic, {
+    createdAt: STRICT_CYCLE_TIMES.createdAt,
+    updatedAt: STRICT_CYCLE_TIMES.createdAt,
+  });
+  asRecord(started.diagnostic.consent).confirmedAt = STRICT_CYCLE_TIMES.createdAt;
+  asRecord(started.diagnostic.devicePrecheck).completedAt = STRICT_CYCLE_TIMES.createdAt;
+  writer.setNow(STRICT_CYCLE_TIMES.createdAt);
+  await appendJourneyDomainEvent(
+    writer,
+    candidate,
+    "learning_cycle.started",
+    { cycle: started.cycle, diagnostic: started.diagnostic },
+    STRICT_CYCLE_TIMES.createdAt,
+  );
+
+  const completed = completedDiagnosticFixture(validation);
+  const journey = asRecord(candidate.journey);
+  journey.activeCycle = completed.cycle;
+  journey.diagnostic = completed.diagnostic;
+  candidate.profile = completed.candidate.profile;
+  candidate.updatedAt = STRICT_CYCLE_TIMES.diagnosticCompletedAt;
+  const cycle = asRecord(journey.activeCycle);
+  const diagnostic = asRecord(journey.diagnostic);
+  const focusSkill = String(diagnostic.prioritySkill);
+  const plan = exactPlanFromTemplate({
+    planId: "plan-strict-cycle-base-v1",
+    focusSkill,
+    createdAt: STRICT_CYCLE_TIMES.planCreatedAt,
+    diagnosticSessionId: String(cycle.diagnosticSessionId),
+    provenance: {
+      source: "learner_configured_after_gate_a_evidence_diagnostic",
+      cycleId: cycle.cycleId,
+      diagnosticSessionId: cycle.diagnosticSessionId,
+      taskSetVersion: diagnostic.taskSetVersion,
+      taskSetDigest: diagnostic.taskSetDigest,
+      priorityBasis: diagnostic.priorityBasis,
+    },
+  });
+  candidate.plan = plan;
+  cycle.basePlanId = plan.planId;
+  cycle.updatedAt = STRICT_CYCLE_TIMES.planCreatedAt;
+  candidate.updatedAt = STRICT_CYCLE_TIMES.planCreatedAt;
+
+  writer.setState(candidate);
+  const items = writer.recommendationItems();
+  assert.equal(items.length, 3, "strict cycle needs the actual three recommendation items");
+  const recommendationId = "recommendation-strict-cycle-v1";
+  const recommendationBinding = writer.createRecommendationBinding(
+    writer.validateCycleEvidence(),
+    items[0],
+    STRICT_CYCLE_TIMES.recommendationAt,
+  );
+  assert.ok(recommendationBinding, "actual recommendation binding must be derivable");
+  const recommendation: MutableRecord = {
+    recommendationId,
+    cycleId: cycle.cycleId,
+    planId: cycle.basePlanId,
+    diagnosticSessionId: cycle.diagnosticSessionId,
+    status: "accepted",
+    itemCount: items.length,
+    primary: items[0],
+    evidenceBinding: recommendationBinding,
+    supplements: items.slice(1),
+    sourceMode: "frozen_local_routes_no_rag",
+    learnerChoice: true,
+    updatedAt: STRICT_CYCLE_TIMES.recommendationAt,
+    createdAt: STRICT_CYCLE_TIMES.recommendationAt,
+  };
+  journey.recommendation = recommendation;
+  cycle.recommendationId = recommendationId;
+  cycle.updatedAt = STRICT_CYCLE_TIMES.recommendationAt;
+  candidate.updatedAt = STRICT_CYCLE_TIMES.recommendationAt;
+  await appendJourneyDomainEvent(
+    writer,
+    candidate,
+    "recommendation.decided",
+    { recommendation },
+    STRICT_CYCLE_TIMES.recommendationAt,
+  );
+
+  const primary = asRecord(recommendation.primary);
+  const receiptId = "00000000-0000-4000-8000-00000000c001";
+  const attemptId = "00000000-0000-4000-8000-00000000c002";
+  const receipt = hostClone(Object.values(asRecord(standaloneReadingReceiptFixture().practiceReceipts))[0] as MutableRecord);
+  Object.assign(receipt, {
+    completedAt: STRICT_CYCLE_TIMES.practiceCompletedAt,
+    completionReceiptId: receiptId,
+    cycleId: cycle.cycleId,
+    diagnosticSessionId: cycle.diagnosticSessionId,
+    planId: cycle.basePlanId,
+    practiceAttemptId: attemptId,
+    recommendationId,
+    startedAt: STRICT_CYCLE_TIMES.practiceStartedAt,
+    taskDate: String(primary.taskId).split("-").slice(-3, -2)[0] || "2026-08-12",
+    taskId: primary.taskId,
+  });
+  const basePlanDay = (plan.days as MutableRecord[]).find((day) =>
+    (day.tasks as MutableRecord[]).some((task) => task.taskId === primary.taskId));
+  assert.ok(basePlanDay, "recommendation primary must belong to the generated base plan");
+  receipt.taskDate = basePlanDay.date;
+  receipt.taskRef = {
+    cycleId: cycle.cycleId,
+    diagnosticSessionId: cycle.diagnosticSessionId,
+    planId: cycle.basePlanId,
+    taskDate: receipt.taskDate,
+    taskId: receipt.taskId,
+  };
+  candidate.practiceReceipts = { [receiptId]: receipt };
+  asRecord(candidate.taskProgress)[String(receipt.taskId)] = {
+    completedAt: receipt.completedAt,
+    completionClass: "practice_receipt",
+    evidenceStatus: receipt.evidenceStatus,
+    practiceReceiptId: receiptId,
+    receiptEvidenceClass: receipt.receiptEvidenceClass,
+    selfReported: false,
+    source: "practice-reading",
+    status: "completed",
+    updatedAt: receipt.completedAt,
+  };
+  await appendJourneyDomainEvent(
+    writer,
+    candidate,
+    "practice_attempt.finalized",
+    { receipt, recommendation },
+    STRICT_CYCLE_TIMES.practiceCompletedAt,
+  );
+
+  const checkInId = "check-in-strict-cycle-v1";
+  const checkIn: MutableRecord = {
+    anomalyReviewStatus: "not_flagged",
+    checkInId,
+    cycleId: cycle.cycleId,
+    date: receipt.taskDate,
+    diagnosticSessionId: cycle.diagnosticSessionId,
+    didText: "Completed the linked reading task carefully.",
+    evidenceClass: "practice_receipt",
+    evidenceText: "Saved the exact local practice receipt as evidence.",
+    learnerConfirmedReview: false,
+    linkedTaskId: receipt.taskId,
+    planId: cycle.basePlanId,
+    practiceAttemptId: attemptId,
+    practiceReceipt: hostClone(receipt),
+    questionStatus: "none",
+    questionText: "",
+    recommendationId,
+    reviewedAt: null,
+    reviewId: null,
+    savedAt: STRICT_CYCLE_TIMES.checkInAt,
+    status: "saved",
+    taskCompletionReceiptId: receiptId,
+    updatedAt: STRICT_CYCLE_TIMES.checkInAt,
+    visibility: "local_only",
+  };
+  asRecord(candidate.checkIns)[String(checkIn.date)] = checkIn;
+  const reflectionTask = (basePlanDay.tasks as MutableRecord[]).find((task) => task.skill === "Reflection") as MutableRecord;
+  assert.ok(reflectionTask);
+  asRecord(candidate.taskProgress)[String(reflectionTask.taskId)] = {
+    completedAt: STRICT_CYCLE_TIMES.checkInAt,
+    completionClass: "workflow_receipt",
+    selfReported: false,
+    source: "check-in",
+    status: "completed",
+    updatedAt: STRICT_CYCLE_TIMES.checkInAt,
+    workflowReceipt: {
+      checkInId,
+      completedAt: STRICT_CYCLE_TIMES.checkInAt,
+      protocolVersion: "sufeiya_check_in_completion_v1",
+      taskId: reflectionTask.taskId,
+    },
+  };
+  cycle.checkInId = checkInId;
+  cycle.updatedAt = STRICT_CYCLE_TIMES.checkInAt;
+  candidate.updatedAt = STRICT_CYCLE_TIMES.checkInAt;
+  await appendJourneyDomainEvent(
+    writer,
+    candidate,
+    "check_in.committed",
+    { checkIn, recommendation },
+    STRICT_CYCLE_TIMES.checkInAt,
+  );
+
+  const reviewId = "review-strict-cycle-v1";
+  const review: MutableRecord = {
+    cycleId: cycle.cycleId,
+    reviewId,
+    checkInId,
+    learnerConfirmed: true,
+    shareStatus: "not_shared",
+    reminderStatus: "not_enabled",
+    humanEscalationStatus: "not_requested",
+    confirmedAt: STRICT_CYCLE_TIMES.reviewAt,
+  };
+  journey.review = review;
+  Object.assign(checkIn, {
+    learnerConfirmedReview: true,
+    reviewedAt: STRICT_CYCLE_TIMES.reviewAt,
+    reviewId,
+    updatedAt: STRICT_CYCLE_TIMES.reviewAt,
+  });
+  cycle.reviewId = reviewId;
+  cycle.updatedAt = STRICT_CYCLE_TIMES.reviewAt;
+
+  const peerHelpId = "peer-help-strict-cycle-v1";
+  const peerHelp: MutableRecord = {
+    peerHelpId,
+    cycleId: cycle.cycleId,
+    planId: cycle.basePlanId,
+    reviewId,
+    status: "not_needed",
+    source: "synthetic_demo_card_v1",
+    learnerChoice: true,
+    realCommunityUsed: false,
+    updatedAt: STRICT_CYCLE_TIMES.peerHelpAt,
+    createdAt: STRICT_CYCLE_TIMES.peerHelpAt,
+  };
+  journey.peerHelp = peerHelp;
+  cycle.peerHelpId = peerHelpId;
+  cycle.updatedAt = STRICT_CYCLE_TIMES.peerHelpAt;
+
+  const retest = retestFixture(validation, focusSkill);
+  Object.assign(retest, {
+    baselinePracticeReceiptId: receiptId,
+    baselineTaskId: receipt.taskId,
+    checkInId,
+    completedAt: STRICT_CYCLE_TIMES.retestAt,
+    cycleId: cycle.cycleId,
+    diagnosticSessionId: cycle.diagnosticSessionId,
+    peerHelpId,
+    planId: cycle.basePlanId,
+    recommendationId,
+    retestId: "retest-strict-cycle-v1",
+    reviewId,
+  });
+  journey.retest = retest;
+  cycle.retestId = retest.retestId;
+  cycle.updatedAt = STRICT_CYCLE_TIMES.retestAt;
+  candidate.updatedAt = STRICT_CYCLE_TIMES.retestAt;
+  await appendJourneyDomainEvent(
+    writer,
+    candidate,
+    "retest.completed",
+    { retest, recommendation },
+    STRICT_CYCLE_TIMES.retestAt,
+  );
+  writer.setState(candidate);
+  assert.equal(writer.validateCycleEvidence().retestEvidenceComplete, true, "strict cycle must be closable");
+  return candidate;
+}
+
+function replaceAllStrictIds<T>(value: T, replacements: Map<string, string>): T {
+  let serialized = JSON.stringify(value);
+  [...replacements.entries()]
+    .sort(([left], [right]) => right.length - left.length)
+    .forEach(([from, to]) => { serialized = serialized.split(from).join(to); });
+  return JSON.parse(serialized) as T;
+}
+
+function shiftStrictCycleTimestamps<T>(value: T, days: number): T {
+  const offset = days * 24 * 60 * 60 * 1000;
+  const visit = (candidate: unknown): unknown => {
+    if (typeof candidate === "string" && /^\d{4}-\d{2}-\d{2}T/.test(candidate)) {
+      const parsed = Date.parse(candidate);
+      return Number.isFinite(parsed) ? new Date(parsed + offset).toISOString() : candidate;
+    }
+    if (typeof candidate === "number" && candidate >= Date.parse("2020-01-01T00:00:00.000Z")) {
+      return candidate + offset;
+    }
+    if (Array.isArray(candidate)) return candidate.map(visit);
+    if (candidate && typeof candidate === "object") {
+      return Object.fromEntries(Object.entries(candidate).map(([key, child]) => [key, visit(child)]));
+    }
+    return candidate;
+  };
+  return visit(value) as T;
+}
+
+function remapStrictCycleSlice(
+  source: MutableRecord,
+  index: number,
+  { terminal }: { terminal: boolean },
+): MutableRecord {
+  const journey = asRecord(source.journey);
+  const cycle = terminal
+    ? asRecord((journey.history as MutableRecord[])[0])
+    : asRecord(journey.activeCycle);
+  const recommendation = terminal ? asRecord(cycle.recommendation) : asRecord(journey.recommendation);
+  const checkIn = terminal ? asRecord(cycle.checkIn) : Object.values(asRecord(source.checkIns))[0] as MutableRecord;
+  const receipt = asRecord(checkIn.practiceReceipt);
+  const replacements = new Map<string, string>([
+    [String(cycle.cycleId), `cycle-capacity-${index.toString(36)}`],
+    [String(cycle.diagnosticSessionId), `diagnostic-capacity-${index.toString(36)}`],
+    [String(cycle.basePlanId), `plan-capacity-base-${index.toString(36)}`],
+    [String(cycle.recommendationId), `recommendation-capacity-${index.toString(36)}`],
+    [String(recommendation.evidenceBinding && asRecord(recommendation.evidenceBinding).bindingId), `recommendation-binding-capacity-${index.toString(36)}`],
+    [String(cycle.checkInId), `check-in-capacity-${index.toString(36)}`],
+    [String(cycle.reviewId), `review-capacity-${index.toString(36)}`],
+    [String(cycle.peerHelpId), `peer-help-capacity-${index.toString(36)}`],
+    [String(cycle.retestId), `retest-capacity-${index.toString(36)}`],
+    [String(receipt.completionReceiptId), capacityUuid(index, 12)],
+    [String(receipt.practiceAttemptId), capacityUuid(index, 13)],
+  ]);
+  if (terminal) replacements.set(String(cycle.updatedPlanId), `plan-capacity-updated-${index.toString(36)}`);
+  return shiftStrictCycleTimestamps(replaceAllStrictIds(source, replacements), index);
+}
+
+function terminalHistorySupersededSummary(history: MutableRecord, supersededAt: string): MutableRecord {
+  const diagnostic = asRecord(history.diagnostic);
+  return {
+    cycleId: history.cycleId,
+    diagnosticSessionId: history.diagnosticSessionId,
+    protocolVersion: history.protocolVersion,
+    diagnosticProtocolVersion: diagnostic.diagnosticProtocolVersion,
+    taskSetVersion: diagnostic.taskSetVersion,
+    taskSetDigest: diagnostic.taskSetDigest,
+    diagnosticStatus: diagnostic.status,
+    taskEvidenceSummary: (diagnostic.taskEvidence as MutableRecord[]).map((item) => ({
+      taskId: item.taskId,
+      taskVersion: item.taskVersion,
+      contentHash: item.contentHash,
+      skill: item.skill,
+      status: item.status,
+      evidenceStatus: item.evidenceStatus,
+      qualityFlags: hostClone(item.qualityFlags),
+      ...(Number.isFinite(Number(item.durationSeconds)) ? { durationSeconds: Number(item.durationSeconds) } : {}),
+      ...(Number.isFinite(Number(item.wordCount)) ? { wordCount: Number(item.wordCount) } : {}),
+      ...(Number.isFinite(Number(item.selfReviewCount)) ? { selfReviewCount: Number(item.selfReviewCount) } : {}),
+      ...(typeof item.resultType === "string" ? { resultType: item.resultType } : {}),
+    })),
+    prioritySkill: diagnostic.prioritySkill,
+    priorityBasis: diagnostic.priorityBasis,
+    evidenceSufficiency: diagnostic.evidenceSufficiency,
+    status: "superseded_by_new_diagnostic",
+    supersededAt,
+    reason: "learner_started_new_gate_a_evidence_pack",
+  };
+}
+
+async function appendStrictCycleLedger(
+  writer: JourneyWriterHarness,
+  candidate: MutableRecord,
+  cycleRecord: MutableRecord,
+): Promise<void> {
+  const diagnostic = asRecord(cycleRecord.diagnostic);
+  const recommendation = asRecord(cycleRecord.recommendation);
+  const checkIn = asRecord(cycleRecord.checkIn);
+  const retest = asRecord(cycleRecord.retest);
+  const planUpdate = cycleRecord.planUpdate ? asRecord(cycleRecord.planUpdate) : null;
+  const startedCycle = {
+    basePlanId: null,
+    checkInId: null,
+    closedAt: null,
+    createdAt: cycleRecord.createdAt,
+    cycleId: cycleRecord.cycleId,
+    diagnosticSessionId: cycleRecord.diagnosticSessionId,
+    peerHelpId: null,
+    protocolVersion: cycleRecord.protocolVersion,
+    provisionalAt: null,
+    recommendationId: null,
+    retestId: null,
+    reviewId: null,
+    status: "in_progress",
+    updatedAt: cycleRecord.createdAt,
+    updatedPlanId: null,
+  };
+  const startedDiagnostic = {
+    cycleId: cycleRecord.cycleId,
+    diagnosticSessionId: cycleRecord.diagnosticSessionId,
+    protocolVersion: diagnostic.protocolVersion,
+    status: "in_progress",
+    taskSetDigest: diagnostic.taskSetDigest,
+    taskSetVersion: diagnostic.taskSetVersion,
+  };
+  await appendJourneyDomainEvent(writer, candidate, "learning_cycle.started", {
+    cycle: startedCycle,
+    diagnostic: startedDiagnostic,
+  }, String(cycleRecord.createdAt));
+  await appendJourneyDomainEvent(writer, candidate, "recommendation.decided", { recommendation }, String(recommendation.createdAt));
+  await appendJourneyDomainEvent(writer, candidate, "practice_attempt.finalized", {
+    receipt: checkIn.practiceReceipt,
+    recommendation,
+  }, String(asRecord(checkIn.practiceReceipt).completedAt));
+  await appendJourneyDomainEvent(writer, candidate, "check_in.committed", { checkIn, recommendation }, String(checkIn.savedAt));
+  await appendJourneyDomainEvent(writer, candidate, "retest.completed", { retest, recommendation }, String(retest.completedAt));
+  if (planUpdate) {
+    await appendJourneyDomainEvent(writer, candidate, "learning_cycle.completed", {
+      cycle: cycleRecord,
+      retest,
+      planUpdate,
+    }, String(cycleRecord.closedAt));
+  }
+}
+
+async function strictClosedCycleTemplate(
+  writer: JourneyWriterHarness,
+  validation: JourneyValidationHarness,
+): Promise<MutableRecord> {
+  const preClose = await strictJourneyPreCloseFixture(writer, validation);
+  writer.setNow(STRICT_CYCLE_TIMES.closeAt);
+  const outcome = await writer.commitJourneyPlanClose(String(asRecord(preClose.profile).focusSkill));
+  assert.equal(outcome.status, "saved", String(outcome.code || "strict close failed"));
+  return writer.getState();
+}
+
+async function strictTerminalCycleCollection(
+  writer: JourneyWriterHarness,
+  validation: JourneyValidationHarness,
+  template: MutableRecord,
+  count: number,
+): Promise<MutableRecord> {
+  assert.ok(Number.isInteger(count) && count >= 1);
+  const slices = Array.from({ length: count }, (_, index) =>
+    remapStrictCycleSlice(template, index, { terminal: true }));
+  const result = writer.freshState();
+  result.plan = slices.at(-1)?.plan || null;
+  result.planHistory = slices.flatMap((slice, index) => {
+    const plans = [hostClone((slice.planHistory as MutableRecord[])[0])];
+    if (index < slices.length - 1) {
+      const laterCreatedAt = asRecord(asRecord(slices[index + 1].journey).activeCycle).createdAt;
+      plans.push({
+        ...hostClone(asRecord(slice.plan)),
+        status: "superseded",
+        supersededAt: laterCreatedAt,
+        supersededReason: "learner_started_new_gate_a_evidence_pack",
+      });
+    }
+    return plans;
+  });
+  const resultJourney = asRecord(result.journey);
+  const lastJourney = asRecord(slices.at(-1)?.journey);
+  resultJourney.activeCycle = hostClone(lastJourney.activeCycle);
+  resultJourney.diagnostic = hostClone(lastJourney.diagnostic);
+  resultJourney.recommendation = hostClone(lastJourney.recommendation);
+  resultJourney.review = hostClone(lastJourney.review);
+  resultJourney.peerHelp = hostClone(lastJourney.peerHelp);
+  resultJourney.retest = hostClone(lastJourney.retest);
+  resultJourney.planUpdate = hostClone(lastJourney.planUpdate);
+  resultJourney.history = slices.map((slice) => hostClone((asRecord(slice.journey).history as MutableRecord[])[0]));
+  resultJourney.supersededCycles = slices.slice(0, -1).map((slice, index) => {
+    const history = (asRecord(slice.journey).history as MutableRecord[])[0];
+    const supersededAt = asRecord(asRecord(slices[index + 1].journey).activeCycle).createdAt;
+    return terminalHistorySupersededSummary(history, String(supersededAt));
+  });
+  result.profile = hostClone(slices.at(-1)?.profile);
+  result.practice = {};
+  result.practiceReceipts = {};
+  result.taskProgress = {};
+  result.checkIns = {};
+  result.checkInHistory = [];
+  result.learningEvents = [];
+  result.learningEventBindings = null;
+  for (let index = 0; index < slices.length; index += 1) {
+    const slice = slices[index];
+    const history = (asRecord(slice.journey).history as MutableRecord[])[0];
+    const receipt = asRecord(history.checkIn).practiceReceipt as MutableRecord;
+    asRecord(result.practiceReceipts)[String(receipt.completionReceiptId)] = hostClone(receipt);
+    Object.assign(asRecord(result.taskProgress), hostClone(slice.taskProgress));
+    const checkIn = hostClone(asRecord(history.checkIn));
+    if (index === slices.length - 1) {
+      asRecord(result.checkIns)[String(checkIn.date)] = checkIn;
+    } else {
+      (result.checkInHistory as MutableRecord[]).push({
+        ...checkIn,
+        archivedAt: asRecord(asRecord(slices[index + 1].journey).activeCycle).createdAt,
+        archivedReason: "scope_changed",
+      });
+    }
+    await appendStrictCycleLedger(writer, result, history);
+  }
+  result.updatedAt = asRecord(resultJourney.activeCycle).updatedAt;
+  return result;
+}
+
+async function strictPreCloseAfterTerminalCycles(
+  writer: JourneyWriterHarness,
+  validation: JourneyValidationHarness,
+  closedTemplate: MutableRecord,
+  preCloseTemplate: MutableRecord,
+  completedCount: number,
+): Promise<MutableRecord> {
+  const prior = await strictTerminalCycleCollection(writer, validation, closedTemplate, completedCount);
+  const next = remapStrictCycleSlice(preCloseTemplate, completedCount, { terminal: false });
+  const nextJourney = asRecord(next.journey);
+  const nextCycle = asRecord(nextJourney.activeCycle);
+  const candidate = hostClone(prior);
+  const candidateJourney = asRecord(candidate.journey);
+  const previousHistory = (candidateJourney.history as MutableRecord[]).at(-1) as MutableRecord;
+  const previousPlan = asRecord(candidate.plan);
+  (candidate.planHistory as MutableRecord[]).push({
+    ...hostClone(previousPlan),
+    status: "superseded",
+    supersededAt: nextCycle.createdAt,
+    supersededReason: "learner_started_new_gate_a_evidence_pack",
+  });
+  candidateJourney.supersededCycles = [
+    ...(candidateJourney.supersededCycles as MutableRecord[]),
+    terminalHistorySupersededSummary(previousHistory, String(nextCycle.createdAt)),
+  ];
+  const previousCheckIn = hostClone(Object.values(asRecord(candidate.checkIns))[0] as MutableRecord);
+  candidate.checkInHistory = [
+    ...(candidate.checkInHistory as MutableRecord[]),
+    {
+      ...previousCheckIn,
+      archivedAt: nextCycle.createdAt,
+      archivedReason: "scope_changed",
+    },
+  ];
+  candidate.plan = hostClone(next.plan);
+  candidateJourney.activeCycle = hostClone(nextJourney.activeCycle);
+  candidateJourney.diagnostic = hostClone(nextJourney.diagnostic);
+  candidateJourney.recommendation = hostClone(nextJourney.recommendation);
+  candidateJourney.review = hostClone(nextJourney.review);
+  candidateJourney.peerHelp = hostClone(nextJourney.peerHelp);
+  candidateJourney.retest = hostClone(nextJourney.retest);
+  candidateJourney.planUpdate = null;
+  candidate.profile = hostClone(next.profile);
+  candidate.checkIns = hostClone(next.checkIns);
+  Object.assign(asRecord(candidate.practiceReceipts), hostClone(next.practiceReceipts));
+  Object.assign(asRecord(candidate.taskProgress), hostClone(next.taskProgress));
+  const currentCheckIn = Object.values(asRecord(candidate.checkIns))[0] as MutableRecord;
+  await appendStrictCycleLedger(writer, candidate, {
+    ...hostClone(nextCycle),
+    diagnostic: hostClone(nextJourney.diagnostic),
+    recommendation: hostClone(nextJourney.recommendation),
+    checkIn: hostClone(currentCheckIn),
+    review: hostClone(nextJourney.review),
+    peerHelp: hostClone(nextJourney.peerHelp),
+    retest: hostClone(nextJourney.retest),
+    planUpdate: null,
+  });
+  candidate.updatedAt = nextCycle.updatedAt;
+  return candidate;
+}
+
+function preCloseSupersededSummary(candidate: MutableRecord, supersededAt: string): MutableRecord {
+  const journey = asRecord(candidate.journey);
+  const cycle = asRecord(journey.activeCycle);
+  const diagnostic = asRecord(journey.diagnostic);
+  return {
+    cycleId: cycle.cycleId,
+    diagnosticSessionId: cycle.diagnosticSessionId,
+    protocolVersion: cycle.protocolVersion,
+    diagnosticProtocolVersion: diagnostic.diagnosticProtocolVersion,
+    taskSetVersion: diagnostic.taskSetVersion,
+    taskSetDigest: diagnostic.taskSetDigest,
+    diagnosticStatus: diagnostic.status,
+    taskEvidenceSummary: (diagnostic.taskEvidence as MutableRecord[]).map((item) => ({
+      taskId: item.taskId,
+      taskVersion: item.taskVersion,
+      contentHash: item.contentHash,
+      skill: item.skill,
+      status: item.status,
+      evidenceStatus: item.evidenceStatus,
+      qualityFlags: hostClone(item.qualityFlags),
+      ...(Number.isFinite(Number(item.durationSeconds)) ? { durationSeconds: Number(item.durationSeconds) } : {}),
+      ...(Number.isFinite(Number(item.wordCount)) ? { wordCount: Number(item.wordCount) } : {}),
+      ...(Number.isFinite(Number(item.selfReviewCount)) ? { selfReviewCount: Number(item.selfReviewCount) } : {}),
+      ...(typeof item.resultType === "string" ? { resultType: item.resultType } : {}),
+    })),
+    prioritySkill: diagnostic.prioritySkill,
+    priorityBasis: diagnostic.priorityBasis,
+    evidenceSufficiency: diagnostic.evidenceSufficiency,
+    status: "superseded_by_new_diagnostic",
+    supersededAt,
+    reason: "learner_started_new_gate_a_evidence_pack",
+  };
+}
+
+async function strictSupersededPrefixCollection(
+  writer: JourneyWriterHarness,
+  validation: JourneyValidationHarness,
+  preCloseTemplate: MutableRecord,
+  cycleCount: number,
+  practicesPerCycle: number,
+): Promise<MutableRecord> {
+  assert.ok(Number.isInteger(cycleCount) && cycleCount >= 1 && cycleCount <= 64);
+  assert.ok(Number.isInteger(practicesPerCycle) && practicesPerCycle >= 1 && practicesPerCycle <= 3);
+  const result = writer.freshState();
+  result.plan = null;
+  result.planHistory = [];
+  result.practice = {};
+  result.practiceReceipts = {};
+  result.taskProgress = {};
+  result.checkIns = {};
+  result.checkInHistory = [];
+  result.learningEvents = [];
+  result.learningEventBindings = null;
+  const resultJourney = asRecord(result.journey);
+  resultJourney.activeCycle = null;
+  resultJourney.diagnostic = null;
+  resultJourney.recommendation = null;
+  resultJourney.review = null;
+  resultJourney.peerHelp = null;
+  resultJourney.retest = null;
+  resultJourney.planUpdate = null;
+  resultJourney.history = [];
+  resultJourney.supersededCycles = [];
+  for (let index = 0; index < cycleCount; index += 1) {
+    const slice = remapStrictCycleSlice(preCloseTemplate, index, { terminal: false });
+    const sliceJourney = asRecord(slice.journey);
+    const cycle = asRecord(sliceJourney.activeCycle);
+    const recommendation = asRecord(sliceJourney.recommendation);
+    recommendation.status = "skipped";
+    const sourceReceipt = Object.values(asRecord(slice.practiceReceipts))[0] as MutableRecord;
+    const plan = hostClone(asRecord(slice.plan));
+    const supersededAt = new Date(Date.parse(String(cycle.updatedAt)) + 60_000).toISOString();
+    (result.planHistory as MutableRecord[]).push({
+      ...plan,
+      status: "superseded",
+      supersededAt,
+      supersededReason: "learner_started_new_gate_a_evidence_pack",
+    });
+    (resultJourney.supersededCycles as MutableRecord[]).push(preCloseSupersededSummary(slice, supersededAt));
+
+    const planTasks = (plan.days as MutableRecord[])
+      .flatMap((day) => day.tasks as MutableRecord[])
+      .filter((task) => task.skill === "Reading" && task.taskId !== asRecord(recommendation.primary).taskId);
+    assert.ok(planTasks.length >= practicesPerCycle);
+    const receipts: MutableRecord[] = [];
+    for (let practiceIndex = 0; practiceIndex < practicesPerCycle; practiceIndex += 1) {
+      const task = planTasks[practiceIndex];
+      const completedAt = new Date(Date.parse(String(sourceReceipt.completedAt)) + practiceIndex * 10_000).toISOString();
+      const startedAt = new Date(Date.parse(completedAt) - 60_000).toISOString();
+      const receiptId = capacityUuid(index * 4 + practiceIndex, 14);
+      const attemptId = capacityUuid(index * 4 + practiceIndex, 15);
+      const receipt: MutableRecord = {
+        ...hostClone(sourceReceipt),
+        completedAt,
+        completionReceiptId: receiptId,
+        practiceAttemptId: attemptId,
+        startedAt,
+        taskDate: task.date,
+        taskId: task.taskId,
+        taskRef: {
+          cycleId: cycle.cycleId,
+          diagnosticSessionId: cycle.diagnosticSessionId,
+          planId: cycle.basePlanId,
+          taskDate: task.date,
+          taskId: task.taskId,
+        },
+      };
+      asRecord(result.practiceReceipts)[receiptId] = receipt;
+      asRecord(result.taskProgress)[String(task.taskId)] = {
+        completedAt,
+        completionClass: "practice_receipt",
+        evidenceStatus: receipt.evidenceStatus,
+        practiceReceiptId: receiptId,
+        receiptEvidenceClass: receipt.receiptEvidenceClass,
+        selfReported: false,
+        source: "practice-reading",
+        status: "completed",
+        updatedAt: completedAt,
+      };
+      receipts.push(receipt);
+    }
+    const sourceCheckIn = Object.values(asRecord(slice.checkIns))[0] as MutableRecord;
+    const checkedReceipt = receipts[0];
+    const checkIn: MutableRecord = {
+      ...hostClone(sourceCheckIn),
+      date: checkedReceipt.taskDate,
+      linkedTaskId: checkedReceipt.taskId,
+      practiceAttemptId: checkedReceipt.practiceAttemptId,
+      practiceReceipt: hostClone(checkedReceipt),
+      taskCompletionReceiptId: checkedReceipt.completionReceiptId,
+      archivedAt: supersededAt,
+      archivedReason: "scope_changed",
+    };
+    (result.checkInHistory as MutableRecord[]).push(checkIn);
+    const diagnostic = asRecord(sliceJourney.diagnostic);
+    await appendJourneyDomainEvent(writer, result, "learning_cycle.started", {
+      cycle: {
+        ...hostClone(cycle),
+        basePlanId: null,
+        recommendationId: null,
+        checkInId: null,
+        reviewId: null,
+        peerHelpId: null,
+        retestId: null,
+        updatedPlanId: null,
+        status: "in_progress",
+        updatedAt: cycle.createdAt,
+      },
+      diagnostic: {
+        cycleId: cycle.cycleId,
+        diagnosticSessionId: cycle.diagnosticSessionId,
+        protocolVersion: diagnostic.protocolVersion,
+        status: "in_progress",
+        taskSetDigest: diagnostic.taskSetDigest,
+        taskSetVersion: diagnostic.taskSetVersion,
+      },
+    }, String(cycle.createdAt));
+    await appendJourneyDomainEvent(writer, result, "recommendation.decided", { recommendation }, String(recommendation.createdAt));
+    for (const receipt of receipts) {
+      await appendJourneyDomainEvent(writer, result, "practice_attempt.finalized", { receipt, recommendation }, String(receipt.completedAt));
+    }
+    await appendJourneyDomainEvent(writer, result, "check_in.committed", { checkIn, recommendation }, String(checkIn.savedAt));
+    const retest: MutableRecord = {
+      ...hostClone(asRecord(sliceJourney.retest)),
+      baselinePracticeReceiptId: checkedReceipt.completionReceiptId,
+      baselineTaskId: checkedReceipt.taskId,
+    };
+    await appendJourneyDomainEvent(writer, result, "retest.completed", { retest, recommendation }, String(retest.completedAt));
+  }
+  result.updatedAt = String((resultJourney.supersededCycles as MutableRecord[]).at(-1)?.supersededAt);
+  return result;
+}
+
+async function strictMixedSupersededEventCollection(
+  writer: JourneyWriterHarness,
+  validation: JourneyValidationHarness,
+  preCloseTemplate: MutableRecord,
+  fullPrefixCount: number,
+  totalCycleCount = 64,
+): Promise<MutableRecord> {
+  assert.ok(Number.isInteger(fullPrefixCount) && fullPrefixCount >= 1 && fullPrefixCount <= totalCycleCount);
+  const result = await strictSupersededPrefixCollection(writer, validation, preCloseTemplate, fullPrefixCount, 1);
+  const journey = asRecord(result.journey);
+  for (let index = fullPrefixCount; index < totalCycleCount; index += 1) {
+    const createdAt = new Date(Date.parse(STRICT_CYCLE_TIMES.createdAt) + index * 86_400_000).toISOString();
+    const supersededAt = new Date(Date.parse(createdAt) + 60_000).toISOString();
+    const cycleId = `cycle-started-only-${index.toString(36)}`;
+    const diagnosticSessionId = `diagnostic-started-only-${index.toString(36)}`;
+    const cycle = {
+      basePlanId: null,
+      checkInId: null,
+      closedAt: null,
+      createdAt,
+      cycleId,
+      diagnosticSessionId,
+      peerHelpId: null,
+      protocolVersion: "gate_a_local_v1",
+      provisionalAt: null,
+      recommendationId: null,
+      retestId: null,
+      reviewId: null,
+      status: "in_progress",
+      updatedAt: createdAt,
+      updatedPlanId: null,
+    };
+    const diagnostic = {
+      diagnosticSessionId,
+      cycleId,
+      protocolVersion: "gate_a_local_v1",
+      diagnosticProtocolVersion: "gate_a_diagnostic_evidence_v1",
+      taskSetVersion: "gate_a_original_6_v1",
+      taskSetDigest: "c1b2922ca96677665690bf790281be2438a016bbbe0d9f85478685af3c8dfc2c",
+      status: "in_progress",
+    };
+    (journey.supersededCycles as MutableRecord[]).push({
+      cycleId,
+      diagnosticSessionId,
+      protocolVersion: cycle.protocolVersion,
+      diagnosticProtocolVersion: diagnostic.diagnosticProtocolVersion,
+      taskSetVersion: diagnostic.taskSetVersion,
+      taskSetDigest: diagnostic.taskSetDigest,
+      diagnosticStatus: "in_progress",
+      taskEvidenceSummary: [],
+      status: "superseded_by_new_diagnostic",
+      supersededAt,
+      reason: "learner_started_new_gate_a_evidence_pack",
+    });
+    await appendJourneyDomainEvent(writer, result, "learning_cycle.started", { cycle, diagnostic }, createdAt);
+  }
+  result.updatedAt = String((journey.supersededCycles as MutableRecord[]).at(-1)?.supersededAt);
+  return result;
+}
+
 
 function planBoundReadingReceiptFixture(): MutableRecord {
   const candidate = expiredActivePlanFixture();
@@ -1081,6 +2231,18 @@ async function inspectProductionCandidate(
     JSON.stringify(created.envelope),
     harness.validateCandidate,
   );
+}
+
+async function assertWriterPreStateReady(
+  harness: Pick<WorkspaceWriterHarness | JourneyWriterHarness, "backup">,
+  candidate: MutableRecord,
+  label: string,
+): Promise<void> {
+  const created = await harness.backup.createEnvelope(candidate);
+  assert.equal(created.status, "ready", `${label}: capacity envelope`);
+  const validationHarness = await loadJourneyValidationHarness();
+  const validation = await validationHarness.validateCandidate(candidate);
+  assert.equal(validation.ok, true, `${label}: ${String(validation.code || "workspace invalid")}`);
 }
 
 function workspaceFixture(): MutableRecord {
@@ -1278,6 +2440,695 @@ describe("workspace backup envelope", () => {
     const overLimit = await runtime.createEnvelope(workspace);
     assert.equal(overLimit.status, "invalid_workspace");
     assert.equal(overLimit.code, "workspace_count_limit");
+  });
+});
+
+describe("workspace append capacity contract", () => {
+  it("accepts all exact collection ceilings and rejects the next append with current and limit", () => {
+    const runtime = loadRuntime();
+    const workspace = restorableWorkspaceFixture();
+    workspace.planHistory = Array.from({ length: 64 }, () => null);
+    asRecord(workspace.journey).history = Array.from({ length: runtime.CAPACITY_LIMITS.journeyHistory }, () => null);
+    workspace.practiceReceipts = Object.fromEntries(Array.from({ length: 256 }, (_, index) => [`receipt-${index}`, null]));
+    workspace.checkInHistory = Array.from({ length: 256 }, () => null);
+    workspace.learningEvents = Array.from({ length: runtime.CAPACITY_LIMITS.learningEvents }, () => null);
+    asRecord(workspace.focus).sessions = Array.from({ length: 512 }, () => null);
+
+    assert.equal(runtime.inspectWorkspaceCapacity(workspace).status, "ready");
+    for (const field of ["planHistory", "journeyHistory", "practiceReceipts", "checkInHistory", "learningEvents", "focusSessions"]) {
+      assert.equal(runtime.inspectWorkspaceAppendCapacity(workspace, { [field]: 0 }).status, "ready", field);
+      const rejected = runtime.inspectWorkspaceAppendCapacity(workspace, { [field]: 1 });
+      assert.equal(rejected.status, "capacity_reached", field);
+      assert.equal(rejected.field, field);
+      assert.equal(rejected.current, runtime.CAPACITY_LIMITS[field]);
+      assert.equal(rejected.limit, runtime.CAPACITY_LIMITS[field]);
+    }
+  });
+
+  it("preflights composite writer deltas, including provisional completion without an event", () => {
+    const runtime = loadRuntime();
+    const workspace = restorableWorkspaceFixture();
+    workspace.planHistory = Array.from({ length: 63 }, () => null);
+    asRecord(workspace.journey).history = Array.from({ length: runtime.CAPACITY_LIMITS.journeyHistory - 1 }, () => null);
+    workspace.practiceReceipts = Object.fromEntries(Array.from({ length: 255 }, (_, index) => [`receipt-${index}`, null]));
+    workspace.checkInHistory = Array.from({ length: 255 }, () => null);
+    workspace.learningEvents = Array.from({ length: runtime.CAPACITY_LIMITS.learningEvents - 1 }, () => null);
+    asRecord(workspace.focus).sessions = Array.from({ length: 511 }, () => null);
+
+    for (const additions of [
+      { planHistory: 1, journeyHistory: 1, learningEvents: 1 },
+      { planHistory: 1, journeyHistory: 1, learningEvents: 0 },
+      { practiceReceipts: 1, learningEvents: 1 },
+      { checkInHistory: 1, learningEvents: 1 },
+      { focusSessions: 1 },
+    ]) {
+      assert.equal(runtime.inspectWorkspaceAppendCapacity(workspace, additions).status, "ready");
+    }
+
+    workspace.learningEvents = Array.from({ length: runtime.CAPACITY_LIMITS.learningEvents }, () => null);
+    assert.equal(
+      runtime.inspectWorkspaceAppendCapacity(workspace, { planHistory: 1, journeyHistory: 1, learningEvents: 0 }).status,
+      "ready",
+      "a provisional close adds no event",
+    );
+    const terminal = runtime.inspectWorkspaceAppendCapacity(workspace, { planHistory: 1, journeyHistory: 1, learningEvents: 1 });
+    assert.equal(terminal.status, "capacity_reached");
+    assert.equal(terminal.field, "learningEvents");
+  });
+
+  it("rejects workspaces over canonical bytes and JSON nodes through the same pure inspector", () => {
+    const runtime = loadRuntime();
+    const byteHeavy = restorableWorkspaceFixture();
+    byteHeavy.practiceReceipts = Object.fromEntries(
+      Array.from({ length: 256 }, (_, index) => [`receipt-${index}`, "x".repeat(4_096)]),
+    );
+    assert.ok(Buffer.byteLength(runtime.canonicalJson(byteHeavy), "utf8") > runtime.CAPACITY_LIMITS.workspaceBytes);
+    const byteResult = runtime.inspectWorkspaceCapacity(byteHeavy);
+    assert.equal(byteResult.status, "invalid_workspace");
+    assert.equal(byteResult.code, "workspace_too_large");
+
+    const nodeHeavy = restorableWorkspaceFixture();
+    asRecord(nodeHeavy.profile).capacityProbe = Array.from({ length: 131_072 }, () => null);
+    const nodeResult = runtime.inspectWorkspaceCapacity(nodeHeavy);
+    assert.equal(nodeResult.status, "invalid_workspace");
+    assert.equal(nodeResult.code, "too_many_values");
+  });
+});
+
+describe("learning event capacity boundary", () => {
+  it("allows an exact semantic replay at 212 and rejects a 213th event without mutation", async () => {
+    const harness = await loadJourneyValidationHarness();
+    const state = restorableWorkspaceFixture();
+    const createdAt = new Date(Date.now() - 1_000).toISOString();
+    const domainFor = (index: number): MutableRecord => {
+      const cycleId = `cycle-capacity-${index}`;
+      const diagnosticSessionId = `diagnostic-capacity-${index}`;
+      return {
+        cycle: {
+          createdAt,
+          cycleId,
+          diagnosticSessionId,
+          protocolVersion: "gate_a_local_v1",
+          status: "in_progress",
+        },
+        diagnostic: {
+          cycleId,
+          diagnosticSessionId,
+          protocolVersion: "gate_a_local_v1",
+          status: "in_progress",
+          taskSetDigest: "c1b2922ca96677665690bf790281be2438a016bbbe0d9f85478685af3c8dfc2c",
+          taskSetVersion: "gate_a_original_6_v1",
+        },
+      };
+    };
+
+    for (let index = 0; index < harness.backup.CAPACITY_LIMITS.learningEvents; index += 1) {
+      const result = await harness.learningEvents.appendDomainEvent(state, "learning_cycle.started", domainFor(index));
+      assert.equal(result.status, "appended", `event ${index + 1}`);
+    }
+    assert.equal((state.learningEvents as unknown[]).length, 212);
+
+    const beforeReplay = hostClone(state);
+    const replay = await harness.learningEvents.appendDomainEvent(state, "learning_cycle.started", domainFor(0));
+    assert.equal(replay.status, "already_recorded");
+    assert.deepEqual(hostClone(state), beforeReplay);
+
+    const beforeOverflow = hostClone(state);
+    const overflow = await harness.learningEvents.appendDomainEvent(state, "learning_cycle.started", domainFor(212));
+    assert.equal(overflow.status, "capacity_reached");
+    assert.equal(overflow.code, "learning_events_capacity_reached");
+    assert.equal(overflow.limit, 212);
+    assert.deepEqual(hostClone(state), beforeOverflow);
+  });
+});
+
+describe("sealed writer lineage guards", () => {
+  it("presents sealed plan recovery before any destructive-plan confirmation", () => {
+    const guardIndex = workspaceSource.indexOf("cycleHasSealedDownstream(state, currentCycle)");
+    const confirmationIndex = workspaceSource.indexOf('window.confirm("重新生成会替换当前及未来计划');
+    assert.ok(guardIndex >= 0 && confirmationIndex >= 0 && guardIndex < confirmationIndex);
+    assert.match(workspaceSource, /workspaceSealedAlert/);
+    assert.match(workspaceSource, /setAttribute\("role", "alert"\)[\s\S]*setAttribute\("tabindex", "-1"\)/);
+    assert.match(workspaceSource, /link\.href = "\/diagnostic"/);
+  });
+
+  it("distinguishes a replaceable diagnostic-bound plan from sealed downstream IDs, objects, and events", async () => {
+    const guards = await loadWorkspaceGuardHarness();
+    const state = restorableWorkspaceFixture();
+    const journey = asRecord(state.journey);
+    const cycle: MutableRecord = {
+      cycleId: "cycle-lineage",
+      diagnosticSessionId: "diagnostic-lineage",
+      recommendationId: null,
+      checkInId: null,
+      reviewId: null,
+      peerHelpId: null,
+      retestId: null,
+      updatedPlanId: null,
+    };
+    journey.activeCycle = cycle;
+    assert.equal(guards.cycleHasSealedDownstream(state, cycle), false);
+
+    cycle.recommendationId = "recommendation-lineage";
+    assert.equal(guards.cycleHasSealedDownstream(state, cycle), true);
+    cycle.recommendationId = null;
+
+    journey.recommendation = { cycleId: cycle.cycleId };
+    assert.equal(guards.cycleHasSealedDownstream(state, cycle), true);
+    journey.recommendation = null;
+
+    state.learningEventBindings = { records: { cycle: { [String(cycle.cycleId)]: "cycle-alias" } } };
+    state.learningEvents = [{ eventType: "recommendation.decided", context: { learningCycleId: "cycle-alias" } }];
+    assert.equal(guards.cycleHasSealedDownstream(state, cycle), true);
+  });
+
+  it("allows an unsealed standalone revision but blocks a current cycle check-in with its committed event", async () => {
+    const guards = await loadWorkspaceGuardHarness();
+    const state = restorableWorkspaceFixture();
+    const journey = asRecord(state.journey);
+    const cycle = { cycleId: "cycle-check-in", checkInId: "check-in-sealed" };
+    journey.activeCycle = cycle;
+    const record = { status: "saved", cycleId: cycle.cycleId, checkInId: cycle.checkInId };
+
+    assert.equal(guards.sealedCurrentCycleCheckIn(state, record), false);
+    state.learningEventBindings = { records: { checkIn: { "check-in-sealed": "check-in-alias" } } };
+    state.learningEvents = [{ eventType: "check_in.committed", context: { checkInId: "check-in-alias" } }];
+    assert.equal(guards.sealedCurrentCycleCheckIn(state, record), true);
+    assert.equal(
+      guards.sealedCurrentCycleCheckIn(state, { ...record, cycleId: null, checkInId: "standalone-check-in" }),
+      false,
+    );
+  });
+});
+
+describe("production writer capacity transactions", () => {
+  const learnerProfile = {
+    nickname: "",
+    examDate: "",
+    dailyMinutes: 30,
+    focusSkill: "Balanced",
+  };
+
+  it("keeps each independent non-journey collection ceiling production-valid and restorable", async () => {
+    const writer = await loadWorkspaceWriterHarness();
+    const cases: Array<[string, MutableRecord]> = [];
+    const plans = expiredActivePlanFixture();
+    plans.planHistory = validStandalonePlanHistory(64);
+    cases.push(["planHistory64", plans]);
+    const receipts = writer.freshState();
+    receipts.practiceReceipts = validStandaloneReceiptHistory(256);
+    cases.push(["practiceReceipts256", receipts]);
+    const checkins = expiredActivePlanFixture();
+    checkins.checkInHistory = validArchivedCheckInHistory(256, checkins);
+    cases.push(["checkInHistory256", checkins]);
+    const focus = writer.freshState();
+    asRecord(focus.focus).sessions = validFocusSessionHistory(512);
+    cases.push(["focusSessions512", focus]);
+    const validation = await loadJourneyValidationHarness();
+    const expected: Record<string, { bytes: number; nodes: number }> = {
+      planHistory64: { bytes: 471_641, nodes: 16_119 },
+      practiceReceipts256: { bytes: 403_747, nodes: 12_831 },
+      checkInHistory256: { bytes: 191_992, nodes: 6_967 },
+      focusSessions512: { bytes: 74_240, nodes: 3_103 },
+    };
+    for (const [name, candidate] of cases) {
+      const validationResult = await validation.validateCandidate(candidate);
+      assert.equal(validationResult.ok, true, `${name}: ${String(validationResult.code || "domain invalid")}`);
+      assert.equal(Buffer.byteLength(writer.backup.canonicalJson(candidate), "utf8"), expected[name].bytes, name);
+      assert.equal(workspaceTreeNodeCount(candidate), expected[name].nodes, name);
+      assert.equal(writer.backup.inspectWorkspaceCapacity(candidate).status, "ready", name);
+      assert.equal((await writer.backup.createEnvelope(candidate)).status, "ready", name);
+    }
+  });
+
+  it("runs the actual plan writer at 63→64 and rejects 64 without changing state", async () => {
+    const harness = await loadWorkspaceWriterHarness();
+    const atBoundary = expiredActivePlanFixture();
+    atBoundary.planHistory = validStandalonePlanHistory(63);
+    await assertWriterPreStateReady(harness, atBoundary, "plan 63");
+    harness.setState(atBoundary);
+
+    const saved = await harness.commitPlanRegeneration(learnerProfile);
+    assert.equal(saved.status, "saved");
+    assert.equal((harness.getState().planHistory as unknown[]).length, 64);
+    assert.notEqual(asRecord(harness.getState().plan).planId, asRecord(atBoundary.plan).planId);
+
+    const full = expiredActivePlanFixture();
+    full.planHistory = validStandalonePlanHistory(64);
+    await assertWriterPreStateReady(harness, full, "plan 64");
+    harness.setState(full);
+    const rawBefore = harness.getRaw();
+    const stateBefore = harness.backup.canonicalJson(harness.getState());
+    const rejected = await harness.commitPlanRegeneration(learnerProfile);
+
+    assert.equal(rejected.status, "capacity_reached");
+    assert.equal(rejected.field, "planHistory");
+    assert.equal(rejected.current, 64);
+    assert.equal(rejected.limit, 64);
+    assert.equal(harness.getRaw(), rawBefore);
+    assert.equal(harness.backup.canonicalJson(harness.getState()), stateBefore);
+  });
+
+  it("runs the standalone practice writer at 255→256, rejects 256, and makes a sealed replay a zero-delta no-op", async () => {
+    const harness = await loadWorkspaceWriterHarness({ pathname: "/practice-reading" });
+    const atBoundary = harness.freshState();
+    atBoundary.practiceReceipts = validStandaloneReceiptHistory(255);
+    await assertWriterPreStateReady(harness, atBoundary, "practice 255");
+    harness.setState(atBoundary);
+
+    const saved = await harness.commitChoicePracticeCompletion({
+      skill: "Reading",
+      exerciseId: "reading-library-v1",
+      selectedValue: "b",
+    });
+    assert.equal(saved.status, "saved");
+    assert.equal(Object.keys(asRecord(harness.getState().practiceReceipts)).length, 256);
+    assert.equal((harness.getState().learningEvents as unknown[]).length, 0, "standalone practice adds no event");
+
+    const sealedRaw = harness.getRaw();
+    const sealedState = harness.backup.canonicalJson(harness.getState());
+    const replay = await harness.commitChoicePracticeCompletion({
+      skill: "Reading",
+      exerciseId: "reading-library-v1",
+      selectedValue: "b",
+    });
+    assert.equal(replay.status, "already_saved");
+    assert.equal(harness.getRaw(), sealedRaw);
+    assert.equal(harness.backup.canonicalJson(harness.getState()), sealedState);
+
+    const full = harness.freshState();
+    full.practiceReceipts = validStandaloneReceiptHistory(256);
+    await assertWriterPreStateReady(harness, full, "practice 256");
+    harness.setState(full);
+    const rawBefore = harness.getRaw();
+    const stateBefore = harness.backup.canonicalJson(harness.getState());
+    const rejected = await harness.commitChoicePracticeCompletion({
+      skill: "Reading",
+      exerciseId: "reading-library-v1",
+      selectedValue: "b",
+    });
+    assert.equal(rejected.status, "capacity_reached");
+    assert.equal(rejected.field, "practiceReceipts");
+    assert.equal(rejected.current, 256);
+    assert.equal(harness.getRaw(), rawBefore);
+    assert.equal(harness.backup.canonicalJson(harness.getState()), stateBefore);
+  });
+
+  it("runs the actual check-in writer for fresh/no-op and the 255→256/256 archive boundary", async () => {
+    const harness = await loadWorkspaceWriterHarness({ pathname: "/check-in" });
+    const date = "2026-08-12";
+    const values = {
+      date,
+      linkedTaskId: "",
+      didText: "Completed an independent reading review.",
+      evidenceText: "Saved a specific local learning note.",
+      questionStatus: "none",
+      questionText: "",
+    };
+    const commit = (planId: unknown) => harness.commitCheckInRecord({
+      date,
+      values,
+      cycleEligible: false,
+      cycleId: null,
+      planId,
+      diagnosticSessionId: null,
+      recommendationId: null,
+      linkedPracticeReceipt: null,
+      reflectionTask: null,
+    });
+
+    harness.setState(harness.freshState());
+    const fresh = await commit(null);
+    assert.equal(fresh.status, "saved");
+    assert.equal((harness.getState().checkInHistory as unknown[]).length, 0);
+    const noOpRaw = harness.getRaw();
+    const noOpState = harness.backup.canonicalJson(harness.getState());
+    const noOp = await commit(null);
+    assert.equal(noOp.status, "already_saved");
+    assert.equal(harness.getRaw(), noOpRaw);
+    assert.equal(harness.backup.canonicalJson(harness.getState()), noOpState);
+
+    const atBoundary = expiredActivePlanFixture();
+    atBoundary.checkInHistory = validArchivedCheckInHistory(255, atBoundary);
+    await assertWriterPreStateReady(harness, atBoundary, "check-in 255");
+    harness.setState(atBoundary);
+    const planId = asRecord(atBoundary.plan).planId;
+    const saved = await commit(planId);
+    assert.equal(saved.status, "saved");
+    assert.equal((harness.getState().checkInHistory as unknown[]).length, 256);
+
+    const full = expiredActivePlanFixture();
+    full.checkInHistory = validArchivedCheckInHistory(256, full);
+    await assertWriterPreStateReady(harness, full, "check-in 256");
+    harness.setState(full);
+    const fullPlanId = asRecord(full.plan).planId;
+    const rawBefore = harness.getRaw();
+    const stateBefore = harness.backup.canonicalJson(harness.getState());
+    const rejected = await commit(fullPlanId);
+    assert.equal(rejected.status, "capacity_reached");
+    assert.equal(rejected.field, "checkInHistory");
+    assert.equal(rejected.current, 256);
+    assert.equal(harness.getRaw(), rawBefore);
+    assert.equal(harness.backup.canonicalJson(harness.getState()), stateBefore);
+  });
+
+  it("runs focus start/terminal at 511→512 and enforces both start and terminal gates at 512", async () => {
+    const harness = await loadWorkspaceWriterHarness({ pathname: "/focus" });
+    const atBoundary = harness.freshState();
+    asRecord(atBoundary.focus).sessions = validFocusSessionHistory(511);
+    await assertWriterPreStateReady(harness, atBoundary, "focus 511");
+    harness.setState(atBoundary);
+
+    const started = await harness.commitFocusControlAction(25);
+    assert.equal(started.status, "saved");
+    assert.equal(started.action, "started");
+    assert.equal((asRecord(harness.getState().focus).sessions as unknown[]).length, 511);
+    const completed = await harness.commitFocusTerminal("completed");
+    assert.equal(completed.status, "saved");
+    assert.equal((asRecord(harness.getState().focus).sessions as unknown[]).length, 512);
+
+    const fullAtStart = harness.freshState();
+    asRecord(fullAtStart.focus).sessions = validFocusSessionHistory(512);
+    await assertWriterPreStateReady(harness, fullAtStart, "focus 512 start");
+    harness.setState(fullAtStart);
+    const startRaw = harness.getRaw();
+    const startState = harness.backup.canonicalJson(harness.getState());
+    const startRejected = await harness.commitFocusControlAction(25);
+    assert.equal(startRejected.status, "capacity_reached");
+    assert.equal(startRejected.field, "focusSessions");
+    assert.equal(harness.getRaw(), startRaw);
+    assert.equal(harness.backup.canonicalJson(harness.getState()), startState);
+
+    const fullAtTerminal = harness.freshState();
+    asRecord(fullAtTerminal.focus).sessions = validFocusSessionHistory(512);
+    asRecord(fullAtTerminal.focus).active = {
+      status: "running",
+      durationSeconds: 1_500,
+      remainingSeconds: 1_500,
+      startedAt: "2026-08-12T00:00:00.000Z",
+      endsAt: Date.now() + 1_500_000,
+    };
+    await assertWriterPreStateReady(harness, fullAtTerminal, "focus 512 terminal");
+    harness.setState(fullAtTerminal);
+    const terminalRaw = harness.getRaw();
+    const terminalState = harness.backup.canonicalJson(harness.getState());
+    const terminalRejected = await harness.commitFocusTerminal("stopped");
+    assert.equal(terminalRejected.status, "capacity_reached");
+    assert.equal(terminalRejected.field, "focusSessions");
+    assert.equal(harness.getRaw(), terminalRaw);
+    assert.equal(harness.backup.canonicalJson(harness.getState()), terminalState);
+  });
+
+  it("starts from the strict fresh journey root and gates new-diagnostic/restart composite writers before mutation", async () => {
+    const harness = await loadJourneyWriterHarness();
+    const fresh = harness.freshState();
+    assert.deepEqual(Object.keys(asRecord(fresh.journey)).sort(), [
+      "activeCycle", "diagnostic", "history", "peerHelp", "planUpdate", "protocolVersion",
+      "recommendation", "retest", "review", "supersededCycles",
+    ]);
+    harness.setState(fresh);
+    const first = await harness.commitNewDiagnostic({
+      audioOutputStatus: "heard",
+      mp3Supported: true,
+      speechSupported: true,
+      viewportMode: "desktop_or_tablet",
+      networkAtStart: "online",
+    });
+    assert.equal(first.status, "saved");
+    assert.equal((harness.getState().learningEvents as unknown[]).length, 1);
+    assert.equal(harness.backup.inspectWorkspaceCapacity(harness.getState()).status, "ready");
+
+    const composite = harness.getState();
+    composite.plan = expiredActivePlanFixture().plan;
+    harness.setState(composite);
+    const second = await harness.commitNewDiagnostic({
+      audioOutputStatus: "heard",
+      mp3Supported: true,
+      speechSupported: true,
+    });
+    assert.equal(second.status, "saved");
+    assert.equal((harness.getState().planHistory as unknown[]).length, 1);
+    assert.equal((asRecord(harness.getState().journey).supersededCycles as unknown[]).length, 1);
+    assert.equal((harness.getState().learningEvents as unknown[]).length, 2);
+
+    const restartState = harness.getState();
+    restartState.plan = expiredActivePlanFixture().plan;
+    asRecord(restartState.plan).planId = "plan-expired-restart-v1";
+    harness.setState(restartState);
+    const restarted = await harness.commitDiagnosticRestart();
+    assert.equal(restarted.status, "saved");
+    assert.equal((harness.getState().planHistory as unknown[]).length, 2);
+    assert.equal((asRecord(harness.getState().journey).supersededCycles as unknown[]).length, 2);
+    assert.equal(asRecord(harness.getState().journey).activeCycle, null);
+
+    const capacityBase = harness.getState();
+    for (const [field, current, mutate] of [
+      ["planHistory", 64, (candidate: MutableRecord) => { candidate.planHistory = Array.from({ length: 64 }, () => null); }],
+      ["supersededCycles", 64, (candidate: MutableRecord) => { asRecord(candidate.journey).supersededCycles = Array.from({ length: 64 }, () => null); }],
+      ["learningEvents", 212, (candidate: MutableRecord) => { candidate.learningEvents = Array.from({ length: 212 }, () => null); }],
+    ] as const) {
+      const blocked = hostClone(capacityBase);
+      blocked.plan = expiredActivePlanFixture().plan;
+      const restartedCycle = startedCycleFixture();
+      asRecord(blocked.journey).activeCycle = restartedCycle.cycle;
+      asRecord(blocked.journey).diagnostic = restartedCycle.diagnostic;
+      mutate(blocked);
+      harness.setState(blocked);
+      const rawBefore = harness.getRaw();
+      const stateBefore = harness.backup.canonicalJson(harness.getState());
+      const rejected = await harness.commitNewDiagnostic({
+        audioOutputStatus: "heard",
+        mp3Supported: true,
+        speechSupported: true,
+      });
+      assert.equal(rejected.status, "capacity_reached", field);
+      assert.equal(rejected.field, field, field);
+      assert.equal(rejected.current, current, field);
+      assert.equal(harness.getRaw(), rawBefore, field);
+      assert.equal(harness.backup.canonicalJson(harness.getState()), stateBefore, field);
+    }
+
+    const restartBlocked = hostClone(capacityBase);
+    restartBlocked.planHistory = Array.from({ length: 64 }, () => null);
+    restartBlocked.plan = expiredActivePlanFixture().plan;
+    const active = startedCycleFixture();
+    asRecord(restartBlocked.journey).activeCycle = active.cycle;
+    asRecord(restartBlocked.journey).diagnostic = active.diagnostic;
+    harness.setState(restartBlocked);
+    const restartRaw = harness.getRaw();
+    const restartCanonical = harness.backup.canonicalJson(harness.getState());
+    const restartRejected = await harness.commitDiagnosticRestart();
+    assert.equal(restartRejected.status, "capacity_reached");
+    assert.equal(restartRejected.field, "planHistory");
+    assert.equal(harness.getRaw(), restartRaw);
+    assert.equal(harness.backup.canonicalJson(harness.getState()), restartCanonical);
+  });
+
+  it("closes one strict production journey with one plan-history, history, and event append", async () => {
+    const writer = await loadJourneyWriterHarness();
+    const validation = await loadJourneyValidationHarness();
+    const preClose = await strictJourneyPreCloseFixture(writer, validation);
+    const preValidation = await validation.validateCandidate(preClose);
+    assert.equal(preValidation.ok, true, String(preValidation.code || "strict pre-close invalid"));
+    assert.equal((preClose.planHistory as unknown[]).length, 0);
+    assert.equal((asRecord(preClose.journey).history as unknown[]).length, 0);
+    assert.equal((preClose.learningEvents as unknown[]).length, 5);
+
+    writer.setNow(STRICT_CYCLE_TIMES.closeAt);
+    const closed = await writer.commitJourneyPlanClose(String(asRecord(preClose.profile).focusSkill));
+    assert.equal(closed.status, "saved", String(closed.code || "strict close failed"));
+    const postClose = writer.getState();
+    assert.equal((postClose.planHistory as unknown[]).length, 1);
+    assert.equal((asRecord(postClose.journey).history as unknown[]).length, 1);
+    assert.equal((postClose.learningEvents as unknown[]).length, 6);
+    const postValidation = await validation.validateCandidate(postClose);
+    assert.equal(postValidation.ok, true, String(postValidation.code || "strict post-close invalid"));
+  });
+
+  it("proves the 19-cycle history ceiling against exact normal-writer state and the 1 MiB bound", async () => {
+    const writer = await loadJourneyWriterHarness();
+    const validation = await loadJourneyValidationHarness();
+    const template = await strictClosedCycleTemplate(writer, validation);
+    const atLimit = await strictTerminalCycleCollection(writer, validation, template, 19);
+    const overLimit = await strictTerminalCycleCollection(writer, validation, template, 20);
+    assert.equal((await validation.validateCandidate(atLimit)).ok, true);
+    assert.equal((await validation.validateCandidate(overLimit)).ok, true, "domain graph remains strict before resource policy");
+    assert.equal((atLimit.planHistory as unknown[]).length, 37);
+    assert.equal((asRecord(atLimit.journey).history as unknown[]).length, 19);
+    assert.equal((atLimit.learningEvents as unknown[]).length, 114);
+    assert.equal(Buffer.byteLength(writer.backup.canonicalJson(atLimit), "utf8"), 1_009_140);
+    assert.equal(workspaceTreeNodeCount(atLimit), 30_014);
+    assert.equal(writer.backup.inspectWorkspaceCapacity(atLimit).status, "ready");
+    assert.equal((overLimit.planHistory as unknown[]).length, 39);
+    assert.equal((asRecord(overLimit.journey).history as unknown[]).length, 20);
+    assert.equal((overLimit.learningEvents as unknown[]).length, 120);
+    assert.equal(Buffer.byteLength(writer.backup.canonicalJson(overLimit), "utf8"), 1_061_653);
+    assert.ok(workspaceTreeNodeCount(overLimit) < writer.backup.CAPACITY_LIMITS.jsonNodes);
+    const overResult = writer.backup.inspectWorkspaceCapacity(overLimit);
+    assert.equal(overResult.status, "invalid_workspace");
+    assert.equal(overResult.code, "workspace_count_limit");
+    assert.equal(overResult.field, "journeyHistory");
+  });
+
+  it("runs the actual 18→19 close and rejects 19→20 before any state mutation", async () => {
+    const writer = await loadJourneyWriterHarness();
+    const validation = await loadJourneyValidationHarness();
+    const preCloseTemplate = await strictJourneyPreCloseFixture(writer, validation);
+    writer.setNow(STRICT_CYCLE_TIMES.closeAt);
+    const closedOutcome = await writer.commitJourneyPlanClose(String(asRecord(preCloseTemplate.profile).focusSkill));
+    assert.equal(closedOutcome.status, "saved");
+    const closedTemplate = writer.getState();
+    const beforeNineteenth = await strictPreCloseAfterTerminalCycles(
+      writer, validation, closedTemplate, preCloseTemplate, 18,
+    );
+    assert.equal((await validation.validateCandidate(beforeNineteenth)).ok, true);
+    assert.equal(writer.backup.inspectWorkspaceCapacity(beforeNineteenth).status, "ready");
+    assert.equal((beforeNineteenth.planHistory as unknown[]).length, 36);
+    assert.equal((asRecord(beforeNineteenth.journey).history as unknown[]).length, 18);
+    assert.equal((beforeNineteenth.learningEvents as unknown[]).length, 113);
+    writer.setState(beforeNineteenth);
+    writer.setNow(new Date(Date.parse(STRICT_CYCLE_TIMES.closeAt) + 18 * 86_400_000).toISOString());
+    const saved = await writer.commitJourneyPlanClose(String(asRecord(beforeNineteenth.profile).focusSkill));
+    assert.equal(saved.status, "saved", String(saved.code || "19th cycle close failed"));
+    const nineteenth = writer.getState();
+    assert.equal((nineteenth.planHistory as unknown[]).length, 37);
+    assert.equal((asRecord(nineteenth.journey).history as unknown[]).length, 19);
+    assert.equal((nineteenth.learningEvents as unknown[]).length, 114);
+    assert.equal((await validation.validateCandidate(nineteenth)).ok, true);
+    assert.equal((await writer.backup.createEnvelope(nineteenth)).status, "ready");
+
+    const beforeTwentieth = await strictPreCloseAfterTerminalCycles(
+      writer, validation, closedTemplate, preCloseTemplate, 19,
+    );
+    assert.equal((await validation.validateCandidate(beforeTwentieth)).ok, true);
+    assert.equal(writer.backup.inspectWorkspaceCapacity(beforeTwentieth).status, "ready");
+    assert.equal((beforeTwentieth.planHistory as unknown[]).length, 38);
+    assert.equal((asRecord(beforeTwentieth.journey).history as unknown[]).length, 19);
+    assert.equal((beforeTwentieth.learningEvents as unknown[]).length, 119);
+    writer.setState(beforeTwentieth);
+    const rawBefore = writer.getRaw();
+    const stateBefore = writer.backup.canonicalJson(writer.getState());
+    writer.setNow(new Date(Date.parse(STRICT_CYCLE_TIMES.closeAt) + 19 * 86_400_000).toISOString());
+    const rejected = await writer.commitJourneyPlanClose(String(asRecord(beforeTwentieth.profile).focusSkill));
+    assert.equal(rejected.status, "capacity_reached");
+    assert.equal(rejected.field, "journeyHistory");
+    assert.equal(rejected.current, 19);
+    assert.equal(rejected.limit, 19);
+    assert.equal(writer.getRaw(), rawBefore);
+    assert.equal(writer.backup.canonicalJson(writer.getState()), stateBefore);
+  });
+
+  it("runs the actual new-diagnostic writer at 211→212 events and rejects 212→213 atomically", async () => {
+    const writer = await loadJourneyWriterHarness();
+    const validation = await loadJourneyValidationHarness();
+    const preCloseTemplate = await strictJourneyPreCloseFixture(writer, validation);
+    const before = await strictMixedSupersededEventCollection(writer, validation, preCloseTemplate, 37, 63);
+    assert.equal((before.learningEvents as unknown[]).length, 211);
+    assert.equal((await validation.validateCandidate(before)).ok, true);
+    assert.equal(writer.backup.inspectWorkspaceCapacity(before).status, "ready");
+    writer.setState(before);
+    writer.setNow(new Date(Date.parse(STRICT_CYCLE_TIMES.createdAt) + 63 * 86_400_000).toISOString());
+    const outcome = await writer.commitNewDiagnostic({
+      audioOutputStatus: "heard",
+      mp3Supported: true,
+      speechSupported: true,
+    });
+    const after = writer.getState();
+    assert.equal(outcome.status, "saved");
+    assert.equal(Buffer.byteLength(writer.backup.canonicalJson(before), "utf8"), 1_031_986);
+    assert.equal((after.learningEvents as unknown[]).length, 212);
+    assert.equal(Buffer.byteLength(writer.backup.canonicalJson(after), "utf8"), 1_035_362);
+    assert.equal(workspaceTreeNodeCount(after), 30_027);
+    assert.equal(writer.backup.inspectWorkspaceCapacity(after).status, "ready");
+    assert.equal((await validation.validateCandidate(after)).ok, true);
+    assert.equal((await writer.backup.createEnvelope(after)).status, "ready");
+
+    const rawBefore = writer.getRaw();
+    const stateBefore = writer.backup.canonicalJson(writer.getState());
+    writer.setNow(new Date(Date.parse(STRICT_CYCLE_TIMES.createdAt) + 64 * 86_400_000).toISOString());
+    const rejected = await writer.commitNewDiagnostic({
+      audioOutputStatus: "heard",
+      mp3Supported: true,
+      speechSupported: true,
+    });
+    assert.equal(rejected.status, "capacity_reached");
+    assert.equal(rejected.field, "learningEvents");
+    assert.equal(rejected.current, 212);
+    assert.equal(rejected.limit, 212);
+    assert.equal(writer.getRaw(), rawBefore);
+    assert.equal(writer.backup.canonicalJson(writer.getState()), stateBefore);
+  });
+
+  it("documents remaining byte headroom after the conservative 212-event governance boundary", async () => {
+    const writer = await loadJourneyWriterHarness();
+    const validation = await loadJourneyValidationHarness();
+    const preCloseTemplate = await strictJourneyPreCloseFixture(writer, validation);
+    const atGovernanceLimit = await strictMixedSupersededEventCollection(
+      writer, validation, preCloseTemplate, 37,
+    );
+    const result = await validation.validateCandidate(atGovernanceLimit);
+    assert.equal(result.ok, true);
+    assert.equal((atGovernanceLimit.learningEvents as unknown[]).length, 212);
+    assert.equal(Buffer.byteLength(writer.backup.canonicalJson(atGovernanceLimit), "utf8"), 1_034_376);
+    assert.equal(workspaceTreeNodeCount(atGovernanceLimit), 29_991);
+    assert.equal(writer.backup.inspectWorkspaceCapacity(atGovernanceLimit).status, "ready");
+    assert.ok(
+      writer.backup.CAPACITY_LIMITS.workspaceBytes - Buffer.byteLength(writer.backup.canonicalJson(atGovernanceLimit), "utf8") > 0,
+      "212 is intentionally conservative; the independent 1 MiB ceiling still has a small margin",
+    );
+  });
+
+  it("rejects actual plan candidates over byte and node limits without mutation", async () => {
+    const harness = await loadWorkspaceWriterHarness();
+    const buildNearLimit = (kind: "bytes" | "nodes") => {
+      let low = 0;
+      let high = kind === "bytes" ? 256 : 150_000;
+      let best = 0;
+      while (low <= high) {
+        const middle = Math.floor((low + high) / 2);
+        const candidate = expiredActivePlanFixture();
+        asRecord(candidate.plan)[kind === "bytes" ? "capacityPadding" : "capacityProbe"] = kind === "bytes"
+          ? Array.from({ length: middle }, () => "x".repeat(4_096))
+          : Array.from({ length: middle }, () => null);
+        if (harness.backup.inspectWorkspaceCapacity(candidate).status === "ready") {
+          best = middle;
+          low = middle + 1;
+        } else {
+          high = middle - 1;
+        }
+      }
+      const result = expiredActivePlanFixture();
+      asRecord(result.plan)[kind === "bytes" ? "capacityPadding" : "capacityProbe"] = kind === "bytes"
+        ? Array.from({ length: best }, () => "x".repeat(4_096))
+        : Array.from({ length: best }, () => null);
+      assert.equal(harness.backup.inspectWorkspaceCapacity(result).status, "ready", kind);
+      return result;
+    };
+
+    for (const [kind, expectedCode] of [["bytes", "workspace_too_large"], ["nodes", "too_many_values"]] as const) {
+      const nearLimit = buildNearLimit(kind);
+      const preStateBytes = Buffer.byteLength(harness.backup.canonicalJson(nearLimit), "utf8");
+      if (kind === "nodes") {
+        assert.ok(preStateBytes < harness.backup.CAPACITY_LIMITS.workspaceBytes, "node prestate remains below 1 MiB");
+      }
+      harness.setState(nearLimit);
+      const rawBefore = harness.getRaw();
+      const stateBefore = harness.backup.canonicalJson(harness.getState());
+      const rejected = await harness.commitPlanRegeneration(learnerProfile);
+      assert.equal(rejected.status, "capacity_reached", kind);
+      assert.equal(rejected.code, expectedCode, kind);
+      const inspectedCandidate = harness.getLastCapacityCandidate();
+      assert.ok(inspectedCandidate, `${kind}: actual production candidate must reach the shared inspector`);
+      if (kind === "nodes") {
+        assert.ok(
+          Buffer.byteLength(harness.backup.canonicalJson(inspectedCandidate), "utf8") < harness.backup.CAPACITY_LIMITS.workspaceBytes,
+          "node-only candidate remains below 1 MiB",
+        );
+        assert.equal(harness.backup.inspectWorkspaceCapacity(inspectedCandidate).code, "too_many_values");
+      }
+      assert.equal(harness.getRaw(), rawBefore, kind);
+      assert.equal(harness.backup.canonicalJson(harness.getState()), stateBefore, kind);
+    }
   });
 });
 
