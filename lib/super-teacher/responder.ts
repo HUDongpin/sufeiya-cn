@@ -84,6 +84,9 @@ function progressAction(context?: LearnerContext): TeacherAction {
   if (!context.progress.retestRecorded) {
     return { label: "继续但不使用 AI：完成平行微复测", href: "/retest", kind: "continue_without_ai" };
   }
+  if (context.progress.humanReviewStatus === "required_not_completed") {
+    return { label: "继续但不使用 AI：核对临时承接状态", href: "/workspace", kind: "continue_without_ai" };
+  }
   return { label: "返回学习工作台", href: "/workspace", kind: "continue_without_ai" };
 }
 
@@ -215,7 +218,10 @@ function manualAnswer(
         headline: planFocus ? `你的计划当前以 ${planFocus} 为重点` : "当前还没有可解释的 7 天计划",
         claims: context?.plan
           ? [
-              claim(bundle, `这份计划把你确认的重点和每日可用时间转成具体任务，调整计划设置后可以重新生成；${context.plan.currentTaskSkill ? `当前读取到的任务技能是 ${skillLabels[context.plan.currentTaskSkill]}。` : "当前任务技能尚未形成。"}`, ["learner-local-plan", "sufeiya-plan-method-v1"]),
+              claim(bundle, context.plan.stage === "provisional_updated"
+                ? `这份临时更新计划仍待具备资质人员确认；${context.plan.dailyMinutes ? `当前摘要记录每日 ${context.plan.dailyMinutes} 分钟。` : "当前最小化承接摘要未携带每日时间，不能据此判断计划未设置时间。"}${context.plan.currentTaskSkill ? `当前摘要记录任务技能是 ${skillLabels[context.plan.currentTaskSkill]}。` : "当前最小化承接摘要未携带任务技能，不能据此判断任务尚未形成。"}`
+                : `这份计划把你确认的重点和每日可用时间转成具体任务，调整计划设置后可以重新生成；${context.plan.currentTaskSkill ? `当前读取到的任务技能是 ${skillLabels[context.plan.currentTaskSkill]}。` : "当前任务技能尚未形成。"}`,
+              ["learner-local-plan", "sufeiya-plan-method-v1"]),
               claim(bundle, "计划与演示初筛回链，但不会把学习者选择改写成自动诊断结论。", ["sufeiya-plan-method-v1", "sufeiya-diagnostic-boundary-v1"]),
             ]
           : [claim(bundle, "我没有读取到当前本机计划；请先完成演示初筛，再生成 7 天计划。", ["sufeiya-plan-method-v1", "sufeiya-diagnostic-boundary-v1"])],
@@ -240,7 +246,7 @@ function manualAnswer(
     case "validate_progress": {
       const progress = context?.progress;
       const status = progress
-        ? `打卡${progress.checkInRecorded ? "已记录" : "未记录"}，学生复盘${progress.learnerReviewConfirmed ? "已确认" : "未确认"}，微复测${progress.retestRecorded ? "已记录" : "未记录"}，更新计划${progress.updatedPlanConfirmed ? "已确认" : "未确认"}。`
+        ? `打卡${progress.checkInRecorded ? "已记录" : "未记录"}，学生复盘${progress.learnerReviewConfirmed ? "已确认" : "未确认"}，微复测${progress.retestRecorded ? "已记录" : "未记录"}，${progress.humanReviewStatus === "required_not_completed" ? "临时更新计划已由学习者确认，但仍待具备资质人员确认" : `更新计划${progress.updatedPlanConfirmed ? "已确认" : "未确认"}`}。`
         : "我没有读取到完整的本机闭环进度。";
       return {
         mode: "manual_grounded",

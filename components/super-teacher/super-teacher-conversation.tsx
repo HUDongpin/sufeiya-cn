@@ -104,9 +104,14 @@ export function SuperTeacherConversation({
           <button
             type="button"
             onClick={() => void clearConversation()}
-            disabled={!safeWriteLockSupported || (!sessionReadIssue && !session.turns.length && !session.handoffRequests.length)}
+            disabled={!safeWriteLockSupported || (
+              !sessionReadIssue &&
+              !session.turns.length &&
+              !session.handoffRequests.length &&
+              !session.provisionalHandoffPackets.length
+            )}
           >
-            清除本机对话
+            清除 Sofia 本机记录
           </button>
         </header>
       ) : null}

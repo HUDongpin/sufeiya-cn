@@ -114,7 +114,7 @@ const learnerPlanSchema = z
     cycleId: localId,
     diagnosticSessionId: localId,
     taskSetVersion: z.literal("gate_a_original_6_v1"),
-    stage: z.enum(["base", "updated"]),
+    stage: z.enum(["base", "updated", "provisional_updated"]),
     focusSkill: skillSchema,
     dailyMinutes: z.number().int().min(10).max(180).optional(),
     currentTaskSkill: skillSchema.exclude(["Balanced"]).optional(),
@@ -141,6 +141,7 @@ const learnerProgressSchema = z
     reviewId: localId.optional(),
     retestId: localId.optional(),
     updatedPlanId: localId.optional(),
+    humanReviewStatus: z.literal("required_not_completed").optional(),
   })
   .strict();
 
@@ -197,6 +198,13 @@ export const learnerContextSchema = z
     if (progress.retestRecorded && !progress.learnerReviewConfirmed) add("Retest progress requires a confirmed review.", ["progress", "retestRecorded"]);
     if (progress.updatedPlanConfirmed && (!progress.retestRecorded || context.plan?.stage !== "updated" || context.plan.planId !== progress.updatedPlanId)) {
       add("Updated-plan progress requires the validated updated plan and retest.", ["progress", "updatedPlanConfirmed"]);
+    }
+    if (context.plan?.stage === "provisional_updated") {
+      if (!progress.retestRecorded || progress.updatedPlanConfirmed || progress.humanReviewStatus !== "required_not_completed") {
+        add("A provisional updated plan requires a recorded retest and outstanding human review.", ["progress", "humanReviewStatus"]);
+      }
+    } else if (progress.humanReviewStatus) {
+      add("Outstanding human review is only valid for a provisional updated plan.", ["progress", "humanReviewStatus"]);
     }
   });
 

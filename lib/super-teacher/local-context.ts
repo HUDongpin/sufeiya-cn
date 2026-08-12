@@ -1,4 +1,6 @@
 import type { LearnerContext } from "@/lib/super-teacher/contracts";
+import { deriveProvisionalHandoffEvidence } from "@/lib/super-teacher/provisional-handoff";
+import { deriveTeachingReviewEvidence } from "@/lib/teaching-review-demo";
 
 const WORKSPACE_PROTOCOL = "gate_a_local_v1";
 const DIAGNOSTIC_PROTOCOL = "gate_a_diagnostic_evidence_v1";
@@ -86,6 +88,81 @@ export function deriveLearnerContext(value: unknown): LearnerContext | undefined
   if (journey.protocolVersion !== WORKSPACE_PROTOCOL) return undefined;
   const cycle = isRecord(journey.activeCycle) ? journey.activeCycle : undefined;
   const diagnostic = isRecord(journey.diagnostic) ? journey.diagnostic : undefined;
+  if (cycle?.status === "provisional_pending_human_review") {
+    let raw: string;
+    try {
+      raw = JSON.stringify(value);
+    } catch {
+      return undefined;
+    }
+    const handoff = deriveProvisionalHandoffEvidence(raw);
+    const authorized = deriveTeachingReviewEvidence(raw);
+    if (
+      handoff.status !== "ready" ||
+      authorized.status !== "ready" ||
+      !authorized.diagnostic ||
+      !authorized.recommendation ||
+      !authorized.planUpdate ||
+      authorized.diagnostic.prioritySkill === "Unknown" ||
+      authorized.diagnostic.prioritySkill === "Balanced" ||
+      authorized.planUpdate.focusSkill === "Unknown" ||
+      !["accepted", "skipped"].includes(authorized.recommendation.status)
+    ) return undefined;
+    const completedEvidence = authorized.diagnostic.tasks.filter((task) => task.status === "completed");
+    const completedEvidenceSkills = [...new Set(completedEvidence
+      .map((task) => task.skill)
+      .filter((skill): skill is LearnerContext["prioritySkill"] => skill !== "Unknown" && skill !== "Balanced"))];
+    const context: LearnerContext = {
+      protocolVersion: WORKSPACE_PROTOCOL,
+      adultConfirmed: true,
+      summaryIntegrity: "unsigned_device_summary",
+      cycleId: handoff.evidence.cycleId,
+      diagnosticSessionId: handoff.evidence.diagnosticSessionId,
+      taskSetVersion: TASK_SET_VERSION,
+      taskSetDigest: TASK_SET_DIGEST,
+      terminalEvidenceTaskCount: 6,
+      prioritySkill: authorized.diagnostic.prioritySkill,
+      completedEvidenceTaskCount: completedEvidence.length,
+      completedEvidenceSkills,
+      ...(authorized.diagnostic.evidenceSufficiency === "evidence_limited" ||
+      authorized.diagnostic.evidenceSufficiency === "evidence_insufficient"
+        ? { evidenceSufficiency: authorized.diagnostic.evidenceSufficiency }
+        : {}),
+      ...(authorized.diagnostic.confidence === "low" || authorized.diagnostic.confidence === "medium"
+        ? { evidenceConfidence: authorized.diagnostic.confidence }
+        : {}),
+      ...(typeof authorized.diagnostic.priorityBasis === "string" && PRIORITY_BASES.has(authorized.diagnostic.priorityBasis)
+        ? { priorityBasis: authorized.diagnostic.priorityBasis as LearnerContext["priorityBasis"] }
+        : {}),
+      plan: {
+        planId: handoff.evidence.updatedPlanId,
+        basePlanId: handoff.evidence.basePlanId,
+        cycleId: handoff.evidence.cycleId,
+        diagnosticSessionId: handoff.evidence.diagnosticSessionId,
+        taskSetVersion: TASK_SET_VERSION,
+        stage: "provisional_updated",
+        focusSkill: authorized.planUpdate.focusSkill,
+      },
+      recommendation: {
+        recommendationId: handoff.evidence.recommendationId,
+        planId: handoff.evidence.basePlanId,
+        cycleId: handoff.evidence.cycleId,
+        diagnosticSessionId: handoff.evidence.diagnosticSessionId,
+        status: authorized.recommendation.status as "accepted" | "skipped",
+      },
+      progress: {
+        checkInRecorded: true,
+        learnerReviewConfirmed: true,
+        retestRecorded: true,
+        updatedPlanConfirmed: false,
+        checkInId: handoff.evidence.checkInId,
+        reviewId: handoff.evidence.reviewId,
+        retestId: handoff.evidence.retestId,
+        humanReviewStatus: "required_not_completed",
+      },
+    };
+    return context;
+  }
   if (
     !cycle ||
     !diagnostic ||

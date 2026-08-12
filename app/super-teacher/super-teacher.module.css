@@ -1,5 +1,6 @@
 .page {
   min-height: calc(100svh - var(--header-height));
+  overflow-x: clip;
   background:
     radial-gradient(circle at 88% 4%, rgba(244, 184, 39, 0.2), transparent 24%),
     linear-gradient(180deg, #fffdf8 0, var(--color-paper) 420px);
@@ -745,7 +746,7 @@
   margin: 12px 0 0;
   padding: 10px 12px;
   border-radius: 10px;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.6;
 }
 
@@ -763,6 +764,7 @@
   width: min(calc(100% - 48px), var(--container));
   margin: 0 auto;
   padding: 0 0 clamp(84px, 10vw, 150px);
+  scroll-margin-top: calc(var(--header-height) + 24px);
   display: grid;
   grid-template-columns: minmax(0, 0.8fr) minmax(360px, 0.55fr);
   gap: clamp(48px, 8vw, 110px);
@@ -792,6 +794,238 @@
   line-height: 1.85;
 }
 
+.handoffStack {
+  min-width: 0;
+  display: grid;
+  gap: 18px;
+}
+
+.provisionalCard {
+  min-width: 0;
+  padding: clamp(22px, 3vw, 32px);
+  overflow: hidden;
+  border: 1px solid rgba(16, 44, 41, 0.14);
+  border-radius: 26px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 22px 64px rgba(16, 44, 41, 0.1);
+}
+
+.provisionalCard[data-state="stale"],
+.provisionalCard[data-state="invalid"] {
+  border-color: rgba(138, 46, 24, 0.34);
+}
+
+.provisionalHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.provisionalHeader > div {
+  min-width: 0;
+}
+
+.provisionalHeader span {
+  color: var(--color-accent-deep);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+}
+
+.provisionalHeader h3 {
+  margin: 8px 0 0;
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: clamp(24px, 3vw, 32px);
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  line-height: 1.2;
+}
+
+.provisionalHeader > strong {
+  min-width: 78px;
+  min-height: 44px;
+  padding: 9px 12px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-ink);
+  color: white;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.provisionalCard[data-state="invalid"] .provisionalHeader > strong,
+.provisionalCard[data-state="unavailable"] .provisionalHeader > strong {
+  background: #6f3425;
+}
+
+.provisionalStatus {
+  margin: 22px 0 0;
+  color: var(--color-muted);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.provisionalState {
+  margin-top: 22px;
+  padding: 15px 16px;
+  border-radius: 16px;
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr);
+  gap: 11px;
+  background: var(--color-sage);
+}
+
+.provisionalState > span {
+  width: 10px;
+  height: 10px;
+  margin-top: 5px;
+  border: 2px solid var(--color-ink);
+  border-radius: 50%;
+  background: var(--color-accent);
+}
+
+.provisionalCard[data-state="stale"] .provisionalState > span {
+  background: #f4c2b2;
+}
+
+.provisionalState strong {
+  color: var(--color-ink);
+  font-size: 14px;
+}
+
+.provisionalState p {
+  margin: 4px 0 0;
+  color: var(--color-muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.provisionalFacts {
+  margin: 18px 0 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-top: 1px solid rgba(16, 44, 41, 0.1);
+  border-left: 1px solid rgba(16, 44, 41, 0.1);
+}
+
+.provisionalFacts div {
+  min-width: 0;
+  padding: 12px 13px;
+  border-right: 1px solid rgba(16, 44, 41, 0.1);
+  border-bottom: 1px solid rgba(16, 44, 41, 0.1);
+}
+
+.provisionalFacts dt {
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  overflow-wrap: anywhere;
+}
+
+.provisionalFacts dd {
+  margin: 6px 0 0;
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.provisionalBoundary {
+  margin: 18px 0 0;
+  color: var(--color-muted);
+  font-size: 14px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+.provisionalBoundary strong {
+  color: var(--color-ink);
+}
+
+.provisionalActions {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.72fr);
+  gap: 9px;
+}
+
+.provisionalActions button {
+  min-width: 0;
+  min-height: 48px;
+  padding: 11px 15px;
+  border: 1px solid var(--color-ink);
+  border-radius: 999px;
+  cursor: pointer;
+  background: var(--color-ink);
+  color: white;
+  font: 800 12px/1.45 var(--font-sans);
+  touch-action: manipulation;
+}
+
+.provisionalActions button:last-child {
+  border-color: rgba(16, 44, 41, 0.17);
+  background: transparent;
+  color: var(--color-ink-soft);
+}
+
+.provisionalActions button:hover:not(:disabled) {
+  border-color: var(--color-accent-strong);
+}
+
+.provisionalActions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.46;
+}
+
+.provisionalFailure {
+  margin-top: 22px;
+  padding: 17px;
+  border-radius: 16px;
+  background: #fff0ec;
+  color: #722612;
+}
+
+.provisionalFailure > strong {
+  font-size: 14px;
+}
+
+.provisionalFailure p {
+  margin: 7px 0 0;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.provisionalFailure > div {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.provisionalFailure a {
+  min-height: 44px;
+  padding: 9px 13px;
+  border: 1px solid rgba(114, 38, 18, 0.26);
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #722612;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .handoffCard {
   padding: clamp(26px, 4vw, 40px);
   border-radius: 26px;
@@ -810,7 +1044,8 @@
 .handoffCard span,
 .handoffCard small {
   color: rgba(255, 255, 255, 0.6);
-  font-size: 10px;
+  font-size: 12px;
+  line-height: 1.55;
 }
 
 .handoffCard strong {
@@ -822,8 +1057,8 @@
 .handoffCard p {
   margin: 20px 0 0;
   color: rgba(255, 255, 255, 0.74);
-  font-size: 12px;
-  line-height: 1.7;
+  font-size: 14px;
+  line-height: 1.65;
 }
 
 .handoffCard button {
@@ -883,6 +1118,16 @@
 
   .handoffSection {
     align-items: stretch;
+  }
+}
+
+@media (max-width: 844px) {
+  .provisionalActions {
+    grid-template-columns: 1fr;
+  }
+
+  .provisionalActions button {
+    width: 100%;
   }
 }
 
@@ -983,6 +1228,34 @@
 
   .handoffSection {
     gap: 34px;
+  }
+
+  .provisionalCard,
+  .handoffCard {
+    border-radius: 22px;
+  }
+
+  .provisionalHeader {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .provisionalHeader > strong {
+    align-self: flex-start;
+  }
+
+  .provisionalFacts {
+    grid-template-columns: 1fr;
+  }
+
+  .provisionalFailure > div {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .provisionalFailure a {
+    width: 100%;
   }
 }
 
