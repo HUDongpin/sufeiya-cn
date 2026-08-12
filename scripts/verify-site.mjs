@@ -2245,7 +2245,17 @@ const diagnosticCommitNewSource = sourceSection(
   "const commitNewDiagnostic",
   "const buildDiagnosticReport",
 );
-const evaluateJourneySource = sourceSection(journeyScript, "const evaluateJourney", "const renderCycleEvidenceLedger");
+const evaluateJourneySource = sourceSection(journeyScript, "const evaluateJourney", "const buildJourneyDashboardProjection");
+const journeyDashboardProjectionSource = sourceSection(
+  journeyScript,
+  "const buildJourneyDashboardProjection",
+  "const renderCycleEvidenceLedger",
+);
+const journeyDashboardSource = sourceSection(
+  journeyScript,
+  "const renderJourneyDashboard",
+  "void loadGate0GovernanceStatus",
+);
 const retireCurrentPlanHarness = (() => {
   try {
     return runInNewContext(
@@ -2337,6 +2347,94 @@ check(
     ) &&
     /if \(!safeWriteLockSupported\) \{[\s\S]*不支持安全本机写入锁[\s\S]*return;/.test(journeyScript),
   "diagnostic preflight exposes Web Locks capability before blocking an unsafe diagnostic start",
+);
+const workspacePageSource = runtimePageSources.get("workspace.html") || "";
+check(
+  /data-provisional-handoff[^>]*data-state="provisional_pending_human_review"[^>]*hidden/.test(workspacePageSource) &&
+    /data-provisional-handoff-title/.test(workspacePageSource) &&
+    /data-provisional-handoff-status[^>]*role="status"[^>]*aria-live="polite"[^>]*aria-atomic="true"/.test(
+      workspacePageSource,
+    ) &&
+    /href="\/plan" data-provisional-handoff-plan/.test(workspacePageSource) &&
+    /href="\/super-teacher#human-support" data-provisional-handoff-support/.test(workspacePageSource) &&
+    /href="\/my-data" data-provisional-handoff-data/.test(workspacePageSource) &&
+    /不自动发送、不创建真实队列、不通知人员、不生成正式人工回执/.test(workspacePageSource) &&
+    /\.journey-grid li\.is-pending-human/.test(styles),
+  "workspace includes one initially hidden local-only provisional handoff with explicit safe actions and no dispatch claim",
+);
+check(
+  /chain\.provisionalUpdateRecorded \? "等待具备资质的人工确认" : null/.test(evaluateJourneySource) &&
+    /const provisional = chain\?\.provisionalUpdateRecorded === true/.test(journeyDashboardProjectionSource) &&
+    /presentationState: "pending-human"/.test(journeyDashboardProjectionSource) &&
+    /summary: "7 \/ 7 步已记录 · 待具备资质人员确认"/.test(journeyDashboardProjectionSource) &&
+    /nextLink: \{ hidden: true, href: null, label: null \}/.test(journeyDashboardProjectionSource) &&
+    /provisionalHandoffVisible: true/.test(journeyDashboardProjectionSource) &&
+    /nextCycleAdmissionVisible: false/.test(journeyDashboardProjectionSource) &&
+    /item\?\.classList\.remove\("is-complete", "is-current", "is-locked", "is-pending-human"\)/.test(
+      journeyDashboardSource,
+    ) &&
+    /link\.hidden = projection\.nextLink\.hidden/.test(journeyDashboardSource) &&
+    /provisionalHandoff\.hidden = !projection\.provisionalHandoffVisible/.test(journeyDashboardSource) &&
+    /renderNextCycleAdmission\(projection\.nextCycleAdmissionVisible\)/.test(journeyDashboardSource),
+  "workspace projects provisional 7/7 as pending-human, hides the ordinary CTA, shows local handoff, and withholds next-cycle admission",
+);
+checkExecutable(
+  "the production dashboard projection keeps provisional, complete, and in-progress actions mutually exclusive",
+  () => {
+    const helper = runInNewContext(
+      `(() => {
+        const journeyDefinitions = [
+          { key: "diagnostic", title: "diagnostic", route: "/diagnostic" },
+          { key: "plan", title: "plan", route: "/plan" },
+          { key: "recommendation", title: "recommendation", route: "/recommendations" },
+          { key: "checkin", title: "checkin", route: "/check-in" },
+          { key: "review", title: "review", route: "/review" },
+          { key: "community", title: "community", route: "/community" },
+          { key: "retest", title: "retest", route: "/retest" },
+        ];
+        const evaluateJourney = (chain) => chain.steps;
+        ${journeyDashboardProjectionSource}
+        return buildJourneyDashboardProjection;
+      })()`,
+    );
+    const step = (key, complete) => ({
+      key,
+      title: key,
+      route: `/${key}`,
+      copy: `${key} copy`,
+      complete,
+      completeLabel: `${key} complete`,
+      pendingLabel: `${key} pending`,
+    });
+    const keys = ["diagnostic", "plan", "recommendation", "checkin", "review", "community", "retest"];
+    const provisional = helper({
+      provisionalUpdateRecorded: true,
+      steps: keys.map((key, index) => step(key, index < 6)),
+    });
+    const complete = helper({
+      provisionalUpdateRecorded: false,
+      steps: keys.map((key) => step(key, true)),
+    });
+    const inProgress = helper({
+      provisionalUpdateRecorded: false,
+      steps: keys.map((key) => step(key, false)),
+    });
+    return provisional.state === "provisional_pending_human_review" &&
+      provisional.summary === "7 / 7 步已记录 · 待具备资质人员确认" &&
+      provisional.steps[6].presentationState === "pending-human" &&
+      provisional.nextLink.hidden === true &&
+      provisional.provisionalHandoffVisible === true &&
+      provisional.nextCycleAdmissionVisible === false &&
+      complete.state === "complete" &&
+      complete.nextLink.hidden === false &&
+      complete.nextLink.href === "/plan" &&
+      complete.provisionalHandoffVisible === false &&
+      complete.nextCycleAdmissionVisible === true &&
+      inProgress.state === "in-progress" &&
+      inProgress.nextLink.hidden === false &&
+      inProgress.provisionalHandoffVisible === false &&
+      inProgress.nextCycleAdmissionVisible === false;
+  },
 );
 check(
   (diagnosticPage.match(/data-diagnostic-submit-task/g) || []).length === 4 &&
@@ -2510,6 +2608,22 @@ const workspaceCommitCheckInSource = sourceSection(
   "const focusRemainingSeconds",
 );
 const journeyValidationSource = sourceSection(journeyScript, "const validateCycleEvidence", "const cycleHistoryTopLevelKeys");
+const journeyExactObjectKeysSource = sourceSection(journeyScript, "const exactObjectKeys", "const isSafeLocalRoute");
+const journeyReceiptTimestampValidationSource = sourceSection(
+  journeyScript,
+  "const ISO_UTC_MILLISECOND_PATTERN",
+  "const historyContainsForbiddenEnvelope",
+);
+const journeyReviewPeerKeySource = sourceSection(
+  journeyScript,
+  "const WORKSPACE_BACKUP_REVIEW_KEYS",
+  "const WORKSPACE_BACKUP_RETEST_KEYS",
+);
+const journeyReviewPeerValidatorSource = sourceSection(
+  journeyScript,
+  "const validWorkspaceBackupReview",
+  "const validWorkspaceBackupRetest",
+);
 const journeyCycleHistoryProjectionSource = sourceSection(
   journeyScript,
   "const cycleHistoryTopLevelKeys",
@@ -2648,6 +2762,10 @@ const journeyEvidenceHarness = (() => {
         ${journeyEvidenceCatalogSource}
         const skillLabels = { Reading: "Reading · 阅读", Listening: "Listening · 听力", Writing: "Writing · 写作", Speaking: "Speaking · 口语" };
         const isRecord = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value);
+        ${journeyExactObjectKeysSource}
+        ${journeyReceiptTimestampValidationSource}
+        ${journeyReviewPeerKeySource}
+        ${journeyReviewPeerValidatorSource}
         ${journeyPracticeCatalogLookupSource}
         let state = null;
         const activeCycle = () => state?.journey?.activeCycle || null;
@@ -2733,6 +2851,10 @@ const skippedRecommendationJourneyHarness = (() => {
         ${journeyEvidenceCatalogSource}
         const skillLabels = { Reading: "Reading · 阅读", Listening: "Listening · 听力", Writing: "Writing · 写作", Speaking: "Speaking · 口语" };
         const isRecord = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value);
+        ${journeyExactObjectKeysSource}
+        ${journeyReceiptTimestampValidationSource}
+        ${journeyReviewPeerKeySource}
+        ${journeyReviewPeerValidatorSource}
         ${journeyPracticeReceiptValidationSource}
         ${journeyPracticeCatalogLookupSource}
         let state = null;
@@ -3318,6 +3440,8 @@ const createJourneyEvidenceFixture = () => {
     practiceReceipt,
     reviewId: cycle.reviewId,
     learnerConfirmedReview: true,
+    reviewedAt: "2026-08-10T00:02:00.000Z",
+    updatedAt: "2026-08-10T00:02:00.000Z",
   };
   const derivedRetestOutcome = journeyEvidenceHarness.deriveRetestOutcome("Reading", {
     responseType: retestCatalog.responseType,
@@ -3364,6 +3488,10 @@ const createJourneyEvidenceFixture = () => {
         reviewId: cycle.reviewId,
         checkInId: cycle.checkInId,
         learnerConfirmed: true,
+        shareStatus: "not_shared",
+        reminderStatus: "not_enabled",
+        humanEscalationStatus: "not_requested",
+        confirmedAt: "2026-08-10T00:02:00.000Z",
       },
       peerHelp: {
         cycleId: cycle.cycleId,
@@ -3371,7 +3499,11 @@ const createJourneyEvidenceFixture = () => {
         planId: cycle.basePlanId,
         reviewId: cycle.reviewId,
         status: "declined",
+        source: "synthetic_demo_card_v1",
+        learnerChoice: true,
         realCommunityUsed: false,
+        createdAt: "2026-08-10T00:03:00.000Z",
+        updatedAt: "2026-08-10T00:03:00.000Z",
       },
       retest: {
         status: "completed",
@@ -4825,7 +4957,7 @@ check(
     /root\.dataset\.state = blocked \? "capacity-blocked" : "invalid"[\s\S]*startLink\.hidden = true[\s\S]*recoveryLink\.hidden = false/.test(
       nextCycleAdmissionRenderSource,
     ) &&
-    /renderNextCycleAdmission\(!next && completedCount === journeyDefinitions\.length\)/.test(journeyScript),
+    /renderNextCycleAdmission\(projection\.nextCycleAdmissionVisible\)/.test(journeyDashboardSource),
   "next-cycle admission renders only for an exact completed journey and keeps ready versus recovery actions exclusive",
 );
 check(
@@ -4985,6 +5117,22 @@ const communityPreviewRendererSource = sourceSection(
   "const setupReview",
 );
 const renderCommunitySource = sourceSection(journeyScript, "const renderCommunity", "const setupCommunity");
+const cycleEvidenceValidationSource = sourceSection(
+  journeyScript,
+  "const validateCycleEvidence",
+  "const cycleLedgerDefinitions",
+);
+const reviewReceiptCommitSource = sourceSection(
+  journeyScript,
+  "const commitLearnerReviewReceipt",
+  "const commitPeerHelpReceipt",
+);
+const peerHelpReceiptCommitSource = sourceSection(
+  journeyScript,
+  "const commitPeerHelpReceipt",
+  "const setupReview",
+);
+const reviewSetupSource = sourceSection(journeyScript, "const setupReview", "const renderCommunity");
 check(
   /todayPlanScheduleRecognized\(state\.plan, state\)/.test(resolvePracticeTaskContextSource) &&
     /!isRecord\(task\.contentRef\)/.test(resolvePracticeTaskContextSource) &&
@@ -5148,13 +5296,100 @@ check(
   "community renders the production allowlist projection without claiming a real group or persisted sharing setting",
 );
 check(
+  /const reviewComplete = Boolean\([\s\S]*validWorkspaceBackupReview\(review\)[\s\S]*const peerHelpComplete = Boolean\([\s\S]*validWorkspaceBackupPeerHelp\(peerHelp\)/.test(
+    cycleEvidenceValidationSource,
+  ),
+  "central cycle evidence requires the exact review and peer-help receipt validators before downstream projection",
+);
+const reviewReplay = reviewReceiptCommitSource.indexOf('status: "already_saved"');
+const reviewIdCreate = reviewReceiptCommitSource.indexOf('makeId("review")');
+const reviewExistingStrict = reviewReceiptCommitSource.indexOf("await validateWorkspaceBackupCandidate(state)");
+check(
+  reviewExistingStrict >= 0 &&
+    reviewReplay > reviewExistingStrict &&
+    reviewIdCreate > reviewReplay &&
+    /candidate_invalid/.test(reviewReceiptCommitSource.slice(reviewExistingStrict, reviewReplay)) &&
+    /withExclusiveJourneyWrite\(async \(\) =>/.test(reviewReceiptCommitSource) &&
+    /persistedStateIsFresh\(\)/.test(reviewReceiptCommitSource) &&
+    /const before = snapshotState\(\);[\s\S]*const candidate = snapshotState\(\)/.test(reviewReceiptCommitSource) &&
+    !/state\.journey\.review\s*=|state\.journey\.peerHelp\s*=|state\.journey\.retest\s*=|state\.journey\.planUpdate\s*=/.test(
+      reviewReceiptCommitSource,
+    ) &&
+    /validateCycleEvidence\(candidate\)/.test(reviewReceiptCommitSource) &&
+    /workspaceCandidateCapacity\(candidate\)/.test(reviewReceiptCommitSource) &&
+    /await validateWorkspaceBackupCandidate\(candidate\)/.test(reviewReceiptCommitSource) &&
+    /state = candidate;[\s\S]*if \(!persist\(\)\) \{[\s\S]*state = before;[\s\S]*status: "persist_failed"/.test(
+      reviewReceiptCommitSource,
+    ),
+  "learner review validates malformed existing state before idempotent replay, then validates a candidate before persistence",
+);
+const peerHelpReplay = peerHelpReceiptCommitSource.indexOf('status: "already_saved"');
+const peerHelpIdCreate = peerHelpReceiptCommitSource.indexOf('makeId("peer-help")');
+const peerHelpExistingStrict = peerHelpReceiptCommitSource.indexOf("await validateWorkspaceBackupCandidate(state)");
+check(
+  peerHelpExistingStrict >= 0 &&
+    peerHelpReplay > peerHelpExistingStrict &&
+    peerHelpIdCreate > peerHelpReplay &&
+    /candidate_invalid/.test(peerHelpReceiptCommitSource.slice(peerHelpExistingStrict, peerHelpReplay)) &&
+    /withExclusiveJourneyWrite\(async \(\) =>/.test(peerHelpReceiptCommitSource) &&
+    /persistedStateIsFresh\(\)/.test(peerHelpReceiptCommitSource) &&
+    /status: "sealed_downstream"/.test(peerHelpReceiptCommitSource) &&
+    /candidatePrevious\?\.peerHelpId \|\| makeId\("peer-help"\)/.test(peerHelpReceiptCommitSource) &&
+    /createdAt: candidatePrevious\?\.createdAt \|\| updatedAt/.test(peerHelpReceiptCommitSource) &&
+    /const before = snapshotState\(\);[\s\S]*const candidate = snapshotState\(\)/.test(peerHelpReceiptCommitSource) &&
+    !/state\.journey\.peerHelp\s*=|state\.journey\.retest\s*=|state\.journey\.planUpdate\s*=/.test(
+      peerHelpReceiptCommitSource,
+    ) &&
+    /validateCycleEvidence\(candidate\)/.test(peerHelpReceiptCommitSource) &&
+    /workspaceCandidateCapacity\(candidate\)/.test(peerHelpReceiptCommitSource) &&
+    /await validateWorkspaceBackupCandidate\(candidate\)/.test(peerHelpReceiptCommitSource) &&
+    /state = candidate;[\s\S]*if \(!persist\(\)\) \{[\s\S]*state = before;[\s\S]*status: "persist_failed"/.test(
+      peerHelpReceiptCommitSource,
+    ),
+  "peer-help validates malformed existing state before idempotent replay and preserves one candidate-only identity before retest",
+);
+check(
+  /form\.dataset\.commitState = "idle"/.test(reviewSetupSource) &&
+    /form\.dataset\.commitState = "pending"[\s\S]*form\.setAttribute\("aria-busy", "true"\)/.test(reviewSetupSource) &&
+    /controls\.forEach\(\(control\) => \{ control\.disabled = true; \}\)/.test(reviewSetupSource) &&
+    /await commitLearnerReviewReceipt/.test(reviewSetupSource) &&
+    /form\.dataset\.commitState = "saved"/.test(reviewSetupSource) &&
+    /form\.dataset\.commitState = "blocked"/.test(reviewSetupSource) &&
+    /form\.dataset\.commitState = "pending"[\s\S]*await commitPeerHelpReceipt/.test(communitySetupSource) &&
+    /form\.setAttribute\("aria-busy", "true"\)/.test(communitySetupSource) &&
+    /form\.dataset\.commitState = "saved"/.test(communitySetupSource) &&
+    /form\.dataset\.commitState = "blocked"/.test(communitySetupSource),
+  "review and community forms expose idle/pending/saved/blocked commit state and freeze controls during asynchronous receipt commits",
+);
+const reviewCentralConfirmationGate = reviewSetupSource.indexOf("chain.reviewComplete &&");
+const reviewLocalIdentityGate = reviewSetupSource.indexOf("review?.reviewId === cycle.reviewId");
+const reviewSuccessBranch = reviewSetupSource.indexOf("if (confirmed) {");
+check(
+  reviewCentralConfirmationGate >= 0 &&
+    reviewLocalIdentityGate > reviewCentralConfirmationGate &&
+    reviewSuccessBranch > reviewLocalIdentityGate &&
+    /const confirmed = Boolean\(\s*chain\.reviewComplete &&[\s\S]*record\.learnerConfirmedReview === true,[\s\S]*\);/.test(
+      reviewSetupSource,
+    ) &&
+    /if \(receipt\) receipt\.hidden = !confirmed;[\s\S]*if \(next\) next\.hidden = !confirmed;/.test(
+      reviewSetupSource,
+    ) &&
+    /if \(confirmed\) \{[\s\S]*form\.dataset\.commitState = "saved";[\s\S]*form\.hidden = true;[\s\S]*successMessage\.hidden = false;[\s\S]*学习者已确认[\s\S]*return;/.test(
+      reviewSetupSource,
+    ),
+  "review restore UI cannot hide the form, reveal the receipt, or show success unless the central chain marks the exact review complete",
+);
+check(
   /const downstreamSealed = Boolean\([\s\S]*cycle\.retestId[\s\S]*cycle\.updatedPlanId[\s\S]*state\.journey\.retest\?\.cycleId === cycle\.cycleId[\s\S]*state\.journey\.planUpdate\?\.cycleId === cycle\.cycleId/.test(
     communitySetupSource,
   ) &&
     /if \(downstreamSealed\) \{[\s\S]*control\.disabled = true;[\s\S]*互助状态已封存[\s\S]*return;/.test(
       communitySetupSource,
     ) &&
-    /const before = snapshotState\(\)[\s\S]*if \(!persist\(\)\) \{[\s\S]*state = before;/.test(communitySetupSource),
+    /status: "sealed_downstream"/.test(peerHelpReceiptCommitSource) &&
+    /const before = snapshotState\(\)[\s\S]*state = candidate;[\s\S]*if \(!persist\(\)\) \{[\s\S]*state = before;/.test(
+      peerHelpReceiptCommitSource,
+    ),
   "community freezes after a retest or updated plan and rolls back a failed save",
 );
 check(
@@ -5163,18 +5398,20 @@ check(
       communitySetupSource,
     ) &&
     communitySetupSource.indexOf('selected === "used" && !previewConfirmationInput?.checked') <
-      communitySetupSource.indexOf('makeId("peer-help")') &&
+      communitySetupSource.indexOf("await commitPeerHelpReceipt") &&
     /source: "synthetic_demo_card_v1"[\s\S]*learnerChoice: true[\s\S]*realCommunityUsed: false/.test(
-      communitySetupSource,
+      peerHelpReceiptCommitSource,
     ) &&
-    !/(participationMode|visibilityScope|localPreviewConfirmed:)/.test(communitySetupSource),
+    !/(participationMode|visibilityScope|localPreviewConfirmed:)/.test(peerHelpReceiptCommitSource),
   "community requires an explicit ephemeral local-preview confirmation before used while preserving the exact peerHelp schema",
 );
 check(
   /const next = document\.querySelector\("\[data-community-next\]"\)/.test(renderCommunitySource) &&
     /if \(!chain\.peerHelpComplete\) \{[\s\S]*next\.hidden = true;[\s\S]*return;/.test(renderCommunitySource) &&
     /if \(next\) next\.hidden = false/.test(renderCommunitySource) &&
-    /if \(!persist\(\)\) \{[\s\S]*state = before;[\s\S]*return;[\s\S]*renderCommunity\(\)/.test(communitySetupSource),
+    /const outcome = await commitPeerHelpReceipt\([\s\S]*if \(!\["saved", "already_saved"\]\.includes\(outcome\.status\)\)[\s\S]*return;[\s\S]*renderCommunity\(\)/.test(
+      communitySetupSource,
+    ),
   "community reveals retest only after a centrally valid persisted peer-help receipt",
 );
 

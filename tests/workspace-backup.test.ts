@@ -84,6 +84,7 @@ interface JourneyWriterHarness {
   freshState(): MutableRecord;
   getState(): MutableRecord;
   getRaw(): string | null;
+  setPersistFailure(value: boolean): void;
   setPersistedRaw(raw: string): void;
   setState(next: MutableRecord): void;
   setNow(value: string): void;
@@ -92,8 +93,11 @@ interface JourneyWriterHarness {
   validateCandidate(candidate: unknown): Promise<MutableRecord>;
   commitNewDiagnostic(input: MutableRecord): Promise<MutableRecord>;
   commitJourneyPlanClose(focusSkill: string): Promise<MutableRecord>;
+  commitLearnerReviewReceipt(input: MutableRecord): Promise<MutableRecord>;
+  commitPeerHelpReceipt(input: MutableRecord): Promise<MutableRecord>;
   validateCycleEvidence(): MutableRecord;
   buildCommunityVisibilityPreview(chain: MutableRecord): MutableRecord | null;
+  buildJourneyDashboardProjection(chain: MutableRecord): MutableRecord;
   recommendationItems(): MutableRecord[];
   createRecommendationBinding(chain: MutableRecord, primary: MutableRecord, createdAt: string): MutableRecord | null;
   buildDiagnosticReport(diagnostic: unknown): MutableRecord;
@@ -223,13 +227,21 @@ function productionVmDocument() {
   };
 }
 
-function productionVmStorage(): StorageContract & { raw(): string | null } {
+function productionVmStorage(): StorageContract & {
+  raw(): string | null;
+  failWrites(value: boolean): void;
+} {
   const values = new Map<string, string>();
+  let writesFail = false;
   return {
     getItem: (key) => values.get(key) ?? null,
-    setItem: (key, value) => { values.set(key, value); },
+    setItem: (key, value) => {
+      if (writesFail) throw new Error("forced production-VM storage failure");
+      values.set(key, value);
+    },
     removeItem: (key) => { values.delete(key); },
     raw: () => values.get("sufeiya_workspace_v1") ?? null,
+    failWrites: (value) => { writesFail = value; },
   };
 }
 
@@ -390,6 +402,8 @@ async function loadJourneyWriterHarness(): Promise<JourneyWriterHarness> {
     validateCandidate: validateWorkspaceBackupCandidate,
     commitNewDiagnostic,
     commitJourneyPlanClose,
+    commitLearnerReviewReceipt,
+    commitPeerHelpReceipt,
     inspectNextGateACycleAdmission: (candidate) => JSON.parse(JSON.stringify(inspectNextGateACycleAdmission(candidate || state))),
     nextGateACycleRequiredAdditions: (candidate) => JSON.parse(JSON.stringify(nextGateACycleRequiredAdditions(candidate || state))),
     validateCycleEvidence: () => JSON.parse(JSON.stringify(validateCycleEvidence())),
@@ -397,6 +411,7 @@ async function loadJourneyWriterHarness(): Promise<JourneyWriterHarness> {
       const preview = buildCommunityVisibilityPreview(chain);
       return preview ? JSON.parse(JSON.stringify(preview)) : null;
     },
+    buildJourneyDashboardProjection: (chain) => JSON.parse(JSON.stringify(buildJourneyDashboardProjection(chain))),
     recommendationItems: () => JSON.parse(JSON.stringify(recommendationItems())),
     createRecommendationBinding: (chain, primary, createdAt) => createRecommendationBinding(chain, primary, createdAt),
     buildDiagnosticReport: (diagnostic) => JSON.parse(JSON.stringify(buildDiagnosticReport(diagnostic))),
@@ -415,6 +430,7 @@ async function loadJourneyWriterHarness(): Promise<JourneyWriterHarness> {
     backup,
     learningEvents,
     getRaw: storage.raw,
+    setPersistFailure: storage.failWrites,
     setPersistedRaw: (raw: string) => storage.setItem("sufeiya_workspace_v1", raw),
     setNow: (value: string) => {
       const parsed = NativeDate.parse(value);
@@ -1436,7 +1452,17 @@ async function appendJourneyDomainEvent(
 async function strictJourneyPreCloseFixture(
   writer: JourneyWriterHarness,
   validation: JourneyValidationHarness,
-  { stopAfterPractice = false }: { stopAfterPractice?: boolean } = {},
+  {
+    stopAfterPractice = false,
+    stopAfterCheckIn = false,
+    stopAfterReview = false,
+    stopAfterPeerHelp = false,
+  }: {
+    stopAfterPractice?: boolean;
+    stopAfterCheckIn?: boolean;
+    stopAfterReview?: boolean;
+    stopAfterPeerHelp?: boolean;
+  } = {},
 ): Promise<MutableRecord> {
   const started = startedCycleFixture();
   const candidate = started.candidate;
@@ -1628,6 +1654,10 @@ async function strictJourneyPreCloseFixture(
     { checkIn, recommendation },
     STRICT_CYCLE_TIMES.checkInAt,
   );
+  if (stopAfterCheckIn) {
+    writer.setState(candidate);
+    return candidate;
+  }
 
   const reviewId = "review-strict-cycle-v1";
   const review: MutableRecord = {
@@ -1649,6 +1679,11 @@ async function strictJourneyPreCloseFixture(
   });
   cycle.reviewId = reviewId;
   cycle.updatedAt = STRICT_CYCLE_TIMES.reviewAt;
+  candidate.updatedAt = STRICT_CYCLE_TIMES.reviewAt;
+  if (stopAfterReview) {
+    writer.setState(candidate);
+    return candidate;
+  }
 
   const peerHelpId = "peer-help-strict-cycle-v1";
   const peerHelp: MutableRecord = {
@@ -1666,6 +1701,11 @@ async function strictJourneyPreCloseFixture(
   journey.peerHelp = peerHelp;
   cycle.peerHelpId = peerHelpId;
   cycle.updatedAt = STRICT_CYCLE_TIMES.peerHelpAt;
+  candidate.updatedAt = STRICT_CYCLE_TIMES.peerHelpAt;
+  if (stopAfterPeerHelp) {
+    writer.setState(candidate);
+    return candidate;
+  }
 
   const retest = retestFixture(validation, focusSkill);
   Object.assign(retest, {
@@ -3552,6 +3592,382 @@ describe("production writer capacity transactions", () => {
       assert.equal(harness.backup.canonicalJson(harness.getState()), stateBefore, kind);
     }
   });
+
+  it("commits a strict learner review once, validates its backup, and rejects replay, stale, and wrong scope without mutation", async () => {
+    const writer = await loadJourneyWriterHarness();
+    const validation = await loadJourneyValidationHarness();
+    const preReview = await strictJourneyPreCloseFixture(writer, validation, { stopAfterCheckIn: true });
+    assert.equal((await validation.validateCandidate(preReview)).ok, true, "strict pre-review fixture");
+    const cycle = asRecord(asRecord(preReview.journey).activeCycle);
+    const checkIn = Object.values(asRecord(preReview.checkIns))[0] as MutableRecord;
+    const learningEventCount = (preReview.learningEvents as unknown[]).length;
+
+    writer.setNow(STRICT_CYCLE_TIMES.reviewAt);
+    const saved = await writer.commitLearnerReviewReceipt({
+      expectedCycleId: cycle.cycleId,
+      expectedCheckInId: checkIn.checkInId,
+    });
+    assert.equal(saved.status, "saved", String(saved.code || "review save failed"));
+    const committed = writer.getState();
+    const review = asRecord(asRecord(committed.journey).review);
+    assert.deepEqual(Object.keys(review).sort(), [
+      "checkInId", "confirmedAt", "cycleId", "humanEscalationStatus", "learnerConfirmed",
+      "reminderStatus", "reviewId", "shareStatus",
+    ].sort());
+    assert.equal(review.cycleId, cycle.cycleId);
+    assert.equal(review.checkInId, checkIn.checkInId);
+    assert.equal(review.learnerConfirmed, true);
+    assert.equal(review.shareStatus, "not_shared");
+    assert.equal(review.reminderStatus, "not_enabled");
+    assert.equal(review.humanEscalationStatus, "not_requested");
+    assert.equal((committed.learningEvents as unknown[]).length, learningEventCount, "review emits no learning event");
+    assert.equal((await validation.validateCandidate(committed)).ok, true, "saved review remains strict");
+    assert.equal((await writer.backup.createEnvelope(committed)).status, "ready", "saved review is export-ready");
+
+    const replayRaw = writer.getRaw();
+    const replayState = writer.backup.canonicalJson(committed);
+    writer.setNow("2026-08-12T00:20:59.000Z");
+    const replay = await writer.commitLearnerReviewReceipt({
+      expectedCycleId: cycle.cycleId,
+      expectedCheckInId: checkIn.checkInId,
+    });
+    assert.equal(replay.status, "already_saved");
+    assert.equal(asRecord(replay.record).reviewId, review.reviewId);
+    assert.equal(asRecord(replay.record).confirmedAt, review.confirmedAt);
+    assert.equal(writer.getRaw(), replayRaw);
+    assert.equal(writer.backup.canonicalJson(writer.getState()), replayState);
+
+    writer.setState(preReview);
+    const wrongRaw = writer.getRaw();
+    const wrongState = writer.backup.canonicalJson(writer.getState());
+    for (const input of [
+      { expectedCycleId: "cycle-wrong", expectedCheckInId: checkIn.checkInId },
+      { expectedCycleId: cycle.cycleId, expectedCheckInId: "check-in-wrong" },
+    ]) {
+      const rejected = await writer.commitLearnerReviewReceipt(input);
+      assert.equal(rejected.status, "chain_changed");
+      assert.equal(writer.getRaw(), wrongRaw);
+      assert.equal(writer.backup.canonicalJson(writer.getState()), wrongState);
+    }
+
+    const concurrent = hostClone(preReview);
+    concurrent.updatedAt = "2026-08-12T00:19:01.000Z";
+    const concurrentRaw = JSON.stringify(concurrent);
+    writer.setPersistedRaw(concurrentRaw);
+    const stale = await writer.commitLearnerReviewReceipt({
+      expectedCycleId: cycle.cycleId,
+      expectedCheckInId: checkIn.checkInId,
+    });
+    assert.equal(stale.status, "stale");
+    assert.equal(writer.getRaw(), concurrentRaw);
+    assert.equal(writer.backup.canonicalJson(writer.getState()), wrongState);
+  });
+
+  it("commits all exact peer-help states, idempotently replays, updates before retest, and seals after retest", async () => {
+    const validation = await loadJourneyValidationHarness();
+    for (const selectedStatus of ["used", "declined", "not_needed", "unavailable"]) {
+      const writer = await loadJourneyWriterHarness();
+      const prePeer = await strictJourneyPreCloseFixture(writer, validation, { stopAfterReview: true });
+      assert.equal((await validation.validateCandidate(prePeer)).ok, true, `${selectedStatus}: strict pre-peer fixture`);
+      const cycle = asRecord(asRecord(prePeer.journey).activeCycle);
+      const review = asRecord(asRecord(prePeer.journey).review);
+      const learningEventCount = (prePeer.learningEvents as unknown[]).length;
+      writer.setNow(STRICT_CYCLE_TIMES.peerHelpAt);
+      const saved = await writer.commitPeerHelpReceipt({
+        expectedCycleId: cycle.cycleId,
+        expectedReviewId: review.reviewId,
+        selectedStatus,
+      });
+      assert.equal(saved.status, "saved", `${selectedStatus}: ${String(saved.code || "peer save failed")}`);
+      const committed = writer.getState();
+      const peerHelp = asRecord(asRecord(committed.journey).peerHelp);
+      assert.deepEqual(Object.keys(peerHelp).sort(), [
+        "createdAt", "cycleId", "learnerChoice", "peerHelpId", "planId", "realCommunityUsed",
+        "reviewId", "source", "status", "updatedAt",
+      ].sort(), selectedStatus);
+      assert.equal(peerHelp.status, selectedStatus);
+      assert.equal(peerHelp.cycleId, cycle.cycleId);
+      assert.equal(peerHelp.reviewId, review.reviewId);
+      assert.equal(peerHelp.learnerChoice, true);
+      assert.equal(peerHelp.source, "synthetic_demo_card_v1");
+      assert.equal(peerHelp.realCommunityUsed, false);
+      assert.equal((committed.learningEvents as unknown[]).length, learningEventCount, `${selectedStatus}: no event append`);
+      assert.equal((await validation.validateCandidate(committed)).ok, true, `${selectedStatus}: saved peer remains strict`);
+      assert.equal((await writer.backup.createEnvelope(committed)).status, "ready", `${selectedStatus}: export-ready`);
+
+      const replayRaw = writer.getRaw();
+      const replayState = writer.backup.canonicalJson(committed);
+      writer.setNow("2026-08-12T00:21:59.000Z");
+      const replay = await writer.commitPeerHelpReceipt({
+        expectedCycleId: cycle.cycleId,
+        expectedReviewId: review.reviewId,
+        selectedStatus,
+      });
+      assert.equal(replay.status, "already_saved", selectedStatus);
+      assert.equal(asRecord(replay.record).peerHelpId, peerHelp.peerHelpId);
+      assert.equal(asRecord(replay.record).createdAt, peerHelp.createdAt);
+      assert.equal(asRecord(replay.record).updatedAt, peerHelp.updatedAt);
+      assert.equal(writer.getRaw(), replayRaw);
+      assert.equal(writer.backup.canonicalJson(writer.getState()), replayState);
+
+      const replacement = selectedStatus === "used" ? "declined" : "used";
+      writer.setNow("2026-08-12T00:22:00.000Z");
+      const changed = await writer.commitPeerHelpReceipt({
+        expectedCycleId: cycle.cycleId,
+        expectedReviewId: review.reviewId,
+        selectedStatus: replacement,
+      });
+      assert.equal(changed.status, "saved", selectedStatus);
+      const updated = asRecord(asRecord(writer.getState().journey).peerHelp);
+      assert.equal(updated.status, replacement);
+      assert.equal(updated.peerHelpId, peerHelp.peerHelpId);
+      assert.equal(updated.createdAt, peerHelp.createdAt);
+      assert.notEqual(updated.updatedAt, peerHelp.updatedAt);
+      assert.equal((writer.getState().learningEvents as unknown[]).length, learningEventCount);
+      assert.equal((await validation.validateCandidate(writer.getState())).ok, true, `${selectedStatus}: changed peer remains strict`);
+    }
+
+    const writer = await loadJourneyWriterHarness();
+    const sealed = await strictJourneyPreCloseFixture(writer, validation);
+    assert.equal((await validation.validateCandidate(sealed)).ok, true, "strict post-retest fixture");
+    const cycle = asRecord(asRecord(sealed.journey).activeCycle);
+    const review = asRecord(asRecord(sealed.journey).review);
+    const peerHelp = asRecord(asRecord(sealed.journey).peerHelp);
+    const rawBefore = writer.getRaw();
+    const stateBefore = writer.backup.canonicalJson(writer.getState());
+    const rejected = await writer.commitPeerHelpReceipt({
+      expectedCycleId: cycle.cycleId,
+      expectedReviewId: review.reviewId,
+      selectedStatus: peerHelp.status === "used" ? "declined" : "used",
+    });
+    assert.equal(rejected.status, "sealed_downstream");
+    assert.equal(writer.getRaw(), rawBefore);
+    assert.equal(writer.backup.canonicalJson(writer.getState()), stateBefore);
+    assert.equal((writer.getState().learningEvents as unknown[]).length, (sealed.learningEvents as unknown[]).length);
+  });
+
+  it("rejects wrong-scope, stale, and invalid peer-help writes byte-for-byte", async () => {
+    const writer = await loadJourneyWriterHarness();
+    const validation = await loadJourneyValidationHarness();
+    const prePeer = await strictJourneyPreCloseFixture(writer, validation, { stopAfterReview: true });
+    assert.equal((await validation.validateCandidate(prePeer)).ok, true);
+    const cycle = asRecord(asRecord(prePeer.journey).activeCycle);
+    const review = asRecord(asRecord(prePeer.journey).review);
+    const rawBefore = writer.getRaw();
+    const stateBefore = writer.backup.canonicalJson(writer.getState());
+    for (const input of [
+      { expectedCycleId: "cycle-wrong", expectedReviewId: review.reviewId, selectedStatus: "used" },
+      { expectedCycleId: cycle.cycleId, expectedReviewId: "review-wrong", selectedStatus: "used" },
+      { expectedCycleId: cycle.cycleId, expectedReviewId: review.reviewId, selectedStatus: "unknown" },
+    ]) {
+      const rejected = await writer.commitPeerHelpReceipt(input);
+      assert.equal(rejected.status, input.selectedStatus === "unknown" ? "candidate_invalid" : "chain_changed");
+      assert.equal(writer.getRaw(), rawBefore);
+      assert.equal(writer.backup.canonicalJson(writer.getState()), stateBefore);
+    }
+
+    const concurrent = hostClone(prePeer);
+    concurrent.updatedAt = "2026-08-12T00:20:01.000Z";
+    const concurrentRaw = JSON.stringify(concurrent);
+    writer.setPersistedRaw(concurrentRaw);
+    const stale = await writer.commitPeerHelpReceipt({
+      expectedCycleId: cycle.cycleId,
+      expectedReviewId: review.reviewId,
+      selectedStatus: "used",
+    });
+    assert.equal(stale.status, "stale");
+    assert.equal(writer.getRaw(), concurrentRaw);
+    assert.equal(writer.backup.canonicalJson(writer.getState()), stateBefore);
+  });
+
+  it("fails closed instead of replaying malformed existing learner reviews", async () => {
+    const writer = await loadJourneyWriterHarness();
+    const validation = await loadJourneyValidationHarness();
+    const valid = await strictJourneyPreCloseFixture(writer, validation, { stopAfterReview: true });
+    assert.equal((await validation.validateCandidate(valid)).ok, true, "review malformed base must be strict");
+    const cycle = asRecord(asRecord(valid.journey).activeCycle);
+    const checkIn = Object.values(asRecord(valid.checkIns))[0] as MutableRecord;
+    const cases: Array<[string, (review: MutableRecord) => void]> = [
+      ["extra field", (review) => { review.unexpected = true; }],
+      ["fixed enum", (review) => { review.shareStatus = "shared"; }],
+      ["bad time", (review) => { review.confirmedAt = "not-a-utc-time"; }],
+    ];
+    for (const [name, mutate] of cases) {
+      const malformed = hostClone(valid);
+      mutate(asRecord(asRecord(malformed.journey).review));
+      writer.setState(malformed);
+      const chain = writer.validateCycleEvidence();
+      assert.equal(chain.reviewComplete, false, `${name}: central chain must reject malformed review`);
+      assert.equal(chain.peerHelpComplete, false, `${name}: downstream peer-help must remain closed`);
+      const projection = writer.buildJourneyDashboardProjection(chain);
+      const reviewStep = (projection.steps as MutableRecord[]).find((step) => step.key === "review");
+      assert.equal(reviewStep?.presentationState, "current", `${name}: review remains current`);
+      assert.equal(projection.provisionalHandoffVisible, false, `${name}: no provisional handoff`);
+      assert.equal(projection.nextCycleAdmissionVisible, false, `${name}: no next-cycle admission`);
+
+      const rawBefore = writer.getRaw();
+      const stateBefore = writer.backup.canonicalJson(writer.getState());
+      const eventCount = (writer.getState().learningEvents as unknown[]).length;
+      const rejected = await writer.commitLearnerReviewReceipt({
+        expectedCycleId: cycle.cycleId,
+        expectedCheckInId: checkIn.checkInId,
+      });
+      assert.equal(rejected.status, "candidate_invalid", name);
+      assert.equal(writer.getRaw(), rawBefore, name);
+      assert.equal(writer.backup.canonicalJson(writer.getState()), stateBefore, name);
+      assert.equal((writer.getState().learningEvents as unknown[]).length, eventCount, name);
+    }
+  });
+
+  it("fails closed instead of replaying malformed existing peer-help receipts", async () => {
+    const writer = await loadJourneyWriterHarness();
+    const validation = await loadJourneyValidationHarness();
+    const valid = await strictJourneyPreCloseFixture(writer, validation, { stopAfterPeerHelp: true });
+    assert.equal((await validation.validateCandidate(valid)).ok, true, "peer malformed base must be strict");
+    const cycle = asRecord(asRecord(valid.journey).activeCycle);
+    const review = asRecord(asRecord(valid.journey).review);
+    const peerHelp = asRecord(asRecord(valid.journey).peerHelp);
+    const cases: Array<[string, (record: MutableRecord) => void]> = [
+      ["extra field", (record) => { record.unexpected = true; }],
+      ["wrong source", (record) => { record.source = "real_community"; }],
+      ["learner choice false", (record) => { record.learnerChoice = false; }],
+      ["time order", (record) => { record.createdAt = "2026-08-12T00:22:00.000Z"; }],
+    ];
+    for (const [name, mutate] of cases) {
+      const malformed = hostClone(valid);
+      mutate(asRecord(asRecord(malformed.journey).peerHelp));
+      writer.setState(malformed);
+      const chain = writer.validateCycleEvidence();
+      assert.equal(chain.reviewComplete, true, `${name}: valid review remains complete`);
+      assert.equal(chain.peerHelpComplete, false, `${name}: central chain must reject malformed peer-help`);
+      const projection = writer.buildJourneyDashboardProjection(chain);
+      const communityStep = (projection.steps as MutableRecord[]).find((step) => step.key === "community");
+      assert.equal(communityStep?.presentationState, "current", `${name}: community remains current`);
+      assert.equal(projection.provisionalHandoffVisible, false, `${name}: no provisional handoff`);
+      assert.equal(projection.nextCycleAdmissionVisible, false, `${name}: no next-cycle admission`);
+
+      const rawBefore = writer.getRaw();
+      const stateBefore = writer.backup.canonicalJson(writer.getState());
+      const eventCount = (writer.getState().learningEvents as unknown[]).length;
+      const rejected = await writer.commitPeerHelpReceipt({
+        expectedCycleId: cycle.cycleId,
+        expectedReviewId: review.reviewId,
+        selectedStatus: peerHelp.status,
+      });
+      assert.equal(rejected.status, "candidate_invalid", name);
+      assert.equal(writer.getRaw(), rawBefore, name);
+      assert.equal(writer.backup.canonicalJson(writer.getState()), stateBefore, name);
+      assert.equal((writer.getState().learningEvents as unknown[]).length, eventCount, name);
+    }
+  });
+
+  it("rejects a real review candidate that crosses the 1 MiB workspace boundary without mutation", async () => {
+    const writer = await loadJourneyWriterHarness();
+    const validation = await loadJourneyValidationHarness();
+    const candidate = await strictJourneyPreCloseFixture(writer, validation, { stopAfterCheckIn: true });
+    const archivalSource = expiredActivePlanFixture();
+    const archivalPlan = {
+      ...hostClone(asRecord(archivalSource.plan)),
+      status: "superseded",
+      supersededAt: "2026-08-12T00:03:00.000Z",
+      supersededReason: "learner_manual_regeneration",
+    };
+    candidate.planHistory = [archivalPlan, ...validStandalonePlanHistory(63)];
+    candidate.practiceReceipts = {
+      ...validStandaloneReceiptHistory(255),
+      ...asRecord(candidate.practiceReceipts),
+    };
+
+    let low = 0;
+    let high = 256;
+    let bestCheckIns = 0;
+    while (low <= high) {
+      const middle = Math.floor((low + high) / 2);
+      candidate.checkInHistory = validArchivedCheckInHistory(middle, archivalSource);
+      const inspected = writer.backup.inspectWorkspaceCapacity(candidate);
+      if (inspected.status === "ready") {
+        bestCheckIns = middle;
+        low = middle + 1;
+      } else {
+        high = middle - 1;
+      }
+    }
+    candidate.checkInHistory = validArchivedCheckInHistory(bestCheckIns, archivalSource);
+    low = 0;
+    high = 512;
+    let bestFocusSessions = 0;
+    while (low <= high) {
+      const middle = Math.floor((low + high) / 2);
+      asRecord(candidate.focus).sessions = validFocusSessionHistory(middle);
+      const inspected = writer.backup.inspectWorkspaceCapacity(candidate);
+      if (inspected.status === "ready") {
+        bestFocusSessions = middle;
+        low = middle + 1;
+      } else {
+        high = middle - 1;
+      }
+    }
+    asRecord(candidate.focus).sessions = validFocusSessionHistory(bestFocusSessions);
+    assert.equal(writer.backup.inspectWorkspaceCapacity(candidate).status, "ready");
+    const preValidation = await validation.validateCandidate(candidate);
+    assert.equal(preValidation.ok, true, String(preValidation.code || "near-capacity review prestate invalid"));
+    writer.setState(candidate);
+    writer.setNow(STRICT_CYCLE_TIMES.reviewAt);
+    const cycle = asRecord(asRecord(candidate.journey).activeCycle);
+    const checkIn = Object.values(asRecord(candidate.checkIns))[0] as MutableRecord;
+    const rawBefore = writer.getRaw();
+    const stateBefore = writer.backup.canonicalJson(writer.getState());
+    const eventCount = (candidate.learningEvents as unknown[]).length;
+    const rejected = await writer.commitLearnerReviewReceipt({
+      expectedCycleId: cycle.cycleId,
+      expectedCheckInId: checkIn.checkInId,
+    });
+    assert.equal(rejected.status, "capacity_reached");
+    assert.equal(rejected.code, "workspace_too_large");
+    assert.equal(writer.getRaw(), rawBefore);
+    assert.equal(writer.backup.canonicalJson(writer.getState()), stateBefore);
+    assert.equal((writer.getState().learningEvents as unknown[]).length, eventCount);
+  });
+
+  it("rolls back review and peer-help candidates when the real storage write fails", async () => {
+    const validation = await loadJourneyValidationHarness();
+    for (const stage of ["review", "peer"] as const) {
+      const writer = await loadJourneyWriterHarness();
+      const candidate = await strictJourneyPreCloseFixture(
+        writer,
+        validation,
+        stage === "review" ? { stopAfterCheckIn: true } : { stopAfterReview: true },
+      );
+      assert.equal((await validation.validateCandidate(candidate)).ok, true, `${stage}: strict prestate`);
+      writer.setState(candidate);
+      const cycle = asRecord(asRecord(candidate.journey).activeCycle);
+      const checkIn = Object.values(asRecord(candidate.checkIns))[0] as MutableRecord;
+      const reviewValue = asRecord(candidate.journey).review;
+      const rawBefore = writer.getRaw();
+      const stateBefore = writer.backup.canonicalJson(writer.getState());
+      const learningEventCount = (candidate.learningEvents as unknown[]).length;
+      writer.setNow(stage === "review" ? STRICT_CYCLE_TIMES.reviewAt : STRICT_CYCLE_TIMES.peerHelpAt);
+      writer.setPersistFailure(true);
+      const rejected = stage === "review"
+        ? await writer.commitLearnerReviewReceipt({
+            expectedCycleId: cycle.cycleId,
+            expectedCheckInId: checkIn.checkInId,
+          })
+        : await writer.commitPeerHelpReceipt({
+            expectedCycleId: cycle.cycleId,
+            expectedReviewId: asRecord(reviewValue).reviewId,
+            selectedStatus: "used",
+          });
+      assert.equal(
+        rejected.status,
+        "persist_failed",
+        `${stage}: ${String(rejected.code || "storage write did not reach persist")}`,
+      );
+      assert.equal(writer.getRaw(), rawBefore, stage);
+      assert.equal(writer.backup.canonicalJson(writer.getState()), stateBefore, stage);
+      assert.equal((writer.getState().learningEvents as unknown[]).length, learningEventCount, stage);
+    }
+  });
 });
 
 describe("community visibility preview production projection", () => {
@@ -3616,6 +4032,73 @@ describe("community visibility preview production projection", () => {
     for (const candidate of cases) {
       assert.equal(writer.buildCommunityVisibilityPreview(candidate), null);
     }
+  });
+});
+
+describe("workspace provisional handoff production projection", () => {
+  const recordedPrefix = {
+    diagnosticComplete: true,
+    planComplete: true,
+    recommendationComplete: true,
+    checkInComplete: true,
+    reviewComplete: true,
+    peerHelpComplete: true,
+    diagnostic: { completedEvidenceTaskCount: 6, evidenceSufficiency: "evidence_limited" },
+    recommendation: { status: "accepted" },
+    peerHelp: { status: "not_needed" },
+    retest: { evidenceStatus: "needs_review" },
+  };
+
+  it("makes provisional 7/7 a local handoff, not a completed CTA or next-cycle admission", async () => {
+    const writer = await loadJourneyWriterHarness();
+    const projection = writer.buildJourneyDashboardProjection({
+      ...recordedPrefix,
+      updateComplete: false,
+      provisionalUpdateRecorded: true,
+    });
+    assert.equal(projection.state, "provisional_pending_human_review");
+    assert.equal(projection.summary, "7 / 7 步已记录 · 待具备资质人员确认");
+    assert.equal(asRecord(projection.nextLink).hidden, true);
+    assert.equal(asRecord(projection.nextLink).href, null);
+    assert.equal(projection.provisionalHandoffVisible, true);
+    assert.equal(projection.nextCycleAdmissionVisible, false);
+    const retest = (projection.steps as MutableRecord[]).find((step) => step.key === "retest");
+    assert.equal(retest?.presentationState, "pending-human");
+    assert.equal(retest?.displayLabel, "等待具备资质人员确认");
+  });
+
+  it("keeps complete and in-progress visibility mutually exclusive", async () => {
+    const writer = await loadJourneyWriterHarness();
+    const complete = writer.buildJourneyDashboardProjection({
+      ...recordedPrefix,
+      updateComplete: true,
+      provisionalUpdateRecorded: false,
+    });
+    assert.equal(complete.state, "complete");
+    assert.equal(asRecord(complete.nextLink).hidden, false);
+    assert.equal(asRecord(complete.nextLink).href, "/plan");
+    assert.equal(complete.provisionalHandoffVisible, false);
+    assert.equal(complete.nextCycleAdmissionVisible, true);
+
+    const inProgress = writer.buildJourneyDashboardProjection({
+      diagnosticComplete: false,
+      planComplete: false,
+      recommendationComplete: false,
+      checkInComplete: false,
+      reviewComplete: false,
+      peerHelpComplete: false,
+      updateComplete: false,
+      provisionalUpdateRecorded: false,
+      diagnostic: { completedEvidenceTaskCount: 0 },
+      recommendation: null,
+      peerHelp: null,
+      retest: null,
+    });
+    assert.equal(inProgress.state, "in-progress");
+    assert.equal(asRecord(inProgress.nextLink).hidden, false);
+    assert.equal(asRecord(inProgress.nextLink).href, "/diagnostic");
+    assert.equal(inProgress.provisionalHandoffVisible, false);
+    assert.equal(inProgress.nextCycleAdmissionVisible, false);
   });
 });
 

@@ -990,6 +990,19 @@ const workspaceContent = `
               <a class="text-link" href="/my-data" data-next-cycle-recovery hidden>先去我的本机数据 →</a>
             </div>
           </div>
+          <section class="provisional-handoff" data-provisional-handoff data-state="provisional_pending_human_review" aria-labelledby="provisional-handoff-title" hidden>
+            <div class="provisional-handoff-copy">
+              <span>PROVISIONAL HANDOFF / LOCAL ONLY</span>
+              <h3 id="provisional-handoff-title" data-provisional-handoff-title>本轮进入临时承接，待具备资质人员确认</h3>
+              <p data-provisional-handoff-status role="status" aria-live="polite" aria-atomic="true">你可以继续查看本机临时计划、准备一份未发送的人工支持请求，或先保全本机数据。</p>
+              <p class="provisional-handoff-boundary"><strong>承接边界：</strong>不自动发送、不创建真实队列、不通知人员、不生成正式人工回执。</p>
+            </div>
+            <nav class="provisional-handoff-actions" aria-label="临时承接下一步">
+              <a class="button button-accent" href="/plan" data-provisional-handoff-plan>查看本机临时计划${arrow}</a>
+              <a class="button button-ghost" href="/super-teacher#human-support" data-provisional-handoff-support>准备人工支持请求${arrow}</a>
+              <a class="button button-ghost" href="/my-data" data-provisional-handoff-data>保全本机数据${arrow}</a>
+            </nav>
+          </section>
         </div>
         <p class="workspace-launch-boundary">这是 Gate A 本机演示：不接触服务器端学生数据，不提供官方 DET 分数、成绩预测、自动诊断、真题机经、考试中协助、真实社区或结果保证。</p>
       </div>
@@ -1247,7 +1260,7 @@ const communityContent = `
           <label><input type="radio" name="peerHelpStatus" value="unavailable" /><span><strong>暂不可用</strong><small>真实社区尚未开放，记录系统状态。</small></span></label>
         </fieldset>
         <label class="consent-check community-preview-confirmation" data-community-preview-confirmation hidden><input type="checkbox" name="localPreviewConfirmed" /><span><strong>我确认这只是本机预览</strong><small>不会加入真实小组、发送学习数据或让其他人看到；保存后 used 仍只表示已查看合成演示经验卡。</small></span></label>
-        <button class="button button-ink" type="submit">保存互助状态${arrow}</button><p class="form-inline-message" data-community-message role="alert"></p>
+        <button class="button button-ink" type="submit">保存互助状态${arrow}</button><p class="form-inline-message" data-community-message role="alert" tabindex="-1"></p>
       </form>
       <dl class="compact-receipt" data-community-receipt hidden><div><dt>peer_help_id</dt><dd data-community-id></dd></div><div><dt>peer_help_status</dt><dd data-community-value></dd></div></dl>
       <a class="button button-accent journey-next-button" href="/retest" data-community-next hidden>下一步：平行微复测${arrow}</a>
@@ -1482,7 +1495,7 @@ const reviewContent = `
       <div class="review-empty" data-review-empty><h3>当前闭环还没有待确认打卡</h3><p>先保存“做了什么 + 一条学习证据 + 一个问题”，再回到这里核对。</p><a class="button button-ink" href="/check-in">先完成证据式打卡${arrow}</a></div>
       <div class="review-ready" data-review-ready hidden>
         <article class="review-record" aria-labelledby="review-record-title"><span>CHECK-IN DRAFT FOR REVIEW</span><h3 id="review-record-title" data-review-date></h3><dl><div><dt>做了什么</dt><dd data-review-did></dd></div><div><dt>学习证据</dt><dd data-review-evidence></dd></div><div><dt>证据来源</dt><dd data-review-evidence-class></dd></div><div><dt>练习回执</dt><dd data-review-practice-receipt-id></dd></div><div><dt>问题状态</dt><dd data-review-question></dd></div></dl><a class="text-link" href="/check-in">返回修正打卡 →</a></article>
-        <form id="review-form" class="journey-form" novalidate><label class="consent-check"><input type="checkbox" name="learnerConfirmed" /><span><strong>我已核对，并确认这份复盘反映了我的学习记录</strong><small>如果内容不准确，请先返回修正；系统不会替你自动确认。</small></span></label><button class="button button-accent" type="submit">确认这份复盘${arrow}</button><p class="form-inline-message" data-review-error role="alert"></p></form>
+        <form id="review-form" class="journey-form" novalidate><label class="consent-check"><input type="checkbox" name="learnerConfirmed" /><span><strong>我已核对，并确认这份复盘反映了我的学习记录</strong><small>如果内容不准确，请先返回修正；系统不会替你自动确认。</small></span></label><button class="button button-accent" type="submit">确认这份复盘${arrow}</button><p class="form-inline-message" data-review-error role="alert" tabindex="-1"></p></form>
         <p class="review-success-message" data-review-message role="status" aria-live="polite" tabindex="-1" hidden></p>
         <dl class="compact-receipt" data-review-receipt hidden><div><dt>review_id</dt><dd data-review-id></dd></div><div><dt>check_in_id</dt><dd data-review-checkin-id></dd></div><div><dt>learner_confirmed_review</dt><dd>true</dd></div></dl>
         <a class="button button-ink journey-next-button" href="/community" data-review-next hidden>下一步：选择是否使用互助${arrow}</a>

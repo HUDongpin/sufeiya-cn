@@ -1196,21 +1196,27 @@
     );
     const reviewComplete = Boolean(
       checkInComplete &&
+        validWorkspaceBackupReview(review) &&
         review?.cycleId === cycle?.cycleId &&
         review?.reviewId === cycle?.reviewId &&
         review?.checkInId === cycle?.checkInId &&
         review?.learnerConfirmed === true &&
         checkIn?.reviewId === review?.reviewId &&
-        checkIn?.learnerConfirmedReview === true,
+        checkIn?.learnerConfirmedReview === true &&
+        checkIn?.reviewedAt === review?.confirmedAt &&
+        checkIn?.updatedAt === review?.confirmedAt,
     );
     const peerHelpComplete = Boolean(
       reviewComplete &&
+        validWorkspaceBackupPeerHelp(peerHelp) &&
         peerHelp?.cycleId === cycle?.cycleId &&
         peerHelp?.peerHelpId === cycle?.peerHelpId &&
         peerHelp?.planId === cycle?.basePlanId &&
         peerHelp?.reviewId === cycle?.reviewId &&
         VALID_PEER_HELP_STATES.has(peerHelp?.status) &&
-        peerHelp?.realCommunityUsed === false,
+        peerHelp?.realCommunityUsed === false &&
+        Date.parse(peerHelp?.createdAt) >= Date.parse(review?.confirmedAt) &&
+        Date.parse(peerHelp?.updatedAt) >= Date.parse(review?.confirmedAt),
     );
     const retestEvidenceComplete = Boolean(
       peerHelpComplete &&
@@ -6536,6 +6542,200 @@
     );
   };
 
+  const commitLearnerReviewReceipt = ({ expectedCycleId, expectedCheckInId }) =>
+    withExclusiveJourneyWrite(async () => {
+      if (!persistedStateIsFresh()) return { status: "stale" };
+      const latestChain = validateCycleEvidence();
+      const latestCycle = latestChain.cycle;
+      const latestCheckIn = latestChain.checkIn;
+      if (
+        latestCycle?.cycleId !== expectedCycleId ||
+        latestCheckIn?.checkInId !== expectedCheckInId ||
+        latestCycle?.status !== "in_progress" ||
+        !latestChain.checkInComplete
+      ) return { status: "chain_changed" };
+      const existingReview = latestChain.review;
+      const reviewStatePresent = Boolean(
+        existingReview ||
+        latestCycle.reviewId !== null ||
+        latestCheckIn.reviewId !== null ||
+        latestCheckIn.learnerConfirmedReview === true ||
+        latestCheckIn.reviewedAt !== null
+      );
+      if (reviewStatePresent) {
+        if (
+          !validWorkspaceBackupReview(existingReview) ||
+          !latestChain.reviewComplete ||
+          existingReview.cycleId !== expectedCycleId ||
+          existingReview.checkInId !== expectedCheckInId ||
+          latestCycle.reviewId !== existingReview.reviewId ||
+          latestCheckIn.reviewId !== existingReview.reviewId ||
+          latestCheckIn.reviewedAt !== existingReview.confirmedAt ||
+          latestCheckIn.updatedAt !== existingReview.confirmedAt
+        ) return { status: "candidate_invalid", code: "existing_review_invalid" };
+        const strictExisting = await validateWorkspaceBackupCandidate(state);
+        if (!strictExisting.ok) {
+          return { status: "candidate_invalid", code: strictExisting.code || "workspace_candidate_invalid" };
+        }
+        return { status: "already_saved", record: existingReview };
+      }
+      if (
+        [latestCycle.reviewId, latestCycle.peerHelpId, latestCycle.retestId, latestCycle.updatedPlanId].some((value) => value !== null) ||
+        [state.journey.review, state.journey.peerHelp, state.journey.retest, state.journey.planUpdate].some((value) => value !== null)
+      ) return { status: "chain_changed" };
+
+      const before = snapshotState();
+      const candidate = snapshotState();
+      const candidateCycle = candidate.journey.activeCycle;
+      const candidateCheckIn = getCycleCheckIn(candidate);
+      if (
+        candidateCycle?.cycleId !== expectedCycleId ||
+        candidateCheckIn?.checkInId !== expectedCheckInId
+      ) return { status: "chain_changed" };
+      const reviewId = makeId("review");
+      const confirmedAt = isoNow();
+      candidate.journey.review = {
+        cycleId: expectedCycleId,
+        reviewId,
+        checkInId: expectedCheckInId,
+        learnerConfirmed: true,
+        shareStatus: "not_shared",
+        reminderStatus: "not_enabled",
+        humanEscalationStatus: "not_requested",
+        confirmedAt,
+      };
+      candidateCheckIn.reviewId = reviewId;
+      candidateCheckIn.learnerConfirmedReview = true;
+      candidateCheckIn.reviewedAt = confirmedAt;
+      candidateCheckIn.updatedAt = confirmedAt;
+      candidateCycle.reviewId = reviewId;
+      candidateCycle.peerHelpId = null;
+      candidateCycle.retestId = null;
+      candidateCycle.updatedPlanId = null;
+      candidateCycle.updatedAt = confirmedAt;
+      candidate.journey.peerHelp = null;
+      candidate.journey.retest = null;
+      candidate.journey.planUpdate = null;
+
+      const candidateChain = validateCycleEvidence(candidate);
+      if (
+        !candidateChain.reviewComplete ||
+        candidateChain.cycle?.cycleId !== expectedCycleId ||
+        candidateChain.review?.reviewId !== reviewId ||
+        candidateChain.review?.checkInId !== expectedCheckInId
+      ) return { status: "candidate_invalid", code: "review_chain_invalid" };
+      const candidateCapacity = workspaceCandidateCapacity(candidate);
+      if (candidateCapacity.status !== "ready") return candidateCapacity;
+      const strictValidation = await validateWorkspaceBackupCandidate(candidate);
+      if (!strictValidation.ok) {
+        return { status: "candidate_invalid", code: strictValidation.code || "workspace_candidate_invalid" };
+      }
+      state = candidate;
+      if (!persist()) {
+        state = before;
+        return { status: "persist_failed" };
+      }
+      return { status: "saved", record: state.journey.review };
+    });
+
+  const commitPeerHelpReceipt = ({ expectedCycleId, expectedReviewId, selectedStatus }) =>
+    withExclusiveJourneyWrite(async () => {
+      if (!persistedStateIsFresh()) return { status: "stale" };
+      if (!VALID_PEER_HELP_STATES.has(selectedStatus)) {
+        return { status: "candidate_invalid", code: "peer_help_status_invalid" };
+      }
+      const latestChain = validateCycleEvidence();
+      const latestCycle = latestChain.cycle;
+      if (
+        latestCycle?.cycleId !== expectedCycleId ||
+        latestCycle?.reviewId !== expectedReviewId ||
+        latestChain.review?.reviewId !== expectedReviewId ||
+        latestCycle?.status !== "in_progress" ||
+        !latestChain.reviewComplete
+      ) return { status: "chain_changed" };
+      const previous = state.journey.peerHelp?.cycleId === expectedCycleId
+        ? state.journey.peerHelp
+        : null;
+      const peerHelpStatePresent = Boolean(state.journey.peerHelp || latestCycle.peerHelpId !== null);
+      if (peerHelpStatePresent) {
+        if (
+          !validWorkspaceBackupPeerHelp(previous) ||
+          !latestChain.peerHelpComplete ||
+          previous.cycleId !== expectedCycleId ||
+          previous.reviewId !== expectedReviewId ||
+          previous.peerHelpId !== latestCycle.peerHelpId
+        ) return { status: "candidate_invalid", code: "existing_peer_help_invalid" };
+        const strictExisting = await validateWorkspaceBackupCandidate(state);
+        if (!strictExisting.ok) {
+          return { status: "candidate_invalid", code: strictExisting.code || "workspace_candidate_invalid" };
+        }
+      }
+      if (
+        latestCycle.retestId ||
+        latestCycle.updatedPlanId ||
+        state.journey.retest?.cycleId === expectedCycleId ||
+        state.journey.planUpdate?.cycleId === expectedCycleId
+      ) return { status: "sealed_downstream" };
+      if (
+        latestChain.peerHelpComplete &&
+        previous?.peerHelpId === latestCycle.peerHelpId &&
+        previous.reviewId === expectedReviewId &&
+        previous.status === selectedStatus
+      ) return { status: "already_saved", record: previous };
+
+      const before = snapshotState();
+      const candidate = snapshotState();
+      const candidateCycle = candidate.journey.activeCycle;
+      const candidatePrevious = candidate.journey.peerHelp?.cycleId === expectedCycleId
+        ? candidate.journey.peerHelp
+        : null;
+      if (
+        candidateCycle?.cycleId !== expectedCycleId ||
+        candidateCycle?.reviewId !== expectedReviewId
+      ) return { status: "chain_changed" };
+      const peerHelpId = candidatePrevious?.peerHelpId || makeId("peer-help");
+      const updatedAt = isoNow();
+      candidate.journey.peerHelp = {
+        peerHelpId,
+        cycleId: expectedCycleId,
+        planId: candidateCycle.basePlanId,
+        reviewId: expectedReviewId,
+        status: selectedStatus,
+        source: "synthetic_demo_card_v1",
+        learnerChoice: true,
+        realCommunityUsed: false,
+        updatedAt,
+        createdAt: candidatePrevious?.createdAt || updatedAt,
+      };
+      candidateCycle.peerHelpId = peerHelpId;
+      candidateCycle.retestId = null;
+      candidateCycle.updatedPlanId = null;
+      candidateCycle.updatedAt = updatedAt;
+      candidate.journey.retest = null;
+      candidate.journey.planUpdate = null;
+
+      const candidateChain = validateCycleEvidence(candidate);
+      if (
+        !candidateChain.peerHelpComplete ||
+        candidateChain.cycle?.cycleId !== expectedCycleId ||
+        candidateChain.peerHelp?.peerHelpId !== peerHelpId ||
+        candidateChain.peerHelp?.reviewId !== expectedReviewId ||
+        candidateChain.peerHelp?.status !== selectedStatus
+      ) return { status: "candidate_invalid", code: "peer_help_chain_invalid" };
+      const candidateCapacity = workspaceCandidateCapacity(candidate);
+      if (candidateCapacity.status !== "ready") return candidateCapacity;
+      const strictValidation = await validateWorkspaceBackupCandidate(candidate);
+      if (!strictValidation.ok) {
+        return { status: "candidate_invalid", code: strictValidation.code || "workspace_candidate_invalid" };
+      }
+      state = candidate;
+      if (!persist()) {
+        state = before;
+        return { status: "persist_failed" };
+      }
+      return { status: "saved", record: state.journey.peerHelp };
+    });
+
   const setupReview = () => {
     const form = document.querySelector("#review-form");
     const empty = document.querySelector("[data-review-empty]");
@@ -6543,6 +6743,7 @@
     const errorMessage = document.querySelector("[data-review-error]");
     const successMessage = document.querySelector("[data-review-message]");
     if (!form || !empty || !ready) return;
+    form.dataset.commitState = "idle";
     const chain = validateCycleEvidence();
     const cycle = chain.cycle;
     const record = cycle?.status === "in_progress" && chain.checkInComplete ? chain.checkIn : null;
@@ -6550,6 +6751,7 @@
     empty.hidden = checkInReady;
     ready.hidden = !checkInReady;
     if (!checkInReady) {
+      form.dataset.commitState = "blocked";
       setText("[data-review-status]", cycle?.status === "completed" ? "上一轮已确认" : "等待本轮证据式打卡");
       return;
     }
@@ -6565,6 +6767,7 @@
 
     const review = state.journey.review;
     const confirmed = Boolean(
+      chain.reviewComplete &&
       review?.reviewId === cycle.reviewId &&
         review?.cycleId === cycle.cycleId &&
         review?.checkInId === record.checkInId &&
@@ -6577,6 +6780,7 @@
     if (receipt) receipt.hidden = !confirmed;
     if (next) next.hidden = !confirmed;
     if (confirmed) {
+      form.dataset.commitState = "saved";
       form.hidden = true;
       if (successMessage) successMessage.hidden = false;
       setText("[data-review-status]", "学习者已确认");
@@ -6587,61 +6791,60 @@
     }
     if (successMessage) successMessage.hidden = true;
     setText("[data-review-status]", "等待你的明确确认");
-    form.addEventListener("submit", (event) => {
+    form.elements.learnerConfirmed?.addEventListener("change", () => {
+      if (form.dataset.commitState === "blocked") form.dataset.commitState = "idle";
+      if (errorMessage) errorMessage.textContent = "";
+    });
+    form.addEventListener("submit", async (event) => {
       event.preventDefault();
+      if (form.dataset.commitState === "pending") return;
       if (errorMessage) errorMessage.textContent = "";
       if (!form.elements.learnerConfirmed.checked) {
+        form.dataset.commitState = "blocked";
         if (errorMessage) errorMessage.textContent = "请先核对记录，并勾选学习者确认。";
         form.elements.learnerConfirmed.focus();
         return;
       }
-      const latestChain = validateCycleEvidence();
-      if (
-        !latestChain.checkInComplete ||
-        latestChain.cycle?.cycleId !== cycle.cycleId ||
-        latestChain.checkIn?.checkInId !== record.checkInId
-      ) {
-        if (errorMessage) errorMessage.textContent = "待确认记录已经变化，请刷新后重新核对。";
+      const controls = [...form.querySelectorAll("input, button")];
+      const disabledBefore = controls.map((control) => control.disabled);
+      form.dataset.commitState = "pending";
+      form.setAttribute("aria-busy", "true");
+      controls.forEach((control) => { control.disabled = true; });
+      const outcome = await commitLearnerReviewReceipt({
+        expectedCycleId: cycle.cycleId,
+        expectedCheckInId: record.checkInId,
+      });
+      if (!["saved", "already_saved"].includes(outcome.status)) {
+        form.dataset.commitState = "blocked";
+        form.removeAttribute("aria-busy");
+        if (storageWritable) controls.forEach((control, index) => { control.disabled = disabledBefore[index]; });
+        if (errorMessage) errorMessage.textContent = outcome.status === "lock_unavailable"
+          ? "当前浏览器无法取得安全写入锁；本次确认尚未形成正式 review_id。"
+          : outcome.status === "capacity_invalid"
+            ? invalidCapacityMessage("本次复盘确认")
+            : outcome.status === "capacity_reached"
+              ? capacityFailureMessage("本次复盘确认", outcome)
+              : outcome.status === "persist_failed"
+                ? "当前无法保存；本次确认尚未形成正式 review_id。"
+                : outcome.status === "candidate_invalid"
+                  ? `本次确认未通过本机可恢复性核对（${outcome.code || "unknown"}）；没有写入 review_id。请先前往“我的本机数据”保全现有记录。`
+                  : "待确认记录已经变化；没有覆盖现有证据，请刷新后重新核对。";
+        errorMessage?.focus?.();
         return;
       }
-      const reviewId = makeId("review");
-      const confirmedAt = isoNow();
-      const before = snapshotState();
-      state.journey.review = {
-        cycleId: cycle.cycleId,
-        reviewId,
-        checkInId: record.checkInId,
-        learnerConfirmed: true,
-        shareStatus: "not_shared",
-        reminderStatus: "not_enabled",
-        humanEscalationStatus: "not_requested",
-        confirmedAt,
-      };
-      record.reviewId = reviewId;
-      record.learnerConfirmedReview = true;
-      record.reviewedAt = confirmedAt;
-      record.updatedAt = confirmedAt;
-      cycle.reviewId = reviewId;
-      cycle.peerHelpId = null;
-      cycle.retestId = null;
-      cycle.updatedPlanId = null;
-      cycle.updatedAt = confirmedAt;
-      state.journey.peerHelp = null;
-      state.journey.retest = null;
-      state.journey.planUpdate = null;
-      if (!persist()) {
-        state = before;
-        if (errorMessage) errorMessage.textContent = "当前无法保存；本次确认尚未形成正式 review_id。";
-        return;
-      }
+      form.dataset.commitState = "saved";
+      form.removeAttribute("aria-busy");
       form.hidden = true;
       if (receipt) receipt.hidden = false;
       if (next) next.hidden = false;
       if (successMessage) successMessage.hidden = false;
       setText("[data-review-status]", "学习者已确认");
-      setText("[data-review-id]", reviewId);
+      setText("[data-review-id]", outcome.record.reviewId);
       setText("[data-review-checkin-id]", record.checkInId);
-      setText("[data-review-message]", "复盘确认已保存在本机。");
+      setText(
+        "[data-review-message]",
+        outcome.status === "already_saved" ? "这份复盘已经确认；没有生成第二份 review_id。" : "复盘确认已保存在本机。",
+      );
       successMessage?.focus();
     });
   };
@@ -6675,6 +6878,7 @@
   const setupCommunity = () => {
     const form = document.querySelector("#community-form");
     if (!form) return;
+    form.dataset.commitState = "idle";
     const chain = validateCycleEvidence();
     renderCommunityVisibilityPreview(chain);
     const cycle = chain.cycle;
@@ -6695,6 +6899,7 @@
           state.journey.planUpdate?.cycleId === cycle.cycleId),
     );
     if (downstreamSealed) {
+      form.dataset.commitState = "saved";
       renderCommunity();
       if (previewConfirmation) previewConfirmation.hidden = true;
       form.querySelectorAll("input, button").forEach((control) => {
@@ -6705,6 +6910,7 @@
       return;
     }
     if (!gateReady) {
+      form.dataset.commitState = "blocked";
       if (previewConfirmation) previewConfirmation.hidden = true;
       form.querySelectorAll("input, button").forEach((control) => {
         control.disabled = true;
@@ -6714,61 +6920,82 @@
       return;
     }
     renderCommunity();
+    if (chain.peerHelpComplete) form.dataset.commitState = "saved";
     syncCommunityPreviewConfirmation();
     form.querySelectorAll('input[name="peerHelpStatus"]').forEach((control) => {
-      control.addEventListener("change", syncCommunityPreviewConfirmation);
+      control.addEventListener("change", () => {
+        syncCommunityPreviewConfirmation();
+        form.dataset.commitState = "idle";
+        const message = document.querySelector("[data-community-message]");
+        if (message) {
+          message.textContent = "";
+          message.setAttribute("role", "alert");
+          message.removeAttribute("aria-live");
+        }
+      });
     });
-    form.addEventListener("submit", (event) => {
+    form.addEventListener("submit", async (event) => {
       event.preventDefault();
+      if (form.dataset.commitState === "pending") return;
       const selected = form.querySelector('input[name="peerHelpStatus"]:checked')?.value;
       const message = document.querySelector("[data-community-message]");
       if (!VALID_PEER_HELP_STATES.has(selected)) {
+        form.dataset.commitState = "blocked";
         if (message) message.textContent = "请选择一种自愿状态后再保存。";
         form.querySelector('input[name="peerHelpStatus"]')?.focus();
         return;
       }
       if (selected === "used" && !previewConfirmationInput?.checked) {
+        form.dataset.commitState = "blocked";
         if (message) message.textContent = "请先确认这只是本机预览，不会加入真实小组或发送学习数据。";
         previewConfirmationInput?.focus();
         return;
       }
-      const latestChain = validateCycleEvidence();
-      if (
-        !latestChain.reviewComplete ||
-        latestChain.cycle?.cycleId !== cycle.cycleId ||
-        latestChain.review?.reviewId !== cycle.reviewId
-      ) {
-        if (message) message.textContent = "闭环状态已变化，请刷新后重新核对。";
+      const controls = [...form.querySelectorAll("input, button")];
+      const disabledBefore = controls.map((control) => control.disabled);
+      form.dataset.commitState = "pending";
+      form.setAttribute("aria-busy", "true");
+      controls.forEach((control) => { control.disabled = true; });
+      const outcome = await commitPeerHelpReceipt({
+        expectedCycleId: cycle.cycleId,
+        expectedReviewId: cycle.reviewId,
+        selectedStatus: selected,
+      });
+      if (!["saved", "already_saved"].includes(outcome.status)) {
+        form.dataset.commitState = "blocked";
+        form.removeAttribute("aria-busy");
+        if (storageWritable) controls.forEach((control, index) => { control.disabled = disabledBefore[index]; });
+        if (message) {
+          message.setAttribute("role", "alert");
+          message.removeAttribute("aria-live");
+          message.textContent = outcome.status === "sealed_downstream"
+            ? "本轮已形成 retest_id 或更新计划；互助状态已经封存，没有覆盖首份平行任务证据。"
+            : outcome.status === "lock_unavailable"
+              ? "当前浏览器无法取得安全写入锁；互助状态尚未形成正式本机记录。"
+              : outcome.status === "capacity_invalid"
+                ? invalidCapacityMessage("本次互助状态")
+                : outcome.status === "capacity_reached"
+                  ? capacityFailureMessage("本次互助状态", outcome)
+                  : outcome.status === "persist_failed"
+                    ? "当前无法保存；互助状态尚未形成正式本机记录。"
+                    : outcome.status === "candidate_invalid"
+                      ? `本次互助状态未通过本机可恢复性核对（${outcome.code || "unknown"}）；没有写入 peer_help_id。请先前往“我的本机数据”保全现有记录。`
+                      : "闭环状态已变化；没有覆盖现有证据，请刷新后重新核对。";
+        }
+        message?.focus?.();
         return;
       }
-      const previous = state.journey.peerHelp?.cycleId === cycle.cycleId ? state.journey.peerHelp : null;
-      const peerHelpId = previous?.peerHelpId || makeId("peer-help");
-      const before = snapshotState();
-      const updatedAt = isoNow();
-      state.journey.peerHelp = {
-        peerHelpId,
-        cycleId: cycle.cycleId,
-        planId: cycle.basePlanId,
-        reviewId: cycle.reviewId,
-        status: selected,
-        source: "synthetic_demo_card_v1",
-        learnerChoice: true,
-        realCommunityUsed: false,
-        updatedAt,
-        createdAt: previous?.createdAt || updatedAt,
-      };
-      cycle.peerHelpId = peerHelpId;
-      cycle.retestId = null;
-      cycle.updatedPlanId = null;
-      cycle.updatedAt = isoNow();
-      state.journey.retest = null;
-      state.journey.planUpdate = null;
-      if (!persist()) {
-        state = before;
-        if (message) message.textContent = "当前无法保存，互助状态尚未形成正式本机记录。";
-        return;
-      }
+      form.dataset.commitState = "saved";
+      form.removeAttribute("aria-busy");
       renderCommunity();
+      controls.forEach((control, index) => { control.disabled = disabledBefore[index]; });
+      if (message) {
+        message.setAttribute("role", "status");
+        message.setAttribute("aria-live", "polite");
+        if (outcome.status === "already_saved") {
+          message.textContent = "相同互助状态已经保存；没有生成第二份 peer_help_id，也没有改写时间戳。";
+        }
+      }
     });
   };
 
@@ -7322,6 +7549,60 @@
     });
   };
 
+  const buildJourneyDashboardProjection = (chain) => {
+    const evaluatedSteps = evaluateJourney(chain);
+    const provisional = chain?.provisionalUpdateRecorded === true;
+    const completedCount = evaluatedSteps.filter((step) => step.complete).length;
+    const next = evaluatedSteps.find((step) => !step.complete) || null;
+    const complete = !provisional && next === null && completedCount === journeyDefinitions.length;
+    const steps = evaluatedSteps.map((step) => {
+      if (provisional && step.key === "retest") {
+        return {
+          ...step,
+          presentationState: "pending-human",
+          displayLabel: "等待具备资质人员确认",
+        };
+      }
+      if (step.complete) {
+        return { ...step, presentationState: "complete", displayLabel: step.completeLabel };
+      }
+      if (next?.key === step.key) {
+        return { ...step, presentationState: "current", displayLabel: step.pendingLabel || "下一步" };
+      }
+      return { ...step, presentationState: "locked", displayLabel: "等待前一步" };
+    });
+
+    if (provisional) {
+      return {
+        state: "provisional_pending_human_review",
+        steps,
+        summary: "7 / 7 步已记录 · 待具备资质人员确认",
+        nextLabel: "本轮临时计划已记录，等待具备资质人员确认",
+        nextTitle: "等待具备资质人员确认",
+        nextCopy: "平行微复测与临时计划已保存在本机；尚未形成正式人工确认，也没有关闭完整 Gate A 闭环。",
+        nextLink: { hidden: true, href: null, label: null },
+        provisionalHandoffVisible: true,
+        nextCycleAdmissionVisible: false,
+      };
+    }
+
+    return {
+      state: complete ? "complete" : "in-progress",
+      steps,
+      summary: `${completedCount} / ${journeyDefinitions.length} 步已留证`,
+      nextLabel: next ? `下一步：${next.title}` : "本轮闭环已完成，可从更新后的计划继续",
+      nextTitle: next?.title || "本轮 Gate A 闭环已完成",
+      nextCopy: next?.copy || "所有七个阶段都有本机记录；这只证明演示流程闭合，不代表正式诊断、真实学生试点或学习效果。",
+      nextLink: {
+        hidden: false,
+        href: next?.route || "/plan",
+        label: next ? "继续下一步 →" : "查看更新后的计划 →",
+      },
+      provisionalHandoffVisible: false,
+      nextCycleAdmissionVisible: complete,
+    };
+  };
+
   const renderCycleEvidenceLedger = (chain) => {
     const root = document.querySelector("[data-cycle-ledger]");
     if (!root) return;
@@ -7746,37 +8027,31 @@
   const renderJourneyDashboard = () => {
     if (!document.querySelector("[data-journey-list]")) return;
     const chain = validateCycleEvidence();
-    const status = evaluateJourney(chain);
-    const completedCount = status.filter((step) => step.complete).length;
-    const next = status.find((step) => !step.complete);
-    status.forEach((step) => {
+    const projection = buildJourneyDashboardProjection(chain);
+    projection.steps.forEach((step) => {
       const item = document.querySelector(`[data-journey-step="${step.key}"]`);
       const label = item?.querySelector("[data-journey-step-status]");
-      item?.classList.remove("is-complete", "is-current", "is-locked");
-      if (step.complete) {
-        item?.classList.add("is-complete");
-        if (label) label.textContent = step.completeLabel;
-      } else if (next?.key === step.key) {
-        item?.classList.add("is-current");
-        if (label) label.textContent = step.pendingLabel || "下一步";
-      } else {
-        item?.classList.add("is-locked");
-        if (label) label.textContent = "等待前一步";
-      }
+      item?.classList.remove("is-complete", "is-current", "is-locked", "is-pending-human");
+      item?.classList.add(`is-${step.presentationState}`);
+      if (label) label.textContent = step.displayLabel;
     });
-    setText("[data-journey-summary]", `${completedCount} / ${journeyDefinitions.length} 步已留证`);
-    setText("[data-journey-next-label]", next ? `下一步：${next.title}` : "本轮闭环已完成，可从更新后的计划继续");
-    setText("[data-journey-next-title]", next?.title || "本轮 Gate A 闭环已完成");
-    setText(
-      "[data-journey-next-copy]",
-      next?.copy || "所有七个阶段都有本机记录；这只证明演示流程闭合，不代表正式诊断、真实学生试点或学习效果。",
-    );
+    setText("[data-journey-summary]", projection.summary);
+    setText("[data-journey-next-label]", projection.nextLabel);
+    setText("[data-journey-next-title]", projection.nextTitle);
+    setText("[data-journey-next-copy]", projection.nextCopy);
     const link = document.querySelector("[data-journey-next-link]");
     if (link) {
-      link.href = next?.route || "/plan";
-      link.textContent = next ? "继续下一步 →" : "查看更新后的计划 →";
+      link.hidden = projection.nextLink.hidden;
+      if (projection.nextLink.href) link.setAttribute("href", projection.nextLink.href);
+      else link.removeAttribute("href");
+      if (projection.nextLink.label) link.textContent = projection.nextLink.label;
     }
-    renderNextCycleAdmission(!next && completedCount === journeyDefinitions.length);
+    const provisionalHandoff = document.querySelector("[data-provisional-handoff]");
+    if (provisionalHandoff) {
+      provisionalHandoff.hidden = !projection.provisionalHandoffVisible;
+      provisionalHandoff.dataset.state = projection.provisionalHandoffVisible ? "visible" : "hidden";
+    }
+    renderNextCycleAdmission(projection.nextCycleAdmissionVisible);
     renderCycleEvidenceLedger(chain);
     renderCycleHistory();
   };

@@ -5142,6 +5142,23 @@ button:disabled {
   color: var(--color-ink);
 }
 
+.journey-grid li.is-pending-human {
+  background:
+    linear-gradient(135deg, rgba(244, 184, 39, 0.16), rgba(255, 255, 255, 0.82)),
+    var(--color-white);
+  box-shadow: inset 0 4px 0 var(--color-ink-soft);
+}
+
+.journey-grid li.is-pending-human a {
+  opacity: 1;
+}
+
+.journey-grid li.is-pending-human small {
+  border-color: var(--color-accent-deep);
+  background: rgba(244, 184, 39, 0.2);
+  color: var(--color-ink-deep);
+}
+
 .journey-grid li.is-locked a {
   opacity: 0.72;
 }
@@ -5229,6 +5246,66 @@ button:disabled {
 .next-cycle-admission[data-state="capacity-blocked"] [data-next-cycle-admission-status],
 .next-cycle-admission[data-state="invalid"] [data-next-cycle-admission-status] {
   color: var(--color-danger);
+}
+
+.provisional-handoff {
+  grid-column: 1 / -1;
+  min-width: 0;
+  padding: clamp(22px, 3vw, 32px);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.72fr);
+  align-items: start;
+  gap: 24px 38px;
+  border: 1px solid rgba(16, 44, 41, 0.2);
+  border-left: 4px solid var(--color-accent-strong);
+  background:
+    linear-gradient(135deg, rgba(244, 184, 39, 0.12), rgba(237, 243, 239, 0.52)),
+    var(--color-white);
+}
+
+.provisional-handoff-copy {
+  min-width: 0;
+}
+
+.journey-next-card .provisional-handoff-copy > h3 {
+  max-width: 720px;
+  font-size: clamp(23px, 2.5vw, 32px);
+  line-height: 1.38;
+}
+
+.journey-next-card .provisional-handoff-copy > [data-provisional-handoff-status] {
+  max-width: 720px;
+  margin-top: 10px;
+  color: var(--color-text);
+  font-size: 14px;
+  line-height: 1.75;
+}
+
+.journey-next-card .provisional-handoff-boundary {
+  max-width: 720px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(16, 44, 41, 0.16);
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.75;
+}
+
+.provisional-handoff-boundary strong {
+  color: var(--color-ink);
+}
+
+.provisional-handoff-actions {
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.provisional-handoff-actions .button {
+  width: 100%;
+  min-width: 0;
+  justify-content: space-between;
+  text-align: left;
 }
 
 .workspace-support-grid > a:nth-child(n) {
@@ -7722,6 +7799,7 @@ button:disabled {
 
   .journey-next-card,
   .next-cycle-admission,
+  .provisional-handoff,
   .diagnostic-layout {
     grid-template-columns: 1fr;
   }
