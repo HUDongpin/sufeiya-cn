@@ -36,11 +36,11 @@ export function buildSuperTeacherStatusResponse(
       blockedBindingIds: modelStatus.blockedBindingIds,
     },
     teacherSurfaceAccess: "public_teaser",
-    interactiveTeacherAccess: "clerk_authenticated",
+    interactiveTeacherAccess: "clerk_invitation_approved",
     modelSubmitAccess: firstPartyProcessing.enabled
-      ? "clerk_authenticated"
+      ? "clerk_invitation_approved"
       : "disabled_pending_first_party_processing_approval",
-    learningPageAccess: "clerk_protected",
+    learningPageAccess: "clerk_invitation_approved",
     learningDataStorage: "browser_local_not_account_bound",
     sourceBoundary: superTeacherSourceBoundary(),
   });

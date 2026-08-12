@@ -10,26 +10,36 @@ import {
 } from "@/components/sofia-public-access";
 import { SuperTeacherSessionProvider } from "@/components/super-teacher/super-teacher-session-provider";
 import type { SofiaSurface } from "@/components/site-shell";
+import type { SufeiyaBetaAccessContext } from "@/lib/auth/beta-access";
 
 export function SofiaAccessBoundary({
   surface,
+  betaAccessContext,
   children,
 }: {
   surface: Exclude<SofiaSurface, "none">;
+  betaAccessContext: SufeiyaBetaAccessContext;
   children: ReactNode;
 }) {
   const { isLoaded, isSignedIn } = useAuth();
-  const accessState = isLoaded ? "signed-out" as const : "loading" as const;
+  const accessState = !isLoaded
+    ? "loading" as const
+    : !isSignedIn
+      ? "signed-out" as const
+      : betaAccessContext === "invitation_required"
+        ? "invitation-required" as const
+        : "unavailable" as const;
+  const interactiveAccess = isLoaded && isSignedIn && betaAccessContext === "approved";
 
   if (surface === "page") {
-    if (!isLoaded || !isSignedIn) return <SofiaPublicPage accessState={accessState} />;
+    if (!interactiveAccess) return <SofiaPublicPage accessState={accessState} />;
     return <SuperTeacherSessionProvider>{children}</SuperTeacherSessionProvider>;
   }
 
   return (
     <>
       {children}
-      {isLoaded && isSignedIn ? (
+      {interactiveAccess ? (
         <SuperTeacherSessionProvider>
           <SofiaFloatingAssistant />
         </SuperTeacherSessionProvider>

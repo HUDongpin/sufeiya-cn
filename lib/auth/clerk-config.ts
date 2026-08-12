@@ -21,6 +21,26 @@ export const CLERK_PROTECTED_PATHS = [
   "/account",
 ] as const;
 
+export const CLERK_BETA_PROTECTED_PATHS = [
+  "/workspace",
+  "/diagnostic",
+  "/plan",
+  "/recommendations",
+  "/today",
+  "/practice",
+  "/practice-reading",
+  "/practice-listening",
+  "/practice-writing",
+  "/practice-speaking",
+  "/focus",
+  "/check-in",
+  "/review",
+  "/community",
+  "/retest",
+  "/my-data",
+  "/teaching-review-demo",
+] as const;
+
 export const CLERK_PUBLIC_RUNTIME_PATHS = [
   "/",
   "/learning-path",
@@ -30,6 +50,7 @@ export const CLERK_PUBLIC_RUNTIME_PATHS = [
   "/super-teacher",
   "/sign-in",
   "/sign-up",
+  "/beta-access",
 ] as const;
 
 export const CLERK_PRODUCTION_AUTHORIZED_PARTIES = [
@@ -145,10 +166,17 @@ export function isClerkProtectedPathname(pathname: string) {
   );
 }
 
+export function isClerkBetaProtectedPathname(pathname: string) {
+  return CLERK_BETA_PROTECTED_PATHS.some(
+    (protectedPath) => pathname === protectedPath || pathname.startsWith(`${protectedPath}/`),
+  );
+}
+
 export function isClerkRuntimePathname(pathname: string) {
   if (isClerkProtectedPathname(pathname)) return true;
   if (pathname === "/sign-in" || pathname.startsWith("/sign-in/")) return true;
   if (pathname === "/sign-up" || pathname.startsWith("/sign-up/")) return true;
+  if (pathname === "/beta-access" || pathname.startsWith("/beta-access/")) return true;
   return CLERK_PUBLIC_RUNTIME_PATHS.some((runtimePath) => pathname === runtimePath);
 }
 

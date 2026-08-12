@@ -294,14 +294,14 @@ const homeContent = `
           </p>
           <h1 id="hero-title">为每一次学习，<br />找到<span>清晰的下一步。</span></h1>
           <p class="hero-lead">
-            现在就生成 7 天学习计划、完成今日任务、练习英文听说读写并记录复盘。
-            不只是了解功能，而是在每一次行动中看见清晰的下一步。
+            受邀内测账户可以生成 7 天学习计划、完成今日任务、练习英文听说读写并记录复盘。
+            公开介绍可浏览；交互式学习区会在登录后核验邀请资格。
           </p>
           <div class="hero-actions">
-            <a class="button button-accent" href="/workspace">开始今日学习${arrow}</a>
+            <a class="button button-accent" href="/workspace">核验资格并开始学习${arrow}</a>
             <a class="button button-ghost" href="/learning-path">查看学习路径</a>
           </div>
-          <p class="hero-note"><span aria-hidden="true"></span>面向中国大陆学生的中文 DET 在线学习平台</p>
+          <p class="hero-note"><span aria-hidden="true"></span>首轮仅面向 18+ 成人的邀请制 Gate A 内测</p>
         </div>
         <figure class="learning-plate" aria-labelledby="learning-plate-title">
           <figcaption>
@@ -376,21 +376,21 @@ const homeContent = `
       <div class="current-status-inner">
         <div>
           <p>平台当前状态</p>
-          <h2 id="status-title">学生现在就能开始，<br />高级能力再分阶段开放。</h2>
+          <h2 id="status-title">受邀账户完成资格核验后可开始，<br />高级能力再分阶段开放。</h2>
         </div>
         <dl>
-          <div><dt>现在可用</dt><dd>7 天计划、今日清单、四项英文微练习、专注计时与本机复盘</dd></div>
-          <div><dt>分阶段开放</dt><dd>正式学习诊断、Sofia智能老师、带教打卡营与社区互助</dd></div>
+          <div><dt>受邀内测可用</dt><dd>Gate A 本机学习闭环，以及有来源、有限范围的 Sofia智能老师</dd></div>
+          <div><dt>分阶段开放</dt><dd>正式学习诊断、完整知识服务、带教打卡营与真实社区互助</dd></div>
           <div><dt>明确不提供</dt><dd>官方成绩预测、真题机经、考试中协助或结果保证</dd></div>
         </dl>
       </div>
     </section>
 
     ${nextPage({
-      eyebrow: "今天就可以开始",
-      title: "生成你的 7 天计划，<br />完成第一组英文练习。",
+      eyebrow: "受邀后可以开始",
+      title: "核验内测资格，<br />再完成一轮 Gate A 本机学习。",
       href: "/workspace",
-      label: "进入学习工作台",
+      label: "进入邀请制工作台",
     })}
   </main>`;
 
@@ -461,19 +461,19 @@ const platformContent = `
       number: "02",
       label: "平台功能",
       title: "四项平台能力，<br />服务同一条学习路径。",
-      lead: "基础学习工具和 Sofia智能老师 Gate A 已经可以直接使用；正式诊断、完整课程知识、带教打卡与社区能力继续分阶段验证。每项能力都服务同一条学习路径。",
-      aside: "<strong>现在就能学习</strong><p>进入学习工作台完成七步闭环，或让 Sofia智能老师解释本机证据、计划与推荐依据。</p>",
+      lead: "公开功能介绍可以浏览；基础学习工具和 Sofia智能老师 Gate A 的交互仅对通过资格核验的受邀账户开放。正式诊断、完整课程知识、带教打卡与社区能力继续分阶段验证。",
+      aside: "<strong>受邀后可学习</strong><p>受邀账户可进入学习工作台完成七步闭环，或让 Sofia智能老师解释本机证据、计划与推荐依据。</p>",
     })}
     <section class="workspace-entry section" aria-labelledby="workspace-entry-title">
       <div class="section-inner">
-        <div class="section-kicker"><span>01</span><p>学生可直接使用</p></div>
+        <div class="section-kicker"><span>01</span><p>受邀内测账户可使用</p></div>
         <div class="workspace-entry-heading">
           <div>
-            <p class="status-pill"><span></span>学习工作台 · 已开放</p>
-            <h2 id="workspace-entry-title">打开网页，<br />今天就能完成一轮学习。</h2>
+            <p class="status-pill"><span></span>学习工作台 · 邀请制内测</p>
+            <h2 id="workspace-entry-title">完成资格核验，<br />再开始一轮本机学习。</h2>
           </div>
           <div>
-            <p>工作台与学习页面使用 Clerk 登录保护。计划、打卡与复盘仍只保存在当前浏览器中；登录不会自动上传、绑定或跨设备同步这些记录，学生可以随时清除。</p>
+            <p>工作台与学习页面先使用 Clerk 登录，再核验 Sufeiya 内测资格；登录本身不等于获准。首轮仅面向 18+ 成人，计划、打卡与复盘仍只保存在当前浏览器中，不会因登录自动上传、绑定或跨设备同步。</p>
             <a class="button button-ink" href="/workspace">进入学习工作台${arrow}</a>
           </div>
         </div>
@@ -502,7 +502,7 @@ const platformContent = `
           </article>
           <article>
             <div class="system-index"><span>02</span><small>解释</small></div>
-            <div class="system-content"><p class="system-label">Sofia智能老师</p><h3>解释为什么，<br />也知道何时停下。</h3><p>Gate A 已开放：逐句引用本站本机证据、计划、推荐与原创任务；DET 官方资料和课程正文完成审核前不会进入回答，并保留非 AI 与人工支持路径。</p><a class="text-link" href="/super-teacher">打开 Sofia智能老师 →</a></div>
+            <div class="system-content"><p class="system-label">Sofia智能老师</p><h3>解释为什么，<br />也知道何时停下。</h3><p>Gate A 对受邀内测账户开放：逐句引用本站本机证据、计划、推荐与原创任务；DET 官方资料和课程正文完成审核前不会进入回答，并保留非 AI 与人工支持路径。</p><a class="text-link" href="/super-teacher">查看 Sofia智能老师 →</a></div>
           </article>
           <article>
             <div class="system-index"><span>03</span><small>练习</small></div>
@@ -513,15 +513,15 @@ const platformContent = `
             <div class="system-content"><p class="system-label">上岸学员社区互助</p><h3>让真实经验，<br />以有边界的方式流动。</h3><p>计划邀请经核验、培训的上岸学员分享结构化经验；每位学习者是否参加完全自愿，不参加也不会阻断个人学习路径。</p></div>
           </article>
         </div>
-        <p class="system-boundary"><strong>当前状态：</strong>基础学习工作台、公开课程入口与 Sofia智能老师 Gate A 已开放；后者只回答已准入范围，当前 DET 官方语料与归档知识块准入均为 0。正式诊断、完整知识服务、带教打卡与社区能力仍分阶段开放。</p>
+        <p class="system-boundary"><strong>当前状态：</strong>公开介绍与课程目录可浏览；基础学习工作台和 Sofia智能老师 Gate A 的交互只对受邀内测账户开放。Sofia 只回答已准入范围，当前 DET 官方语料与归档知识块准入均为 0；正式诊断、完整知识服务、带教打卡与社区能力仍分阶段开放。</p>
       </div>
     </section>
     <section class="current-status current-status-light" aria-labelledby="platform-status-title">
       <div class="current-status-inner">
         <div><p>能力状态</p><h2 id="platform-status-title">开放状态必须清楚，<br />不把规划写成现成服务。</h2></div>
         <dl>
-          <div><dt>学习工作台</dt><dd>已开放，可直接生成计划、练习、计时并在本机保存复盘</dd></div>
-          <div><dt>Sofia智能老师</dt><dd>Gate A 已开放：有来源解释、明确拒答、非 AI 退出和本机人工请求</dd></div>
+          <div><dt>学习工作台</dt><dd>邀请制内测：通过资格核验后生成计划、练习、计时并在本机保存复盘</dd></div>
+          <div><dt>Sofia智能老师</dt><dd>受邀 Gate A：有来源解释、明确拒答、非 AI 退出和本机人工请求</dd></div>
           <div><dt>其余进阶能力</dt><dd>完成内容、测评、隐私和运营准备后分阶段开放</dd></div>
           <div><dt>非官方边界</dt><dd>不冒充官方评分，不保证提分、录取或上岸结果</dd></div>
         </dl>
@@ -1467,7 +1467,7 @@ const pages = [
     page: "home",
     path: "/",
     title: "苏肥鸭多邻国｜Sufeiya DET 在线学习平台",
-    description: "面向中国大陆 DET 学习者的中文在线学习平台，可直接生成学习计划、完成今日任务、练习英文听说读写并保存复盘。",
+    description: "面向中国大陆 DET 学习者的中文在线学习平台；公开介绍可浏览，受邀内测账户可完成 Gate A 本机学习闭环。",
     content: homeContent,
   },
   {
@@ -1475,7 +1475,7 @@ const pages = [
     page: "workspace",
     path: "/workspace",
     title: "学习工作台｜苏肥鸭多邻国在线学习平台",
-    description: "直接使用 Sufeiya 学习工作台：生成 7 天 DET 学习计划、完成今日任务、练习英文听说读写、专注计时并保存本机复盘。",
+    description: "受邀内测账户通过资格核验后使用 Sufeiya 学习工作台，在本机完成 Gate A 学习闭环。",
     content: workspaceContent,
     scripts: ["/workspace.js", "/journey.js"],
   },
@@ -1627,7 +1627,7 @@ const pages = [
     page: "platform",
     path: "/platform",
     title: "平台功能｜苏肥鸭多邻国在线学习平台",
-    description: "直接进入基础学习工作台，并了解全科诊断伴学课、Sofia智能老师、带教打卡营与自愿社区互助等分阶段能力。",
+    description: "了解邀请制 Gate A 学习工作台、Sofia智能老师，以及全科诊断、带教打卡营与自愿社区互助等分阶段能力。",
     content: platformContent,
   },
   {

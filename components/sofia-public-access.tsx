@@ -8,7 +8,11 @@ import { useEffect, useId, useRef, useState } from "react";
 import pageStyles from "@/app/super-teacher/super-teacher.module.css";
 import floatingStyles from "@/components/sofia-floating-assistant.module.css";
 
-export type SofiaPublicAccessState = "loading" | "signed-out" | "unavailable";
+export type SofiaPublicAccessState =
+  | "loading"
+  | "signed-out"
+  | "invitation-required"
+  | "unavailable";
 
 const accessCopy: Record<SofiaPublicAccessState, { eyebrow: string; title: string; body: string }> = {
   loading: {
@@ -18,8 +22,13 @@ const accessCopy: Record<SofiaPublicAccessState, { eyebrow: string; title: strin
   },
   "signed-out": {
     eyebrow: "CLERK · SIGN-IN REQUIRED",
-    title: "登录后继续本机学习对话。",
-    body: "公开页面只介绍功能。未登录时不会读取或显示这个浏览器中上一位使用者留下的 Sofia 对话、学习摘要或人工请求。",
+    title: "受邀账户登录后继续本机学习对话。",
+    body: "公开页面只介绍功能。未登录时不会读取或显示这个浏览器中上一位使用者留下的 Sofia 对话、学习摘要或人工请求；登录后还会核验内测邀请资格。",
+  },
+  "invitation-required": {
+    eyebrow: "INVITE-ONLY BETA · ACCESS REQUIRED",
+    title: "当前账户没有有效内测资格。",
+    body: "登录只确认账户身份，不代表具有当前准入。学习摘要、历史对话和交互式 Sofia 在 Clerk 签名会话令牌确认资格前保持关闭；首轮仅面向 18+ 成人。",
   },
   unavailable: {
     eyebrow: "CLERK · SAFE CONFIGURATION HOLD",
@@ -42,7 +51,7 @@ export function SofiaPublicPage({ accessState }: { accessState: SofiaPublicAcces
           </div>
           <dl className={pageStyles.heroFacts}>
             <div><dt>公开页面</dt><dd>只展示介绍，不读取本机记录</dd></div>
-            <div><dt>交互入口</dt><dd>Clerk 登录后开放</dd></div>
+            <div><dt>交互入口</dt><dd>Clerk 登录且获邀后开放</dd></div>
             <div><dt>当前数据流</dt><dd>浏览器本机处理 · 不发送服务器或模型</dd></div>
           </dl>
         </div>
@@ -55,6 +64,7 @@ export function SofiaPublicPage({ accessState }: { accessState: SofiaPublicAcces
           <p>{copy.body}</p>
           <div className={pageStyles.accessActions}>
             {accessState === "signed-out" ? <Link href="/sign-in">安全登录并继续</Link> : null}
+            {accessState === "invitation-required" ? <Link href="/beta-access">查看内测资格</Link> : null}
             <Link href="/about#faq">查看功能与数据边界</Link>
           </div>
         </div>
@@ -62,7 +72,7 @@ export function SofiaPublicPage({ accessState }: { accessState: SofiaPublicAcces
           <article>
             <span>01</span>
             <h3>身份只是访问门</h3>
-            <p>Clerk 登录不会把当前浏览器的学习数据绑定到账户，也不会自动同步到其他设备。</p>
+            <p>Clerk 登录与邀请资格只控制访问，不会把当前浏览器的学习数据绑定到账户，也不会自动同步到其他设备。</p>
           </article>
           <article>
             <span>02</span>
@@ -96,7 +106,13 @@ export function SofiaPublicFloatingAssistant({ accessState }: { accessState: Sof
     const dialog = dialogRef.current;
     if (!dialog) return;
     if (typeof dialog.showModal !== "function") {
-      router.push(accessState === "signed-out" ? "/sign-in" : "/super-teacher");
+      router.push(
+        accessState === "signed-out"
+          ? "/sign-in"
+          : accessState === "invitation-required"
+            ? "/beta-access"
+            : "/super-teacher",
+      );
       return;
     }
     if (!dialog.open) dialog.showModal();
@@ -199,7 +215,7 @@ export function SofiaPublicFloatingAssistant({ accessState }: { accessState: Sof
           <h3>{copy.title}</h3>
           <p>{copy.body}</p>
           <ul>
-            <li>登录后才挂载 Sofia 本机会话。</li>
+            <li>登录且通过内测邀请资格核验后才挂载 Sofia 本机会话。</li>
             <li>当前回答在浏览器本机生成，不发送服务器或外部模型。</li>
             <li>语音与麦克风仍处于发布闸门关闭状态。</li>
           </ul>
@@ -212,7 +228,13 @@ export function SofiaPublicFloatingAssistant({ accessState }: { accessState: Sof
             </span>
             <div><strong>语音功能暂未开放</strong><p>当前不会请求麦克风或发送音频。</p></div>
           </section>
-          {accessState === "signed-out" ? <Link href="/sign-in">安全登录并继续 →</Link> : <Link href="/super-teacher">打开完整公开介绍 →</Link>}
+          {accessState === "signed-out" ? (
+            <Link href="/sign-in">安全登录并继续 →</Link>
+          ) : accessState === "invitation-required" ? (
+            <Link href="/beta-access">查看内测资格 →</Link>
+          ) : (
+            <Link href="/super-teacher">打开完整公开介绍 →</Link>
+          )}
         </footer>
       </dialog>
     </>

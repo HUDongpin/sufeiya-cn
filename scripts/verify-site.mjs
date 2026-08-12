@@ -53,6 +53,7 @@ const protectedLearnerPaths = [
   "/teaching-review-demo",
   "/account",
 ];
+const betaProtectedLearnerPaths = protectedLearnerPaths.filter((path) => path !== "/account");
 const sitemapPublicPaths = ["/", "/super-teacher", "/learning-path", "/platform", "/resources", "/about"];
 const nextOnlyTargets = new Map([
   ["/super-teacher", "app/super-teacher/page.tsx"],
@@ -146,9 +147,11 @@ const fullDocumentLink = await read("components/full-document-link.tsx");
 const siteShell = await read("components/site-shell.tsx");
 const siteFrame = await read("components/site-frame.tsx");
 const authPage = await read("components/auth-page.tsx");
+const betaAccessPage = await read("app/beta-access/page.tsx");
 const clerkWidgetFrame = await read("components/clerk-widget-frame.tsx");
 const clerkAccountControls = await read("components/clerk-account-controls.tsx");
 const clerkConfig = await read("lib/auth/clerk-config.ts");
+const betaAccessConfig = await read("lib/auth/beta-access.ts");
 const accountPage = await read("app/account/[[...account]]/page.tsx");
 const signInPage = await read("app/sign-in/[[...sign-in]]/page.tsx");
 const signUpPage = await read("app/sign-up/[[...sign-up]]/page.tsx");
@@ -207,6 +210,11 @@ const configuredCleanRoutes = parseDeclaredStringArray(nextConfig, "cleanRoutes"
 const configuredProtectedPaths = parseDeclaredStringArray(
   clerkConfig,
   "CLERK_PROTECTED_PATHS",
+  "lib/auth/clerk-config.ts",
+);
+const configuredBetaProtectedPaths = parseDeclaredStringArray(
+  clerkConfig,
+  "CLERK_BETA_PROTECTED_PATHS",
   "lib/auth/clerk-config.ts",
 );
 const configuredClerkPublicRuntimePaths = parseDeclaredStringArray(
@@ -4783,6 +4791,7 @@ check(
 );
 check(
   !/<ClerkProvider/.test(rootLayout) &&
+    /await connection\(\)/.test(siteShell) &&
     /if \(!clerkState\.configured\) return shell/.test(siteShell) &&
     /<ClerkProvider[\s\S]*dynamic[\s\S]*localization=\{clerkLocalization\}[\s\S]*signInUrl="\/sign-in"[\s\S]*signUpUrl="\/sign-up"[\s\S]*\{shell\}[\s\S]*<\/ClerkProvider>/.test(
       siteShell,
@@ -4790,7 +4799,7 @@ check(
     /formFieldInputPlaceholder__password: "请输入密码"/.test(siteShell) &&
     /formFieldInputPlaceholder__signUpPassword: "请创建密码"/.test(siteShell) &&
     /getClerkRuntimeState/.test(siteShell),
-  "configured SiteShell mounts Clerk fail-closed and dynamically with complete Chinese password placeholders",
+  "configured SiteShell is request-dynamic, mounts Clerk fail-closed, and has complete Chinese password placeholders",
 );
 check(
   protectedLearnerPaths.every((path) => clerkConfig.includes(`"${path}"`)) &&
@@ -4799,6 +4808,18 @@ check(
       clerkConfig,
     ),
   "Clerk protected classifier covers learner and account roots plus all subroutes",
+);
+check(
+  JSON.stringify([...configuredBetaProtectedPaths].sort()) ===
+    JSON.stringify([...betaProtectedLearnerPaths].sort()) &&
+    /export function isClerkBetaProtectedPathname\(pathname: string\)/.test(clerkConfig) &&
+    /SUFEIYA_BETA_ACCESS_PROTOCOL = "sufeiya_invite_only_beta_v1"/.test(betaAccessConfig) &&
+    /access\.protocolVersion !== SUFEIYA_BETA_ACCESS_PROTOCOL/.test(betaAccessConfig) &&
+    /access\.status !== "approved"/.test(betaAccessConfig) &&
+    /betaAccessFromSessionClaims/.test(betaAccessConfig) &&
+    /Object\.hasOwn\(claims, SUFEIYA_BETA_ACCESS_METADATA_KEY\)/.test(betaAccessConfig) &&
+    /verification_unavailable/.test(betaAccessConfig),
+  "application invite gate admits only the exact Clerk-signed claim and fails closed when the claim is unavailable",
 );
 check(
   /if \(!clerkState\.configured\)/.test(teachingReviewPage) &&
@@ -4927,6 +4948,7 @@ check(
     JSON.stringify([
       "/",
       "/about",
+      "/beta-access",
       "/learning-path",
       "/platform",
       "/resources",
@@ -4941,6 +4963,9 @@ check(
     /pathname === "\/sign-up" \|\| pathname\.startsWith\("\/sign-up\/"\)/.test(
       clerkConfig,
     ) &&
+    /pathname === "\/beta-access" \|\| pathname\.startsWith\("\/beta-access\/"\)/.test(
+      clerkConfig,
+    ) &&
     /pathname === "\/api\/super-teacher"/.test(clerkConfig) &&
     /pathname === "\/__clerk"[\s\S]*pathname\.startsWith\("\/__clerk\/"\)/.test(
       clerkConfig,
@@ -4951,6 +4976,7 @@ check(
   configuredProtectedPaths.every((path) => proxyScript.includes(`"${path}/:path*"`)) &&
     proxyScript.includes('"/sign-in/:path*"') &&
     proxyScript.includes('"/sign-up/:path*"') &&
+    proxyScript.includes('"/beta-access/:path*"') &&
     proxyScript.includes('"/(api|trpc)(.*)"') &&
     proxyScript.includes('"/__clerk/(.*)"'),
   "outer proxy matcher cannot bypass protected or Clerk catch-all paths through file-like child segments",
@@ -4960,6 +4986,7 @@ check(
     JSON.stringify(
       [
         "[slug]",
+        "beta-access",
         ...explicitLegacyRouteSlugs,
         "super-teacher",
         "teaching-review-demo",
@@ -4977,6 +5004,9 @@ check(
 check(
   /<ClerkWidgetFrame mode="sign-in" \/>/.test(signInPage) &&
     /<ClerkWidgetFrame mode="sign-up" \/>/.test(signUpPage) &&
+    /hasClerkInvitationTicket/.test(signUpPage) &&
+    /invitationTicketPresent \? \(/.test(signUpPage) &&
+    /<InvitationOnlyPanel \/>/.test(signUpPage) &&
     /<SignIn[\s\S]*routing="path"[\s\S]*fallbackRedirectUrl="\/workspace"[\s\S]*fallback=\{loadingPanel\}/.test(
       clerkWidgetFrame,
     ) &&
@@ -4989,7 +5019,18 @@ check(
     ) &&
     /<ClerkLoaded>/.test(clerkWidgetFrame) &&
     /ClerkUnavailablePanel/.test(`${signInPage}\n${signUpPage}`),
-  "sign-in and sign-up use Clerk with continuous loading, failure, workspace fallback, and safe unconfigured states",
+  "sign-in and invitation-ticket sign-up use Clerk with continuous loading, failure, workspace fallback, and safe unconfigured states",
+);
+check(
+  /SUFEIYA_BETA_ACCESS_CONTEXT_HEADER/.test(betaAccessPage) &&
+    /if \(accessContext === "approved"\) redirect\(returnPath\)/.test(betaAccessPage) &&
+    /isClerkBetaProtectedPathname\(value\)/.test(betaAccessPage) &&
+    /mode=\{accessContext === "invitation_required" \? "waiting" : "verification-unavailable"\}/.test(
+      betaAccessPage,
+    ) &&
+    /APPLICATION INVITE GATE/.test(authPage) &&
+    /不等同于 Clerk 付费套餐中的原生 Restricted mode/.test(authPage),
+  "beta access page uses the middleware decision, constrains return paths, and discloses the application-gate boundary",
 );
 check(
   /<Show when="signed-out">[\s\S]*href="\/sign-in"/.test(clerkAccountControls) &&
@@ -5020,8 +5061,21 @@ check(
     /"script-src-attr": \["none"\]/.test(proxyScript) &&
     /"frame-ancestors": \["none"\]/.test(proxyScript) &&
     /"\/__clerk\/\(\.\*\)"/.test(proxyScript) &&
+    /betaAccessFromSessionClaims\(signedIn\.sessionClaims\)/.test(proxyScript) &&
+    !/clerkClient|users\.getUser|currentUser\(/.test(proxyScript) &&
+    /isBetaProtectedRoute\(request\)[\s\S]*betaVerificationUnavailableResponse/.test(proxyScript) &&
+    /!access\.approved && isBetaProtectedRoute\(request\)/.test(proxyScript) &&
+    /return betaAccessRedirect\(request\)/.test(proxyScript) &&
+    /requestHeaders\.set\(SUFEIYA_BETA_ACCESS_CONTEXT_HEADER, context\)/.test(proxyScript) &&
     !/frontendApiProxy/.test(proxyScript),
-  "proxy centrally protects learner routes and uses Clerk strict CSP, environment-bound instances, and production authorized parties",
+  "proxy centrally authenticates and invite-gates learner routes with strict CSP, environment-bound instances, and production authorized parties",
+);
+check(
+  /function isIndexablePublicPath/.test(proxyScript) &&
+    /policy: "public" \| "signed-in-public" \| "sensitive"/.test(proxyScript) &&
+    /policy === "sensitive" \? \{ "X-Robots-Tag": "noindex, nofollow" \} : \{\}/.test(proxyScript) &&
+    /return signedIn \? "signed-in-public" as const : "public" as const/.test(proxyScript),
+  "public content remains indexable while signed-in public and sensitive responses remain private",
 );
 check(
   /const anonymousContentSecurityPolicy = \[[\s\S]*"script-src 'self' 'unsafe-inline'"/.test(
@@ -5039,24 +5093,29 @@ check(
   "unknown routes bypass Clerk nonce middleware and retain a nonce-free anonymous CSP for static 404 hydration",
 );
 check(
-  /X-Sufeiya-Account-Mode[\s\S]*clerk-access-local-learning-data/.test(proxyScript) &&
+  /X-Sufeiya-Account-Mode[\s\S]*clerk-invite-gated-local-learning-data/.test(proxyScript) &&
+    /X-Sufeiya-Beta-Access/.test(proxyScript) &&
     /X-Sufeiya-Account-Mode[\s\S]*clerk-unconfigured/.test(proxyScript),
-  "application responses distinguish configured Clerk sessions from the fail-closed configuration state",
+  "application responses distinguish invite access state from the fail-closed Clerk configuration state",
 );
 check(/Sofia智能老师/.test(superTeacherPage), "Sofia AI Teacher has a dedicated Next.js application page");
 check(
   /const \{ isLoaded, isSignedIn \} = useAuth\(\)/.test(superTeacherAccessBoundary) &&
-    /if \(!isLoaded \|\| !isSignedIn\) return <SofiaPublicPage/.test(superTeacherAccessBoundary) &&
-    /isLoaded && isSignedIn \? \([\s\S]*<SuperTeacherSessionProvider>[\s\S]*<SofiaFloatingAssistant/.test(superTeacherAccessBoundary) &&
+    /const interactiveAccess = isLoaded && isSignedIn && betaAccessContext === "approved"/.test(
+      superTeacherAccessBoundary,
+    ) &&
+    /if \(!interactiveAccess\) return <SofiaPublicPage/.test(superTeacherAccessBoundary) &&
+    /interactiveAccess \? \([\s\S]*<SuperTeacherSessionProvider>[\s\S]*<SofiaFloatingAssistant/.test(superTeacherAccessBoundary) &&
+    /invitation-required/.test(superTeacherPublicAccess) &&
     /未登录时不会读取或显示这个浏览器/.test(superTeacherPublicAccess) &&
     !/localStorage|sessionStorage|useSuperTeacherSession/.test(superTeacherPublicAccess) &&
     /clerkState\.configured[\s\S]*SofiaAccessBoundary[\s\S]*SofiaUnavailableBoundary/.test(siteShell),
-  "signed-out Sofia surfaces render a public teaser without mounting or reading the local learner session",
+  "signed-out and uninvited Sofia surfaces render a public teaser without mounting or reading the local learner session",
 );
 check(/Sofia智能老师/.test(legacyContent), "generated Next.js legacy content uses the Sofia AI Teacher name");
 check(!/苏肥鸭超级智能老师|超级智能老师|超级老师/.test(legacyContent), "generated Next.js legacy content has no retired teacher name");
 check(
-  /工作台与学习页面使用 Clerk 登录保护/.test(legacyContent) &&
+  /工作台与学习页面先使用 Clerk 登录，再核验 Sufeiya 内测资格/.test(legacyContent) &&
     /账户登录用于保护学习页面/.test(legacyContent) &&
     /不会自动绑定账户、上传或同步到其他设备/.test(legacyContent),
   "generated legacy content describes Clerk access control separately from local learning-data storage",
@@ -5107,10 +5166,10 @@ check(
   "floating Sofia assistant discloses AI identity beside its portrait",
 );
 check(
-  /isSameOrigin[\s\S]*getClerkRuntimeState[\s\S]*await auth\(\)[\s\S]*!userId[\s\S]*MAX_BODY_BYTES[\s\S]*checkSuperTeacherRateLimit\(userId\)/.test(
+  /isSameOrigin[\s\S]*getClerkRuntimeState[\s\S]*await auth\(\)[\s\S]*!userId[\s\S]*betaAccessFromSessionClaims\(sessionClaims\)[\s\S]*!betaAccess\.approved[\s\S]*MAX_BODY_BYTES[\s\S]*checkSuperTeacherRateLimit\(userId\)/.test(
     superTeacherRoute,
-  ),
-  "Super Teacher POST requires a Clerk user before authenticated-user rate limiting and model access",
+  ) && !/clerkClient|users\.getUser|currentUser\(/.test(superTeacherRoute),
+  "Super Teacher POST requires a beta-approved Clerk user before rate limiting and model access",
 );
 check(
   /evaluateReleaseSurface\("sofia_first_party_text_processing"\)/.test(superTeacherRoute) &&
@@ -5119,20 +5178,20 @@ check(
   "Super Teacher POST fails closed before reading a body while first-party student-data processing is not approved",
 );
 check(
-  /SUPER_TEACHER_STATUS_PROTOCOL = "sufeiya_super_teacher_status_v3"/.test(superTeacherContracts) &&
+  /SUPER_TEACHER_STATUS_PROTOCOL = "sufeiya_super_teacher_status_v4"/.test(superTeacherContracts) &&
     /interactionProtocolVersion: SUPER_TEACHER_PROTOCOL/.test(superTeacherStatus) &&
     /gateAStaticClaimSources/.test(superTeacherContracts) &&
     /buildSuperTeacherStatusResponse\(\)/.test(superTeacherRoute) &&
     /teacherSurfaceAccess: "public_teaser"/.test(superTeacherStatus) &&
-    /interactiveTeacherAccess: "clerk_authenticated"/.test(superTeacherStatus) &&
+    /interactiveTeacherAccess: "clerk_invitation_approved"/.test(superTeacherStatus) &&
     /localManualExplanationEnabled: true/.test(superTeacherStatus) &&
     /firstPartyServerProcessingEnabled: firstPartyProcessing\.enabled/.test(superTeacherStatus) &&
     /externalModelProcessingEnabled: modelStatus\.enabled/.test(superTeacherStatus) &&
     /disabled_pending_first_party_processing_approval/.test(superTeacherStatus) &&
-    /learningPageAccess: "clerk_protected"/.test(superTeacherStatus) &&
+    /learningPageAccess: "clerk_invitation_approved"/.test(superTeacherStatus) &&
     /learningDataStorage: "browser_local_not_account_bound"/.test(superTeacherStatus) &&
-    /clerk-access-local-learning-data/.test(superTeacherRoute),
-  "Super Teacher status separates the public teaser, authenticated local interaction, disabled server/model processing, and browser-local data",
+    /clerk-invite-gated-local-learning-data/.test(superTeacherRoute),
+  "Super Teacher status separates the public teaser, invitation-approved local interaction, disabled server/model processing, and browser-local data",
 );
 check(
   /invokeTeacherModel[\s\S]*materializeApprovedModelSelection/.test(superTeacherResponder) &&
@@ -5410,7 +5469,7 @@ check(
     /<FullDocumentLink className="auth-link" href="\/sign-in">登录<\/FullDocumentLink>/.test(
       anonymousLegacyPage,
     ) &&
-    /<FullDocumentLink className="auth-link auth-link-primary" href="\/sign-up">注册<\/FullDocumentLink>/.test(
+    /<FullDocumentLink className="auth-link auth-link-primary" href="\/sign-up">邀请制内测<\/FullDocumentLink>/.test(
       anonymousLegacyPage,
     ) &&
     /import \{ FullDocumentLink \} from "@\/components\/full-document-link"/.test(
