@@ -1102,7 +1102,7 @@ const workspaceContent = `
         </div>
         <div class="workspace-launch-grid workspace-support-grid">
           <a href="/super-teacher"><img class="workspace-sofia-avatar" src="/assets/sufeiya-super-teacher-avatar.webp" width="72" height="72" alt="" /><small>SOFIA AI TEACHER · AI</small><h3>Sofia智能老师</h3><p>解释本机证据、计划与推荐依据；来源不足时明确停下。</p><b>有来源地问为什么 →</b></a>
-          <a href="/today"><span>今</span><small>TODAY</small><h3>今日任务</h3><p>读取 7 天计划，逐项完成今天的练习与行动。</p><b>查看今日清单 →</b></a>
+          <a href="/today"><span>今</span><small>TODAY</small><h3>今日任务</h3><p>打开清单后核对本机今天是否精确匹配计划日；不匹配时只提供独立基础练习。</p><b>核对今日清单 →</b></a>
           <a href="/practice"><span>练</span><small>PRACTICE</small><h3>四项英文微练习</h3><p>Reading、Listening、Writing 与 Speaking 各有独立页面。</p><b>选择练习页 →</b></a>
           <a href="/focus"><span>专</span><small>FOCUS</small><h3>专注计时</h3><p>选择 15、25 或 45 分钟，开始一段不被打断的学习。</p><b>进入计时页 →</b></a>
           <a href="/teaching-review-demo"><span>审</span><small>LOCAL REVIEW DEMO</small><h3>教研复核演示</h3><p>只读查看临时轮次证据，草拟修订建议或升级说明；不发送、不结案。</p><b>进入本机演示 →</b></a>
@@ -1293,20 +1293,22 @@ const todayContent = `
       number: "02",
       label: "今日任务",
       title: "完成一项，<br />就留下一个学习证据。",
-      lead: "今日清单会读取你的 7 天计划；还没有计划时，也会提供一组可立即开始的基础任务。完成状态按日期保存在本机。",
+      lead: "今日清单会优先读取与本机当前日期完全一致的 7 天计划日；没有精确匹配时，只提供独立基础练习。完成状态按本机日期保存在当前浏览器。",
       note: "今日进度自动保存",
     })}
-    <section class="single-tool-section" aria-labelledby="today-title">
+    <section class="single-tool-section today-single" aria-labelledby="today-title">
       <div class="single-tool-inner">
         <header class="tool-panel-header"><div><span>02</span><div><p>今日清单</p><h2 id="today-title">今天先完成这三项</h2></div></div><small data-today-status>0 / 3 已完成</small></header>
-        <div class="gate-a-notice"><strong>任务来源与完成来源会分开显示</strong><p data-today-plan-boundary>正在核对当前计划；独立练习不会推进诊断闭环。</p><p>手动勾选只表示“学习者自报完成”，不会生成练习回执；从计划绑定入口完成练习后，才会显示“练习记录已留存”。两者都可帮助自我管理，只有合格练习回执可推进当前闭环。</p></div>
+        <div class="gate-a-notice today-source-notice"><strong>任务来源与完成来源会分开显示</strong><div class="today-source-notice-copy"><p data-today-plan-boundary>正在核对与本机当前日期完全一致的计划日；没有精确匹配时，只显示独立基础练习。</p><p>手动勾选表示“学习者自报完成”，不会生成练习回执；从计划绑定入口完成练习后，才会显示“练习记录已留存”。只有合格练习回执可推进当前闭环。</p></div></div>
+        <div class="today-date-alert" data-today-date-alert role="alert" aria-atomic="true" tabindex="-1" hidden><strong>本机日期已经变化</strong><p data-today-date-alert-copy>正在重新核对今天的任务来源与完成状态。</p></div>
+        <p class="sr-only" data-today-live role="status" aria-live="polite" aria-atomic="true"></p>
         <div class="today-layout">
-          <div><div class="task-progress"><progress max="3" value="0" data-task-progress>0 / 3</progress><span data-task-progress-text>0%</span></div><ul class="today-tasks" data-today-tasks>
-            <li><input id="today-task-0" type="checkbox" data-task-index="0" /><label for="today-task-0"><strong>Reading 微练习</strong><span>阅读本站英文短文并完成理解题。</span></label></li>
-            <li><input id="today-task-1" type="checkbox" data-task-index="1" /><label for="today-task-1"><strong>Writing 微练习</strong><span>完成英文写作提示并检查词数。</span></label></li>
-            <li><input id="today-task-2" type="checkbox" data-task-index="2" /><label for="today-task-2"><strong>学习复盘</strong><span>写下今天最需要继续解决的一件事。</span></label></li>
+          <div><div class="task-progress"><progress max="3" value="0" data-task-progress aria-label="今日任务完成进度">0 / 3</progress><span data-task-progress-text>0%</span></div><ul class="today-tasks" data-today-tasks>
+            <li><input id="today-task-0" type="checkbox" data-task-index="0" /><label for="today-task-0"><strong>Reading 微练习</strong><span>阅读本站英文短文并完成理解题。</span><span class="task-source-label">任务来源：今日独立基础练习</span></label></li>
+            <li><input id="today-task-1" type="checkbox" data-task-index="1" /><label for="today-task-1"><strong>Writing 微练习</strong><span>完成英文写作提示并检查词数。</span><span class="task-source-label">任务来源：今日独立基础练习</span></label></li>
+            <li><input id="today-task-2" type="checkbox" data-task-index="2" /><label for="today-task-2"><strong>学习复盘</strong><span>写下今天最需要继续解决的一件事。</span><span class="task-source-label">任务来源：今日独立基础练习</span></label></li>
           </ul></div>
-          <aside class="today-next"><span>NEXT STEP</span><h3 data-next-task>先完成第一项任务</h3><p data-next-task-detail>完成状态会自动保存在当前浏览器。</p><a class="button button-ghost" href="/practice">去选择英文练习</a><a class="text-link" href="/plan">重新生成 7 天计划 →</a></aside>
+          <aside class="today-next"><span>NEXT STEP</span><h3 data-next-task>先完成第一项任务</h3><p data-next-task-detail>完成状态会自动保存在当前浏览器。</p><a class="button button-ghost" href="/practice" data-today-next-link>去选择英文练习</a><a class="text-link" href="/plan" data-today-plan-link>查看或生成 7 天计划 →</a></aside>
         </div>
       </div>
     </section>
@@ -1435,6 +1437,7 @@ const checkInContent = `
       <div class="single-tool-inner narrow-tool">
         <header class="tool-panel-header"><div><span>04</span><div><p>今日打卡</p><h2 id="checkin-title">把今天的证据留下来</h2></div></div><small data-checkin-date></small></header>
         <div class="form-errors" data-checkin-errors role="alert" tabindex="-1" hidden><strong>请检查以下内容：</strong><ul></ul></div>
+        <div class="today-date-alert checkin-date-alert" data-checkin-date-alert role="alert" aria-atomic="true" tabindex="-1" hidden><strong>本机日期已经变化，请先核对</strong><p data-checkin-date-alert-copy>这份未提交内容仍保留原复盘日期。你可以切换到今天并检查内容，或返回今日清单。</p><div class="today-date-alert-actions"><button class="button button-ink" type="button" data-checkin-switch-today>切换到今天并检查内容</button><a class="button button-ghost" href="/today">返回今日清单</a></div></div>
         <form id="checkin-form" class="checkin-form" novalidate>
           <label><span>复盘日期</span><input type="text" name="date" data-checkin-date-input readonly /></label>
           <label><span>关联今日任务 <small>闭环记录必须选择带合格练习回执的本轮核心任务</small></span><select name="linkedTaskId" data-linked-task><option value="">不关联任务 · 保存为独立复盘</option></select><small class="field-error" data-error-for="linkedTaskId"></small></label>

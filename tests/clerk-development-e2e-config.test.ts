@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { ClerkAPIResponseError } from "@clerk/backend/errors";
 
 import {
   assertCanonicalClerkApiEnvironment,
@@ -12,8 +13,27 @@ import {
   createClerkTestingHandoffAttestation,
   getClerkDevelopmentE2ETarget,
   installClerkTestingLogRedaction,
+  isRetryableClerkIdempotentMutationError,
   getVercelHostedProtectionBypass,
+  retryClerkIdempotentMutation,
 } from "../e2e/clerk-development/clerk-development-config";
+
+function clerkApiError(
+  status: number | undefined,
+  message = "synthetic failure",
+  retryAfter?: number,
+) {
+  const error = new ClerkAPIResponseError("synthetic", {
+    data: [{ code: "synthetic_error", message }],
+    status: status ?? 500,
+    retryAfter,
+  });
+  if (status === undefined) {
+    Object.defineProperty(error, "status", { configurable: true, value: undefined });
+    error.errors = [{ code: "unexpected_error", message }] as typeof error.errors;
+  }
+  return error;
+}
 
 function developmentPublishableKey(host = "safe-example.clerk.accounts.dev") {
   return `pk_test_${Buffer.from(`${host}$`).toString("base64url")}`;
@@ -207,6 +227,75 @@ describe("Clerk Development E2E configuration", () => {
     );
     assert.equal(combined instanceof AggregateError, true);
     assert.equal((combined as AggregateError).errors.length, 2);
+  });
+
+  it("retries only transient idempotent Clerk mutations and never masks deterministic failures", async () => {
+    for (const status of [408, 409, 429, 500, 501, 503, 599]) {
+      assert.equal(isRetryableClerkIdempotentMutationError(clerkApiError(status)), true);
+    }
+    for (const status of [400, 401, 403, 404, 422, 425]) {
+      assert.equal(isRetryableClerkIdempotentMutationError(clerkApiError(status)), false);
+    }
+    assert.equal(
+      isRetryableClerkIdempotentMutationError(clerkApiError(undefined, "fetch failed")),
+      true,
+    );
+    assert.equal(
+      isRetryableClerkIdempotentMutationError(clerkApiError(undefined, "Unexpected token in JSON")),
+      false,
+    );
+    assert.equal(isRetryableClerkIdempotentMutationError(new Error("socket hang up")), true);
+    assert.equal(isRetryableClerkIdempotentMutationError("ECONNRESET"), false);
+
+    const transientError = clerkApiError(503);
+    const delays: number[] = [];
+    let calls = 0;
+    const result = await retryClerkIdempotentMutation(async () => {
+      calls += 1;
+      if (calls < 3) throw transientError;
+      return "approved";
+    }, async (milliseconds) => {
+      delays.push(milliseconds);
+    });
+    assert.equal(result, "approved");
+    assert.equal(calls, 3);
+    assert.deepEqual(delays, [1_000, 2_500]);
+
+    calls = 0;
+    await assert.rejects(
+      retryClerkIdempotentMutation(async () => {
+        calls += 1;
+        throw transientError;
+      }, async () => undefined),
+      (error) => error === transientError,
+    );
+    assert.equal(calls, 3);
+
+    const retryAfterError = clerkApiError(429, "rate limited", 2);
+    const retryAfterDelays: number[] = [];
+    calls = 0;
+    await assert.rejects(
+      retryClerkIdempotentMutation(async () => {
+        calls += 1;
+        throw retryAfterError;
+      }, async (milliseconds) => {
+        retryAfterDelays.push(milliseconds);
+      }),
+      (error) => error === retryAfterError,
+    );
+    assert.equal(calls, 3);
+    assert.deepEqual(retryAfterDelays, [2_000, 2_500]);
+
+    const overBudgetRetryAfterError = clerkApiError(429, "rate limited", 11);
+    calls = 0;
+    await assert.rejects(
+      retryClerkIdempotentMutation(async () => {
+        calls += 1;
+        throw overBudgetRetryAfterError;
+      }, async () => assert.fail("sleep must not run beyond the retry budget")),
+      (error) => error === overBudgetRetryAfterError,
+    );
+    assert.equal(calls, 1);
   });
 
   it("accepts one syntactically valid Development key pair without exposing it", () => {

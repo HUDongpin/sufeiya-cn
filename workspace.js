@@ -878,6 +878,13 @@
     linkedPracticeReceipt,
     reflectionTask,
   }) => withExclusiveWorkspaceWrite(async () => {
+    const currentDate = todayKey();
+    if (date !== currentDate || values?.date !== date) {
+      return { status: "date_changed", previousDate: date, currentDate };
+    }
+    if (reflectionTask && (reflectionTask.skill !== "Reflection" || reflectionTask.date !== date)) {
+      return { status: "date_scope_mismatch" };
+    }
     const currentPrevious = state.checkIns[date] || {};
     const currentPreviousSaved = Boolean(currentPrevious.checkInId && currentPrevious.status === "saved");
     const currentPreviousConfirmed = Boolean(
@@ -907,6 +914,9 @@
     const candidate = snapshotState();
     const candidatePrevious = candidate.checkIns[date] || {};
     const savedAt = new Date().toISOString();
+    if (keyForDate(new Date(savedAt)) !== date) {
+      return { status: "date_changed", previousDate: date, currentDate: keyForDate(new Date(savedAt)) };
+    }
     if (shouldArchive) {
       archiveCheckIn(
         candidate,
@@ -919,6 +929,7 @@
     }
     candidate.checkIns[date] = {
       ...values,
+      date,
       checkInId:
         currentSameScope && !replacesSavedVersion
           ? currentPrevious.checkInId
@@ -980,6 +991,10 @@
     }
     const candidateCapacity = workspaceCandidateCapacity(candidate);
     if (candidateCapacity.status !== "ready") return candidateCapacity;
+    const finalDate = todayKey();
+    if (finalDate !== date) {
+      return { status: "date_changed", previousDate: date, currentDate: finalDate };
+    }
     state = candidate;
     if (!persist()) {
       state = before;
@@ -1472,8 +1487,32 @@
     });
   }
 
-  const defaultTodayTasks = () => {
-    const date = todayKey();
+  const calendarDateValid = (value) => {
+    if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+    const parsed = Date.parse(`${value}T00:00:00.000Z`);
+    return Number.isFinite(parsed) && new Date(parsed).toISOString().slice(0, 10) === value;
+  };
+  const todayExactObjectKeys = (value, keys) =>
+    isRecord(value) && JSON.stringify(Object.keys(value).sort()) === JSON.stringify([...keys].sort());
+  const todayHistoryIdValid = (value) =>
+    typeof value === "string" && value.length >= 3 && value.length <= 180 && !/[\u0000-\u001f\u007f]/.test(value);
+  const todayExactUtcTimestamp = (value) => {
+    if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)) return false;
+    const timestamp = Date.parse(value);
+    return Number.isFinite(timestamp) && new Date(timestamp).toISOString() === value;
+  };
+  const TODAY_PLAN_PRIORITY_BASES = new Set([
+    "objective_first_response_pattern",
+    "evidence_quality_gap",
+    "open_response_coverage_gap",
+    "learner_confirmation_after_multiple_gaps",
+    "learner_confirmation_after_tie",
+  ]);
+  const TODAY_PLAN_FOLLOWUP_SOURCES = new Set([
+    "learner_confirmed_parallel_retest_followup",
+    "learner_selected_provisional_followup_pending_human_review",
+  ]);
+  const defaultTodayTasks = (date = todayKey()) => {
     return [
       { taskId: `default-${date}-reading`, date, skill: "Reading", titleZh: "Reading 微练习", instructionZh: "阅读本站原创英文短文并完成理解题。", durationMinutes: 8, route: "/practice-reading" },
       { taskId: `default-${date}-writing`, date, skill: "Writing", titleZh: "Writing 微练习", instructionZh: "完成英文写作提示，并使用三项英文自查。", durationMinutes: 10, route: "/practice-writing" },
@@ -1481,7 +1520,304 @@
     ];
   };
 
-  const getTodayTasks = () => state.plan?.days?.find((day) => day.date === todayKey())?.tasks || defaultTodayTasks();
+  const todayPlanDayValid = (day, date) => {
+    if (!isRecord(day) || day.date !== date || !Array.isArray(day.tasks) || day.tasks.length !== 3) return false;
+    const taskIds = new Set();
+    return day.tasks.every((task) => {
+      if (
+        !isRecord(task) ||
+        !task.taskId ||
+        taskIds.has(task.taskId) ||
+        task.date !== date ||
+        !["General", "Reading", "Listening", "Writing", "Speaking", "Reflection"].includes(task.skill) ||
+        typeof task.titleZh !== "string" ||
+        typeof task.instructionZh !== "string" ||
+        !Number.isFinite(Number(task.durationMinutes)) ||
+        Number(task.durationMinutes) <= 0 ||
+        !isSafeLocalRoute(task.route)
+      ) return false;
+      taskIds.add(task.taskId);
+      return true;
+    });
+  };
+  const todayPlanProvenanceRecognized = (plan, candidateState) => {
+    const provenance = plan?.provenance;
+    const journey = candidateState?.journey;
+    const cycle = journey?.activeCycle;
+    const diagnostic = journey?.diagnostic;
+    const standalone = provenance?.source === "learner_configured_standalone";
+    const diagnosticBound = provenance?.source === "learner_configured_after_gate_a_evidence_diagnostic";
+    const retestFollowup = TODAY_PLAN_FOLLOWUP_SOURCES.has(provenance?.source);
+    const hasTopLevelDiagnostic = Object.hasOwn(plan, "diagnosticSessionId");
+    if (standalone) {
+      return Boolean(
+        todayExactObjectKeys(provenance, ["source"]) &&
+        hasTopLevelDiagnostic &&
+        plan.diagnosticSessionId === null
+      );
+    }
+    if (diagnosticBound) {
+      return Boolean(
+        todayExactObjectKeys(provenance, [
+          "cycleId",
+          "diagnosticSessionId",
+          "priorityBasis",
+          "source",
+          "taskSetDigest",
+          "taskSetVersion",
+        ]) &&
+        hasTopLevelDiagnostic &&
+        plan.diagnosticSessionId === provenance.diagnosticSessionId &&
+        cycle?.protocolVersion === PROTOCOL_VERSION &&
+        cycle.status === "in_progress" &&
+        cycle.cycleId === provenance.cycleId &&
+        cycle.diagnosticSessionId === provenance.diagnosticSessionId &&
+        cycle.basePlanId === plan.planId &&
+        diagnostic?.protocolVersion === PROTOCOL_VERSION &&
+        diagnostic.diagnosticProtocolVersion === DIAGNOSTIC_PROTOCOL_VERSION &&
+        diagnostic.status === "completed" &&
+        diagnostic.adultConfirmed === true &&
+        diagnostic.devicePrecheck?.storageStatus === "available" &&
+        diagnostic.learnerConfirmedPriority === true &&
+        diagnostic.automatedScoreProduced === false &&
+        diagnostic.formalDiagnosisProduced === false &&
+        DIAGNOSTIC_SKILLS.has(diagnostic.prioritySkill) &&
+        plan.focusSkill === diagnostic.prioritySkill &&
+        diagnostic.cycleId === provenance.cycleId &&
+        diagnostic.diagnosticSessionId === provenance.diagnosticSessionId &&
+        diagnostic.taskSetVersion === DIAGNOSTIC_TASK_SET_VERSION &&
+        diagnostic.taskSetVersion === provenance.taskSetVersion &&
+        diagnostic.taskSetDigest === DIAGNOSTIC_TASK_SET_DIGEST &&
+        diagnostic.taskSetDigest === provenance.taskSetDigest &&
+        diagnostic.priorityBasis === provenance.priorityBasis &&
+        TODAY_PLAN_PRIORITY_BASES.has(provenance.priorityBasis) &&
+        todayExactUtcTimestamp(diagnostic.completedAt) &&
+        Date.parse(plan.createdAt) >= Date.parse(diagnostic.completedAt)
+      );
+    }
+    if (retestFollowup) {
+      const terminalAt = cycle?.status === "completed" ? cycle.closedAt : cycle?.provisionalAt;
+      const expectedSource = cycle?.status === "completed"
+        ? "learner_confirmed_parallel_retest_followup"
+        : "learner_selected_provisional_followup_pending_human_review";
+      const matchingHistory = Array.isArray(journey?.history)
+        ? journey.history.filter((record) =>
+          record?.cycleId === provenance.cycleId &&
+          record?.diagnosticSessionId === provenance.diagnosticSessionId &&
+          record?.basePlanId === provenance.supersedesPlanId &&
+          record?.retestId === provenance.retestId &&
+          record?.updatedPlanId === plan.planId &&
+          record?.status === cycle?.status
+        )
+        : [];
+      return Boolean(
+        todayExactObjectKeys(provenance, [
+          "cycleId",
+          "diagnosticSessionId",
+          "retestId",
+          "source",
+          "supersedesPlanId",
+          "taskSetDigest",
+          "taskSetVersion",
+        ]) &&
+        !hasTopLevelDiagnostic &&
+        ["completed", "provisional_pending_human_review"].includes(cycle?.status) &&
+        provenance.source === expectedSource &&
+        cycle?.protocolVersion === PROTOCOL_VERSION &&
+        cycle.cycleId === provenance.cycleId &&
+        cycle.diagnosticSessionId === provenance.diagnosticSessionId &&
+        cycle.basePlanId === provenance.supersedesPlanId &&
+        cycle.retestId === provenance.retestId &&
+        cycle.updatedPlanId === plan.planId &&
+        journey?.retest?.retestId === provenance.retestId &&
+        journey?.retest?.cycleId === provenance.cycleId &&
+        journey?.planUpdate?.cycleId === provenance.cycleId &&
+        journey?.planUpdate?.retestId === provenance.retestId &&
+        journey?.planUpdate?.supersedesPlanId === provenance.supersedesPlanId &&
+        journey?.planUpdate?.updatedPlanId === plan.planId &&
+        journey?.planUpdate?.focusSkill === plan.focusSkill &&
+        journey?.planUpdate?.learnerConfirmed === true &&
+        journey?.planUpdate?.automatedAbilityDecision === false &&
+        journey?.planUpdate?.confirmationClass === (cycle.status === "completed"
+          ? "learner_confirmed_gate_a"
+          : "provisional_pending_human_review") &&
+        journey?.planUpdate?.humanConfirmationStatus === (cycle.status === "completed"
+          ? "not_required_for_gate_a_flow"
+          : "required_not_completed") &&
+        diagnostic?.diagnosticSessionId === provenance.diagnosticSessionId &&
+        diagnostic?.taskSetVersion === DIAGNOSTIC_TASK_SET_VERSION &&
+        diagnostic?.taskSetVersion === provenance.taskSetVersion &&
+        diagnostic?.taskSetDigest === DIAGNOSTIC_TASK_SET_DIGEST &&
+        diagnostic?.taskSetDigest === provenance.taskSetDigest &&
+        todayExactUtcTimestamp(terminalAt) &&
+        plan.createdAt === terminalAt &&
+        matchingHistory.length === 1
+      );
+    }
+    return false;
+  };
+  const todayPlanScheduleRecognized = (plan, candidateState = state) => {
+    const hasTopLevelDiagnostic = Object.hasOwn(plan || {}, "diagnosticSessionId");
+    const expectedPlanKeys = [
+      "createdAt",
+      "dailyMinutes",
+      "days",
+      "endDate",
+      "examDate",
+      "focusSkill",
+      "nickname",
+      "planId",
+      "provenance",
+      "startDate",
+      "status",
+      ...(hasTopLevelDiagnostic ? ["diagnosticSessionId"] : []),
+    ];
+    if (
+      !isRecord(plan) ||
+      !todayExactObjectKeys(plan, expectedPlanKeys) ||
+      plan.status !== "active" ||
+      !todayHistoryIdValid(plan.planId) ||
+      !todayExactUtcTimestamp(plan.createdAt) ||
+      ![15, 30, 45, 60].includes(plan.dailyMinutes) ||
+      !Object.hasOwn(sequences, plan.focusSkill) ||
+      typeof plan.nickname !== "string" ||
+      plan.nickname !== plan.nickname.trim() ||
+      plan.nickname.length > 20 ||
+      typeof plan.examDate !== "string" ||
+      (plan.examDate !== "" && !calendarDateValid(plan.examDate)) ||
+      !calendarDateValid(plan.startDate) ||
+      !calendarDateValid(plan.endDate) ||
+      plan.startDate > plan.endDate ||
+      !Array.isArray(plan.days) ||
+      plan.days.length !== 7 ||
+      !todayPlanProvenanceRecognized(plan, candidateState)
+    ) return false;
+    const expectedSequence = sequences[plan.focusSkill];
+    const dayDates = new Set();
+    const taskIds = new Set();
+    for (let index = 0; index < plan.days.length; index += 1) {
+      const day = plan.days[index];
+      const expectedDate = new Date(`${plan.startDate}T00:00:00.000Z`);
+      expectedDate.setUTCDate(expectedDate.getUTCDate() + index);
+      const catalog = practiceCatalogForSkill(day?.coreSkill);
+      const [warmup, core, reflection] = Array.isArray(day?.tasks) ? day.tasks : [];
+      if (
+        !isRecord(day) ||
+        !todayExactObjectKeys(day, ["coreSkill", "date", "tasks"]) ||
+        !calendarDateValid(day.date) ||
+        day.date !== expectedDate.toISOString().slice(0, 10) ||
+        day.date < plan.startDate ||
+        day.date > plan.endDate ||
+        dayDates.has(day.date) ||
+        !todayPlanDayValid(day, day.date) ||
+        day.coreSkill !== expectedSequence[index] ||
+        day.tasks.reduce((sum, task) => sum + Number(task.durationMinutes), 0) !== plan.dailyMinutes ||
+        !catalog ||
+        !todayExactObjectKeys(warmup, ["date", "durationMinutes", "instructionZh", "route", "skill", "taskId", "titleZh"]) ||
+        !todayExactObjectKeys(core, ["contentRef", "date", "durationMinutes", "instructionZh", "route", "skill", "taskId", "titleZh"]) ||
+        !todayExactObjectKeys(reflection, ["date", "durationMinutes", "instructionZh", "route", "skill", "taskId", "titleZh"]) ||
+        warmup.taskId !== `${plan.planId}-${day.date}-warmup` ||
+        warmup.date !== day.date ||
+        warmup.skill !== "General" ||
+        warmup.route !== "/practice" ||
+        warmup.titleZh !== "英文热身" ||
+        warmup.instructionZh !== "快速浏览今天的英文提示与关键词，明确任务要求。" ||
+        core.taskId !== `${plan.planId}-${day.date}-${day.coreSkill.toLowerCase()}` ||
+        core.date !== day.date ||
+        core.skill !== day.coreSkill ||
+        core.route !== skillRoutes[day.coreSkill] ||
+        core.titleZh !== skillTasks[day.coreSkill]?.[0] ||
+        core.instructionZh !== skillTasks[day.coreSkill]?.[1] ||
+        !todayExactObjectKeys(core.contentRef, ["contentHash", "contentId", "contentVersion", "exerciseId"]) ||
+        core.contentRef.exerciseId !== catalog.exerciseId ||
+        core.contentRef.contentId !== catalog.contentId ||
+        core.contentRef.contentVersion !== catalog.activityVersion ||
+        core.contentRef.contentHash !== catalog.contentHash ||
+        reflection.taskId !== `${plan.planId}-${day.date}-reflection` ||
+        reflection.date !== day.date ||
+        reflection.skill !== "Reflection" ||
+        reflection.route !== "/check-in" ||
+        reflection.titleZh !== "记录学习证据" ||
+        reflection.instructionZh !== "写下今天完成了什么、哪里困难，以及明天先做什么。" ||
+        ![warmup, core, reflection].every((task) =>
+          todayHistoryIdValid(task.taskId) && Number.isInteger(task.durationMinutes) && task.durationMinutes > 0
+        )
+      ) return false;
+      dayDates.add(day.date);
+      for (const task of day.tasks) {
+        if (taskIds.has(task.taskId)) return false;
+        taskIds.add(task.taskId);
+      }
+    }
+    const history = Array.isArray(candidateState?.planHistory) ? candidateState.planHistory : [];
+    const historicalPlanIds = history.map((entry) => entry?.planId);
+    const historicalTaskIds = history.flatMap((entry) =>
+      Array.isArray(entry?.days)
+        ? entry.days.flatMap((day) => Array.isArray(day?.tasks) ? day.tasks.map((task) => task?.taskId) : [])
+        : [],
+    );
+    return Boolean(
+      plan.days[0]?.date === plan.startDate &&
+      plan.days[6]?.date === plan.endDate &&
+      !historicalPlanIds.includes(plan.planId) &&
+      historicalTaskIds.every((taskId) => typeof taskId === "string" && !taskIds.has(taskId))
+    );
+  };
+  const resolveTodayTaskContext = (candidateState = state, date = todayKey()) => {
+    const independent = (source) => ({
+      date,
+      source,
+      planId: null,
+      planStartDate: candidateState.plan?.startDate || null,
+      planEndDate: candidateState.plan?.endDate || null,
+      tasks: defaultTodayTasks(date),
+    });
+    const plan = candidateState.plan;
+    if (!isRecord(plan)) {
+      const diagnosticInProgress = candidateState.journey?.activeCycle?.status === "in_progress" &&
+        candidateState.journey?.diagnostic?.status === "in_progress";
+      return independent(diagnosticInProgress ? "standalone_diagnostic_restarted" : "standalone_no_plan");
+    }
+    if (plan.status !== "active" || !Array.isArray(plan.days)) return independent("standalone_plan_unavailable");
+    const matchingDays = plan.days.filter((day) => day?.date === date);
+    if (matchingDays.length > 1 || (matchingDays.length === 1 && !todayPlanDayValid(matchingDays[0], date))) {
+      return independent("standalone_plan_day_invalid");
+    }
+    if (
+      matchingDays.length === 0 &&
+      calendarDateValid(plan.startDate) &&
+      calendarDateValid(plan.endDate) &&
+      date >= plan.startDate &&
+      date <= plan.endDate
+    ) return independent("standalone_plan_date_gap");
+    if (!todayPlanScheduleRecognized(plan, candidateState)) return independent("standalone_plan_unavailable");
+    if (matchingDays.length === 1) {
+      return {
+        date,
+        source: "current_plan_day",
+        planId: plan.planId,
+        planStartDate: plan.startDate,
+        planEndDate: plan.endDate,
+        tasks: matchingDays[0].tasks,
+      };
+    }
+    if (calendarDateValid(plan.startDate) && date < plan.startDate) return independent("standalone_plan_future");
+    if (calendarDateValid(plan.endDate) && date > plan.endDate) return independent("standalone_plan_expired");
+    return independent("standalone_plan_unavailable");
+  };
+  const checkInPlanIdForDate = ({ cycleEligible, activeCycle, date, candidateState = state }) => {
+    if (cycleEligible) return activeCycle?.basePlanId || null;
+    const context = resolveTodayTaskContext(candidateState, date);
+    return context.source === "current_plan_day" ? context.planId : null;
+  };
+  const checkInReflectionTaskForDate = ({ date, linkedPracticeReceipt, candidateState = state }) => {
+    const context = resolveTodayTaskContext(candidateState, date);
+    const tasks = linkedPracticeReceipt?.taskDate && linkedPracticeReceipt.taskDate !== date
+      ? defaultTodayTasks(date)
+      : context.tasks;
+    return tasks.find((task) => task.skill === "Reflection") || null;
+  };
+  const getTodayTasks = (date = todayKey()) => resolveTodayTaskContext(state, date).tasks;
   const isTaskComplete = (task) => {
     const progress = state.taskProgress[task.taskId];
     if (progress?.status !== "completed") return false;
@@ -1506,17 +1842,21 @@
     const planId = params.get("plan_id");
     const taskId = params.get("task_id");
     if (!planId && !taskId) return null;
-    if (!planId || !taskId || state.plan?.planId !== planId) return null;
+    if (
+      !planId ||
+      !taskId ||
+      state.plan?.planId !== planId ||
+      !todayPlanScheduleRecognized(state.plan, state)
+    ) return null;
     const task = currentPlanTaskById(taskId);
     if (!task || task.skill !== skill || task.route !== catalog.route) return null;
     if (
-      task.contentRef &&
-      (
-        task.contentRef.exerciseId !== exerciseId ||
-        task.contentRef.contentId !== catalog.contentId ||
-        task.contentRef.contentVersion !== catalog.activityVersion ||
-        task.contentRef.contentHash !== catalog.contentHash
-      )
+      !isRecord(task.contentRef) ||
+      !todayExactObjectKeys(task.contentRef, ["contentHash", "contentId", "contentVersion", "exerciseId"]) ||
+      task.contentRef.exerciseId !== exerciseId ||
+      task.contentRef.contentId !== catalog.contentId ||
+      task.contentRef.contentVersion !== catalog.activityVersion ||
+      task.contentRef.contentHash !== catalog.contentHash
     ) return null;
     return { plan: state.plan, task };
   };
@@ -1842,28 +2182,131 @@
     return "尚未完成";
   };
 
-  const updateHeroProgress = () => {
-    const tasks = getTodayTasks();
+  const todaySourceCopy = (context) => {
+    if (context.source === "current_plan_day") {
+      return `以下 ${context.tasks.length} 项来自当前 7 天计划中 ${formatDate(context.date)} 的计划日；完成来源会分开显示。`;
+    }
+    if (context.source === "standalone_diagnostic_restarted") {
+      return "新诊断已经开始，旧计划已归档；以下是今天的独立基础练习，不计入旧计划，也不推进当前闭环。";
+    }
+    if (context.source === "standalone_plan_future") {
+      return `当前计划从 ${formatDate(context.planStartDate)} 开始；今天尚未进入计划日期。以下是独立基础练习，不计入该计划或当前闭环。`;
+    }
+    if (context.source === "standalone_plan_expired") {
+      return `当前计划已于 ${formatDate(context.planEndDate)} 结束；以下是今天的独立基础练习，不计入已结束计划或当前闭环。`;
+    }
+    if (context.source === "standalone_plan_date_gap") {
+      return "当前计划日期范围包含今天，但没有与今天匹配的计划日；以下是独立基础练习，不计入当前计划或闭环。";
+    }
+    if (["standalone_plan_day_invalid", "standalone_plan_unavailable"].includes(context.source)) {
+      return "今天的计划日或当前计划无法安全识别；以下是独立基础练习。原计划没有被修改，请先在“我的本机数据”中保全并核对。";
+    }
+    return "当前尚无 7 天计划；以下是今天的独立基础练习，不推进诊断闭环。";
+  };
+  const todayTaskHref = (task, context) => {
+    const exactContextTask = context?.tasks?.find((candidate) =>
+      candidate?.taskId === task?.taskId && candidate?.date === context.date && candidate?.route === task?.route,
+    );
+    const catalog = practiceCatalogForSkill(exactContextTask?.skill);
+    return context?.source === "current_plan_day" &&
+      state.plan?.planId === context.planId &&
+      todayPlanScheduleRecognized(state.plan, state) &&
+      exactContextTask &&
+      DIAGNOSTIC_SKILLS.has(task?.skill) &&
+      planTaskBindsPracticeCatalog(exactContextTask, catalog)
+      ? boundPracticeHref(exactContextTask, context.planId)
+      : task?.route || "/practice";
+  };
+  const setTaskEvidenceBadge = (badge, task) => {
+    const receipt = practiceReceiptForTask(task);
+    const progressRecord = state.taskProgress[task.taskId];
+    badge.dataset.evidenceClass = receipt
+      ? "practice_receipt"
+      : progressRecord?.completionClass === "workflow_receipt"
+        ? "workflow_receipt"
+        : progressRecord?.selfReported === true
+          ? "learner_self_report"
+          : "not_completed";
+    badge.textContent = taskEvidenceLabel(task);
+  };
+  const updateHeroProgress = (context = resolveTodayTaskContext()) => {
+    const tasks = context.tasks;
     const completed = tasks.filter(isTaskComplete).length;
     document.querySelectorAll("[data-hero-progress]").forEach((node) => {
       node.textContent = `${completed} / ${tasks.length} 项任务`;
     });
   };
-
-  const renderToday = () => {
-    const list = document.querySelector("[data-today-tasks]");
-    const tasks = getTodayTasks();
+  const updateTodaySummary = (context, announcement = "") => {
+    const tasks = context.tasks;
     const completed = tasks.filter(isTaskComplete).length;
+    const progress = document.querySelector("[data-task-progress]");
+    if (progress) {
+      progress.max = tasks.length;
+      progress.value = completed;
+      progress.textContent = `${completed} / ${tasks.length}`;
+      progress.setAttribute("aria-valuetext", `${completed} / ${tasks.length} 项已完成`);
+    }
+    document.querySelectorAll("[data-today-status]").forEach((node) => {
+      node.textContent = `${completed} / ${tasks.length} 已完成`;
+    });
+    document.querySelectorAll("[data-task-progress-text]").forEach((node) => {
+      node.textContent = `${Math.round((completed / tasks.length) * 100)}%`;
+    });
+    const next = tasks.find((task) => !isTaskComplete(task));
+    const nextTitle = document.querySelector("[data-next-task]");
+    const nextDetail = document.querySelector("[data-next-task-detail]");
+    const nextLink = document.querySelector("[data-today-next-link]");
+    const reflection = tasks.find((task) => task.skill === "Reflection");
+    const reflectionRecorded = state.taskProgress[reflection?.taskId]?.completionClass === "workflow_receipt";
+    if (nextTitle) nextTitle.textContent = next ? `下一项：${next.titleZh}` : `今天的 ${tasks.length} 项任务已标记完成`;
+    if (nextDetail) nextDetail.textContent = next
+      ? next.instructionZh
+      : reflectionRecorded
+        ? "今天的复盘流程已经留存，可返回工作台查看下一步。"
+        : "手动勾选不会生成复盘回执；可进入学习复盘页留下今天的真实内容与证据。";
+    if (nextLink) {
+      nextLink.href = next
+        ? todayTaskHref(next, context)
+        : reflectionRecorded
+          ? "/workspace"
+          : "/check-in";
+      nextLink.textContent = next
+        ? (next.skill === "Reflection" ? "去学习复盘" : `开始：${next.titleZh}`)
+        : reflectionRecorded
+          ? "返回学习工作台"
+          : "去学习复盘";
+    }
+    const planLink = document.querySelector("[data-today-plan-link]");
+    if (planLink) {
+      planLink.href = "/plan";
+      planLink.textContent = context.source === "current_plan_day"
+        ? "查看 7 天计划 →"
+        : context.source === "standalone_plan_future"
+          ? `查看将于 ${formatDate(context.planStartDate)} 开始的计划 →`
+          : context.source === "standalone_plan_expired"
+            ? "生成新的 7 天计划 →"
+            : "生成 7 天计划 →";
+    }
+    updateHeroProgress(context);
+    if (announcement) {
+      const live = document.querySelector("[data-today-live]");
+      if (live) live.textContent = `${announcement}；已完成 ${completed} / ${tasks.length}${next ? `；下一项：${next.titleZh}` : "；今日清单已完成"}。`;
+    }
+  };
+
+  let renderedTodayDate = null;
+  let todayMidnightTimer = null;
+  const renderToday = (date = todayKey()) => {
+    const list = document.querySelector("[data-today-tasks]");
+    const context = resolveTodayTaskContext(state, date);
+    const tasks = context.tasks;
+    renderedTodayDate = context.date;
     const planBoundary = document.querySelector("[data-today-plan-boundary]");
     if (planBoundary) {
-      const diagnosticInProgress = state.journey?.activeCycle?.status === "in_progress" && state.journey?.diagnostic?.status === "in_progress";
-      planBoundary.textContent = state.plan
-        ? "以下任务来自当前 7 天计划；完成来源会分开显示。"
-        : diagnosticInProgress
-          ? "新诊断已经开始，旧计划已归档；以下是独立练习，不推进当前闭环。"
-          : "当前尚无 7 天计划；以下是独立练习，不推进诊断闭环。";
+      planBoundary.dataset.todaySource = context.source;
+      planBoundary.textContent = todaySourceCopy(context);
     }
-    updateHeroProgress();
+    updateHeroProgress(context);
     if (!list) return;
     clearChildren(list);
     tasks.forEach((task, index) => {
@@ -1879,80 +2322,109 @@
       title.textContent = task.titleZh;
       const detail = document.createElement("span");
       detail.textContent = `${task.instructionZh} · ${task.durationMinutes} 分钟`;
+      const sourceLabel = document.createElement("small");
+      sourceLabel.className = "task-source-label";
+      sourceLabel.textContent = context.source === "current_plan_day"
+        ? `任务来源：当前 7 天计划 · ${context.date}`
+        : `任务来源：今日独立练习 · ${context.date}`;
       const evidenceBadge = document.createElement("small");
       const receipt = practiceReceiptForTask(task);
       const progressRecord = state.taskProgress[task.taskId];
       evidenceBadge.className = "task-evidence-badge";
-      evidenceBadge.dataset.evidenceClass = receipt
-        ? "practice_receipt"
-        : progressRecord?.completionClass === "workflow_receipt"
-          ? "workflow_receipt"
-          : progressRecord?.selfReported === true
-            ? "learner_self_report"
-            : "not_completed";
-      evidenceBadge.textContent = taskEvidenceLabel(task);
-      label.append(title, detail, evidenceBadge);
+      setTaskEvidenceBadge(evidenceBadge, task);
+      label.append(title, detail, sourceLabel, evidenceBadge);
       const route = document.createElement("a");
       route.className = "task-route";
-      route.href = currentPlanTaskById(task.taskId) && DIAGNOSTIC_SKILLS.has(task.skill)
-        ? boundPracticeHref(task, state.plan?.planId)
-        : task.route;
+      route.href = todayTaskHref(task, context);
       route.textContent = task.skill === "Reflection" ? "去复盘" : "开始";
       item.append(checkbox, label, route);
       list.append(item);
+      item.classList.toggle("is-complete", checkbox.checked);
       if (receipt || progressRecord?.completionClass === "workflow_receipt") {
         checkbox.disabled = true;
         checkbox.title = receipt ? "这项完成状态来自已保存的练习记录。" : "这项完成状态来自已保存的页面流程。";
       }
       checkbox.addEventListener("change", () => {
+        const currentDate = todayKey();
+        if (currentDate !== context.date) {
+          renderToday(currentDate);
+          const alert = document.querySelector("[data-today-date-alert]");
+          const copy = document.querySelector("[data-today-date-alert-copy]");
+          if (copy) copy.textContent = `日期已从 ${formatDate(context.date, true)} 更新为 ${formatDate(currentDate, true)}；刚才的勾选没有写入，清单已切换到今天。`;
+          if (alert) {
+            alert.hidden = false;
+            alert.focus();
+          }
+          return;
+        }
+        const before = snapshotState();
+        const updatedAt = new Date().toISOString();
+        const persistedDate = keyForDate(new Date(updatedAt));
+        if (persistedDate !== context.date || todayKey() !== context.date) {
+          renderToday(persistedDate);
+          const alert = document.querySelector("[data-today-date-alert]");
+          const copy = document.querySelector("[data-today-date-alert-copy]");
+          if (copy) copy.textContent = `日期已从 ${formatDate(context.date, true)} 更新为 ${formatDate(persistedDate, true)}；刚才的勾选没有写入，清单已切换到今天。`;
+          if (alert) {
+            alert.hidden = false;
+            alert.focus();
+          }
+          return;
+        }
         state.taskProgress[task.taskId] = {
           status: checkbox.checked ? "completed" : "todo",
-          updatedAt: new Date().toISOString(),
-          completedAt: checkbox.checked ? new Date().toISOString() : null,
+          updatedAt,
+          completedAt: checkbox.checked ? updatedAt : null,
           selfReported: true,
           completionClass: checkbox.checked ? "learner_self_report" : "not_completed",
           source: "learner_checkbox",
         };
-        persist();
+        if (!persist()) {
+          state = before;
+          checkbox.checked = isTaskComplete(task);
+          return;
+        }
         item.classList.toggle("is-complete", checkbox.checked);
-        const updatedTasks = getTodayTasks();
-        const updatedCompleted = updatedTasks.filter(isTaskComplete).length;
-        const updatedProgress = document.querySelector("[data-task-progress]");
-        if (updatedProgress) updatedProgress.value = updatedCompleted;
-        document.querySelectorAll("[data-today-status]").forEach((node) => {
-          node.textContent = `${updatedCompleted} / ${updatedTasks.length} 已完成`;
-        });
-        document.querySelectorAll("[data-task-progress-text]").forEach((node) => {
-          node.textContent = `${Math.round((updatedCompleted / updatedTasks.length) * 100)}%`;
-        });
-        const updatedNext = updatedTasks.find((candidate) => !isTaskComplete(candidate));
-        const updatedNextTitle = document.querySelector("[data-next-task]");
-        const updatedNextDetail = document.querySelector("[data-next-task-detail]");
-        if (updatedNextTitle) updatedNextTitle.textContent = updatedNext ? `下一项：${updatedNext.titleZh}` : "今天的任务已全部完成";
-        if (updatedNextDetail) updatedNextDetail.textContent = updatedNext ? updatedNext.instructionZh : "请到学习复盘页记录真实困难与下一步。";
-        updateHeroProgress();
+        setTaskEvidenceBadge(evidenceBadge, task);
+        updateTodaySummary(context, `${task.titleZh}${checkbox.checked ? "已标记为学习者自报完成" : "已改为尚未完成"}`);
       });
     });
-
-    const progress = document.querySelector("[data-task-progress]");
-    if (progress) {
-      progress.max = tasks.length;
-      progress.value = completed;
-      progress.textContent = `${completed} / ${tasks.length}`;
-    }
-    document.querySelectorAll("[data-today-status]").forEach((node) => {
-      node.textContent = `${completed} / ${tasks.length} 已完成`;
-    });
-    document.querySelectorAll("[data-task-progress-text]").forEach((node) => {
-      node.textContent = `${Math.round((completed / tasks.length) * 100)}%`;
-    });
-    const next = tasks.find((task) => !isTaskComplete(task));
-    const nextTitle = document.querySelector("[data-next-task]");
-    const nextDetail = document.querySelector("[data-next-task-detail]");
-    if (nextTitle) nextTitle.textContent = next ? `下一项：${next.titleZh}` : "今天的任务已全部完成";
-    if (nextDetail) nextDetail.textContent = next ? next.instructionZh : "请到学习复盘页记录真实困难与下一步。";
+    updateTodaySummary(context);
   };
   renderToday();
+  const todayList = document.querySelector("[data-today-tasks]");
+  const refreshTodayForDateChange = () => {
+    if (!todayList || !renderedTodayDate || renderedTodayDate === todayKey()) return;
+    const previousDate = renderedTodayDate;
+    const currentDate = todayKey();
+    renderToday(currentDate);
+    const alert = document.querySelector("[data-today-date-alert]");
+    const copy = document.querySelector("[data-today-date-alert-copy]");
+    if (copy) copy.textContent = `日期已从 ${formatDate(previousDate, true)} 更新为 ${formatDate(currentDate, true)}；清单已切换到今天，未写入旧日期任务。`;
+    if (alert) {
+      alert.hidden = false;
+      alert.focus();
+    }
+  };
+  const scheduleTodayDateCheck = () => {
+    if (!todayList) return;
+    window.clearTimeout(todayMidnightTimer);
+    const now = new Date();
+    const next = new Date(now);
+    next.setHours(24, 0, 1, 0);
+    todayMidnightTimer = window.setTimeout(() => {
+      refreshTodayForDateChange();
+      scheduleTodayDateCheck();
+    }, Math.max(1_000, next.getTime() - now.getTime()));
+  };
+  if (todayList) {
+    scheduleTodayDateCheck();
+    window.addEventListener("focus", refreshTodayForDateChange);
+    window.addEventListener("pageshow", refreshTodayForDateChange);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") refreshTodayForDateChange();
+    });
+  }
 
   const sealPracticeReceipt = (skill, exerciseId, completedAt, evidence = {}, targetState = state) => {
     if (
@@ -2894,7 +3366,7 @@
 
   const checkinForm = document.querySelector("#checkin-form");
   if (checkinForm) {
-    const date = todayKey();
+    let date = todayKey();
     const saved = state.checkIns[date] || {};
     const didText = checkinForm.elements.didText;
     const evidenceText = checkinForm.elements.evidenceText;
@@ -2908,9 +3380,40 @@
     const linkedEvidenceStatus = document.querySelector("[data-checkin-evidence-status]");
     const receipt = document.querySelector("[data-checkin-receipt]");
     const reviewLink = document.querySelector("[data-checkin-review-link]");
+    const dateAlert = document.querySelector("[data-checkin-date-alert]");
+    const dateAlertCopy = document.querySelector("[data-checkin-date-alert-copy]");
+    const switchTodayButton = document.querySelector("[data-checkin-switch-today]");
     let draftTimer;
     let checkInCommitPending = false;
     let checkInControlDisabledSnapshot = null;
+    let checkInDateBlocked = false;
+    let checkInDateTimer = null;
+
+    const showCheckInDateAlert = () => {
+      const currentDate = todayKey();
+      if (currentDate === date) return false;
+      checkInDateBlocked = true;
+      window.clearTimeout(draftTimer);
+      if (dateAlertCopy) {
+        dateAlertCopy.textContent = `日期已从 ${formatDate(date, true)} 变为 ${formatDate(currentDate, true)}。午夜前已保存的草稿仍属于原日期；此后的修改尚未写入。请明确切换到今天后再核对和保存。`;
+      }
+      if (dateAlert) {
+        dateAlert.hidden = false;
+        dateAlert.focus();
+      }
+      if (draftStatus) draftStatus.textContent = "日期已变化，当前改动尚未保存";
+      return true;
+    };
+    const scheduleCheckInDateCheck = () => {
+      window.clearTimeout(checkInDateTimer);
+      const now = new Date();
+      const next = new Date(now);
+      next.setHours(24, 0, 1, 0);
+      checkInDateTimer = window.setTimeout(() => {
+        showCheckInDateAlert();
+        scheduleCheckInDateCheck();
+      }, Math.max(1_000, next.getTime() - now.getTime()));
+    };
 
     const setCheckInCommitPending = (pending) => {
       checkInCommitPending = pending;
@@ -2930,8 +3433,8 @@
       checkinForm.removeAttribute("aria-busy");
     };
 
-    const checkInCandidateTasks = () => {
-      const todayTasks = getTodayTasks();
+    const checkInCandidateTasks = (dateKey = date) => {
+      const todayTasks = getTodayTasks(dateKey);
       const recommendationChain = completedRecommendationChain();
       if (!recommendationChain) return todayTasks;
       const primaryTask = recommendationChain.plan.days
@@ -2955,13 +3458,24 @@
         )
         .map((task) => [task.taskId, task])).values()];
     };
-    const currentCheckInCandidates = checkInCandidateTasks();
-    checkInCandidateTasks().forEach((task) => {
-      const option = document.createElement("option");
-      option.value = task.taskId;
-      option.textContent = `${task.date && task.date !== date ? `${task.date} · ` : ""}${task.titleZh} · ${taskEvidenceLabel(task)}`;
-      taskSelect?.append(option);
-    });
+    let currentCheckInCandidates = checkInCandidateTasks();
+    const populateCheckInCandidates = (selectedValue = "") => {
+      if (!taskSelect) return;
+      clearChildren(taskSelect);
+      const independentOption = document.createElement("option");
+      independentOption.value = "";
+      independentOption.textContent = "不关联任务 · 保存为独立复盘";
+      taskSelect.append(independentOption);
+      currentCheckInCandidates.forEach((task) => {
+        const option = document.createElement("option");
+        option.value = task.taskId;
+        option.textContent = `${task.date && task.date !== date ? `${task.date} · ` : ""}${task.titleZh} · ${taskEvidenceLabel(task)}`;
+        taskSelect.append(option);
+      });
+      taskSelect.value = currentCheckInCandidates.some((task) => task.taskId === selectedValue) ? selectedValue : "";
+      if (linkedTaskId) linkedTaskId.value = taskSelect.value;
+    };
+    populateCheckInCandidates(saved.linkedTaskId || "");
     if (didText) didText.value = saved.didText || "";
     if (evidenceText) evidenceText.value = saved.evidenceText || "";
     if (linkedTaskId) linkedTaskId.value = saved.linkedTaskId || "";
@@ -3008,7 +3522,7 @@
     const automaticEntry = !fragmentRequested && closedLoopEntryCandidates.length === 1
       ? closedLoopEntryCandidates[0]
       : null;
-    const contextualEntry = fragmentEntry || automaticEntry;
+    let contextualEntry = fragmentEntry || automaticEntry;
     let contextualEntryMode = null;
     let contextualEntryNotice = null;
     if (contextualEntry && !savedHasSubstantiveContent && linkedTaskId) {
@@ -3057,9 +3571,12 @@
       if (practiceReceipt) {
         linkedEvidenceStatus.dataset.evidenceClass = "practice_receipt";
         const carriedFromPractice = contextualEntryMode && contextualEntry?.task.taskId === task.taskId;
-        linkedEvidenceStatus.textContent = carriedFromPractice
+        const dateBoundary = practiceReceipt.taskDate && practiceReceipt.taskDate !== date
+          ? ` 本次复盘保存为 ${formatDate(date, true)} 的打卡；关联计划任务日期 ${formatDate(practiceReceipt.taskDate, true)} 会原样保留。`
+          : "";
+        linkedEvidenceStatus.textContent = (carriedFromPractice
           ? `已从${contextualEntryMode === "fragment" ? "刚完成的" : "本轮唯一合格的"}推荐练习带入：${skillLabels[task.skill] || task.skill} · ${practiceReceipt.completionReceiptId}`
-          : `练习记录已就绪：${skillLabels[task.skill] || task.skill} · ${practiceReceipt.completionReceiptId}`;
+          : `练习记录已就绪：${skillLabels[task.skill] || task.skill} · ${practiceReceipt.completionReceiptId}`) + dateBoundary;
         return;
       }
       const insufficientReceipt = practiceReceiptForTask(task);
@@ -3076,6 +3593,36 @@
       linkedEvidenceStatus.dataset.evidenceClass = "not_completed";
       linkedEvidenceStatus.textContent = "这项尚无练习记录。请先打开对应练习并满足页面完成条件。";
     };
+    const switchCheckInToCurrentDate = () => {
+      const currentDate = todayKey();
+      if (currentDate === date) {
+        checkInDateBlocked = false;
+        if (dateAlert) dateAlert.hidden = true;
+        return;
+      }
+      const selectedValue = linkedTaskId?.value || "";
+      date = currentDate;
+      checkInDateBlocked = false;
+      contextualEntry = null;
+      contextualEntryMode = null;
+      contextualEntryNotice = "日期已经切换；请重新核对关联任务与练习回执后再保存。";
+      currentCheckInCandidates = checkInCandidateTasks(date);
+      populateCheckInCandidates(selectedValue);
+      document.querySelectorAll("[data-checkin-date]").forEach((node) => {
+        node.textContent = formatDate(date, true);
+      });
+      document.querySelectorAll("[data-checkin-date-input]").forEach((node) => {
+        node.value = date;
+      });
+      renderCheckinReceipt(state.checkIns[date] || {});
+      if (dateAlert) dateAlert.hidden = true;
+      if (draftStatus) draftStatus.textContent = "已切换到今天；当前内容尚未保存";
+      if (noteStatus) noteStatus.textContent = "表单内容已保留，请重新核对任务来源、练习回执和问题状态后再保存。";
+      renderLinkedEvidenceStatus();
+      scheduleCheckInDateCheck();
+      linkedTaskId?.focus();
+    };
+    switchTodayButton?.addEventListener("click", switchCheckInToCurrentDate);
     const toggleQuestion = () => {
       const hasQuestion = checkinForm.querySelector('input[name="questionStatus"]:checked')?.value === "has_question";
       if (questionWrap) questionWrap.hidden = !hasQuestion;
@@ -3104,6 +3651,7 @@
     };
     const saveDraft = async () => {
       if (checkInCommitPending) return;
+      if (checkInDateBlocked || showCheckInDateAlert()) return;
       const values = readCheckin();
       const previous = state.checkIns[date] || {};
       const previousSaved = Boolean(previous.checkInId && previous.status === "saved");
@@ -3126,6 +3674,7 @@
         return;
       }
       const outcome = await withExclusiveWorkspaceWrite(() => {
+        if (todayKey() !== date || values.date !== date) return { status: "date_changed" };
         const candidatePrevious = state.checkIns[date] || {};
         const candidatePreviousSaved = Boolean(candidatePrevious.checkInId && candidatePrevious.status === "saved");
         const candidatePreviousConfirmed = Boolean(
@@ -3145,6 +3694,7 @@
         const candidate = snapshotState();
         const candidateRecord = candidate.checkIns[date] || {};
         const updatedAt = new Date().toISOString();
+        if (keyForDate(new Date(updatedAt)) !== date) return { status: "date_changed" };
         if (candidateReplacesSaved) {
           archiveCheckIn(
             candidate,
@@ -3156,6 +3706,7 @@
         candidate.checkIns[date] = {
           ...candidateRecord,
           ...values,
+          date,
           checkInId: candidateReplacesSaved ? null : candidatePrevious.checkInId || null,
           status: "draft",
           evidenceClass: "draft_unclassified",
@@ -3185,6 +3736,7 @@
         }
         const candidateCapacity = workspaceCandidateCapacity(candidate);
         if (candidateCapacity.status !== "ready") return candidateCapacity;
+        if (todayKey() !== date) return { status: "date_changed" };
         state = candidate;
         if (!persist()) {
           state = before;
@@ -3202,7 +3754,10 @@
       }
       if (outcome.status !== "saved") {
         if (draftStatus) draftStatus.textContent = "草稿未保存";
-        if (noteStatus) noteStatus.textContent = outcome.status === "capacity_invalid"
+        if (outcome.status === "date_changed") showCheckInDateAlert();
+        if (noteStatus) noteStatus.textContent = outcome.status === "date_changed"
+          ? "本机日期已经变化；本次草稿修改零写入。请明确切换到今天并重新核对内容。"
+          : outcome.status === "capacity_invalid"
           ? invalidCapacityMessage("本次草稿修改")
           : outcome.status === "capacity_reached"
             ? capacityFailureMessage("本次草稿修改")
@@ -3219,6 +3774,7 @@
     };
     checkinForm.addEventListener("input", () => {
       if (checkInCommitPending) return;
+      if (showCheckInDateAlert()) return;
       toggleQuestion();
       const submitButton = checkinForm.querySelector('button[type="submit"]');
       if (submitButton && storageWritable) submitButton.disabled = false;
@@ -3236,11 +3792,18 @@
       if (draftStatus) draftStatus.textContent = "已恢复本机草稿";
     }
     renderCheckinReceipt(saved);
+    scheduleCheckInDateCheck();
+    window.addEventListener("focus", showCheckInDateAlert);
+    window.addEventListener("pageshow", showCheckInDateAlert);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") showCheckInDateAlert();
+    });
 
     checkinForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       if (checkInCommitPending) return;
       window.clearTimeout(draftTimer);
+      if (checkInDateBlocked || showCheckInDateAlert()) return;
       const values = readCheckin();
       const errors = [];
       const activeCycle = state.journey?.activeCycle;
@@ -3324,7 +3887,8 @@
         ),
       );
       const cycleId = cycleEligible ? activeCycle.cycleId : null;
-      const planId = cycleEligible ? activeCycle.basePlanId : state.plan?.planId || null;
+      const todayContext = resolveTodayTaskContext(state, date);
+      const planId = checkInPlanIdForDate({ cycleEligible, activeCycle, date });
       const recommendationId = cycleEligible ? activeCycle.recommendationId : null;
       const sameScope = Boolean(
         previous.checkInId &&
@@ -3348,6 +3912,7 @@
       setCheckInCommitPending(true);
       let outcome;
       try {
+        const reflectionTask = checkInReflectionTaskForDate({ date, linkedPracticeReceipt });
         outcome = await commitCheckInRecord({
           date,
           values,
@@ -3357,7 +3922,7 @@
           diagnosticSessionId: activeCycle?.diagnosticSessionId || null,
           recommendationId,
           linkedPracticeReceipt,
-          reflectionTask: getTodayTasks().find((task) => task.skill === "Reflection") || null,
+          reflectionTask,
         });
       } catch {
         outcome = { status: "runtime_exception" };
@@ -3374,7 +3939,12 @@
       }
       if (outcome.status !== "saved") {
         if (submitButton && storageWritable) submitButton.disabled = false;
-        if (noteStatus) noteStatus.textContent = outcome.status === "lock_unavailable"
+        if (outcome.status === "date_changed") showCheckInDateAlert();
+        if (noteStatus) noteStatus.textContent = outcome.status === "date_changed"
+          ? "本机日期已经变化；本次打卡零写入。请明确切换到今天并重新核对内容。"
+          : outcome.status === "date_scope_mismatch"
+            ? "复盘任务日期与本次打卡日期不一致；本次打卡零写入，请刷新后重新核对。"
+          : outcome.status === "lock_unavailable"
           ? "当前浏览器无法取得安全写入锁；本次打卡尚未形成正式记录。"
           : outcome.status === "sealed_cycle_check_in"
             ? "这份闭环打卡已有不可变学习事件，不能在原轮次内修改或换绑。原记录已完整保留；如需更正，请开始新诊断并进入新闭环。"

@@ -112,6 +112,11 @@
     keys.every((key) => Object.prototype.hasOwnProperty.call(value, key));
   const isExactUtc = (value) =>
     typeof value === "string" && ISO_UTC_PATTERN.test(value) && !Number.isNaN(Date.parse(value));
+  const isCalendarDate = (value) => {
+    if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+    const parsed = Date.parse(`${value}T00:00:00.000Z`);
+    return Number.isFinite(parsed) && new Date(parsed).toISOString().slice(0, 10) === value;
+  };
   const clone = (value) => JSON.parse(JSON.stringify(value));
   const createUuid = () => {
     if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
@@ -765,6 +770,11 @@
         record.practiceReceipt?.sealed !== true ||
         record.practiceReceipt?.status !== "completed" ||
         record.practiceReceipt?.evidenceStatus !== "evidence_limited" ||
+        !isCalendarDate(record.date) ||
+        !isCalendarDate(record.practiceReceipt?.taskDate) ||
+        !isExactUtc(record.savedAt) ||
+        !isExactUtc(record.practiceReceipt?.completedAt) ||
+        Date.parse(record.savedAt) < Date.parse(record.practiceReceipt.completedAt) ||
         !["has_question", "none"].includes(record.questionStatus) ||
         recommendation.recommendationId !== record.recommendationId ||
         recommendation.cycleId !== record.cycleId ||
