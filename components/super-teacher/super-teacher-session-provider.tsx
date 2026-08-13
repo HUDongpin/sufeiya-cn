@@ -55,11 +55,12 @@ const skillLabels: Record<string, string> = {
   Balanced: "综合训练",
 };
 
-function readLearnerContext(): LearnerContext | undefined {
+async function readLearnerContext(): Promise<LearnerContext | undefined> {
   try {
     const raw = window.localStorage.getItem(WORKSPACE_KEY);
     if (!raw) return undefined;
-    return deriveLearnerContext(JSON.parse(raw) as unknown);
+    const context = await deriveLearnerContext(JSON.parse(raw) as unknown);
+    return window.localStorage.getItem(WORKSPACE_KEY) === raw ? context : undefined;
   } catch {
     return undefined;
   }
@@ -125,7 +126,7 @@ export function SuperTeacherSessionProvider({ children }: { children: ReactNode 
   const refreshProvisionalHandoff = useCallback(async () => {
     try {
       const workspaceRaw = window.localStorage.getItem(WORKSPACE_KEY);
-      const projection = deriveProvisionalHandoffEvidence(workspaceRaw);
+      const projection = await deriveProvisionalHandoffEvidence(workspaceRaw);
       if (projection.status === "empty") {
         setProvisionalHandoff({ status: "absent", reason: "workspace_missing" });
         return;
@@ -170,7 +171,7 @@ export function SuperTeacherSessionProvider({ children }: { children: ReactNode 
   }, []);
 
   useEffect(() => {
-    const frame = window.requestAnimationFrame(() => {
+    const frame = window.requestAnimationFrame(() => void (async () => {
       const stored = readSession(window.localStorage);
       const supportsSafeWriteLock = Boolean(navigator.locks?.request);
       setSafeWriteLockSupported(supportsSafeWriteLock);
@@ -186,19 +187,19 @@ export function SuperTeacherSessionProvider({ children }: { children: ReactNode 
       } else if (!supportsSafeWriteLock) {
         setNotice("当前浏览器不支持安全本机写入锁；智能问答和本机人工请求保持只读。请升级到支持 Web Locks 的现代浏览器。");
       }
-      setLearnerContext(readLearnerContext());
-      void refreshProvisionalHandoff();
+      setLearnerContext(await readLearnerContext());
+      await refreshProvisionalHandoff();
       setReady(true);
-    });
+    })());
     return () => {
       window.cancelAnimationFrame(frame);
     };
   }, [refreshProvisionalHandoff]);
 
   useEffect(() => {
-    const handleStorageChange = (event: StorageEvent) => {
+    const handleStorageChange = (event: StorageEvent) => void (async () => {
       if (event.key === WORKSPACE_KEY || event.key === null) {
-        const nextContext = readLearnerContext();
+        const nextContext = await readLearnerContext();
         setLearnerContext(nextContext);
         void refreshProvisionalHandoff();
         setNotice(
@@ -215,7 +216,7 @@ export function SuperTeacherSessionProvider({ children }: { children: ReactNode 
           setNotice("另一标签页中的本机对话已经变化；为避免覆盖，新写入已停止。请刷新核对，或明确清除后重新开始。");
         }
       }
-    };
+    })();
     window.addEventListener("storage", handleStorageChange);
     return () => window.removeEventListener("storage", handleStorageChange);
   }, [refreshProvisionalHandoff]);
@@ -280,7 +281,7 @@ export function SuperTeacherSessionProvider({ children }: { children: ReactNode 
       setError("当前浏览器不支持安全本机写入锁；本次没有保存、发送或调用模型。");
       return undefined;
     }
-    const currentContext = readLearnerContext();
+    const currentContext = await readLearnerContext();
     setLearnerContext(currentContext);
     if (!currentContext?.adultConfirmed) {
       setError("请先到演示性初筛页完成 18+ 本机确认和六项任务；当前不会保存问题、发送数据或调用模型。");
@@ -482,7 +483,7 @@ export function SuperTeacherSessionProvider({ children }: { children: ReactNode 
           return;
         }
         const workspaceBefore = window.localStorage.getItem(WORKSPACE_KEY);
-        const projection = deriveProvisionalHandoffEvidence(workspaceBefore);
+        const projection = await deriveProvisionalHandoffEvidence(workspaceBefore);
         if (projection.status !== "ready" || !workspaceBefore) {
           setError("当前临时轮次已不再满足严格回链；旧包未复制，请返回工作台核对。");
           await refreshProvisionalHandoff();

@@ -1168,7 +1168,7 @@ await checkExecutableAsync(
 );
 
 await checkExecutableAsync(
-  "targeted learning-event clear empties and validates the chain while preserving every non-ledger field",
+  "learning-event ledger validation is read-only and preserves the complete workspace candidate",
   async () => {
     const { runtime, networkDispatchCount } = createLearningEventsHarness();
     const state = {
@@ -1181,22 +1181,18 @@ await checkExecutableAsync(
     };
     const appended = await appendLearningEventFixtures(runtime, state);
     if (!appended.outcomes.every((outcome) => outcome.status === "appended")) return false;
-    const nonLedgerBefore = JSON.stringify(Object.fromEntries(
-      Object.entries(state).filter(([key]) => !["learningEvents", "learningEventBindings"].includes(key)),
-    ));
-    runtime.clearFromState(state);
-    const nonLedgerAfter = JSON.stringify(Object.fromEntries(
-      Object.entries(state).filter(([key]) => !["learningEvents", "learningEventBindings"].includes(key)),
-    ));
+    const before = JSON.stringify(state);
     const validation = await runtime.validateLedger(state);
+    const repeatedValidation = await runtime.validateLedger(state);
     return Boolean(
       Array.isArray(state.learningEvents) &&
-      state.learningEvents.length === 0 &&
-      state.learningEventBindings === null &&
-      nonLedgerAfter === nonLedgerBefore &&
+      state.learningEvents.length === appended.outcomes.length &&
+      state.learningEventBindings !== null &&
+      JSON.stringify(state) === before &&
       validation.ok &&
-      validation.eventCount === 0 &&
-      validation.headHash === null &&
+      validation.eventCount === appended.outcomes.length &&
+      validation.headHash === state.learningEvents.at(-1)?.eventHash &&
+      JSON.stringify(repeatedValidation) === JSON.stringify(validation) &&
       networkDispatchCount() === 0
     );
   },
@@ -1291,9 +1287,26 @@ const learningEventClearSource = sourceSection(
   'document.querySelectorAll("[data-clear-learning-events]")',
   'document.querySelectorAll("[data-clear-workspace]")',
 );
+const learningEventClearPolicySource = sourceSection(
+  workspaceScript,
+  "const eventBoundDomainMarkers",
+  "const appendLearningEvent",
+);
+const learningEventClearValidationSource = sourceSection(
+  workspaceScript,
+  "const exactObjectKeys",
+  "const appendLearningEvent",
+);
+const learningEventClearFeedbackSource = sourceSection(
+  workspaceScript,
+  "const ensureLearningEventClearMessage",
+  'document.querySelectorAll("[data-clear-workspace]")',
+);
 check(
   /data-export-learning-events/.test(myDataPage) &&
     /data-clear-learning-events/.test(myDataPage) &&
+    /核对学习事件清除边界/.test(myDataPage) &&
+    /非空学习工作区不能只删事件/.test(myDataPage) &&
     /不是 LRS 或 xAPI 导出/.test(myDataPage) &&
     /const updateDataPage = async \(\)/.test(myDataSummarySource) &&
     /learningLedgerStatus\.ok && learningEventsRuntime[\s\S]*await learningEventsRuntime\.summarize\(state\)/.test(
@@ -1303,7 +1316,7 @@ check(
       myDataSummarySource,
     ) &&
     /await updateDataPage\(\)/.test(workspaceScript),
-  "My Data exposes learning-event summary, chain validation status, event-only export, and targeted clear",
+  "My Data exposes learning-event summary, chain validation status, event-only export, and a fail-closed clear boundary check",
 );
 check(
   /learningEventGovernance:[\s\S]*contractId:[\s\S]*local_user_backup_only_not_lrs_exportable[\s\S]*lrsOrXapiExport:\s*false/.test(
@@ -1311,12 +1324,19 @@ check(
   ) &&
     /createLocalBackup\(state\)/.test(learningEventExportSource) &&
     /不是 LRS 或 xAPI 导出/.test(learningEventExportSource) &&
-    /clearFromState\(state\)[\s\S]*localStorage\.setItem\(STORAGE_KEY, JSON\.stringify\(state\)\)/.test(
+    /const expectedCurrentRaw = rawStoredValue[\s\S]*clearLearningEventsTransaction\(expectedCurrentRaw\)/.test(
       learningEventClearSource,
     ) &&
-    /const before = snapshotState\(\)[\s\S]*catch \{[\s\S]*state = before/.test(learningEventClearSource) &&
-    /计划、练习回执、打卡、复测、Sofia智能老师对话与教研复核演示草稿都会保留/.test(learningEventClearSource),
-  "My Data keeps learning-event export local-user-backup-only and targeted clear transactional and namespace-preserving",
+    !/clearFromState|localStorage\.(?:setItem|removeItem)|window\.confirm|location\.reload/.test(
+      learningEventClearSource,
+    ) &&
+    /data-event-clear-message[\s\S]*aria-atomic[\s\S]*role[\s\S]*alert[\s\S]*message\.focus\(\)/.test(
+      learningEventClearFeedbackSource,
+    ) &&
+    /本次零写入[\s\S]*清除整个学习工作区（保留 Sofia 与教研草稿）[\s\S]*请勿单独清除事件后继续/.test(
+      learningEventClearFeedbackSource,
+    ),
+  "My Data keeps learning-event export local-user-backup-only and makes event-only clear a focused zero-write boundary check",
 );
 
 const workspaceControlPolicySource = sourceSection(
@@ -1362,10 +1382,10 @@ check(
       workspaceControlPolicySource,
     ) &&
     /if \(!workspaceStateRecognized\) \{[\s\S]*allowDataReset:\s*true/.test(workspaceRecoveryGateSource) &&
-    /eventRecoveryAvailable = workspaceStateRecognized && Boolean\(learningEventsRuntime\)[\s\S]*allowEventExport: eventRecoveryAvailable[\s\S]*allowEventClear: eventRecoveryAvailable[\s\S]*allowDataReset:\s*true/.test(
+    /eventRecoveryAvailable = workspaceStateRecognized && Boolean\(learningEventsRuntime\)[\s\S]*allowEventExport: eventRecoveryAvailable[\s\S]*allowEventClear:\s*true[\s\S]*allowDataReset:\s*true/.test(
       workspaceRecoveryGateSource,
     ),
-  "read-only recovery keeps full export and explicit resets available while unknown state disables event-only operations",
+  "read-only recovery keeps full export, explicit resets, and the read-only event-clear boundary explanation reachable",
 );
 check(
   /workspaceWriterLeaseAvailable[\s\S]*navigator\.locks\.request\(`\$\{STORAGE_KEY\}:sealed-write`, \{ mode: "exclusive" \}/.test(
@@ -1377,11 +1397,66 @@ check(
     /navigator\.locks\.request\(`\$\{TEACHING_REVIEW_DEMO_STORAGE_KEY\}:write`, \{ mode: "exclusive" \}/.test(
       recoveryLockSource,
     ) &&
-    /!workspaceStateRecognized \|\| !workspaceWriterLeaseAvailable \|\| !learningEventsRuntime/.test(
-      learningEventClearSource,
+    /const clearLearningEventsTransaction = async \(expectedCurrentRaw = rawStoredValue\)[\s\S]*withWorkspaceRecoveryLock\(async \(\) => \{[\s\S]*currentRaw = window\.localStorage\.getItem\(STORAGE_KEY\)[\s\S]*currentRaw !== expectedCurrentRaw[\s\S]*inspectLearningEventClearCandidate\(currentRaw\)/.test(
+      learningEventClearPolicySource,
     ) &&
-    /navigator\.locks\.request\(`\$\{STORAGE_KEY\}:sealed-write`/.test(learningEventClearSource),
-  "event recovery requires the held page-writer lease and the sealed workspace lock",
+    /blocked_event_bound_state[\s\S]*event_bound_domain_state_present/.test(learningEventClearPolicySource) &&
+    /already_empty[\s\S]*ledger_and_event_bound_domain_state_empty/.test(learningEventClearPolicySource),
+  "event-clear boundary requires the held page-writer lease, sealed lock, first-read raw CAS, and strict empty-state admission",
+);
+check(
+  /validEventClearProfile[\s\S]*EVENT_CLEAR_PROFILE_KEYS/.test(learningEventClearValidationSource) &&
+    /validEventClearFocusState[\s\S]*EVENT_CLEAR_FOCUS_SESSION_KEYS[\s\S]*EVENT_CLEAR_FOCUS_ACTIVE_KEYS/.test(
+      learningEventClearValidationSource,
+    ) &&
+    /eventClearProfileIsDefault[\s\S]*markers\.push\("profile"\)/.test(
+      learningEventClearValidationSource,
+    ) &&
+    /markers\.push\("focus\.active"\)[\s\S]*markArray\("focus\.sessions"/.test(
+      learningEventClearValidationSource,
+    ) &&
+    /normalizeState\(parsed, \{ baseUpdatedAt: parsed\.updatedAt \}\)/.test(
+      learningEventClearValidationSource,
+    ) &&
+    !/new Date\(\)|Date\.now\(\)/.test(learningEventClearValidationSource),
+  "event-clear strict admission blocks valid profile/focus state, rejects malformed focus unions, and never obtains a current time",
+);
+check(
+  [
+    "workspace_invalid",
+    "ledger_invalid",
+    "runtime_unavailable",
+    "read_failed",
+    "stale",
+    "lock_unavailable",
+    "blocked_event_bound_state",
+    "already_empty",
+  ].every((status) =>
+    learningEventClearValidationSource.includes(status) || recoveryLockSource.includes(status)) &&
+    [
+      "profile",
+      "focus.active",
+      "focus.sessions",
+      "plan",
+      "planHistory",
+      "taskProgress",
+      "practice",
+      "practiceReceipts",
+      "checkIns",
+      "checkInHistory",
+      "learningEvents",
+      "learningEventBindings",
+      "journey.activeCycle",
+      "journey.diagnostic",
+      "journey.recommendation",
+      "journey.review",
+      "journey.peerHelp",
+      "journey.retest",
+      "journey.planUpdate",
+      "journey.history",
+      "journey.supersededCycles",
+    ].every((marker) => learningEventClearValidationSource.includes(`"${marker}"`)),
+  "event-clear fail-closed status surface and every event-bound domain marker remain explicit",
 );
 check(
   /const outcome = await withWorkspaceRecoveryLock\(\(\) => \{[\s\S]*localStorage\.removeItem\(STORAGE_KEY\)[\s\S]*status: "cleared"[\s\S]*status: "clear_failed"/.test(
@@ -2822,6 +2897,9 @@ const cycleHistoryProjectionHarness = (() => {
         const LEGACY_PRACTICE_RECEIPT_VERSION = "sufeiya_practice_receipt_v1";
         ${journeyEvidenceCatalogSource}
         const isRecord = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value);
+        const learningEventsRuntime = {
+          supersededSummaryMatchesTerminalHistory: () => false,
+        };
         ${journeyPracticeReceiptValidationSource}
         ${journeyPracticeCatalogLookupSource}
         ${journeyPlanTaskLookupSource}
@@ -5025,10 +5103,10 @@ check(
   /const validWorkspaceBackupTaskProgress = \(candidateState\) =>/.test(journeyScript) &&
     /const validWorkspaceBackupPracticeState = async \(candidateState\) =>/.test(journeyScript) &&
     /const validWorkspaceBackupFocusState = \(candidateState\) =>/.test(journeyScript) &&
-    /const WORKSPACE_BACKUP_EVENT_CONTEXT_KIND = Object\.freeze/.test(journeyScript) &&
+    /const DOMAIN_KIND_BY_CONTEXT_KEY = Object\.freeze/.test(learningEventsScript) &&
     /JSON\.stringify\(receipt\.qualityFlags\) === JSON\.stringify\(expectedQualityFlags\)/.test(journeyScript) &&
-    /for \(const \[kind, domainRecords\] of Object\.entries\(records\)\)/.test(journeyScript) &&
-    /if \(!usedAliases\.has\(alias\)\) return false/.test(journeyScript) &&
+    /validateWorkspaceBackupLedgerCoverage[\s\S]*validateWorkspaceDomainLedgerCoverage/.test(journeyScript) &&
+    /validateWorkspaceBackupActiveEventPrefix[\s\S]*validateWorkspaceActiveEventProjection/.test(journeyScript) &&
     /workspaceBackupSupersededMatchesTerminalHistory/.test(journeyScript) &&
     /practice\.draftText\.replace\(\/\\r\\n\/g, "\\n"\)\.trim\(\)/.test(journeyScript) &&
     /await workspaceBackupRuntime\.sha256Hex\(normalizedArtifact\) !== latestReceipt\.evidence\.artifactHash/.test(journeyScript) &&
@@ -5493,8 +5571,8 @@ const superTeacherProvisionalContextSource = sourceSection(
   "  if (\n    !cycle ||",
 );
 check(
-  /deriveProvisionalHandoffEvidence\(raw\)/.test(superTeacherProvisionalContextSource) &&
-    /deriveTeachingReviewEvidence\(raw\)/.test(superTeacherProvisionalContextSource) &&
+    /deriveProvisionalHandoffEvidence\(raw, admissionValidator\)/.test(superTeacherProvisionalContextSource) &&
+    /deriveTeachingReviewEvidence\(raw, admissionValidator\)/.test(superTeacherProvisionalContextSource) &&
     /handoff\.status !== "ready"[\s\S]*authorized\.status !== "ready"/.test(superTeacherProvisionalContextSource) &&
     /stage: "provisional_updated"/.test(superTeacherProvisionalContextSource) &&
     /retestRecorded: true[\s\S]*updatedPlanConfirmed: false[\s\S]*humanReviewStatus: "required_not_completed"/.test(
@@ -5514,7 +5592,7 @@ check(
 );
 const provisionalHandoffEvidenceSource = sourceSection(
   superTeacherProvisionalHandoff,
-  "export function deriveProvisionalHandoffEvidence",
+  "export async function deriveProvisionalHandoffEvidence",
   "export function createProvisionalHandoffPacket",
 );
 const provisionalHandoffPacketSchemaSource = sourceSection(
@@ -5612,7 +5690,7 @@ check(
     superTeacherProvisionalHandoff.includes(
       "const checkInIdSchema = z.string().regex(/^check-in-[0-9a-z]{6,10}$/);",
     ) &&
-    /const authorized = deriveTeachingReviewEvidence\(raw\)/.test(provisionalHandoffEvidenceSource) &&
+    /const authorized = await deriveTeachingReviewEvidence\(raw, ledgerValidator\)/.test(provisionalHandoffEvidenceSource) &&
     /if \(authorized\.status === "invalid"\)/.test(provisionalHandoffEvidenceSource) &&
     /const cycle = currentAuthorizedHistoryRecord\(raw\)/.test(provisionalHandoffEvidenceSource) &&
     /provisionalHandoffEvidenceSchema\.safeParse/.test(provisionalHandoffEvidenceSource) &&
@@ -5705,7 +5783,7 @@ check(
   /let previousSofiaRaw: string \| null \| undefined/.test(provisionalHandoffCommitSource) &&
     /let candidateWriteAttempted = false/.test(provisionalHandoffCommitSource) &&
   /const workspaceBefore = storage\.getItem\("sufeiya_workspace_v1"\)/.test(provisionalHandoffCommitSource) &&
-    /deriveProvisionalHandoffEvidence\(workspaceBefore\)/.test(provisionalHandoffCommitSource) &&
+    /deriveProvisionalHandoffEvidence\(workspaceBefore, admissionValidator\)/.test(provisionalHandoffCommitSource) &&
     /sha256Hex\(workspaceBefore, cryptoProvider\)/.test(provisionalHandoffCommitSource) &&
     /storedSessionMatches\(stored, expectedSession\)/.test(provisionalHandoffCommitSource) &&
     /findMatchingProvisionalHandoffPacket\([\s\S]*expectedSession\.provisionalHandoffPackets,[\s\S]*projection\.evidence,[\s\S]*sourceSnapshotSha256/.test(
@@ -5938,7 +6016,7 @@ check(
     /qualifiedHumanConfirmation: z\.literal\(false\)/.test(teachingReviewContract) &&
     /canonicalLedgerWrite: z\.literal\(false\)/.test(teachingReviewContract) &&
     /cycleClosureAttempted: z\.literal\(false\)/.test(teachingReviewContract) &&
-    !/humanReviewReceiptId/.test(teachingReviewContract),
+    /jsonTreeHasOwnKey\(root, "humanReviewReceiptId"\)/.test(teachingReviewContract),
   "teaching-review draft contract fixes the non-authoritative boundary and contains no human-review receipt field",
 );
 check(

@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import vm from "node:vm";
+import { webcrypto } from "node:crypto";
 
 import {
   CANONICAL_LEARNER_STORAGE_KEY,
@@ -32,6 +35,61 @@ import {
 import { deriveLearnerContext } from "../lib/super-teacher/local-context";
 
 type MutableRecord = Record<string, unknown>;
+
+type ProductionLearningEventsRuntime = {
+  appendDomainEvent(
+    state: MutableRecord,
+    eventType: string,
+    domain: MutableRecord,
+  ): Promise<MutableRecord>;
+  validateProvisionalCycleLedger(
+    state: MutableRecord,
+    binding: MutableRecord,
+  ): Promise<MutableRecord>;
+  setNow(value: string): void;
+};
+
+const learningEventsSource = readFileSync(new URL("../learning-events.js", import.meta.url), "utf8");
+const workspaceBackupSource = readFileSync(new URL("../workspace-backup.js", import.meta.url), "utf8");
+
+function productionLearningEventsRuntime(): ProductionLearningEventsRuntime {
+  const NativeDate = Date;
+  let currentTime = NativeDate.parse(CREATED_AT);
+  class ControlledDate extends NativeDate {
+    constructor(value?: string | number) {
+      super(value === undefined ? currentTime : value);
+    }
+
+    static now(): number {
+      return currentTime;
+    }
+  }
+  const sandbox: MutableRecord = {
+    crypto: webcrypto,
+    Date: ControlledDate,
+    TextEncoder,
+  };
+  sandbox.window = sandbox;
+  sandbox.globalThis = sandbox;
+  const context = vm.createContext(sandbox);
+  vm.runInContext(workspaceBackupSource, context, { filename: "workspace-backup.js" });
+  vm.runInContext(learningEventsSource, context, { filename: "learning-events.js" });
+  const runtime = sandbox.SufeiyaLearningEvents as ProductionLearningEventsRuntime | undefined;
+  assert.ok(runtime, "production learning-event runtime must be available");
+  return {
+    ...runtime,
+    setNow(value: string) {
+      const parsed = NativeDate.parse(value);
+      assert.ok(Number.isFinite(parsed), `controlled event clock requires ISO time: ${value}`);
+      currentTime = parsed;
+    },
+  };
+}
+
+function productionProvisionalValidator(runtime: ProductionLearningEventsRuntime) {
+  return (state: unknown, binding: MutableRecord) =>
+    runtime.validateProvisionalCycleLedger(state as MutableRecord, binding);
+}
 
 const PROTOCOL_VERSION = "gate_a_local_v1";
 const DIAGNOSTIC_PROTOCOL_VERSION = "gate_a_diagnostic_evidence_v1";
@@ -557,17 +615,167 @@ function canonicalProvisionalFixture(): MutableRecord {
       retest: structuredClone(retest),
       planUpdate: structuredClone(planUpdate),
       history: [historyEntry],
+      supersededCycles: [],
     },
   };
 }
 
-function deriveFixture(root: MutableRecord) {
-  return deriveTeachingReviewEvidence(JSON.stringify(root));
+function provisionalLedgerBinding(root: MutableRecord): MutableRecord {
+  const cycle = provisionalHistoryCycle(root);
+  const recommendation = recordAt(cycle, "recommendation");
+  const checkIn = recordAt(cycle, "checkIn");
+  const receipt = recordAt(checkIn, "practiceReceipt");
+  return {
+    cycleId: cycle.cycleId,
+    diagnosticSessionId: cycle.diagnosticSessionId,
+    planId: cycle.basePlanId,
+    recommendationId: cycle.recommendationId,
+    bindingId: recordAt(recommendation, "evidenceBinding").bindingId,
+    taskId: checkIn.linkedTaskId,
+    practiceAttemptId: receipt.practiceAttemptId,
+    practiceReceiptId: receipt.completionReceiptId,
+    checkInId: cycle.checkInId,
+    retestId: cycle.retestId,
+    updatedPlanId: cycle.updatedPlanId,
+  };
+}
+
+async function appendCanonicalProvisionalLedger(
+  root: MutableRecord,
+  runtime = productionLearningEventsRuntime(),
+): Promise<ProductionLearningEventsRuntime> {
+  const cycle = provisionalHistoryCycle(root);
+  const diagnostic = recordAt(cycle, "diagnostic");
+  const recommendation = recordAt(cycle, "recommendation");
+  const checkIn = recordAt(cycle, "checkIn");
+  const retest = recordAt(cycle, "retest");
+  const startedCycle = {
+    protocolVersion: cycle.protocolVersion,
+    cycleId: cycle.cycleId,
+    diagnosticSessionId: cycle.diagnosticSessionId,
+    basePlanId: null,
+    recommendationId: null,
+    checkInId: null,
+    reviewId: null,
+    peerHelpId: null,
+    retestId: null,
+    updatedPlanId: null,
+    status: "in_progress",
+    closedAt: null,
+    provisionalAt: null,
+    createdAt: cycle.createdAt,
+    updatedAt: cycle.createdAt,
+  };
+  const startedDiagnostic = {
+    protocolVersion: diagnostic.protocolVersion,
+    cycleId: diagnostic.cycleId,
+    diagnosticSessionId: diagnostic.diagnosticSessionId,
+    taskSetVersion: diagnostic.taskSetVersion,
+    taskSetDigest: diagnostic.taskSetDigest,
+    status: "in_progress",
+  };
+  const receipt = recordAt(checkIn, "practiceReceipt");
+  const domains: Array<[string, MutableRecord, string]> = [
+    ["learning_cycle.started", { cycle: startedCycle, diagnostic: startedDiagnostic }, String(startedCycle.createdAt)],
+    ["recommendation.decided", { recommendation }, String(recommendation.createdAt)],
+    ["practice_attempt.finalized", { receipt, recommendation }, String(receipt.completedAt)],
+    ["check_in.committed", { checkIn, recommendation }, String(checkIn.savedAt)],
+    ["retest.completed", { retest, recommendation }, String(retest.completedAt)],
+  ];
+  for (const [eventType, domain, recordedAt] of domains) {
+    runtime.setNow(recordedAt);
+    const outcome = await runtime.appendDomainEvent(root, eventType, domain);
+    assert.equal(outcome.status, "appended", `${eventType}: ${String(outcome.code || "append failed")}`);
+  }
+  return runtime;
+}
+
+function startedOnlyCycleDomain({
+  cycleId,
+  diagnosticSessionId,
+  createdAt,
+}: {
+  cycleId: string;
+  diagnosticSessionId: string;
+  createdAt: string;
+}) {
+  return {
+    cycle: {
+      protocolVersion: PROTOCOL_VERSION,
+      cycleId,
+      diagnosticSessionId,
+      basePlanId: null,
+      recommendationId: null,
+      checkInId: null,
+      reviewId: null,
+      peerHelpId: null,
+      retestId: null,
+      updatedPlanId: null,
+      status: "in_progress",
+      closedAt: null,
+      provisionalAt: null,
+      createdAt,
+      updatedAt: createdAt,
+    },
+    diagnostic: {
+      protocolVersion: PROTOCOL_VERSION,
+      diagnosticProtocolVersion: DIAGNOSTIC_PROTOCOL_VERSION,
+      cycleId,
+      diagnosticSessionId,
+      taskSetVersion: TASK_SET_VERSION,
+      taskSetDigest: TASK_SET_DIGEST,
+      status: "in_progress",
+    },
+  };
+}
+
+function startedOnlySupersededSummary(
+  domain: ReturnType<typeof startedOnlyCycleDomain>,
+  supersededAt: string,
+) {
+  return {
+    cycleId: domain.cycle.cycleId,
+    diagnosticProtocolVersion: DIAGNOSTIC_PROTOCOL_VERSION,
+    diagnosticSessionId: domain.cycle.diagnosticSessionId,
+    diagnosticStatus: "in_progress",
+    protocolVersion: PROTOCOL_VERSION,
+    reason: "learner_started_new_gate_a_evidence_pack",
+    status: "superseded_by_new_diagnostic",
+    supersededAt,
+    taskEvidenceSummary: [],
+    taskSetDigest: TASK_SET_DIGEST,
+    taskSetVersion: TASK_SET_VERSION,
+  };
+}
+
+async function canonicalProvisionalLedgerFixture(): Promise<{
+  fixture: MutableRecord;
+  runtime: ProductionLearningEventsRuntime;
+}> {
+  const fixture = canonicalProvisionalFixture();
+  const runtime = await appendCanonicalProvisionalLedger(fixture);
+  const verdict = await runtime.validateProvisionalCycleLedger(
+    fixture,
+    provisionalLedgerBinding(fixture),
+  );
+  assert.equal(verdict.ok, true, String(verdict.code || "production provisional admission failed"));
+  return { fixture, runtime };
+}
+
+async function deriveFixture(
+  root: MutableRecord,
+  runtime: ProductionLearningEventsRuntime,
+) {
+  return deriveTeachingReviewEvidence(
+    JSON.stringify(root),
+    productionProvisionalValidator(runtime),
+  );
 }
 
 describe("Teaching review canonical evidence boundary", () => {
-  it("accepts a complete canonical provisional cycle as ready", () => {
-    const result = deriveFixture(canonicalProvisionalFixture());
+  it("accepts a complete canonical provisional cycle as ready", async () => {
+    const { fixture, runtime } = await canonicalProvisionalLedgerFixture();
+    const result = await deriveFixture(fixture, runtime);
 
     assert.equal(result.status, "ready");
     if (result.status !== "ready") return;
@@ -580,20 +788,60 @@ describe("Teaching review canonical evidence boundary", () => {
     assert.equal(result.planUpdate?.provisional, true);
   });
 
-  it("rejects completed and closed history entries instead of treating them as provisional", () => {
-    const completed = canonicalProvisionalFixture();
-    provisionalHistoryCycle(completed).status = "completed";
-    activeCycle(completed).status = "completed";
-    assert.equal(deriveFixture(completed).status, "no_provisional_cycle");
+  it("admits a valid superseded prefix, rejects an ownerless cycle, and requires the provisional fragment at the ledger tail", async () => {
+    const fixture = canonicalProvisionalFixture();
+    const runtime = productionLearningEventsRuntime();
+    const prior = startedOnlyCycleDomain({
+      cycleId: "cycle-msqhg70a-prior",
+      diagnosticSessionId: "diagnostic-msqhg70b-prior",
+      createdAt: "2026-08-10T11:00:00.000Z",
+    });
+    runtime.setNow(prior.cycle.createdAt);
+    assert.equal(
+      (await runtime.appendDomainEvent(fixture, "learning_cycle.started", prior)).status,
+      "appended",
+    );
+    const supersededCycles = recordAt(fixture, "journey").supersededCycles;
+    assert.ok(Array.isArray(supersededCycles));
+    supersededCycles.push(startedOnlySupersededSummary(prior, "2026-08-10T11:30:00.000Z"));
+    await appendCanonicalProvisionalLedger(fixture, runtime);
+    const binding = provisionalLedgerBinding(fixture);
+    assert.equal((await runtime.validateProvisionalCycleLedger(fixture, binding)).ok, true);
 
-    const closed = canonicalProvisionalFixture();
-    provisionalHistoryCycle(closed).closedAt = PROVISIONAL_AT;
-    activeCycle(closed).closedAt = PROVISIONAL_AT;
-    assert.equal(deriveFixture(closed).status, "no_provisional_cycle");
+    const orphan = startedOnlyCycleDomain({
+      cycleId: "cycle-msqhg80a-orphan",
+      diagnosticSessionId: "diagnostic-msqhg80b-orphan",
+      createdAt: "2026-08-10T14:00:00.000Z",
+    });
+    runtime.setNow(orphan.cycle.createdAt);
+    assert.equal(
+      (await runtime.appendDomainEvent(fixture, "learning_cycle.started", orphan)).status,
+      "appended",
+    );
+    const orphanVerdict = await runtime.validateProvisionalCycleLedger(fixture, binding);
+    assert.equal(orphanVerdict.ok, false);
+    assert.equal(orphanVerdict.code, "ledger_domain_coverage_invalid");
+
+    supersededCycles.push(startedOnlySupersededSummary(orphan, "2026-08-10T14:30:00.000Z"));
+    const tailVerdict = await runtime.validateProvisionalCycleLedger(fixture, binding);
+    assert.equal(tailVerdict.ok, false);
+    assert.equal(tailVerdict.code, "provisional_event_fragment_not_ledger_tail");
   });
 
-  it("never substitutes an older provisional history entry for the current active cycle", () => {
-    const newCycleInProgress = canonicalProvisionalFixture();
+  it("rejects completed and closed history entries instead of treating them as provisional", async () => {
+    const { fixture: completed, runtime } = await canonicalProvisionalLedgerFixture();
+    provisionalHistoryCycle(completed).status = "completed";
+    activeCycle(completed).status = "completed";
+    assert.equal((await deriveFixture(completed, runtime)).status, "no_provisional_cycle");
+
+    const { fixture: closed } = await canonicalProvisionalLedgerFixture();
+    provisionalHistoryCycle(closed).closedAt = PROVISIONAL_AT;
+    activeCycle(closed).closedAt = PROVISIONAL_AT;
+    assert.equal((await deriveFixture(closed, runtime)).status, "no_provisional_cycle");
+  });
+
+  it("never substitutes an older provisional history entry for the current active cycle", async () => {
+    const { fixture: newCycleInProgress, runtime } = await canonicalProvisionalLedgerFixture();
     Object.assign(activeCycle(newCycleInProgress), {
       cycleId: "cycle-new-in-progress",
       diagnosticSessionId: "diagnostic-new-in-progress",
@@ -601,11 +849,11 @@ describe("Teaching review canonical evidence boundary", () => {
       provisionalAt: null,
       updatedPlanId: null,
     });
-    assert.equal(deriveFixture(newCycleInProgress).status, "no_provisional_cycle");
+    assert.equal((await deriveFixture(newCycleInProgress, runtime)).status, "no_provisional_cycle");
 
-    const mismatchedProvisional = canonicalProvisionalFixture();
+    const { fixture: mismatchedProvisional } = await canonicalProvisionalLedgerFixture();
     activeCycle(mismatchedProvisional).cycleId = "cycle-other-provisional";
-    assert.deepEqual(deriveFixture(mismatchedProvisional), {
+    assert.deepEqual(await deriveFixture(mismatchedProvisional, runtime), {
       status: "invalid",
       reason: "active_cycle_history_mismatch",
     });
@@ -620,20 +868,20 @@ describe("Teaching review canonical evidence boundary", () => {
       "retestId",
       "updatedPlanId",
     ]) {
-      const downstreamMismatch = canonicalProvisionalFixture();
+      const { fixture: downstreamMismatch } = await canonicalProvisionalLedgerFixture();
       activeCycle(downstreamMismatch)[field] = `${field}-other`;
-      assert.deepEqual(deriveFixture(downstreamMismatch), {
+      assert.deepEqual(await deriveFixture(downstreamMismatch, runtime), {
         status: "invalid",
         reason: "active_cycle_history_mismatch",
       }, field);
     }
 
-    const noActiveCycle = canonicalProvisionalFixture();
+    const { fixture: noActiveCycle } = await canonicalProvisionalLedgerFixture();
     recordAt(noActiveCycle, "journey").activeCycle = null;
-    assert.equal(deriveFixture(noActiveCycle).status, "no_active_cycle");
+    assert.equal((await deriveFixture(noActiveCycle, runtime)).status, "no_active_cycle");
   });
 
-  it("requires the same explicit provisional timestamp on active and history without an updatedAt fallback", () => {
+  it("requires the same explicit provisional timestamp on active and history without an updatedAt fallback", async () => {
     const cases: Array<[string, (fixture: MutableRecord) => void]> = [
       [
         "both provisional timestamps missing",
@@ -663,28 +911,31 @@ describe("Teaching review canonical evidence boundary", () => {
     ];
 
     for (const [label, mutate] of cases) {
-      const fixture = canonicalProvisionalFixture();
+      const { fixture, runtime } = await canonicalProvisionalLedgerFixture();
       mutate(fixture);
-      assert.equal(deriveFixture(fixture).status, "invalid", label);
+      assert.equal((await deriveFixture(fixture, runtime)).status, "invalid", label);
       assert.equal(
-        deriveProvisionalHandoffEvidence(JSON.stringify(fixture)).status,
+        (await deriveProvisionalHandoffEvidence(
+          JSON.stringify(fixture),
+          productionProvisionalValidator(runtime),
+        )).status,
         "invalid",
         `${label} handoff projection`,
       );
     }
   });
 
-  it("rejects evidence linked to another cycle", () => {
-    const fixture = canonicalProvisionalFixture();
+  it("rejects evidence linked to another cycle", async () => {
+    const { fixture, runtime } = await canonicalProvisionalLedgerFixture();
     recordAt(provisionalHistoryCycle(fixture), "retest").cycleId = "cycle-other";
 
-    assert.deepEqual(deriveFixture(fixture), {
+    assert.deepEqual(await deriveFixture(fixture, runtime), {
       status: "invalid",
       reason: "cross_cycle_evidence_rejected",
     });
   });
 
-  it("rejects missing task-set, recommendation-binding, receipt, and retest evidence", () => {
+  it("rejects missing task-set, recommendation-binding, receipt, and retest evidence", async () => {
     const cases: Array<[string, (fixture: MutableRecord) => void, string]> = [
       [
         "task set",
@@ -724,13 +975,13 @@ describe("Teaching review canonical evidence boundary", () => {
     ];
 
     for (const [label, mutate, reason] of cases) {
-      const fixture = canonicalProvisionalFixture();
+      const { fixture, runtime } = await canonicalProvisionalLedgerFixture();
       mutate(fixture);
-      assert.deepEqual(deriveFixture(fixture), { status: "invalid", reason }, label);
+      assert.deepEqual(await deriveFixture(fixture, runtime), { status: "invalid", reason }, label);
     }
   });
 
-  it("rejects false human-review claims, unknown quality codes, and invalid objective outcomes", () => {
+  it("rejects false human-review claims, unknown quality codes, and invalid objective outcomes", async () => {
     const cases: Array<[string, (fixture: MutableRecord) => void, string]> = [
       [
         "primary teacher-reviewed injection",
@@ -777,33 +1028,33 @@ describe("Teaching review canonical evidence boundary", () => {
     ];
 
     for (const [label, mutate, reason] of cases) {
-      const fixture = canonicalProvisionalFixture();
+      const { fixture, runtime } = await canonicalProvisionalLedgerFixture();
       mutate(fixture);
-      assert.deepEqual(deriveFixture(fixture), { status: "invalid", reason }, label);
+      assert.deepEqual(await deriveFixture(fixture, runtime), { status: "invalid", reason }, label);
     }
   });
 
-  it("requires own-property membership and the exact six-task manifest set", () => {
+  it("requires own-property membership and the exact six-task manifest set", async () => {
     for (const inheritedKey of ["__proto__", "constructor", "toString"]) {
-      const taskFixture = canonicalProvisionalFixture();
+      const { fixture: taskFixture, runtime } = await canonicalProvisionalLedgerFixture();
       const tasks = recordAt(provisionalHistoryCycle(taskFixture), "diagnostic").taskEvidence;
       if (!Array.isArray(tasks) || !isRecord(tasks[0])) throw new TypeError("Expected diagnostic tasks");
       tasks[0] = { ...tasks[0], taskId: inheritedKey };
-      assert.deepEqual(deriveFixture(taskFixture), {
+      assert.deepEqual(await deriveFixture(taskFixture, runtime), {
         status: "invalid",
         reason: "canonical_binding_or_plan_rejected",
       }, `diagnostic task ${inheritedKey}`);
 
-      const bindingFixture = canonicalProvisionalFixture();
+      const { fixture: bindingFixture } = await canonicalProvisionalLedgerFixture();
       recordAt(provisionalHistoryCycle(bindingFixture), "recommendation", "evidenceBinding").diagnosticEvidenceTaskIds = [inheritedKey];
-      assert.deepEqual(deriveFixture(bindingFixture), {
+      assert.deepEqual(await deriveFixture(bindingFixture, runtime), {
         status: "invalid",
         reason: "canonical_binding_or_plan_rejected",
       }, `binding task ${inheritedKey}`);
     }
   });
 
-  it("requires the receipt map key, embedded receipt, task progress, and check-in contract to agree", () => {
+  it("requires the receipt map key, embedded receipt, task progress, and check-in contract to agree", async () => {
     const cases: Array<[string, (fixture: MutableRecord) => void]> = [
       ["receipt internal ID", (fixture) => {
         recordAt(fixture, "practiceReceipts", COMPLETION_RECEIPT_ID).completionReceiptId = "123e4567-e89b-42d3-a456-426614174099";
@@ -830,17 +1081,17 @@ describe("Teaching review canonical evidence boundary", () => {
     ];
 
     for (const [label, mutate] of cases) {
-      const fixture = canonicalProvisionalFixture();
+      const { fixture, runtime } = await canonicalProvisionalLedgerFixture();
       mutate(fixture);
-      assert.deepEqual(deriveFixture(fixture), {
+      assert.deepEqual(await deriveFixture(fixture, runtime), {
         status: "invalid",
         reason: "practice_receipt_boundary_rejected",
       }, label);
     }
   });
 
-  it("projects summaries without diagnostic answers, learner free text, or retest response text", () => {
-    const fixture = canonicalProvisionalFixture();
+  it("projects summaries without diagnostic answers, learner free text, or retest response text", async () => {
+    const { fixture, runtime } = await canonicalProvisionalLedgerFixture();
     const cycle = provisionalHistoryCycle(fixture);
     const diagnosticTasks = recordAt(cycle, "diagnostic").taskEvidence;
     if (!Array.isArray(diagnosticTasks) || !isRecord(diagnosticTasks[0])) throw new TypeError("Expected diagnostic tasks");
@@ -859,7 +1110,7 @@ describe("Teaching review canonical evidence boundary", () => {
     primary.reason = "PRIMARY_REASON_MARKER 以及足够长度的绑定说明";
     binding.bindingReason = primary.reason;
 
-    const result = deriveFixture(fixture);
+    const result = await deriveFixture(fixture, runtime);
     assert.equal(result.status, "ready");
     const projection = JSON.stringify(result);
     for (const forbidden of [
@@ -887,11 +1138,15 @@ describe("Teaching review canonical evidence boundary", () => {
 
 describe("Sofia provisional handoff production boundary", () => {
   async function readyHandoff() {
-    const raw = JSON.stringify(canonicalProvisionalFixture());
-    const result = deriveProvisionalHandoffEvidence(raw);
+    const { fixture, runtime } = await canonicalProvisionalLedgerFixture();
+    const raw = JSON.stringify(fixture);
+    const result = await deriveProvisionalHandoffEvidence(
+      raw,
+      productionProvisionalValidator(runtime),
+    );
     assert.equal(result.status, "ready");
     if (result.status !== "ready") throw new TypeError("Expected production handoff evidence");
-    return { raw, evidence: result.evidence, digest: await sha256Hex(raw) };
+    return { fixture, raw, runtime, evidence: result.evidence, digest: await sha256Hex(raw) };
   }
 
   it("creates the exact strict local packet schema from the authorized provisional cycle", async () => {
@@ -1012,9 +1267,10 @@ describe("Sofia provisional handoff production boundary", () => {
     );
   });
 
-  it("derives the minimized 7/7 provisional learner context without claiming completed human review", () => {
-    const fixture = canonicalProvisionalFixture();
-    const context = deriveLearnerContext(fixture);
+  it("derives the minimized 7/7 provisional learner context without claiming completed human review", async () => {
+    const { fixture, runtime } = await canonicalProvisionalLedgerFixture();
+    const validator = productionProvisionalValidator(runtime);
+    const context = await deriveLearnerContext(fixture, validator);
     assert.equal(context?.terminalEvidenceTaskCount, 6);
     assert.equal(context?.completedEvidenceTaskCount, 6);
     assert.equal(context?.plan?.stage, "provisional_updated");
@@ -1026,31 +1282,32 @@ describe("Sofia provisional handoff production boundary", () => {
     assert.equal(context?.progress?.updatedPlanConfirmed, false);
     assert.equal(context?.progress?.humanReviewStatus, "required_not_completed");
 
-    const crossCycle = canonicalProvisionalFixture();
+    const { fixture: crossCycle } = await canonicalProvisionalLedgerFixture();
     recordAt(provisionalHistoryCycle(crossCycle), "retest").cycleId = "cycle-other";
-    assert.equal(deriveLearnerContext(crossCycle), undefined);
+    assert.equal(await deriveLearnerContext(crossCycle, validator), undefined);
 
-    const unknownStatus = canonicalProvisionalFixture();
+    const { fixture: unknownStatus } = await canonicalProvisionalLedgerFixture();
     recordAt(provisionalHistoryCycle(unknownStatus), "peerHelp").status = "PRIVATE_FREE_TEXT_MARKER";
-    assert.equal(deriveLearnerContext(unknownStatus), undefined);
+    assert.equal(await deriveLearnerContext(unknownStatus, validator), undefined);
   });
 
-  it("fails closed for cross-cycle and unknown evidence while keeping completed and in-progress states unavailable", () => {
-    const crossCycle = canonicalProvisionalFixture();
+  it("fails closed for cross-cycle and unknown evidence while keeping completed and in-progress states unavailable", async () => {
+    const { fixture: crossCycle, runtime } = await canonicalProvisionalLedgerFixture();
+    const validator = productionProvisionalValidator(runtime);
     recordAt(provisionalHistoryCycle(crossCycle), "retest").cycleId = "cycle-other";
-    assert.deepEqual(deriveProvisionalHandoffEvidence(JSON.stringify(crossCycle)), {
+    assert.deepEqual(await deriveProvisionalHandoffEvidence(JSON.stringify(crossCycle), validator), {
       status: "invalid",
       reason: "cross_cycle_evidence_rejected",
     });
 
-    const unknownStatus = canonicalProvisionalFixture();
+    const { fixture: unknownStatus } = await canonicalProvisionalLedgerFixture();
     recordAt(provisionalHistoryCycle(unknownStatus), "peerHelp").status = "PRIVATE_FREE_TEXT_MARKER";
-    assert.deepEqual(deriveProvisionalHandoffEvidence(JSON.stringify(unknownStatus)), {
+    assert.deepEqual(await deriveProvisionalHandoffEvidence(JSON.stringify(unknownStatus), validator), {
       status: "invalid",
       reason: "provisional_human_review_boundary_rejected",
     });
 
-    const disguisedIdentity = canonicalProvisionalFixture();
+    const { fixture: disguisedIdentity } = await canonicalProvisionalLedgerFixture();
     const disguisedCycle = provisionalHistoryCycle(disguisedIdentity);
     activeCycle(disguisedIdentity).cycleId = "clerk_user_2abc123";
     disguisedCycle.cycleId = "clerk_user_2abc123";
@@ -1061,19 +1318,19 @@ describe("Sofia provisional handoff production boundary", () => {
     recordAt(disguisedCycle, "peerHelp").cycleId = "clerk_user_2abc123";
     recordAt(disguisedCycle, "retest").cycleId = "clerk_user_2abc123";
     recordAt(disguisedCycle, "planUpdate").cycleId = "clerk_user_2abc123";
-    assert.deepEqual(deriveProvisionalHandoffEvidence(JSON.stringify(disguisedIdentity)), {
+    assert.deepEqual(await deriveProvisionalHandoffEvidence(JSON.stringify(disguisedIdentity), validator), {
       status: "invalid",
       reason: "canonical_binding_or_plan_rejected",
     });
 
-    const completed = canonicalProvisionalFixture();
+    const { fixture: completed } = await canonicalProvisionalLedgerFixture();
     provisionalHistoryCycle(completed).status = "completed";
     activeCycle(completed).status = "completed";
-    assert.deepEqual(deriveProvisionalHandoffEvidence(JSON.stringify(completed)), {
+    assert.deepEqual(await deriveProvisionalHandoffEvidence(JSON.stringify(completed), validator), {
       status: "no_provisional_cycle",
     });
 
-    const inProgress = canonicalProvisionalFixture();
+    const { fixture: inProgress } = await canonicalProvisionalLedgerFixture();
     Object.assign(activeCycle(inProgress), {
       cycleId: "cycle-new-in-progress",
       diagnosticSessionId: "diagnostic-new-in-progress",
@@ -1081,13 +1338,13 @@ describe("Sofia provisional handoff production boundary", () => {
       provisionalAt: null,
       updatedPlanId: null,
     });
-    assert.deepEqual(deriveProvisionalHandoffEvidence(JSON.stringify(inProgress)), {
+    assert.deepEqual(await deriveProvisionalHandoffEvidence(JSON.stringify(inProgress), validator), {
       status: "no_provisional_cycle",
     });
   });
 
   it("matches by the full workspace SHA and safe enums without storing raw domain IDs", async () => {
-    const { evidence, digest } = await readyHandoff();
+    const { raw, evidence, digest } = await readyHandoff();
     const first = createProvisionalHandoffPacket({
       evidence,
       sourceSnapshotSha256: digest,
@@ -1103,7 +1360,7 @@ describe("Sofia provisional handoff production boundary", () => {
     assert.equal(findMatchingProvisionalHandoffPacket([first], evidence, digest), first);
     assert.equal(packetMatchesProvisionalEvidence(first, evidence, digest), true);
 
-    const changedRaw = `${JSON.stringify(canonicalProvisionalFixture())}\n`;
+    const changedRaw = `${raw}\n`;
     const changedDigest = await sha256Hex(changedRaw);
     assert.notEqual(changedDigest, digest);
     assert.equal(packetMatchesProvisionalEvidence(first, evidence, changedDigest), false);
@@ -1132,7 +1389,7 @@ describe("Sofia provisional handoff production boundary", () => {
   });
 
   it("copies only the strict allowlist and withholds learner, identity, contact, and raw-answer text", async () => {
-    const fixture = canonicalProvisionalFixture();
+    const { fixture, runtime } = await canonicalProvisionalLedgerFixture();
     const cycle = provisionalHistoryCycle(fixture);
     recordAt(cycle, "checkIn").questionText = "PRIVATE_QUESTION_MARKER";
     recordAt(cycle, "checkIn").didText = "PRIVATE_DID_MARKER with sufficient learner narrative";
@@ -1146,7 +1403,10 @@ describe("Sofia provisional handoff production boundary", () => {
     fixture.phone = "13800138000";
 
     const raw = JSON.stringify(fixture);
-    const result = deriveProvisionalHandoffEvidence(raw);
+    const result = await deriveProvisionalHandoffEvidence(
+      raw,
+      productionProvisionalValidator(runtime),
+    );
     assert.equal(result.status, "ready");
     if (result.status !== "ready") return;
     const packet = createProvisionalHandoffPacket({
@@ -1195,8 +1455,8 @@ describe("Sofia provisional handoff production boundary", () => {
   });
 
   it("commits only Sofia bytes, emits zero learning events, and returns the same packet idempotently", async () => {
-    const fixture = canonicalProvisionalFixture();
-    fixture.learningEvents = [{ id: "pre-existing-event", verb: "fixture_sentinel" }];
+    const { fixture, runtime } = await canonicalProvisionalLedgerFixture();
+    const ledgerValidator = productionProvisionalValidator(runtime);
     const workspaceRaw = JSON.stringify(fixture);
     const teachingRaw = '{"strictTeachingDraft":"byte-preserved"}';
     const initialSession = emptySession();
@@ -1230,6 +1490,7 @@ describe("Sofia provisional handoff production boundary", () => {
       storage,
       expectedSession: initialSession,
       now,
+      ledgerValidator,
     });
     assert.equal(created.status, "created");
     if (created.status !== "created") return;
@@ -1238,9 +1499,9 @@ describe("Sofia provisional handoff production boundary", () => {
     assert.deepEqual(writes, [SUPER_TEACHER_CHAT_KEY]);
     assert.equal(values.get(CANONICAL_LEARNER_STORAGE_KEY), workspaceRaw);
     assert.equal(values.get(TEACHING_REVIEW_DEMO_STORAGE_KEY), teachingRaw);
-    assert.deepEqual(
-      (JSON.parse(values.get(CANONICAL_LEARNER_STORAGE_KEY) ?? "null") as MutableRecord).learningEvents,
-      fixture.learningEvents,
+    assert.equal(
+      JSON.stringify((JSON.parse(values.get(CANONICAL_LEARNER_STORAGE_KEY) ?? "null") as MutableRecord).learningEvents),
+      JSON.stringify(fixture.learningEvents),
     );
 
     const threeNamespaceBytes = {
@@ -1253,6 +1514,7 @@ describe("Sofia provisional handoff production boundary", () => {
       storage,
       expectedSession: created.session,
       now,
+      ledgerValidator,
     });
     assert.equal(replay.status, "existing");
     if (replay.status !== "existing") return;
@@ -1269,7 +1531,9 @@ describe("Sofia provisional handoff production boundary", () => {
   });
 
   it("rejects stale workspace and Sofia CAS before timestamp allocation with zero cross-namespace writes", async () => {
-    const workspaceRaw = JSON.stringify(canonicalProvisionalFixture());
+    const { fixture, runtime } = await canonicalProvisionalLedgerFixture();
+    const ledgerValidator = productionProvisionalValidator(runtime);
+    const workspaceRaw = JSON.stringify(fixture);
     const changedWorkspaceRaw = `${workspaceRaw}\n`;
     const teachingRaw = '{"strictTeachingDraft":"byte-preserved"}';
     const initialSession = emptySession();
@@ -1308,6 +1572,7 @@ describe("Sofia provisional handoff production boundary", () => {
       },
       expectedSession: initialSession,
       now,
+      ledgerValidator,
     });
     assert.deepEqual(stale, { status: "workspace_changed_during_write" });
     assert.deepEqual(staleWrites, []);
@@ -1332,6 +1597,7 @@ describe("Sofia provisional handoff production boundary", () => {
       },
       expectedSession: { ...initialSession, revision: 1 },
       now,
+      ledgerValidator,
     });
     assert.deepEqual(cas, { status: "super_teacher_concurrent_change" });
     assert.deepEqual(casWrites, []);
@@ -1348,8 +1614,8 @@ describe("Sofia provisional handoff production boundary", () => {
   });
 
   it("rolls Sofia back byte-for-byte when workspace changes after the candidate write", async () => {
-    const fixture = canonicalProvisionalFixture();
-    fixture.learningEvents = [{ id: "pre-existing-event", verb: "fixture_sentinel" }];
+    const { fixture, runtime } = await canonicalProvisionalLedgerFixture();
+    const ledgerValidator = productionProvisionalValidator(runtime);
     const workspaceRaw = JSON.stringify(fixture);
     const changedWorkspaceRaw = `${workspaceRaw}\n`;
     const teachingRaw = '{"strictTeachingDraft":"byte-preserved"}';
@@ -1366,7 +1632,7 @@ describe("Sofia provisional handoff production boundary", () => {
         getItem(key: string) {
           if (key === CANONICAL_LEARNER_STORAGE_KEY) {
             workspaceReads += 1;
-            if (workspaceReads === 3) values.set(key, changedWorkspaceRaw);
+            if (workspaceReads === 4) values.set(key, changedWorkspaceRaw);
           }
           return values.get(key) ?? null;
         },
@@ -1381,6 +1647,7 @@ describe("Sofia provisional handoff production boundary", () => {
       },
       expectedSession: emptySession(),
       now: () => "2026-08-10T13:05:00.000Z",
+      ledgerValidator,
     });
 
     assert.deepEqual(result, { status: "workspace_changed_during_write" });
@@ -1388,14 +1655,16 @@ describe("Sofia provisional handoff production boundary", () => {
     assert.equal(values.get(SUPER_TEACHER_CHAT_KEY), initialSofiaRaw);
     assert.equal(values.get(TEACHING_REVIEW_DEMO_STORAGE_KEY), teachingRaw);
     assert.equal(values.get(CANONICAL_LEARNER_STORAGE_KEY), changedWorkspaceRaw);
-    assert.deepEqual(
-      (JSON.parse(values.get(CANONICAL_LEARNER_STORAGE_KEY) ?? "null") as MutableRecord).learningEvents,
-      fixture.learningEvents,
+    assert.equal(
+      JSON.stringify((JSON.parse(values.get(CANONICAL_LEARNER_STORAGE_KEY) ?? "null") as MutableRecord).learningEvents),
+      JSON.stringify(fixture.learningEvents),
     );
   });
 
   it("rolls Sofia back byte-for-byte when post-write session verification fails", async () => {
-    const workspaceRaw = JSON.stringify(canonicalProvisionalFixture());
+    const { fixture, runtime } = await canonicalProvisionalLedgerFixture();
+    const ledgerValidator = productionProvisionalValidator(runtime);
+    const workspaceRaw = JSON.stringify(fixture);
     const teachingRaw = '{"strictTeachingDraft":"byte-preserved"}';
     const initialSofiaRaw = JSON.stringify(emptySession());
     const values = new Map<string, string>([
@@ -1421,6 +1690,7 @@ describe("Sofia provisional handoff production boundary", () => {
       },
       expectedSession: emptySession(),
       now: () => "2026-08-10T13:05:00.000Z",
+      ledgerValidator,
     });
 
     assert.deepEqual(result, { status: "super_teacher_write_verification_failed" });
@@ -1437,7 +1707,9 @@ describe("Sofia provisional handoff production boundary", () => {
   });
 
   it("recovers the prior Sofia raw when setItem mutates and then throws", async () => {
-    const workspaceRaw = JSON.stringify(canonicalProvisionalFixture());
+    const { fixture, runtime } = await canonicalProvisionalLedgerFixture();
+    const ledgerValidator = productionProvisionalValidator(runtime);
+    const workspaceRaw = JSON.stringify(fixture);
     const teachingRaw = '{"strictTeachingDraft":"byte-preserved"}';
     const initialSofiaRaw = '{"protocolVersion":"sufeiya_super_teacher_v1","revision":0,"turns":[],"handoffRequests":[]}';
     const values = new Map<string, string>([
@@ -1464,6 +1736,7 @@ describe("Sofia provisional handoff production boundary", () => {
       },
       expectedSession: emptySession(),
       now: () => "2026-08-10T13:05:00.000Z",
+      ledgerValidator,
     });
 
     assert.deepEqual(result, { status: "super_teacher_write_failed" });
@@ -1480,8 +1753,8 @@ describe("Sofia provisional handoff production boundary", () => {
   });
 
   it("rolls Sofia back when the final workspace CAS changes after write verification", async () => {
-    const fixture = canonicalProvisionalFixture();
-    fixture.learningEvents = [{ id: "pre-existing-event", verb: "fixture_sentinel" }];
+    const { fixture, runtime } = await canonicalProvisionalLedgerFixture();
+    const ledgerValidator = productionProvisionalValidator(runtime);
     const workspaceRaw = JSON.stringify(fixture);
     const changedWorkspaceRaw = `${workspaceRaw}\n`;
     const teachingRaw = '{"strictTeachingDraft":"byte-preserved"}';
@@ -1498,7 +1771,7 @@ describe("Sofia provisional handoff production boundary", () => {
         getItem(key: string) {
           if (key === CANONICAL_LEARNER_STORAGE_KEY) {
             workspaceReads += 1;
-            if (workspaceReads === 4) values.set(key, changedWorkspaceRaw);
+            if (workspaceReads === 7) values.set(key, changedWorkspaceRaw);
           }
           return values.get(key) ?? null;
         },
@@ -1512,22 +1785,25 @@ describe("Sofia provisional handoff production boundary", () => {
       },
       expectedSession: emptySession(),
       now: () => "2026-08-10T13:05:00.000Z",
+      ledgerValidator,
     });
 
     assert.deepEqual(result, { status: "workspace_changed_during_write" });
-    assert.equal(workspaceReads, 4);
+    assert.equal(workspaceReads, 7);
     assert.equal(sofiaWrites, 2);
     assert.equal(values.get(CANONICAL_LEARNER_STORAGE_KEY), changedWorkspaceRaw);
     assert.equal(values.get(SUPER_TEACHER_CHAT_KEY), initialSofiaRaw);
     assert.equal(values.get(TEACHING_REVIEW_DEMO_STORAGE_KEY), teachingRaw);
-    assert.deepEqual(
-      (JSON.parse(values.get(CANONICAL_LEARNER_STORAGE_KEY) ?? "null") as MutableRecord).learningEvents,
-      fixture.learningEvents,
+    assert.equal(
+      JSON.stringify((JSON.parse(values.get(CANONICAL_LEARNER_STORAGE_KEY) ?? "null") as MutableRecord).learningEvents),
+      JSON.stringify(fixture.learningEvents),
     );
   });
 
   it("restores the prior Sofia raw when storage throws after the candidate write", async () => {
-    const workspaceRaw = JSON.stringify(canonicalProvisionalFixture());
+    const { fixture, runtime } = await canonicalProvisionalLedgerFixture();
+    const ledgerValidator = productionProvisionalValidator(runtime);
+    const workspaceRaw = JSON.stringify(fixture);
     const teachingRaw = '{"strictTeachingDraft":"byte-preserved"}';
     const initialSofiaRaw = JSON.stringify(emptySession());
     const values = new Map<string, string>([
@@ -1542,7 +1818,7 @@ describe("Sofia provisional handoff production boundary", () => {
         getItem(key: string) {
           if (key === CANONICAL_LEARNER_STORAGE_KEY) {
             workspaceReads += 1;
-            if (workspaceReads === 3) throw new Error("post-write workspace read failed");
+            if (workspaceReads === 4) throw new Error("post-write workspace read failed");
           }
           return values.get(key) ?? null;
         },
@@ -1556,10 +1832,11 @@ describe("Sofia provisional handoff production boundary", () => {
       },
       expectedSession: emptySession(),
       now: () => "2026-08-10T13:05:00.000Z",
+      ledgerValidator,
     });
 
     assert.deepEqual(result, { status: "storage_unavailable" });
-    assert.equal(workspaceReads, 3);
+    assert.equal(workspaceReads, 4);
     assert.equal(sofiaWrites, 2);
     assert.deepEqual({
       workspace: values.get(CANONICAL_LEARNER_STORAGE_KEY),
@@ -1574,16 +1851,17 @@ describe("Sofia provisional handoff production boundary", () => {
 });
 
 describe("Teaching review local draft boundary", () => {
-  function readySnapshot() {
-    const result = deriveFixture(canonicalProvisionalFixture());
+  async function readySnapshot() {
+    const { fixture, runtime } = await canonicalProvisionalLedgerFixture();
+    const result = await deriveFixture(fixture, runtime);
     assert.equal(result.status, "ready");
     if (result.status !== "ready") throw new TypeError("Expected a ready evidence snapshot");
     return result;
   }
 
-  function validDraft() {
+  async function validDraft() {
     return createTeachingReviewDraft({
-      snapshot: readySnapshot(),
+      snapshot: await readySnapshot(),
       focusSkill: "Writing",
       rationale: "保留 Writing 为下一轮重点，并请求人工复核开放作答证据。",
       category: "open_response_review",
@@ -1596,8 +1874,8 @@ describe("Teaching review local draft boundary", () => {
     });
   }
 
-  it("creates a revisioned, hash-bound draft with fixed false authority boundaries", () => {
-    const draft = validDraft();
+  it("creates a revisioned, hash-bound draft with fixed false authority boundaries", async () => {
+    const draft = await validDraft();
 
     assert.equal(draft.revision, 7);
     assert.equal(draft.sourceSnapshotSha256, "b".repeat(64));
@@ -1613,7 +1891,7 @@ describe("Teaching review local draft boundary", () => {
     assert.equal(inspectTeachingReviewDraft(serialized).status, "ready");
   });
 
-  it("strictly rejects unknown and forbidden fields plus invalid revision/hash values", () => {
+  it("strictly rejects unknown and forbidden fields plus invalid revision/hash values", async () => {
     const mutations: Array<[string, (draft: MutableRecord) => void]> = [
       ["unknown root field", (draft) => { draft.unexpectedAuthority = true; }],
       ["forbidden human receipt", (draft) => { draft.humanReviewReceiptId = "human-review-receipt-1"; }],
@@ -1624,7 +1902,7 @@ describe("Teaching review local draft boundary", () => {
     ];
 
     for (const [label, mutate] of mutations) {
-      const draft = structuredClone(validDraft()) as unknown as MutableRecord;
+      const draft = structuredClone(await validDraft()) as unknown as MutableRecord;
       mutate(draft);
       const raw = JSON.stringify(draft);
       assert.equal(inspectTeachingReviewDraft(raw).status, "invalid", label);

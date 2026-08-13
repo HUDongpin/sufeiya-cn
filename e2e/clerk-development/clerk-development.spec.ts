@@ -136,9 +136,8 @@ type SmokeStage =
   | "authenticated Gate A restore network isolation"
   | "authenticated Gate A restore namespace integrity"
   | "authenticated Gate A restored same-page raw export"
-  | "authenticated Gate A restored same-page event clear"
-  | "authenticated Gate A second atomic restore"
-  | "authenticated Gate A restored continuity"
+  | "authenticated Gate A restored same-page event clear blocked"
+  | "authenticated Gate A restored continuity after blocked event clear"
   | "synthetic capacity UI probe only — journey composite, not 7/7 evidence"
   | "synthetic capacity UI probe only — standalone practice, not 7/7 evidence"
   | "synthetic capacity UI probe only — focus terminal, not 7/7 evidence"
@@ -2563,61 +2562,37 @@ test("a temporary Development user can traverse the protected smoke path and is 
     );
     expect(await readLocalNamespaces()).toEqual(restoredNamespaceRaw);
 
-    stage = "authenticated Gate A restored same-page event clear";
+    stage = "authenticated Gate A restored same-page event clear blocked";
     const clearEventsButton = page.locator("[data-clear-learning-events]");
     await expect(clearEventsButton).toBeEnabled();
-    const clearEventsDialog = page.waitForEvent("dialog");
-    const clearEventsReload = page.waitForEvent("load");
-    const clearEventsClick = clearEventsButton.click();
-    const eventsConfirmation = await clearEventsDialog;
-    expect(eventsConfirmation.type()).toBe("confirm");
-    expect(eventsConfirmation.message()).toContain("仅清除学习事件账本和本机事件别名");
-    await eventsConfirmation.accept();
-    await Promise.all([clearEventsClick, clearEventsReload]);
+    let unexpectedEventClearDialogCount = 0;
+    const rejectUnexpectedEventClearDialog = async (dialog: import("@playwright/test").Dialog) => {
+      unexpectedEventClearDialogCount += 1;
+      await dialog.dismiss();
+    };
+    page.on("dialog", rejectUnexpectedEventClearDialog);
+    await clearEventsButton.click();
+    await expect(clearEventsButton).not.toHaveAttribute("aria-busy", "true");
+    const eventClearMessage = page.locator("[data-event-clear-message]");
+    await expect(eventClearMessage).toBeVisible();
+    await expect(eventClearMessage).toBeFocused();
+    await expect(eventClearMessage).toHaveAttribute("role", "alert");
+    await expect(eventClearMessage).toHaveAttribute("data-state", "blocked");
+    await expect(eventClearMessage).toHaveAttribute("data-code", "event_bound_domain_state_present");
+    await expect(eventClearMessage).toContainText("不能单独清除学习事件");
+    await expect(eventClearMessage).toContainText("本次零写入，现有记录完整保留");
+    await expect(eventClearMessage.locator('a[href="/my-data"]')).toBeVisible();
+    page.off("dialog", rejectUnexpectedEventClearDialog);
+    expect(unexpectedEventClearDialogCount).toBe(0);
     await expect(page).toHaveURL((url) => url.pathname === "/my-data");
-    const afterEventClearNamespaces = await readLocalNamespaces();
-    expect(afterEventClearNamespaces.chat).toBe(namespaceRawBeforeRestoreExercise.chat);
-    expect(afterEventClearNamespaces.teachingReview).toBe(namespaceRawBeforeRestoreExercise.teachingReview);
-    expect(afterEventClearNamespaces.workspace).not.toBeNull();
-    const eventClearedWorkspace = JSON.parse(afterEventClearNamespaces.workspace!) as Record<string, unknown>;
-    expect(eventClearedWorkspace.learningEvents).toEqual([]);
-    expect(eventClearedWorkspace.learningEventBindings).toBeNull();
-    const eventClearedDomainState = structuredClone(eventClearedWorkspace);
-    const restoredDomainState = structuredClone(restoredWorkspace) as Record<string, unknown>;
-    ["learningEvents", "learningEventBindings", "updatedAt"].forEach((key) => {
-      delete eventClearedDomainState[key];
-      delete restoredDomainState[key];
-    });
-    expect(canonicalJson(eventClearedDomainState)).toBe(canonicalJson(restoredDomainState));
+    expect(await readLocalNamespaces()).toEqual(restoredNamespaceRaw);
 
-    stage = "authenticated Gate A second atomic restore";
-    await workspaceBackupFile.setInputFiles({
-      name: workspaceBackupSuggestedFilename,
-      mimeType: "application/json",
-      buffer: workspaceBackupBuffer,
-    });
-    await expect(workspaceBackupFileSummary).toBeVisible();
-    await expect(workspaceBackupFileName).toHaveText(workspaceBackupSuggestedFilename);
-    await expect(workspaceBackupFileSize).toContainText(
-      `${new Intl.NumberFormat("zh-CN").format(workspaceBackupBuffer.length)} 字节`,
-    );
-    await expect(workspaceBackupFileStatus).toHaveText("已选择 · 尚未读取或验证");
-    await expect(validateWorkspaceBackup).toBeEnabled();
-    await validateWorkspaceBackup.click();
-    await expect(workspaceBackupPreview).toBeVisible({ timeout: 15_000 });
-    await expect(confirmWorkspaceRestore).toBeEnabled();
-    await confirmWorkspaceRestore.check();
-    await expect(restoreWorkspaceBackup).toBeEnabled();
-    await restoreWorkspaceBackup.click();
-    await expect(workspaceRestoreSuccess).toBeVisible({ timeout: 15_000 });
-    await expect(workspaceRestoreSuccess).toBeFocused();
-    const secondRestoreNamespaces = await readLocalNamespaces();
-    expect(secondRestoreNamespaces.chat).toBe(namespaceRawBeforeRestoreExercise.chat);
-    expect(secondRestoreNamespaces.teachingReview).toBe(namespaceRawBeforeRestoreExercise.teachingReview);
-    expect(secondRestoreNamespaces.workspace).not.toBeNull();
-    expect(canonicalJson(JSON.parse(secondRestoreNamespaces.workspace!))).toBe(exportedWorkspaceCanonical);
-
-    stage = "authenticated Gate A restored continuity";
+    stage = "authenticated Gate A restored continuity after blocked event clear";
+    await expect(workspaceRestoreSuccess).toBeVisible();
+    await expect(workspaceBackupFile).toBeDisabled();
+    await expect(validateWorkspaceBackup).toBeDisabled();
+    await expect(restoreWorkspaceBackup).toBeDisabled();
+    expect(await readLocalNamespaces()).toEqual(restoredNamespaceRaw);
     const workspaceRestoreNext = page.locator("[data-workspace-restore-next]");
     await expect(workspaceRestoreNext).toHaveAttribute("href", "/plan");
     await Promise.all([

@@ -4,6 +4,10 @@ import { describe, it } from "node:test";
 import vm from "node:vm";
 import { webcrypto } from "node:crypto";
 
+import { deriveLearnerContext } from "../lib/super-teacher/local-context";
+import { deriveProvisionalHandoffEvidence } from "../lib/super-teacher/provisional-handoff";
+import { deriveTeachingReviewEvidence } from "../lib/teaching-review-demo";
+
 type MutableRecord = Record<string, unknown>;
 
 interface StorageContract {
@@ -42,6 +46,11 @@ interface LearningEventsRuntime {
     eventType: string,
     domain: MutableRecord,
   ): Promise<MutableRecord>;
+  validateProvisionalCycleLedger(
+    state: MutableRecord,
+    binding: MutableRecord,
+  ): Promise<MutableRecord>;
+  validateLedger(state: MutableRecord): Promise<MutableRecord>;
 }
 
 interface JourneyValidationHarness {
@@ -65,6 +74,19 @@ interface WorkspaceWriterHarness {
   getState(): MutableRecord;
   getRaw(): string | null;
   getLastCapacityCandidate(): MutableRecord | null;
+  getNamespaceRaw(key: string): string | null;
+  setNamespaceRaw(key: string, raw: string): void;
+  getStorageMutationCount(): number;
+  getStorageSetItemCount(): number;
+  getStorageRemoveItemCount(): number;
+  getIdCallCount(): number;
+  getConfirmCallCount(): number;
+  getClockCallCount(): number;
+  getReloadCallCount(): number;
+  clearLearningEventsTransaction(): Promise<MutableRecord>;
+  setWorkspaceReadFailure(value: boolean): void;
+  setLocksAvailable(value: boolean): void;
+  setExpectedWorkspaceRaw(raw: string | null): void;
   setState(next: MutableRecord): void;
   setNow(value: string): void;
   resolveTodayTaskContext(candidateState?: MutableRecord, date?: string): MutableRecord;
@@ -230,18 +252,43 @@ function productionVmDocument() {
 function productionVmStorage(): StorageContract & {
   raw(): string | null;
   failWrites(value: boolean): void;
+  namespaceRaw(key: string): string | null;
+  mutationCount(): number;
+  setItemCount(): number;
+  removeItemCount(): number;
+  failWorkspaceReads(value: boolean): void;
 } {
   const values = new Map<string, string>();
   let writesFail = false;
+  let workspaceReadsFail = false;
+  let mutations = 0;
+  let setItemCalls = 0;
+  let removeItemCalls = 0;
   return {
-    getItem: (key) => values.get(key) ?? null,
+    getItem: (key) => {
+      if (workspaceReadsFail && key === "sufeiya_workspace_v1") {
+        throw new Error("forced production-VM workspace read failure");
+      }
+      return values.get(key) ?? null;
+    },
     setItem: (key, value) => {
       if (writesFail) throw new Error("forced production-VM storage failure");
+      mutations += 1;
+      setItemCalls += 1;
       values.set(key, value);
     },
-    removeItem: (key) => { values.delete(key); },
+    removeItem: (key) => {
+      mutations += 1;
+      removeItemCalls += 1;
+      values.delete(key);
+    },
     raw: () => values.get("sufeiya_workspace_v1") ?? null,
+    namespaceRaw: (key) => values.get(key) ?? null,
+    mutationCount: () => mutations,
+    setItemCount: () => setItemCalls,
+    removeItemCount: () => removeItemCalls,
     failWrites: (value) => { writesFail = value; },
+    failWorkspaceReads: (value) => { workspaceReadsFail = value; },
   };
 }
 
@@ -255,19 +302,41 @@ function productionVmLocks() {
 async function loadWorkspaceWriterHarness({
   pathname = "/",
   search = "",
-}: { pathname?: string; search?: string } = {}): Promise<WorkspaceWriterHarness> {
+  learningEventsAvailable = true,
+}: {
+  pathname?: string;
+  search?: string;
+  learningEventsAvailable?: boolean;
+} = {}): Promise<WorkspaceWriterHarness> {
   const storage = productionVmStorage();
   const NativeDate = Date;
   let currentTime = NativeDate.now();
+  let idCallCount = 0;
+  let confirmCallCount = 0;
+  let clockCallCount = 0;
+  let reloadCallCount = 0;
   class ControlledDate extends NativeDate {
     constructor(value?: string | number) {
+      if (value === undefined) clockCallCount += 1;
       super(value === undefined ? currentTime : value);
     }
 
     static now(): number {
+      clockCallCount += 1;
       return currentTime;
     }
   }
+  const controlledCrypto = {
+    subtle: webcrypto.subtle,
+    getRandomValues(array: Uint8Array): Uint8Array {
+      idCallCount += 1;
+      return webcrypto.getRandomValues(array);
+    },
+    randomUUID(): `${string}-${string}-${string}-${string}-${string}` {
+      idCallCount += 1;
+      return webcrypto.randomUUID();
+    },
+  };
   const sandbox: MutableRecord = {
     Blob,
     Date: ControlledDate,
@@ -277,24 +346,35 @@ async function loadWorkspaceWriterHarness({
     clearInterval,
     clearTimeout,
     console,
-    crypto: webcrypto,
+    crypto: controlledCrypto,
     document: productionVmDocument(),
     innerWidth: 1024,
     localStorage: storage,
-    location: { hash: "", origin: "http://localhost", pathname, search, reload: () => undefined },
+    location: {
+      hash: "",
+      origin: "http://localhost",
+      pathname,
+      search,
+      reload: () => { reloadCallCount += 1; },
+    },
     navigator: { locks: productionVmLocks(), onLine: true },
     setInterval,
     setTimeout,
     structuredClone,
     TextEncoder,
     addEventListener: () => undefined,
-    confirm: () => true,
+    confirm: () => {
+      confirmCallCount += 1;
+      return true;
+    },
   };
   sandbox.window = sandbox;
   sandbox.globalThis = sandbox;
   const context = vm.createContext(sandbox);
   vm.runInContext(runtimeSource, context, { filename: "workspace-backup.js" });
-  vm.runInContext(learningEventsSource, context, { filename: "learning-events.js" });
+  if (learningEventsAvailable) {
+    vm.runInContext(learningEventsSource, context, { filename: "learning-events.js" });
+  }
   const withCapacityProbe = workspaceSource.replace(
     "  const workspaceCandidateCapacity = (candidate) => {",
     "  const workspaceCandidateCapacity = (candidate) => {\n    window.__lastWorkspaceCapacityCandidate = JSON.parse(JSON.stringify(candidate));",
@@ -308,11 +388,16 @@ async function loadWorkspaceWriterHarness({
     getLastCapacityCandidate: () => window.__lastWorkspaceCapacityCandidate
       ? JSON.parse(JSON.stringify(window.__lastWorkspaceCapacityCandidate))
       : null,
+    clearLearningEventsTransaction: () => clearLearningEventsTransaction(rawStoredValue),
+    setExpectedWorkspaceRaw: (raw) => {
+      rawStoredValue = raw;
+    },
     setState: (next) => {
       state = JSON.parse(JSON.stringify(next));
       storageWritable = true;
       workspaceStateRecognized = true;
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      rawStoredValue = JSON.stringify(state);
+      window.localStorage.setItem(STORAGE_KEY, rawStoredValue);
     },
     resolveTodayTaskContext: (candidateState, date) => JSON.parse(JSON.stringify(
       resolveTodayTaskContext(candidateState === undefined ? state : candidateState, date),
@@ -330,13 +415,41 @@ async function loadWorkspaceWriterHarness({
   );
   assert.notEqual(instrumented, withCapacityProbe, "workspace writer instrumentation anchor must exist");
   await vm.runInContext(instrumented, context, { filename: "workspace.js" });
-  const exposed = sandbox.__workspaceWriterHarness as Omit<WorkspaceWriterHarness, "backup" | "getRaw"> | undefined;
+  const exposed = sandbox.__workspaceWriterHarness as Omit<
+    WorkspaceWriterHarness,
+    | "backup"
+    | "getRaw"
+    | "getNamespaceRaw"
+    | "setNamespaceRaw"
+    | "getStorageMutationCount"
+    | "getStorageSetItemCount"
+    | "getStorageRemoveItemCount"
+    | "getIdCallCount"
+    | "getConfirmCallCount"
+    | "getClockCallCount"
+    | "getReloadCallCount"
+    | "setWorkspaceReadFailure"
+    | "setLocksAvailable"
+  > | undefined;
   const backup = sandbox.SufeiyaWorkspaceBackup as BackupRuntime | undefined;
   assert.ok(exposed && backup);
   return {
     ...exposed,
     backup,
     getRaw: storage.raw,
+    getNamespaceRaw: storage.namespaceRaw,
+    setNamespaceRaw: (key, raw) => storage.setItem(key, raw),
+    getStorageMutationCount: storage.mutationCount,
+    getStorageSetItemCount: storage.setItemCount,
+    getStorageRemoveItemCount: storage.removeItemCount,
+    getIdCallCount: () => idCallCount,
+    getConfirmCallCount: () => confirmCallCount,
+    getClockCallCount: () => clockCallCount,
+    getReloadCallCount: () => reloadCallCount,
+    setWorkspaceReadFailure: storage.failWorkspaceReads,
+    setLocksAvailable: (value: boolean) => {
+      asRecord(sandbox.navigator).locks = value ? productionVmLocks() : undefined;
+    },
     setNow: (value: string) => {
       const parsed = NativeDate.parse(value);
       assert.ok(Number.isFinite(parsed), `controlled workspace clock requires an ISO timestamp: ${value}`);
@@ -1457,15 +1570,29 @@ async function strictJourneyPreCloseFixture(
     stopAfterCheckIn = false,
     stopAfterReview = false,
     stopAfterPeerHelp = false,
+    forceHumanReview = false,
+    canonicalConsumerIds = false,
   }: {
     stopAfterPractice?: boolean;
     stopAfterCheckIn?: boolean;
     stopAfterReview?: boolean;
     stopAfterPeerHelp?: boolean;
+    forceHumanReview?: boolean;
+    canonicalConsumerIds?: boolean;
   } = {},
 ): Promise<MutableRecord> {
   const started = startedCycleFixture();
   const candidate = started.candidate;
+  if (canonicalConsumerIds) {
+    Object.assign(started.cycle, {
+      cycleId: "cycle-msqhg76f-abc12",
+      diagnosticSessionId: "diagnostic-msqhg76g-bcd23",
+    });
+    Object.assign(started.diagnostic, {
+      cycleId: started.cycle.cycleId,
+      diagnosticSessionId: started.cycle.diagnosticSessionId,
+    });
+  }
   Object.assign(started.cycle, {
     createdAt: STRICT_CYCLE_TIMES.createdAt,
     updatedAt: STRICT_CYCLE_TIMES.createdAt,
@@ -1486,6 +1613,16 @@ async function strictJourneyPreCloseFixture(
   );
 
   const completed = completedDiagnosticFixture(validation);
+  if (canonicalConsumerIds) {
+    Object.assign(completed.cycle, {
+      cycleId: started.cycle.cycleId,
+      diagnosticSessionId: started.cycle.diagnosticSessionId,
+    });
+    Object.assign(completed.diagnostic, {
+      cycleId: started.cycle.cycleId,
+      diagnosticSessionId: started.cycle.diagnosticSessionId,
+    });
+  }
   const journey = asRecord(candidate.journey);
   journey.activeCycle = completed.cycle;
   journey.diagnostic = completed.diagnostic;
@@ -1495,7 +1632,7 @@ async function strictJourneyPreCloseFixture(
   const diagnostic = asRecord(journey.diagnostic);
   const focusSkill = String(diagnostic.prioritySkill);
   const plan = exactPlanFromTemplate({
-    planId: "plan-strict-cycle-base-v1",
+    planId: canonicalConsumerIds ? "plan-msqhg76h-cde34" : "plan-strict-cycle-base-v1",
     focusSkill,
     createdAt: STRICT_CYCLE_TIMES.planCreatedAt,
     diagnosticSessionId: String(cycle.diagnosticSessionId),
@@ -1516,7 +1653,9 @@ async function strictJourneyPreCloseFixture(
   writer.setState(candidate);
   const items = writer.recommendationItems();
   assert.equal(items.length, 3, "strict cycle needs the actual three recommendation items");
-  const recommendationId = "recommendation-strict-cycle-v1";
+  const recommendationId = canonicalConsumerIds
+    ? "recommendation-msqhg76i-def45"
+    : "recommendation-strict-cycle-v1";
   const recommendationBinding = writer.createRecommendationBinding(
     writer.validateCycleEvidence(),
     items[0],
@@ -1601,7 +1740,7 @@ async function strictJourneyPreCloseFixture(
     return candidate;
   }
 
-  const checkInId = "check-in-strict-cycle-v1";
+  const checkInId = canonicalConsumerIds ? "check-in-msqhg76j" : "check-in-strict-cycle-v1";
   const checkIn: MutableRecord = {
     anomalyReviewStatus: "not_flagged",
     checkInId,
@@ -1659,7 +1798,7 @@ async function strictJourneyPreCloseFixture(
     return candidate;
   }
 
-  const reviewId = "review-strict-cycle-v1";
+  const reviewId = canonicalConsumerIds ? "review-msqhg76k-efg56" : "review-strict-cycle-v1";
   const review: MutableRecord = {
     cycleId: cycle.cycleId,
     reviewId,
@@ -1685,7 +1824,7 @@ async function strictJourneyPreCloseFixture(
     return candidate;
   }
 
-  const peerHelpId = "peer-help-strict-cycle-v1";
+  const peerHelpId = canonicalConsumerIds ? "peer-help-msqhg76m-fgh67" : "peer-help-strict-cycle-v1";
   const peerHelp: MutableRecord = {
     peerHelpId,
     cycleId: cycle.cycleId,
@@ -1708,6 +1847,20 @@ async function strictJourneyPreCloseFixture(
   }
 
   const retest = retestFixture(validation, focusSkill);
+  if (forceHumanReview && ["Reading", "Listening"].includes(focusSkill)) {
+    const evidence = asRecord(retest.evidence);
+    evidence.selectedAnswer = "a";
+    const derived = validation.deriveRetestOutcome(focusSkill, evidence);
+    assert.ok(derived?.humanReviewRequired, "forced objective retest must require human review");
+    evidence.resultType = derived.resultType;
+    retest.evidenceStatus = derived.evidenceStatus;
+    retest.evidenceSufficiency = derived.evidenceSufficiency;
+    retest.humanConfirmationStatus = derived.humanConfirmationStatus;
+  }
+  if (forceHumanReview && !["Reading", "Listening"].includes(focusSkill)) {
+    const derived = validation.deriveRetestOutcome(focusSkill, retest.evidence);
+    assert.ok(derived?.humanReviewRequired, "open-response retest must require human review");
+  }
   Object.assign(retest, {
     baselinePracticeReceiptId: receiptId,
     baselineTaskId: receipt.taskId,
@@ -1718,7 +1871,7 @@ async function strictJourneyPreCloseFixture(
     peerHelpId,
     planId: cycle.basePlanId,
     recommendationId,
-    retestId: "retest-strict-cycle-v1",
+    retestId: canonicalConsumerIds ? "retest-msqhg76n-ghi78" : "retest-strict-cycle-v1",
     reviewId,
   });
   journey.retest = retest;
@@ -2319,6 +2472,118 @@ async function inspectProductionCandidate(
     JSON.stringify(created.envelope),
     harness.validateCandidate,
   );
+}
+
+function strictProvisionalBinding(candidate: MutableRecord): MutableRecord {
+  const journey = asRecord(candidate.journey);
+  const history = journey.history;
+  assert.ok(Array.isArray(history) && history.length > 0);
+  const cycle = asRecord(history.at(-1));
+  const recommendation = asRecord(cycle.recommendation);
+  const checkIn = asRecord(cycle.checkIn);
+  const receipt = asRecord(checkIn.practiceReceipt);
+  return {
+    cycleId: cycle.cycleId,
+    diagnosticSessionId: cycle.diagnosticSessionId,
+    planId: cycle.basePlanId,
+    recommendationId: cycle.recommendationId,
+    bindingId: asRecord(recommendation.evidenceBinding).bindingId,
+    taskId: checkIn.linkedTaskId,
+    practiceAttemptId: receipt.practiceAttemptId,
+    practiceReceiptId: receipt.completionReceiptId,
+    checkInId: cycle.checkInId,
+    retestId: cycle.retestId,
+    updatedPlanId: cycle.updatedPlanId,
+  };
+}
+
+function canonicalizeCurrentConsumerIds(candidate: MutableRecord): MutableRecord {
+  const journey = asRecord(candidate.journey);
+  const cycle = asRecord(journey.activeCycle);
+  const recommendation = asRecord(journey.recommendation);
+  const binding = asRecord(recommendation.evidenceBinding);
+  return replaceAllStrictIds(candidate, new Map([
+    [String(cycle.cycleId), "cycle-msqhg76f-abc12"],
+    [String(cycle.diagnosticSessionId), "diagnostic-msqhg76g-bcd23"],
+    [String(cycle.basePlanId), "plan-msqhg76h-cde34"],
+    [String(cycle.recommendationId), "recommendation-msqhg76i-def45"],
+    [String(binding.bindingId), "recommendation-binding-msqhg76i-def45"],
+    [String(cycle.checkInId), "check-in-msqhg76j"],
+    [String(cycle.reviewId), "review-msqhg76k-efg56"],
+    [String(cycle.peerHelpId), "peer-help-msqhg76m-fgh67"],
+    [String(cycle.retestId), "retest-msqhg76n-ghi78"],
+  ]));
+}
+
+async function strictProvisionalWithPriorTerminal(
+  writer: JourneyWriterHarness,
+  validation: JourneyValidationHarness,
+): Promise<MutableRecord> {
+  const closedTemplate = await strictClosedCycleTemplate(writer, validation);
+  const preCloseTemplate = await strictJourneyPreCloseFixture(writer, validation, { forceHumanReview: true });
+  const combined = await strictPreCloseAfterTerminalCycles(
+    writer,
+    validation,
+    closedTemplate,
+    preCloseTemplate,
+    1,
+  );
+  const preClose = canonicalizeCurrentConsumerIds(combined);
+  const preCloseValidation = await validation.validateCandidate(preClose);
+  assert.equal(preCloseValidation.ok, true, String(preCloseValidation.code || "strict provisional pre-close invalid"));
+  writer.setState(preClose);
+  const closeAt = new Date(
+    Date.parse(String(asRecord(asRecord(preClose.journey).activeCycle).updatedAt)) + 60_000,
+  ).toISOString();
+  writer.setNow(closeAt);
+  const outcome = await writer.commitJourneyPlanClose(String(asRecord(preClose.profile).focusSkill));
+  assert.equal(outcome.status, "saved", String(outcome.code || "strict provisional close failed"));
+  assert.equal(outcome.provisional, true);
+  return writer.getState();
+}
+
+async function rehashLearningEventChain(candidate: MutableRecord, backup: BackupRuntime): Promise<void> {
+  let previousEventHash: string | null = null;
+  for (const event of candidate.learningEvents as MutableRecord[]) {
+    event.previousEventHash = previousEventHash;
+    const withoutHash = { ...event };
+    delete withoutHash.eventHash;
+    event.eventHash = await backup.sha256Hex(backup.canonicalJson(withoutHash));
+    previousEventHash = String(event.eventHash);
+  }
+}
+
+async function assertStrictConsumersReject(
+  candidate: MutableRecord,
+  writer: JourneyWriterHarness,
+  validation: JourneyValidationHarness,
+  label: string,
+  centralCode = "ledger_domain_coverage_invalid",
+  ledgerCode = "ledger_domain_coverage_invalid",
+): Promise<void> {
+  const binding = strictProvisionalBinding(candidate);
+  const hashChain = await writer.learningEvents.validateLedger(candidate);
+  assert.equal(hashChain.ok, true, `${label}: negative must retain a valid production hash chain`);
+  const central = await validation.validateCandidate(candidate);
+  assert.equal(central.ok, false, `${label}: central must reject`);
+  assert.equal(central.code, centralCode, `${label}: central reason`);
+  const ledger = await writer.learningEvents.validateProvisionalCycleLedger(candidate, binding);
+  assert.equal(ledger.ok, false, `${label}: ledger admission must reject`);
+  assert.equal(ledger.code, ledgerCode, `${label}: ledger reason`);
+  const validator = (state: unknown, candidateBinding: Record<string, unknown>) =>
+    writer.learningEvents.validateProvisionalCycleLedger(
+      state as MutableRecord,
+      candidateBinding,
+    );
+  const raw = JSON.stringify(candidate);
+  const teaching = await deriveTeachingReviewEvidence(raw, validator);
+  const handoff = await deriveProvisionalHandoffEvidence(raw, validator);
+  const context = await deriveLearnerContext(candidate, validator);
+  assert.equal(teaching.status, "invalid", `${label}: teaching review`);
+  assert.equal(teaching.status === "invalid" ? teaching.reason : null, ledgerCode, `${label}: teaching reason`);
+  assert.equal(handoff.status, "invalid", `${label}: Sofia handoff`);
+  assert.equal(handoff.status === "invalid" ? handoff.reason : null, ledgerCode, `${label}: Sofia reason`);
+  assert.equal(context, undefined, `${label}: Sofia context`);
 }
 
 async function assertWriterPreStateReady(
@@ -3287,6 +3552,139 @@ describe("production writer capacity transactions", () => {
     assert.equal(postValidation.ok, true, String(postValidation.code || "strict post-close invalid"));
   });
 
+  it("admits an actual provisional writer result through strict backup and every shared consumer", async () => {
+    const writer = await loadJourneyWriterHarness();
+    const validation = await loadJourneyValidationHarness();
+    const provisional = await strictProvisionalWithPriorTerminal(writer, validation);
+    const central = await validation.validateCandidate(provisional);
+    assert.equal(central.ok, true, String(central.code || "central strict validation failed"));
+    assert.equal((await writer.backup.createEnvelope(provisional)).status, "ready");
+    assert.equal((await inspectProductionCandidate(validation, provisional)).status, "ready");
+
+    const binding = strictProvisionalBinding(provisional);
+    const ledger = await writer.learningEvents.validateProvisionalCycleLedger(provisional, binding);
+    assert.equal(ledger.ok, true, String(ledger.code || "provisional ledger admission failed"));
+    const currentFragment = (provisional.learningEvents as MutableRecord[]).slice(-5);
+    assert.equal(
+      JSON.stringify(currentFragment.map((event) => event.eventType)),
+      JSON.stringify([
+        "learning_cycle.started",
+        "recommendation.decided",
+        "practice_attempt.finalized",
+        "check_in.committed",
+        "retest.completed",
+      ]),
+    );
+    assert.equal(
+      currentFragment.some((event) => event.eventType === "learning_cycle.completed"),
+      false,
+    );
+
+    const validator = (state: unknown, candidateBinding: Record<string, unknown>) =>
+      writer.learningEvents.validateProvisionalCycleLedger(
+        state as MutableRecord,
+        candidateBinding,
+      );
+    const raw = JSON.stringify(provisional);
+    const teaching = await deriveTeachingReviewEvidence(raw, validator);
+    const handoff = await deriveProvisionalHandoffEvidence(raw, validator);
+    const context = await deriveLearnerContext(provisional, validator);
+    assert.equal(teaching.status, "ready");
+    assert.equal(handoff.status, "ready");
+    assert.ok(context);
+    assert.equal(context.progress?.humanReviewStatus, "required_not_completed");
+  });
+
+  it("keeps central, teaching-review, and Sofia fail-closed for rehashed active drift and orphan coverage", async () => {
+    const writer = await loadJourneyWriterHarness();
+    const validation = await loadJourneyValidationHarness();
+    const valid = await strictProvisionalWithPriorTerminal(writer, validation);
+    const eventMutations: Array<[string, (candidate: MutableRecord) => void]> = [
+      ["active occurredAt drift", (candidate) => {
+        const event = (candidate.learningEvents as MutableRecord[]).at(-5) as MutableRecord;
+        event.occurredAt = new Date(Date.parse(String(event.occurredAt)) - 1_000).toISOString();
+      }],
+      ["active recommendation attributes drift", (candidate) => {
+        const event = (candidate.learningEvents as MutableRecord[]).at(-4) as MutableRecord;
+        asRecord(event.attributes).decision = asRecord(event.attributes).decision === "accepted" ? "skipped" : "accepted";
+      }],
+      ["active practice receipt attributes drift", (candidate) => {
+        const event = (candidate.learningEvents as MutableRecord[]).at(-3) as MutableRecord;
+        const attributes = asRecord(event.attributes);
+        attributes.attemptCount = Number(attributes.attemptCount) + 1;
+      }],
+    ];
+    for (const [label, mutate] of eventMutations) {
+      const candidate = hostClone(valid);
+      mutate(candidate);
+      await rehashLearningEventChain(candidate, writer.backup);
+      await assertStrictConsumersReject(
+        candidate,
+        writer,
+        validation,
+        label,
+        "active_event_prefix_invalid",
+        "active_event_projection_invalid",
+      );
+    }
+
+    const unusedAlias = hostClone(valid);
+    const records = asRecord(asRecord(unusedAlias.learningEventBindings).records);
+    asRecord(records.task)["unused-task-v1"] = "00000000-0000-4000-8000-000000000099";
+    await assertStrictConsumersReject(unusedAlias, writer, validation, "unused binding alias");
+
+    const duplicatedActiveCycle = hostClone(valid);
+    const duplicatedJourney = asRecord(duplicatedActiveCycle.journey);
+    const active = asRecord(duplicatedJourney.activeCycle);
+    const superseded = duplicatedJourney.supersededCycles;
+    assert.ok(Array.isArray(superseded) && superseded.length > 0);
+    asRecord(superseded[0]).cycleId = active.cycleId;
+    await assertStrictConsumersReject(
+      duplicatedActiveCycle,
+      writer,
+      validation,
+      "active cycle duplicated in superseded ownership",
+      "plan_graph_invalid",
+    );
+
+    const orphan = hostClone(valid);
+    const orphanAt = new Date(Date.parse(String(orphan.updatedAt)) + 60_000).toISOString();
+    const orphanCycle: MutableRecord = {
+      basePlanId: null,
+      checkInId: null,
+      closedAt: null,
+      createdAt: orphanAt,
+      cycleId: "cycle-msqhg80a-uvw12",
+      diagnosticSessionId: "diagnostic-msqhg80b-vwx23",
+      peerHelpId: null,
+      protocolVersion: "gate_a_local_v1",
+      provisionalAt: null,
+      recommendationId: null,
+      retestId: null,
+      reviewId: null,
+      status: "in_progress",
+      updatedAt: orphanAt,
+      updatedPlanId: null,
+    };
+    const orphanDiagnostic: MutableRecord = {
+      cycleId: orphanCycle.cycleId,
+      diagnosticProtocolVersion: "gate_a_diagnostic_evidence_v1",
+      diagnosticSessionId: orphanCycle.diagnosticSessionId,
+      protocolVersion: "gate_a_local_v1",
+      status: "in_progress",
+      taskSetDigest: "c1b2922ca96677665690bf790281be2438a016bbbe0d9f85478685af3c8dfc2c",
+      taskSetVersion: "gate_a_original_6_v1",
+    };
+    writer.setNow(orphanAt);
+    const appended = await writer.learningEvents.appendDomainEvent(
+      orphan,
+      "learning_cycle.started",
+      { cycle: orphanCycle, diagnostic: orphanDiagnostic },
+    );
+    assert.equal(appended.status, "appended", String(appended.code || "orphan append failed"));
+    await assertStrictConsumersReject(orphan, writer, validation, "ownerless legal cycle event");
+  });
+
   it("proves the 19-cycle history ceiling against exact normal-writer state and the 1 MiB bound", async () => {
     const writer = await loadJourneyWriterHarness();
     const validation = await loadJourneyValidationHarness();
@@ -3967,6 +4365,308 @@ describe("production writer capacity transactions", () => {
       assert.equal(writer.backup.canonicalJson(writer.getState()), stateBefore, stage);
       assert.equal((writer.getState().learningEvents as unknown[]).length, learningEventCount, stage);
     }
+  });
+});
+
+describe("learning-event clear read-only policy", () => {
+  const namespaceKeys = [
+    "sufeiya_workspace_v1",
+    "sufeiya_super_teacher_v1",
+    "sufeiya_teaching_review_demo_v1",
+  ] as const;
+
+  async function assertZeroWriteOutcome(
+    harness: WorkspaceWriterHarness,
+    expectedStatus: string,
+    expectedCode: string | undefined,
+    label: string,
+    expectedMarkers?: string[],
+  ): Promise<MutableRecord> {
+    const before = Object.fromEntries(namespaceKeys.map((key) => [key, harness.getNamespaceRaw(key)]));
+    const stateBefore = harness.backup.canonicalJson(harness.getState());
+    const storageMutations = harness.getStorageMutationCount();
+    const storageSetItemCalls = harness.getStorageSetItemCount();
+    const storageRemoveItemCalls = harness.getStorageRemoveItemCount();
+    const idCalls = harness.getIdCallCount();
+    const confirmCalls = harness.getConfirmCallCount();
+    const clockCalls = harness.getClockCallCount();
+    const reloadCalls = harness.getReloadCallCount();
+    const outcome = await harness.clearLearningEventsTransaction();
+    assert.equal(outcome.status, expectedStatus, `${label}: status`);
+    assert.equal(outcome.code, expectedCode, `${label}: code`);
+    if (expectedMarkers) {
+      assert.deepEqual(hostClone(outcome.markers), expectedMarkers, `${label}: markers`);
+    }
+    assert.deepEqual(
+      Object.fromEntries(namespaceKeys.map((key) => [key, harness.getNamespaceRaw(key)])),
+      before,
+      `${label}: namespace bytes`,
+    );
+    assert.equal(
+      harness.backup.canonicalJson(harness.getState()),
+      stateBefore,
+      `${label}: in-memory state`,
+    );
+    assert.equal(harness.getStorageMutationCount(), storageMutations, `${label}: storage writes`);
+    assert.equal(harness.getStorageSetItemCount(), storageSetItemCalls, `${label}: storage setItem calls`);
+    assert.equal(harness.getStorageRemoveItemCount(), storageRemoveItemCalls, `${label}: storage removeItem calls`);
+    assert.equal(harness.getIdCallCount(), idCalls, `${label}: ID calls`);
+    assert.equal(harness.getConfirmCallCount(), confirmCalls, `${label}: confirm calls`);
+    assert.equal(harness.getClockCallCount(), clockCalls, `${label}: clock calls`);
+    assert.equal(harness.getReloadCallCount(), reloadCalls, `${label}: reload calls`);
+    return outcome;
+  }
+
+  function seedAuxiliaryNamespaces(harness: WorkspaceWriterHarness, label: string) {
+    harness.setNamespaceRaw("sufeiya_super_teacher_v1", `sofia:${label}`);
+    harness.setNamespaceRaw("sufeiya_teaching_review_demo_v1", `teaching:${label}`);
+  }
+
+  it("is zero-side-effect for absent/strict-empty state and blocks valid profile/focus-only state", async () => {
+    const absent = await loadWorkspaceWriterHarness({ pathname: "/my-data" });
+    seedAuxiliaryNamespaces(absent, "absent");
+    await assertZeroWriteOutcome(
+      absent,
+      "already_empty",
+      "workspace_namespace_absent",
+      "absent workspace",
+    );
+
+    const empty = await loadWorkspaceWriterHarness({ pathname: "/my-data" });
+    empty.setState(empty.freshState());
+    seedAuxiliaryNamespaces(empty, "empty");
+    await assertZeroWriteOutcome(
+      empty,
+      "already_empty",
+      "ledger_and_event_bound_domain_state_empty",
+      "strict empty workspace",
+    );
+
+    const profileOnly = await loadWorkspaceWriterHarness({ pathname: "/my-data" });
+    const profileState = profileOnly.freshState();
+    asRecord(profileState.profile).nickname = "Learner";
+    profileOnly.setState(profileState);
+    seedAuxiliaryNamespaces(profileOnly, "profile");
+    await assertZeroWriteOutcome(
+      profileOnly,
+      "blocked_event_bound_state",
+      "event_bound_domain_state_present",
+      "valid profile-only workspace",
+      ["profile"],
+    );
+
+    const focusActive = await loadWorkspaceWriterHarness({ pathname: "/my-data" });
+    const focusActiveState = focusActive.freshState();
+    asRecord(focusActiveState.focus).active = {
+      durationSeconds: 1_500,
+      endsAt: Date.parse("2026-08-12T00:25:00.000Z"),
+      remainingSeconds: 1_500,
+      startedAt: "2026-08-12T00:00:00.000Z",
+      status: "running",
+    };
+    focusActive.setState(focusActiveState);
+    seedAuxiliaryNamespaces(focusActive, "focus-active");
+    await assertZeroWriteOutcome(
+      focusActive,
+      "blocked_event_bound_state",
+      "event_bound_domain_state_present",
+      "valid active focus workspace",
+      ["focus.active"],
+    );
+
+    const focusSession = await loadWorkspaceWriterHarness({ pathname: "/my-data" });
+    const focusSessionState = focusSession.freshState();
+    asRecord(focusSessionState.focus).sessions = validFocusSessionHistory(1);
+    focusSession.setState(focusSessionState);
+    seedAuxiliaryNamespaces(focusSession, "focus-session");
+    await assertZeroWriteOutcome(
+      focusSession,
+      "blocked_event_bound_state",
+      "event_bound_domain_state_present",
+      "valid focus-session workspace",
+      ["focus.sessions"],
+    );
+  });
+
+  it("fails closed without side effects for malformed state, invalid ledger, missing runtime, raw drift, read failure, and unavailable lock", async () => {
+    const malformedProfile = await loadWorkspaceWriterHarness({ pathname: "/my-data" });
+    const malformedProfileState = malformedProfile.freshState();
+    asRecord(malformedProfileState.profile).dailyMinutes = 20;
+    malformedProfile.setState(malformedProfileState);
+    seedAuxiliaryNamespaces(malformedProfile, "malformed-profile");
+    await assertZeroWriteOutcome(
+      malformedProfile,
+      "workspace_invalid",
+      "workspace_shape_invalid",
+      "malformed profile",
+    );
+
+    const malformedFocus = await loadWorkspaceWriterHarness({ pathname: "/my-data" });
+    const malformedFocusState = malformedFocus.freshState();
+    asRecord(malformedFocusState.focus).sessions = [{
+      ...validFocusSessionHistory(1)[0],
+      durationSeconds: 901,
+    }];
+    malformedFocus.setState(malformedFocusState);
+    seedAuxiliaryNamespaces(malformedFocus, "malformed-focus");
+    await assertZeroWriteOutcome(
+      malformedFocus,
+      "workspace_invalid",
+      "workspace_shape_invalid",
+      "malformed focus",
+    );
+
+    const invalidJson = await loadWorkspaceWriterHarness({ pathname: "/my-data" });
+    invalidJson.setNamespaceRaw("sufeiya_workspace_v1", "{");
+    invalidJson.setExpectedWorkspaceRaw("{");
+    seedAuxiliaryNamespaces(invalidJson, "invalid-json");
+    await assertZeroWriteOutcome(
+      invalidJson,
+      "workspace_invalid",
+      "workspace_json_invalid",
+      "invalid JSON",
+    );
+
+    const invalidLedger = await loadWorkspaceWriterHarness({ pathname: "/my-data" });
+    const invalidLedgerState = invalidLedger.freshState();
+    invalidLedgerState.learningEvents = [{}];
+    invalidLedgerState.learningEventBindings = null;
+    invalidLedger.setState(invalidLedgerState);
+    seedAuxiliaryNamespaces(invalidLedger, "invalid-ledger");
+    await assertZeroWriteOutcome(
+      invalidLedger,
+      "ledger_invalid",
+      "ledger_shape_invalid",
+      "invalid ledger",
+    );
+
+    const runtimeMissing = await loadWorkspaceWriterHarness({
+      pathname: "/my-data",
+      learningEventsAvailable: false,
+    });
+    runtimeMissing.setState(runtimeMissing.freshState());
+    seedAuxiliaryNamespaces(runtimeMissing, "runtime-missing");
+    await assertZeroWriteOutcome(
+      runtimeMissing,
+      "runtime_unavailable",
+      "strict_validation_runtime_unavailable",
+      "missing validation runtime",
+    );
+
+    const stale = await loadWorkspaceWriterHarness({ pathname: "/my-data" });
+    stale.setState(stale.freshState());
+    const observedRaw = stale.getRaw();
+    assert.ok(observedRaw);
+    stale.setNamespaceRaw("sufeiya_workspace_v1", `${observedRaw} `);
+    seedAuxiliaryNamespaces(stale, "stale");
+    await assertZeroWriteOutcome(
+      stale,
+      "stale",
+      "workspace_raw_changed_before_clear_policy_check",
+      "raw drift",
+    );
+
+    const readFailure = await loadWorkspaceWriterHarness({ pathname: "/my-data" });
+    readFailure.setState(readFailure.freshState());
+    seedAuxiliaryNamespaces(readFailure, "read-failure");
+    readFailure.setWorkspaceReadFailure(true);
+    await assertZeroWriteOutcome(
+      readFailure,
+      "read_failed",
+      "workspace_storage_read_failed",
+      "workspace getItem failure",
+    );
+
+    const lockUnavailable = await loadWorkspaceWriterHarness({ pathname: "/my-data" });
+    lockUnavailable.setState(lockUnavailable.freshState());
+    seedAuxiliaryNamespaces(lockUnavailable, "lock-unavailable");
+    lockUnavailable.setLocksAvailable(false);
+    await assertZeroWriteOutcome(
+      lockUnavailable,
+      "lock_unavailable",
+      undefined,
+      "sealed lock unavailable",
+    );
+  });
+
+  it("covers every event-bound domain marker with production-valid cycle states and zero side effects", async () => {
+    const validation = await loadJourneyValidationHarness();
+    const inProgressWriter = await loadJourneyWriterHarness();
+    const inProgress = await strictJourneyPreCloseFixture(
+      inProgressWriter,
+      validation,
+      { stopAfterCheckIn: true },
+    );
+    const completedWriter = await loadJourneyWriterHarness();
+    const completed = await strictClosedCycleTemplate(completedWriter, validation);
+    const provisionalWriter = await loadJourneyWriterHarness();
+    const provisional = await strictProvisionalWithPriorTerminal(provisionalWriter, validation);
+    const standalonePractice = standaloneReadingReceiptFixture();
+    const profileOnly = restorableWorkspaceFixture();
+    asRecord(profileOnly.profile).nickname = "Learner";
+    const focusOnly = restorableWorkspaceFixture();
+    asRecord(focusOnly.focus).active = {
+      durationSeconds: 1_500,
+      endsAt: Date.parse("2026-08-12T00:25:00.000Z"),
+      remainingSeconds: 1_500,
+      startedAt: "2026-08-12T00:00:00.000Z",
+      status: "running",
+    };
+    asRecord(focusOnly.focus).sessions = validFocusSessionHistory(1);
+
+    const cases: Array<[string, MutableRecord]> = [
+      ["profile-only workspace", profileOnly],
+      ["focus-only workspace", focusOnly],
+      ["standalone practice workspace", standalonePractice],
+      [
+        "in-progress workspace",
+        inProgress,
+      ],
+      ["completed workspace", completed],
+      ["provisional workspace", provisional],
+    ];
+    const coveredMarkers = new Set<string>();
+    for (const [label, state] of cases) {
+      const envelope = await validation.backup.createEnvelope(state);
+      assert.equal(envelope.status, "ready", `${label}: capacity envelope`);
+      const strict = await validation.validateCandidate(state);
+      assert.equal(strict.ok, true, `${label}: ${String(strict.code || "strict workspace candidate")}`);
+      const harness = await loadWorkspaceWriterHarness({ pathname: "/my-data" });
+      harness.setState(state);
+      seedAuxiliaryNamespaces(harness, label);
+      const outcome = await assertZeroWriteOutcome(
+        harness,
+        "blocked_event_bound_state",
+        "event_bound_domain_state_present",
+        label,
+      );
+      for (const marker of hostClone(outcome.markers) as string[]) coveredMarkers.add(marker);
+    }
+
+    const expectedMarkers = [
+      "profile",
+      "focus.active",
+      "focus.sessions",
+      "plan",
+      "planHistory",
+      "taskProgress",
+      "practice",
+      "practiceReceipts",
+      "checkIns",
+      "checkInHistory",
+      "learningEvents",
+      "learningEventBindings",
+      "journey.activeCycle",
+      "journey.diagnostic",
+      "journey.recommendation",
+      "journey.review",
+      "journey.peerHelp",
+      "journey.retest",
+      "journey.planUpdate",
+      "journey.history",
+      "journey.supersededCycles",
+    ];
+    assert.deepEqual([...coveredMarkers].sort(), expectedMarkers.sort());
   });
 });
 
