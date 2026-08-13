@@ -19,7 +19,8 @@ export function FullDocumentLink({ href, ...props }: FullDocumentLinkProps) {
 
   const navigateOutsideTheAppRouter = (event: MouseEvent<HTMLAnchorElement>) => {
     if (
-      event.button !== 0
+      event.defaultPrevented
+      || event.button !== 0
       || event.altKey
       || event.ctrlKey
       || event.metaKey
