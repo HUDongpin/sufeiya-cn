@@ -1,6 +1,10 @@
 import type { LearnerContext } from "@/lib/super-teacher/contracts";
 import { deriveProvisionalHandoffEvidence } from "@/lib/super-teacher/provisional-handoff";
-import { deriveTeachingReviewEvidence } from "@/lib/teaching-review-demo";
+import {
+  browserProvisionalCycleLedgerValidator,
+  deriveTeachingReviewEvidence,
+  type ProvisionalCycleLedgerValidator,
+} from "@/lib/teaching-review-demo";
 
 const WORKSPACE_PROTOCOL = "gate_a_local_v1";
 const DIAGNOSTIC_PROTOCOL = "gate_a_diagnostic_evidence_v1";
@@ -82,7 +86,10 @@ function currentTaskSkill(plan: UnknownRecord) {
   return isSkill(task?.skill) ? task.skill : undefined;
 }
 
-export function deriveLearnerContext(value: unknown): LearnerContext | undefined {
+export async function deriveLearnerContext(
+  value: unknown,
+  ledgerValidator?: ProvisionalCycleLedgerValidator | null,
+): Promise<LearnerContext | undefined> {
   if (!isRecord(value) || value.schemaVersion !== 1 || !isRecord(value.journey)) return undefined;
   const journey = value.journey;
   if (journey.protocolVersion !== WORKSPACE_PROTOCOL) return undefined;
@@ -95,8 +102,13 @@ export function deriveLearnerContext(value: unknown): LearnerContext | undefined
     } catch {
       return undefined;
     }
-    const handoff = deriveProvisionalHandoffEvidence(raw);
-    const authorized = deriveTeachingReviewEvidence(raw);
+    const admissionValidator = ledgerValidator === undefined
+      ? browserProvisionalCycleLedgerValidator()
+      : ledgerValidator;
+    const [handoff, authorized] = await Promise.all([
+      deriveProvisionalHandoffEvidence(raw, admissionValidator),
+      deriveTeachingReviewEvidence(raw, admissionValidator),
+    ]);
     if (
       handoff.status !== "ready" ||
       authorized.status !== "ready" ||

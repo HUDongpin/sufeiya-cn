@@ -621,6 +621,599 @@
     return { ok: true, code: "ledger_valid", eventCount: events.length, headHash: previousEventHash };
   };
 
+  const DOMAIN_KIND_BY_CONTEXT_KEY = Object.freeze({
+    learningCycleId: "cycle",
+    diagnosticSessionId: "diagnostic",
+    planId: "plan",
+    recommendationId: "recommendation",
+    bindingId: "binding",
+    taskId: "task",
+    attemptId: "practiceAttempt",
+    practiceReceiptId: "practiceReceipt",
+    baselinePracticeReceiptId: "practiceReceipt",
+    checkInId: "checkIn",
+    retestId: "retest",
+    humanReviewReceiptId: "humanReviewReceipt",
+    updatedPlanId: "updatedPlan",
+  });
+  const workspaceDomainIdValid = (value) =>
+    typeof value === "string" &&
+    value.length >= 3 &&
+    value.length <= 180 &&
+    !/[\u0000-\u001f\u007f]/.test(value);
+  const canonicalUtcValid = (value) =>
+    isExactUtc(value) && new Date(Date.parse(value)).toISOString() === value;
+  const workspaceDomainPlanById = (state, planId) => {
+    if (!workspaceDomainIdValid(planId)) return null;
+    if (isRecord(state.plan) && state.plan.planId === planId) return state.plan;
+    return state.planHistory.find((plan) => isRecord(plan) && plan.planId === planId) || null;
+  };
+  const workspaceDomainAllCheckIns = (state) => [
+    ...Object.values(state.checkIns),
+    ...state.checkInHistory,
+  ].filter(isRecord);
+  const workspaceDomainCheckInById = (state, checkInId) => {
+    const matches = workspaceDomainAllCheckIns(state).filter((record) => record.checkInId === checkInId);
+    return matches.length === 1 ? matches[0] : null;
+  };
+  const workspaceDomainTaskOwner = (state, taskId) => {
+    if (!workspaceDomainIdValid(taskId)) return null;
+    const matches = [state.plan, ...state.planHistory]
+      .filter(isRecord)
+      .flatMap((plan) => (Array.isArray(plan.days) ? plan.days : [])
+        .filter(isRecord)
+        .flatMap((day) => (Array.isArray(day.tasks) ? day.tasks : [])
+          .filter((task) => isRecord(task) && task.taskId === taskId)
+          .map((task) => ({ plan, task }))));
+    if (matches.length > 1) return null;
+    if (matches.length === 1) return matches[0];
+    const defaultMatch = /^default-(\d{4}-\d{2}-\d{2})-(reading|writing|reflection)$/.exec(taskId);
+    if (!defaultMatch) return null;
+    const parsedDate = Date.parse(`${defaultMatch[1]}T00:00:00.000Z`);
+    if (!Number.isFinite(parsedDate) || new Date(parsedDate).toISOString().slice(0, 10) !== defaultMatch[1]) return null;
+    return { plan: null, task: null, kind: "standalone" };
+  };
+  const workspaceDomainCycleOwner = (state, cycleId) => {
+    const active = state.journey.activeCycle?.cycleId === cycleId
+      ? state.journey.activeCycle
+      : null;
+    const histories = state.journey.history.filter((record) => record.cycleId === cycleId);
+    const summaries = state.journey.supersededCycles.filter((record) => record.cycleId === cycleId);
+    if (histories.length > 1 || summaries.length > 1) return null;
+    if (active) return { kind: "active", cycle: active, history: histories[0] || null, summary: summaries[0] || null };
+    if (histories.length === 1) return { kind: "history", cycle: histories[0], history: histories[0], summary: summaries[0] || null };
+    if (summaries.length === 1) return { kind: "superseded", cycle: summaries[0], history: null, summary: summaries[0] };
+    return null;
+  };
+  const workspaceDomainFullCycleObject = (state, owner, objectKey) => {
+    if (!owner || owner.kind === "superseded") return null;
+    return owner.kind === "active" ? state.journey[objectKey] : owner.history?.[objectKey] || null;
+  };
+  const workspaceDomainIdForAlias = (state, kind, alias) => {
+    if (!UUID_V4_PATTERN.test(alias || "")) return null;
+    const records = state.learningEventBindings?.records?.[kind];
+    if (!isRecord(records)) return null;
+    const matches = Object.entries(records).filter(([, candidateAlias]) => candidateAlias === alias);
+    return matches.length === 1 && workspaceDomainIdValid(matches[0][0]) ? matches[0][0] : null;
+  };
+  const diagnosticEvidenceSummary = (item) => ({
+    taskId: item.taskId,
+    taskVersion: item.taskVersion,
+    contentHash: item.contentHash,
+    skill: item.skill,
+    status: item.status,
+    evidenceStatus: item.evidenceStatus,
+    qualityFlags: Array.isArray(item.qualityFlags) ? [...item.qualityFlags] : [],
+    ...(Number.isFinite(Number(item.durationSeconds)) ? { durationSeconds: Number(item.durationSeconds) } : {}),
+    ...(Number.isFinite(Number(item.wordCount)) ? { wordCount: Number(item.wordCount) } : {}),
+    ...(Number.isFinite(Number(item.selfReviewCount)) ? { selfReviewCount: Number(item.selfReviewCount) } : {}),
+    ...(typeof item.resultType === "string" ? { resultType: item.resultType } : {}),
+  });
+  const supersededSummaryMatchesTerminalHistory = (summary, history) => {
+    const diagnostic = history?.diagnostic;
+    const terminalAt = history?.status === "completed" ? history.closedAt : history?.provisionalAt;
+    if (
+      !isRecord(diagnostic) ||
+      !Array.isArray(diagnostic.taskEvidence) ||
+      !canonicalUtcValid(summary?.supersededAt) ||
+      !canonicalUtcValid(terminalAt) ||
+      Date.parse(summary.supersededAt) < Date.parse(terminalAt)
+    ) return false;
+    const expected = {
+      cycleId: history.cycleId,
+      diagnosticSessionId: history.diagnosticSessionId,
+      protocolVersion: history.protocolVersion,
+      diagnosticProtocolVersion: diagnostic.diagnosticProtocolVersion,
+      taskSetVersion: diagnostic.taskSetVersion,
+      taskSetDigest: diagnostic.taskSetDigest,
+      diagnosticStatus: diagnostic.status,
+      taskEvidenceSummary: diagnostic.taskEvidence.map(diagnosticEvidenceSummary),
+      ...(diagnostic.prioritySkill ? { prioritySkill: diagnostic.prioritySkill } : {}),
+      ...(diagnostic.priorityBasis ? { priorityBasis: diagnostic.priorityBasis } : {}),
+      ...(diagnostic.evidenceSufficiency ? { evidenceSufficiency: diagnostic.evidenceSufficiency } : {}),
+    };
+    const metadataKeys = [
+      "cycleId", "diagnosticSessionId", "protocolVersion", "diagnosticProtocolVersion", "taskSetVersion",
+      "taskSetDigest", "diagnosticStatus", "taskEvidenceSummary", "prioritySkill", "priorityBasis",
+      "evidenceSufficiency",
+    ];
+    const actual = Object.fromEntries(
+      metadataKeys.filter((key) => hasOwn(summary, key)).map((key) => [key, summary[key]]),
+    );
+    return canonicalJson(actual) === canonicalJson(expected);
+  };
+  const workspaceDomainStateShapeValid = (state) => Boolean(
+    isRecord(state) &&
+    Array.isArray(state.learningEvents) &&
+    (state.learningEventBindings === null || isRecord(state.learningEventBindings)) &&
+    isRecord(state.journey) &&
+    (state.journey.activeCycle === null || isRecord(state.journey.activeCycle)) &&
+    Array.isArray(state.journey.history) && state.journey.history.every(isRecord) &&
+    Array.isArray(state.journey.supersededCycles) && state.journey.supersededCycles.every(isRecord) &&
+    (state.plan === null || isRecord(state.plan)) &&
+    Array.isArray(state.planHistory) && state.planHistory.every(isRecord) &&
+    isRecord(state.practiceReceipts) &&
+    isRecord(state.checkIns) &&
+    Array.isArray(state.checkInHistory) && state.checkInHistory.every(isRecord)
+  );
+
+  const workspaceDomainLedgerCoverageValid = (state) => {
+    if (!workspaceDomainStateShapeValid(state) || !ledgerShapeValid(state)) return false;
+    const events = state.learningEvents;
+    if (state.journey.activeCycle && state.journey.supersededCycles.some(
+      (summary) => summary.cycleId === state.journey.activeCycle.cycleId,
+    )) return false;
+    if (events.length === 0) return state.learningEventBindings === null;
+    const bindings = state.learningEventBindings;
+    if (!bindingShapeValid(bindings)) return false;
+    const records = bindings.records;
+    const domainCycleValues = [
+      state.journey.activeCycle?.cycleId,
+      ...state.journey.history.map((record) => record.cycleId),
+      ...state.journey.supersededCycles.map((record) => record.cycleId),
+    ].filter((value) => value !== null && value !== undefined);
+    if (domainCycleValues.some((cycleId) => !workspaceDomainIdValid(cycleId))) return false;
+    const domainCycleIds = new Set(domainCycleValues);
+    if (
+      Object.keys(records.cycle).length !== domainCycleIds.size ||
+      [...domainCycleIds].some((cycleId) => !UUID_V4_PATTERN.test(records.cycle[cycleId] || ""))
+    ) return false;
+
+    const usedAliases = new Set();
+    const resolvedEvents = [];
+    for (const event of events) {
+      const resolved = {};
+      for (const [contextKey, alias] of Object.entries(event.context || {})) {
+        if (contextKey === "causationEventId") continue;
+        const kind = DOMAIN_KIND_BY_CONTEXT_KEY[contextKey];
+        const domainId = kind ? workspaceDomainIdForAlias(state, kind, alias) : null;
+        if (!kind || !domainId) return false;
+        usedAliases.add(alias);
+        resolved[contextKey] = domainId;
+      }
+      const cycleId = resolved.learningCycleId;
+      const owner = workspaceDomainCycleOwner(state, cycleId);
+      if (!owner || owner.cycle.diagnosticSessionId !== resolved.diagnosticSessionId) return false;
+
+      if (resolved.planId) {
+        const plan = workspaceDomainPlanById(state, resolved.planId);
+        if (
+          !plan ||
+          plan.provenance?.cycleId !== cycleId ||
+          plan.provenance?.diagnosticSessionId !== resolved.diagnosticSessionId ||
+          (owner.kind !== "superseded" && owner.cycle.basePlanId !== resolved.planId)
+        ) return false;
+      }
+      if (resolved.recommendationId) {
+        const recommendation = workspaceDomainFullCycleObject(state, owner, "recommendation");
+        if (owner.kind === "superseded") {
+          if (event.eventType === "learning_cycle.completed") return false;
+        } else if (
+          recommendation?.recommendationId !== resolved.recommendationId ||
+          recommendation.cycleId !== cycleId ||
+          recommendation.diagnosticSessionId !== resolved.diagnosticSessionId
+        ) return false;
+      }
+      if (resolved.bindingId) {
+        const recommendation = workspaceDomainFullCycleObject(state, owner, "recommendation");
+        if (owner.kind !== "superseded" && recommendation?.evidenceBinding?.bindingId !== resolved.bindingId) return false;
+      }
+      if (resolved.taskId) {
+        const taskOwner = workspaceDomainTaskOwner(state, resolved.taskId);
+        if (!taskOwner || !taskOwner.plan || taskOwner.plan.planId !== resolved.planId) return false;
+      }
+      if (resolved.practiceReceiptId) {
+        const receipt = state.practiceReceipts[resolved.practiceReceiptId];
+        if (!isRecord(receipt) || receipt.cycleId !== cycleId || receipt.diagnosticSessionId !== resolved.diagnosticSessionId) return false;
+        if (resolved.planId && receipt.planId !== resolved.planId) return false;
+        if (resolved.taskId && receipt.taskId !== resolved.taskId) return false;
+      }
+      if (resolved.baselinePracticeReceiptId) {
+        const receipt = state.practiceReceipts[resolved.baselinePracticeReceiptId];
+        if (!isRecord(receipt) || receipt.cycleId !== cycleId || receipt.diagnosticSessionId !== resolved.diagnosticSessionId) return false;
+      }
+      if (resolved.attemptId) {
+        const matches = Object.values(state.practiceReceipts).filter((receipt) =>
+          isRecord(receipt) && receipt.practiceAttemptId === resolved.attemptId && receipt.cycleId === cycleId
+        );
+        if (matches.length !== 1 || matches[0].completionReceiptId !== resolved.practiceReceiptId) return false;
+      }
+      if (resolved.checkInId) {
+        const checkIn = workspaceDomainCheckInById(state, resolved.checkInId);
+        if (!checkIn || checkIn.cycleId !== cycleId || checkIn.diagnosticSessionId !== resolved.diagnosticSessionId) return false;
+      }
+      if (resolved.retestId) {
+        const retest = workspaceDomainFullCycleObject(state, owner, "retest");
+        if (owner.kind !== "superseded" && (retest?.retestId !== resolved.retestId || retest.cycleId !== cycleId)) return false;
+      }
+      if (resolved.humanReviewReceiptId) return false;
+      if (resolved.updatedPlanId) {
+        const planUpdate = workspaceDomainFullCycleObject(state, owner, "planUpdate");
+        const updatedPlan = workspaceDomainPlanById(state, resolved.updatedPlanId);
+        if (
+          owner.kind === "superseded" ||
+          planUpdate?.updatedPlanId !== resolved.updatedPlanId ||
+          planUpdate.cycleId !== cycleId ||
+          !updatedPlan ||
+          updatedPlan.provenance?.cycleId !== cycleId
+        ) return false;
+      }
+      resolvedEvents.push({ event, resolved });
+    }
+
+    for (const [kind, domainRecords] of Object.entries(records)) {
+      if (!RECORD_KIND_SET.has(kind) || !isRecord(domainRecords)) return false;
+      if (kind === "humanReviewReceipt" && Object.keys(domainRecords).length !== 0) return false;
+      if (Object.values(domainRecords).some((alias) => !usedAliases.has(alias))) return false;
+    }
+
+    for (const summary of state.journey.supersededCycles) {
+      const matchingHistory = state.journey.history.filter((record) => record.cycleId === summary.cycleId);
+      if (matchingHistory.length) {
+        if (matchingHistory.length !== 1 || !supersededSummaryMatchesTerminalHistory(summary, matchingHistory[0])) return false;
+        continue;
+      }
+      const cycleAlias = records.cycle[summary.cycleId];
+      const cycleEvents = resolvedEvents.filter(({ event }) => event.context.learningCycleId === cycleAlias);
+      const startedEvents = cycleEvents.filter(({ event }) => event.eventType === "learning_cycle.started");
+      if (
+        !canonicalUtcValid(summary.supersededAt) ||
+        !cycleEvents.length ||
+        startedEvents.length !== 1 ||
+        cycleEvents[0] !== startedEvents[0] ||
+        cycleEvents.some(({ event, resolved }) => event.eventType === "learning_cycle.completed" || resolved.updatedPlanId) ||
+        cycleEvents.some(({ event }) => Date.parse(event.occurredAt) > Date.parse(summary.supersededAt)) ||
+        startedEvents[0].resolved.diagnosticSessionId !== summary.diagnosticSessionId ||
+        startedEvents[0].event.attributes.taskSetVersion !== summary.taskSetVersion ||
+        startedEvents[0].event.attributes.taskSetDigest !== summary.taskSetDigest
+      ) return false;
+    }
+    return true;
+  };
+
+  const validateWorkspaceDomainLedgerCoverage = (state) => workspaceDomainLedgerCoverageValid(state)
+    ? { ok: true, code: "workspace_domain_ledger_coverage_valid" }
+    : { ok: false, code: "ledger_domain_coverage_invalid" };
+
+  const provisionalAliasFor = (bindings, kind, domainId) => {
+    if (!safeDomainId(domainId)) return null;
+    const alias = bindings.records[kind]?.[domainId];
+    return UUID_V4_PATTERN.test(alias || "") ? alias : null;
+  };
+  const exactContextWithoutCause = (event, expected) => {
+    if (!event || !isRecord(event.context)) return false;
+    const actual = Object.fromEntries(
+      Object.entries(event.context).filter(([key]) => key !== "causationEventId"),
+    );
+    return canonicalJson(actual) === canonicalJson(expected);
+  };
+  const workspaceDomainEventProjectionMatches = (event, expected) => Boolean(
+    event?.eventType === expected?.eventType &&
+    event.occurredAt === expected.occurredAt &&
+    exactContextWithoutCause(event, expected.context) &&
+    canonicalJson(event.activity) === canonicalJson(expected.activity) &&
+    canonicalJson(event.attributes) === canonicalJson(expected.attributes)
+  );
+  const workspaceDomainActiveCheckIn = (state, cycle) => {
+    if (!workspaceDomainIdValid(cycle?.checkInId)) return null;
+    const checkIn = workspaceDomainCheckInById(state, cycle.checkInId);
+    return checkIn?.cycleId === cycle.cycleId && checkIn?.planId === cycle.basePlanId
+      ? checkIn
+      : null;
+  };
+
+  /**
+   * Exact active-cycle event projection shared by canonical backup admission
+   * and every provisional consumer. Expected projections come from the same
+   * production projector used to append events, so attributes, activity,
+   * timestamps, receipt fields and domain aliases cannot drift independently.
+   */
+  const workspaceActiveEventProjectionValid = (state) => {
+    if (!workspaceDomainStateShapeValid(state) || !ledgerShapeValid(state)) return false;
+    const cycle = state.journey.activeCycle;
+    if (cycle === null) return true;
+    if (!isRecord(cycle)) return false;
+    const bindings = state.learningEventBindings;
+    if (!bindingShapeValid(bindings)) return false;
+    const cycleAlias = provisionalAliasFor(bindings, "cycle", cycle.cycleId);
+    const diagnosticAlias = provisionalAliasFor(bindings, "diagnostic", cycle.diagnosticSessionId);
+    if (!cycleAlias || !diagnosticAlias) return false;
+
+    const cycleEvents = state.learningEvents.filter(
+      (event) => event?.context?.learningCycleId === cycleAlias,
+    );
+    const byType = (eventType) => cycleEvents.filter((event) => event.eventType === eventType);
+    const started = byType("learning_cycle.started");
+    const recommendations = byType("recommendation.decided");
+    const practices = byType("practice_attempt.finalized");
+    const checkIns = byType("check_in.committed");
+    const retests = byType("retest.completed");
+    const completions = byType("learning_cycle.completed");
+    if (
+      started.length !== 1 ||
+      recommendations.length !== (cycle.recommendationId ? 1 : 0) ||
+      checkIns.length !== (cycle.checkInId ? 1 : 0) ||
+      retests.length !== (cycle.retestId ? 1 : 0) ||
+      completions.length !== (cycle.status === "completed" ? 1 : 0) ||
+      (cycle.checkInId && practices.length === 0) ||
+      (!cycle.recommendationId && practices.length > 0)
+    ) return false;
+
+    const diagnostic = state.journey.diagnostic;
+    const recommendation = state.journey.recommendation;
+    const checkIn = workspaceDomainActiveCheckIn(state, cycle);
+    const retest = state.journey.retest;
+    const planUpdate = state.journey.planUpdate;
+    try {
+      const startedProjection = projectDomainEvent(bindings, "learning_cycle.started", {
+        cycle: { ...cycle, status: "in_progress" },
+        diagnostic: { ...diagnostic, status: "in_progress" },
+      }, { allowNewBindings: false });
+      if (!workspaceDomainEventProjectionMatches(started[0], {
+        eventType: "learning_cycle.started",
+        ...startedProjection,
+      })) return false;
+
+      if (recommendations.length) {
+        const projection = projectDomainEvent(bindings, "recommendation.decided", {
+          recommendation,
+        }, { allowNewBindings: false });
+        if (!workspaceDomainEventProjectionMatches(recommendations[0], {
+          eventType: "recommendation.decided",
+          ...projection,
+        })) return false;
+      }
+
+      const activeCycleReceipts = Object.values(state.practiceReceipts)
+        .filter((receipt) => receipt?.cycleId === cycle.cycleId);
+      if (activeCycleReceipts.length !== practices.length) return false;
+      const projectedReceiptIds = new Set();
+      for (const event of practices) {
+        const receiptId = workspaceDomainIdForAlias(
+          state,
+          "practiceReceipt",
+          event.context.practiceReceiptId,
+        );
+        const receipt = receiptId ? state.practiceReceipts[receiptId] : null;
+        if (!receipt || projectedReceiptIds.has(receiptId)) return false;
+        const projection = projectDomainEvent(bindings, "practice_attempt.finalized", {
+          receipt,
+          recommendation,
+        }, { allowNewBindings: false });
+        if (!workspaceDomainEventProjectionMatches(event, {
+          eventType: "practice_attempt.finalized",
+          ...projection,
+        })) return false;
+        projectedReceiptIds.add(receiptId);
+      }
+
+      if (checkIns.length) {
+        const storedReceipt = state.practiceReceipts[checkIn?.taskCompletionReceiptId];
+        if (
+          !isRecord(storedReceipt) ||
+          checkIn.practiceAttemptId !== storedReceipt.practiceAttemptId ||
+          checkIn.taskCompletionReceiptId !== storedReceipt.completionReceiptId ||
+          canonicalJson(checkIn.practiceReceipt) !== canonicalJson(storedReceipt)
+        ) return false;
+        const projection = projectDomainEvent(bindings, "check_in.committed", {
+          checkIn,
+          recommendation,
+        }, { allowNewBindings: false });
+        if (!projectedReceiptIds.has(checkIn?.taskCompletionReceiptId) ||
+          !workspaceDomainEventProjectionMatches(checkIns[0], {
+            eventType: "check_in.committed",
+            ...projection,
+          })) return false;
+      }
+
+      if (retests.length) {
+        if (retest?.baselinePracticeReceiptId !== checkIn?.taskCompletionReceiptId) return false;
+        const projection = projectDomainEvent(bindings, "retest.completed", {
+          retest,
+          recommendation,
+        }, { allowNewBindings: false });
+        if (!workspaceDomainEventProjectionMatches(retests[0], {
+          eventType: "retest.completed",
+          ...projection,
+        })) return false;
+      }
+
+      if (completions.length) {
+        const projection = projectDomainEvent(bindings, "learning_cycle.completed", {
+          cycle,
+          retest,
+          planUpdate,
+        }, { allowNewBindings: false });
+        if (!workspaceDomainEventProjectionMatches(completions[0], {
+          eventType: "learning_cycle.completed",
+          ...projection,
+        })) return false;
+      }
+    } catch {
+      return false;
+    }
+    return true;
+  };
+
+  const validateWorkspaceActiveEventProjection = (state) =>
+    workspaceActiveEventProjectionValid(state)
+      ? { ok: true, code: "workspace_active_event_projection_valid" }
+      : { ok: false, code: "active_event_projection_invalid" };
+
+  const PROVISIONAL_CYCLE_BINDING_KEYS = Object.freeze([
+    "cycleId",
+    "diagnosticSessionId",
+    "planId",
+    "recommendationId",
+    "bindingId",
+    "taskId",
+    "practiceAttemptId",
+    "practiceReceiptId",
+    "checkInId",
+    "retestId",
+    "updatedPlanId",
+  ]);
+
+  /**
+   * Admits the one current Gate A provisional cycle that can be shown to the
+   * teaching-review demo or minimized Sofia handoff. This deliberately builds
+   * on validateLedger so shape, privacy, governance, sequence, hash-chain and
+   * transition checks keep one production source of truth.
+   */
+  const validateProvisionalCycleLedger = async (state, binding) => {
+    const ledgerStatus = await validateLedger(state);
+    if (!ledgerStatus.ok) return ledgerStatus;
+    const domainCoverage = validateWorkspaceDomainLedgerCoverage(state);
+    if (!domainCoverage.ok) return domainCoverage;
+    const activeProjection = validateWorkspaceActiveEventProjection(state);
+    if (!activeProjection.ok) return activeProjection;
+    if (!exactKeys(binding, PROVISIONAL_CYCLE_BINDING_KEYS) ||
+      !PROVISIONAL_CYCLE_BINDING_KEYS.every((key) => safeDomainId(binding[key]))) {
+      return { ok: false, code: "provisional_binding_shape_invalid" };
+    }
+    const bindings = state.learningEventBindings;
+    if (!bindingShapeValid(bindings)) return { ok: false, code: "binding_shape_invalid" };
+    const events = Array.isArray(state.learningEvents) ? state.learningEvents : [];
+
+    const aliases = {
+      learningCycleId: provisionalAliasFor(bindings, "cycle", binding.cycleId),
+      diagnosticSessionId: provisionalAliasFor(bindings, "diagnostic", binding.diagnosticSessionId),
+      planId: provisionalAliasFor(bindings, "plan", binding.planId),
+      recommendationId: provisionalAliasFor(bindings, "recommendation", binding.recommendationId),
+      bindingId: provisionalAliasFor(bindings, "binding", binding.bindingId),
+      taskId: provisionalAliasFor(bindings, "task", binding.taskId),
+      attemptId: provisionalAliasFor(bindings, "practiceAttempt", binding.practiceAttemptId),
+      practiceReceiptId: provisionalAliasFor(bindings, "practiceReceipt", binding.practiceReceiptId),
+      checkInId: provisionalAliasFor(bindings, "checkIn", binding.checkInId),
+      retestId: provisionalAliasFor(bindings, "retest", binding.retestId),
+    };
+    if (Object.values(aliases).some((alias) => !alias)) {
+      return { ok: false, code: "provisional_domain_binding_missing" };
+    }
+    if (provisionalAliasFor(bindings, "updatedPlan", binding.updatedPlanId)) {
+      return { ok: false, code: "provisional_updated_plan_must_not_be_event_bound" };
+    }
+
+    const activeCycle = state.journey.activeCycle;
+    const activeRecommendation = state.journey.recommendation;
+    const activeCheckIn = workspaceDomainActiveCheckIn(state, activeCycle);
+    const activePracticeReceipt = state.practiceReceipts[activeCheckIn?.taskCompletionReceiptId];
+    const activeRetest = state.journey.retest;
+    const activePlanUpdate = state.journey.planUpdate;
+    if (
+      !isRecord(activeCycle) ||
+      activeCycle.status !== "provisional_pending_human_review" ||
+      activeCycle.closedAt !== null ||
+      !canonicalUtcValid(activeCycle.provisionalAt) ||
+      binding.cycleId !== activeCycle.cycleId ||
+      binding.diagnosticSessionId !== activeCycle.diagnosticSessionId ||
+      binding.planId !== activeCycle.basePlanId ||
+      binding.recommendationId !== activeCycle.recommendationId ||
+      binding.checkInId !== activeCycle.checkInId ||
+      binding.retestId !== activeCycle.retestId ||
+      binding.updatedPlanId !== activeCycle.updatedPlanId ||
+      !isRecord(activeRecommendation) ||
+      binding.bindingId !== activeRecommendation.evidenceBinding?.bindingId ||
+      !isRecord(activeCheckIn) ||
+      binding.taskId !== activeCheckIn.linkedTaskId ||
+      binding.practiceAttemptId !== activeCheckIn.practiceAttemptId ||
+      binding.practiceReceiptId !== activeCheckIn.taskCompletionReceiptId ||
+      !isRecord(activePracticeReceipt) ||
+      activePracticeReceipt.practiceAttemptId !== binding.practiceAttemptId ||
+      activePracticeReceipt.completionReceiptId !== binding.practiceReceiptId ||
+      !isRecord(activeRetest) ||
+      activeRetest.retestId !== binding.retestId ||
+      activeRetest.baselinePracticeReceiptId !== binding.practiceReceiptId ||
+      !isRecord(activePlanUpdate) ||
+      activePlanUpdate.updatedPlanId !== binding.updatedPlanId ||
+      activePlanUpdate.humanConfirmationStatus !== "required_not_completed"
+    ) {
+      return { ok: false, code: "provisional_event_binding_mismatch" };
+    }
+
+    const currentCycleEvents = events.filter(
+      (event) => event.context?.learningCycleId === aliases.learningCycleId,
+    );
+    const practiceEvents = currentCycleEvents.filter(
+      (event) => event.eventType === "practice_attempt.finalized",
+    );
+    const expectedTypes = [
+      "learning_cycle.started",
+      "recommendation.decided",
+      ...practiceEvents.map(() => "practice_attempt.finalized"),
+      "check_in.committed",
+      "retest.completed",
+    ];
+    if (
+      practiceEvents.length < 1 ||
+      currentCycleEvents.length !== expectedTypes.length ||
+      currentCycleEvents.some((event, index) => event.eventType !== expectedTypes[index])
+    ) {
+      return { ok: false, code: "provisional_event_fragment_invalid" };
+    }
+    const fragmentStart = events.length - currentCycleEvents.length;
+    if (
+      fragmentStart < 0 ||
+      currentCycleEvents.some((event, index) => events[fragmentStart + index] !== event) ||
+      events.at(-1) !== currentCycleEvents.at(-1)
+    ) {
+      return { ok: false, code: "provisional_event_fragment_not_ledger_tail" };
+    }
+    if (currentCycleEvents.some((event) =>
+      event.eventType === "learning_cycle.completed" ||
+      hasOwn(event.context, "humanReviewReceiptId")
+    )) {
+      return { ok: false, code: "provisional_human_completion_forbidden" };
+    }
+
+    const finalPractice = practiceEvents.at(-1);
+    const retest = currentCycleEvents.at(-1);
+    if (!exactContextWithoutCause(finalPractice, {
+      learningCycleId: aliases.learningCycleId,
+      diagnosticSessionId: aliases.diagnosticSessionId,
+      planId: aliases.planId,
+      recommendationId: aliases.recommendationId,
+      bindingId: aliases.bindingId,
+      taskId: aliases.taskId,
+      attemptId: aliases.attemptId,
+      practiceReceiptId: aliases.practiceReceiptId,
+    })) {
+      return { ok: false, code: "provisional_event_binding_mismatch" };
+    }
+    if (retest.attributes?.humanConfirmationStatus !== "required_not_completed") {
+      return { ok: false, code: "provisional_human_confirmation_invalid" };
+    }
+
+    return {
+      ok: true,
+      code: "provisional_cycle_ledger_valid",
+      eventCount: ledgerStatus.eventCount,
+      headHash: ledgerStatus.headHash,
+      currentCycleEventCount: currentCycleEvents.length,
+      practiceEventCount: practiceEvents.length,
+    };
+  };
+
   const addContext = (bindings, context, aliasKey, kind, domainId, options) => {
     if (domainId === null || domainId === undefined) return;
     context[aliasKey] = bindDomainId(bindings, kind, domainId, options);
@@ -1098,6 +1691,10 @@
     EVENT_TYPES,
     ledgerShapeValid,
     validateLedger,
+    supersededSummaryMatchesTerminalHistory,
+    validateWorkspaceDomainLedgerCoverage,
+    validateWorkspaceActiveEventProjection,
+    validateProvisionalCycleLedger,
     appendDomainEvent,
     summarize,
     createLocalBackup,

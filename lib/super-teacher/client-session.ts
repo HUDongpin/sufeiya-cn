@@ -11,6 +11,10 @@ import {
   sha256Hex,
   type ProvisionalHandoffPacket,
 } from "@/lib/super-teacher/provisional-handoff";
+import {
+  browserProvisionalCycleLedgerValidator,
+  type ProvisionalCycleLedgerValidator,
+} from "@/lib/teaching-review-demo";
 
 export const SUPER_TEACHER_CHAT_KEY = "sufeiya_super_teacher_v1";
 export const MAX_STORED_TURNS = 12;
@@ -224,17 +228,22 @@ export async function commitProvisionalHandoffPacket({
   expectedSession,
   cryptoProvider = globalThis.crypto,
   now = () => new Date().toISOString(),
+  ledgerValidator,
 }: {
   storage: TransactionStorageAdapter;
   expectedSession: LocalSession;
   cryptoProvider?: Pick<Crypto, "subtle">;
   now?: () => string;
+  ledgerValidator?: ProvisionalCycleLedgerValidator | null;
 }): Promise<ProvisionalHandoffCommitResult> {
   let previousSofiaRaw: string | null | undefined;
   let candidateWriteAttempted = false;
   try {
+    const admissionValidator = ledgerValidator === undefined
+      ? browserProvisionalCycleLedgerValidator()
+      : ledgerValidator;
     const workspaceBefore = storage.getItem("sufeiya_workspace_v1");
-    const projection = deriveProvisionalHandoffEvidence(workspaceBefore);
+    const projection = await deriveProvisionalHandoffEvidence(workspaceBefore, admissionValidator);
     if (projection.status !== "ready" || !workspaceBefore) {
       return {
         status: "workspace_not_ready",
@@ -253,9 +262,16 @@ export async function commitProvisionalHandoffPacket({
       sourceSnapshotSha256,
     );
     const workspaceBeforeReturn = storage.getItem("sufeiya_workspace_v1");
+    const projectionBeforeReturn = await deriveProvisionalHandoffEvidence(
+      workspaceBeforeReturn,
+      admissionValidator,
+    );
+    const workspaceAfterPreWriteValidation = storage.getItem("sufeiya_workspace_v1");
     if (workspaceBeforeReturn !== workspaceBefore ||
+      workspaceAfterPreWriteValidation !== workspaceBefore ||
       !workspaceBeforeReturn ||
-      await sha256Hex(workspaceBeforeReturn, cryptoProvider) !== sourceSnapshotSha256) {
+      await sha256Hex(workspaceBeforeReturn, cryptoProvider) !== sourceSnapshotSha256 ||
+      projectionBeforeReturn.status !== "ready") {
       return { status: "workspace_changed_during_write" };
     }
     if (existing) return { status: "existing", packet: existing, session: expectedSession };
@@ -281,10 +297,13 @@ export async function commitProvisionalHandoffPacket({
     }
 
     const workspaceAfter = storage.getItem("sufeiya_workspace_v1");
+    const projectionAfter = await deriveProvisionalHandoffEvidence(workspaceAfter, admissionValidator);
+    const workspaceAfterPostWriteValidation = storage.getItem("sufeiya_workspace_v1");
     const sourceStillCurrent = workspaceAfter === workspaceBefore &&
+      workspaceAfterPostWriteValidation === workspaceBefore &&
       Boolean(workspaceAfter) &&
       await sha256Hex(workspaceAfter as string, cryptoProvider) === sourceSnapshotSha256 &&
-      deriveProvisionalHandoffEvidence(workspaceAfter).status === "ready";
+      projectionAfter.status === "ready";
     if (!sourceStillCurrent) {
       if (!restoreRaw(storage, previousSofiaRaw)) return { status: "super_teacher_rollback_failed" };
       return { status: "workspace_changed_during_write" };
@@ -296,9 +315,13 @@ export async function commitProvisionalHandoffPacket({
       return { status: "super_teacher_write_verification_failed" };
     }
     const workspaceFinal = storage.getItem("sufeiya_workspace_v1");
+    const projectionFinal = await deriveProvisionalHandoffEvidence(workspaceFinal, admissionValidator);
+    const workspaceAfterFinalValidation = storage.getItem("sufeiya_workspace_v1");
     if (workspaceFinal !== workspaceBefore ||
+      workspaceAfterFinalValidation !== workspaceBefore ||
       !workspaceFinal ||
-      await sha256Hex(workspaceFinal, cryptoProvider) !== sourceSnapshotSha256) {
+      await sha256Hex(workspaceFinal, cryptoProvider) !== sourceSnapshotSha256 ||
+      projectionFinal.status !== "ready") {
       if (!restoreRaw(storage, previousSofiaRaw)) return { status: "super_teacher_rollback_failed" };
       return { status: "workspace_changed_during_write" };
     }

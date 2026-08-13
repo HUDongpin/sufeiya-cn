@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   CANONICAL_LEARNER_STORAGE_KEY,
   deriveTeachingReviewEvidence,
+  type ProvisionalCycleLedgerValidator,
 } from "@/lib/teaching-review-demo";
 
 export const PROVISIONAL_HANDOFF_PROTOCOL = "sufeiya_provisional_handoff_packet_v1" as const;
@@ -129,8 +130,11 @@ function currentAuthorizedHistoryRecord(raw: string) {
   }
 }
 
-export function deriveProvisionalHandoffEvidence(raw: string | null): ProvisionalHandoffEvidenceResult {
-  const authorized = deriveTeachingReviewEvidence(raw);
+export async function deriveProvisionalHandoffEvidence(
+  raw: string | null,
+  ledgerValidator?: ProvisionalCycleLedgerValidator | null,
+): Promise<ProvisionalHandoffEvidenceResult> {
+  const authorized = await deriveTeachingReviewEvidence(raw, ledgerValidator);
   if (authorized.status === "empty") return { status: "empty" };
   if (authorized.status === "no_active_cycle") return { status: "no_active_cycle" };
   if (authorized.status === "no_provisional_cycle") return { status: "no_provisional_cycle" };

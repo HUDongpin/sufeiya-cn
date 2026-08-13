@@ -105,6 +105,36 @@ type JsonRecord = Record<string, unknown>;
 export type TeachingReviewSkill = (typeof VALID_SKILLS)[number];
 export type TeachingReviewEscalationCategory = (typeof ESCALATION_CATEGORIES)[number];
 
+export type ProvisionalCycleLedgerBinding = {
+  cycleId: string;
+  diagnosticSessionId: string;
+  planId: string;
+  recommendationId: string;
+  bindingId: string;
+  taskId: string;
+  practiceAttemptId: string;
+  practiceReceiptId: string;
+  checkInId: string;
+  retestId: string;
+  updatedPlanId: string;
+};
+
+export type ProvisionalCycleLedgerValidation =
+  | { ok: false; code: string }
+  | {
+    ok: true;
+    code: "provisional_cycle_ledger_valid";
+    eventCount: number;
+    headHash: string;
+    currentCycleEventCount: number;
+    practiceEventCount: number;
+  };
+
+export type ProvisionalCycleLedgerValidator = (
+  state: unknown,
+  binding: ProvisionalCycleLedgerBinding,
+) => Promise<unknown>;
+
 export type DiagnosticTaskSummary = {
   taskId: string;
   skill: TeachingReviewSkill | "Unknown";
@@ -120,7 +150,12 @@ export type TeachingReviewEvidenceSnapshot = {
   sourceStorageKey: typeof CANONICAL_LEARNER_STORAGE_KEY;
   sourceReadMode: "read_only";
   sourceUpdatedAt: string | null;
-  integrityClass: "shape_checked_local_evidence_not_cryptographically_verified";
+  integrityClass: "sha256_hash_chain_and_domain_bindings_checked_local_not_server_signed";
+  eventLedger: {
+    status: "validated_current_provisional_fragment";
+    currentCycleEventCount: number;
+    practiceEventCount: number;
+  };
   identityVerified: false;
   qualifiedHumanConfirmation: false;
   canonicalLedgerWriteAllowed: false;
@@ -236,6 +271,21 @@ export type TeachingReviewDraftInspection =
 
 function isRecord(value: unknown): value is JsonRecord {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function jsonTreeHasOwnKey(value: unknown, forbiddenKey: string) {
+  const pending: unknown[] = [value];
+  while (pending.length) {
+    const candidate = pending.pop();
+    if (Array.isArray(candidate)) {
+      pending.push(...candidate);
+      continue;
+    }
+    if (!isRecord(candidate)) continue;
+    if (Object.hasOwn(candidate, forbiddenKey)) return true;
+    pending.push(...Object.values(candidate));
+  }
+  return false;
 }
 
 function safeString(value: unknown, maxLength = MAX_SUMMARY_LENGTH): string | null {
@@ -530,7 +580,50 @@ function retestSummary(value: unknown): TeachingReviewEvidenceSnapshot["retest"]
   };
 }
 
-export function deriveTeachingReviewEvidence(raw: string | null): TeachingReviewEvidenceResult {
+export function browserProvisionalCycleLedgerValidator(): ProvisionalCycleLedgerValidator | null {
+  const runtime = (globalThis as unknown as {
+    SufeiyaLearningEvents?: {
+      CONTRACT_ID?: unknown;
+      SCHEMA_VERSION?: unknown;
+      LEDGER_PROTOCOL_VERSION?: unknown;
+      BINDING_PROTOCOL_VERSION?: unknown;
+      validateProvisionalCycleLedger?: unknown;
+    };
+  }).SufeiyaLearningEvents;
+  if (
+    runtime?.CONTRACT_ID !== "sufeiya.learning-event.v2" ||
+    runtime.SCHEMA_VERSION !== 2 ||
+    runtime.LEDGER_PROTOCOL_VERSION !== "sufeiya_learning_event_ledger_v2" ||
+    runtime.BINDING_PROTOCOL_VERSION !== "sufeiya_learning_event_bindings_v2" ||
+    typeof runtime.validateProvisionalCycleLedger !== "function"
+  ) return null;
+  return runtime.validateProvisionalCycleLedger as ProvisionalCycleLedgerValidator;
+}
+
+function ledgerValidationResultValid(
+  value: unknown,
+): value is Extract<ProvisionalCycleLedgerValidation, { ok: true }> {
+  return isRecord(value) &&
+    value.ok === true &&
+    value.code === "provisional_cycle_ledger_valid" &&
+    typeof value.eventCount === "number" &&
+    Number.isSafeInteger(value.eventCount) &&
+    value.eventCount >= 5 &&
+    typeof value.currentCycleEventCount === "number" &&
+    Number.isSafeInteger(value.currentCycleEventCount) &&
+    value.currentCycleEventCount >= 5 &&
+    typeof value.practiceEventCount === "number" &&
+    Number.isSafeInteger(value.practiceEventCount) &&
+    value.practiceEventCount >= 1 &&
+    value.currentCycleEventCount === value.practiceEventCount + 4 &&
+    typeof value.headHash === "string" &&
+    /^[0-9a-f]{64}$/.test(value.headHash);
+}
+
+export async function deriveTeachingReviewEvidence(
+  raw: string | null,
+  ledgerValidator: ProvisionalCycleLedgerValidator | null = browserProvisionalCycleLedgerValidator(),
+): Promise<TeachingReviewEvidenceResult> {
   if (!raw) return { status: "empty" };
   if (raw.length > MAX_CANONICAL_BYTES) return { status: "invalid", reason: "canonical_payload_too_large" };
 
@@ -543,6 +636,9 @@ export function deriveTeachingReviewEvidence(raw: string | null): TeachingReview
 
   if (!isRecord(root) || root.schemaVersion !== WORKSPACE_SCHEMA_VERSION) {
     return { status: "invalid", reason: "canonical_schema_unrecognized" };
+  }
+  if (jsonTreeHasOwnKey(root, "humanReviewReceiptId")) {
+    return { status: "invalid", reason: "human_review_receipt_forbidden" };
   }
   const sourceUpdatedAt = safeIsoDate(root.updatedAt);
   const journey = isRecord(root.journey) ? root.journey : null;
@@ -888,12 +984,50 @@ export function deriveTeachingReviewEvidence(raw: string | null): TeachingReview
     return { status: "invalid", reason: "evidence_projection_incomplete" };
   }
 
+  if (!ledgerValidator) {
+    return { status: "invalid", reason: "learning_event_runtime_unavailable" };
+  }
+  let ledgerValidation: unknown;
+  try {
+    ledgerValidation = await ledgerValidator(root, {
+      cycleId,
+      diagnosticSessionId,
+      planId: basePlanId,
+      recommendationId,
+      bindingId: String(binding.bindingId),
+      taskId: linkedTaskId,
+      practiceAttemptId: String(receipt.practiceAttemptId),
+      practiceReceiptId: receiptId,
+      checkInId,
+      retestId,
+      updatedPlanId,
+    });
+  } catch {
+    return { status: "invalid", reason: "learning_event_ledger_validation_failed" };
+  }
+  if (!ledgerValidationResultValid(ledgerValidation)) {
+    const rejectedCode = isRecord(ledgerValidation) && ledgerValidation.ok === false
+      ? safeString(ledgerValidation.code, 120)
+      : null;
+    return {
+      status: "invalid",
+      reason: rejectedCode || (isRecord(ledgerValidation) && ledgerValidation.ok === false
+        ? "learning_event_ledger_rejected"
+        : "learning_event_ledger_validator_result_invalid"),
+    };
+  }
+
   return {
     status: "ready",
     sourceStorageKey: CANONICAL_LEARNER_STORAGE_KEY,
     sourceReadMode: "read_only",
     sourceUpdatedAt,
-    integrityClass: "shape_checked_local_evidence_not_cryptographically_verified",
+    integrityClass: "sha256_hash_chain_and_domain_bindings_checked_local_not_server_signed",
+    eventLedger: {
+      status: "validated_current_provisional_fragment",
+      currentCycleEventCount: ledgerValidation.currentCycleEventCount,
+      practiceEventCount: ledgerValidation.practiceEventCount,
+    },
     identityVerified: false,
     qualifiedHumanConfirmation: false,
     canonicalLedgerWriteAllowed: false,

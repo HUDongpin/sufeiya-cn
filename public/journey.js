@@ -1947,15 +1947,6 @@
     "nickname",
   ].sort());
   const WORKSPACE_BACKUP_FOCUS_KEYS = Object.freeze(["active", "sessions"].sort());
-  const WORKSPACE_BACKUP_PLAN_KEYS = Object.freeze([
-    "createdAt", "dailyMinutes", "days", "diagnosticSessionId", "endDate", "examDate", "focusSkill",
-    "nickname", "planId", "provenance", "startDate", "status", "supersededAt", "supersededByRetestId",
-    "supersededReason",
-  ]);
-  const WORKSPACE_BACKUP_PLAN_PROVENANCE_KEYS = Object.freeze([
-    "cycleId", "diagnosticSessionId", "priorityBasis", "retestId", "source", "supersedesPlanId",
-    "taskSetDigest", "taskSetVersion",
-  ]);
   const WORKSPACE_BACKUP_PLAN_TASK_KEYS = Object.freeze([
     "contentRef", "date", "durationMinutes", "instructionZh", "route", "skill", "taskId", "titleZh",
   ]);
@@ -2019,21 +2010,6 @@
     "audioStartedNearBeginning", "firstResponse", "freshAttemptFromLegacyReceiptId", "latestPracticeReceiptId",
     "playCount", "selectedAnswer", "startedAt", "status", "transcriptUsed", "updatedAt",
   ].sort());
-  const WORKSPACE_BACKUP_EVENT_CONTEXT_KIND = Object.freeze({
-    learningCycleId: "cycle",
-    diagnosticSessionId: "diagnostic",
-    planId: "plan",
-    recommendationId: "recommendation",
-    bindingId: "binding",
-    taskId: "task",
-    attemptId: "practiceAttempt",
-    practiceReceiptId: "practiceReceipt",
-    baselinePracticeReceiptId: "practiceReceipt",
-    checkInId: "checkIn",
-    retestId: "retest",
-    humanReviewReceiptId: "humanReviewReceipt",
-    updatedPlanId: "updatedPlan",
-  });
   const WORKSPACE_BACKUP_DIAGNOSTIC_BASE_KEYS = Object.freeze([
     "activeTaskId", "adultConfirmed", "automatedScoreProduced", "consent", "createdAt", "cycleId",
     "demoGoal", "devicePrecheck", "diagnosticProtocolVersion", "diagnosticSessionId", "formalDiagnosisProduced",
@@ -2045,14 +2021,6 @@
     "completedAt", "completedEvidenceSkills", "completedEvidenceTaskCount", "evidenceConfidence",
     "evidenceSufficiency", "learnerConfirmedPriority", "patternFlags", "priorityBasis", "prioritySkill", "report",
     "suggestedPrioritySkills",
-  ].sort());
-  const WORKSPACE_BACKUP_DIAGNOSTIC_EVIDENCE_KEYS = Object.freeze([
-    "attempts", "audioCompleted", "audioPlaybackCompletedAt", "audioPlaybackFailed", "audioPlaybackStartedAt",
-    "audioPlayed", "audioRecorded", "audioSeekDetected", "audioStartedNearBeginning", "automatedScoreProduced",
-    "completedAt", "constructTag", "contentHash", "durationSeconds", "evidenceStatus", "firstResponse", "pasteDetected",
-    "playCount", "qualityFlags", "responseText", "responseType", "resultType", "selectedDraft", "selfChecks",
-    "selfReviewCount", "skill", "speechSynthesisEnded", "speechSynthesisStarted", "speechVoice", "startedAt", "status",
-    "taskId", "taskVersion", "timer", "timerCompleted", "transcriptUsed", "updatedAt", "wordCount",
   ].sort());
   const WORKSPACE_BACKUP_DIAGNOSTIC_REPORT_KEYS = Object.freeze([
     "completedEvidenceSkills", "completedEvidenceTaskCount", "confidence", "evidenceSufficiency", "patterns",
@@ -2101,10 +2069,6 @@
     "cycleId", "diagnosticProtocolVersion", "diagnosticSessionId", "diagnosticStatus", "evidenceSufficiency",
     "priorityBasis", "prioritySkill", "protocolVersion", "reason", "status", "supersededAt", "taskEvidenceSummary",
     "taskSetDigest", "taskSetVersion",
-  ].sort());
-  const WORKSPACE_BACKUP_SUPERSEDED_EVIDENCE_KEYS = Object.freeze([
-    "contentHash", "durationSeconds", "evidenceStatus", "qualityFlags", "resultType", "selfReviewCount", "skill",
-    "status", "taskId", "taskVersion", "wordCount",
   ].sort());
   const WORKSPACE_BACKUP_STAGE_IDS = Object.freeze([
     "basePlanId",
@@ -3862,331 +3826,22 @@
     return { ok: true, chain };
   };
 
-  const workspaceBackupFullCycleObject = (candidateState, cycleOwner, objectKey) => {
-    if (!cycleOwner || cycleOwner.kind === "superseded") return null;
-    return cycleOwner.kind === "active"
-      ? candidateState.journey[objectKey]
-      : cycleOwner.history?.[objectKey] || null;
-  };
-  const workspaceBackupSupersededMatchesTerminalHistory = (summary, history) => {
-    const diagnostic = history?.diagnostic;
-    const terminalAt = history?.status === "completed" ? history.closedAt : history?.provisionalAt;
-    if (
-      !isRecord(diagnostic) ||
-      !exactUtcTimestamp(terminalAt) ||
-      Date.parse(summary.supersededAt) < Date.parse(terminalAt)
-    ) return false;
-    const expected = {
-      cycleId: history.cycleId,
-      diagnosticSessionId: history.diagnosticSessionId,
-      protocolVersion: history.protocolVersion,
-      diagnosticProtocolVersion: diagnostic.diagnosticProtocolVersion,
-      taskSetVersion: diagnostic.taskSetVersion,
-      taskSetDigest: diagnostic.taskSetDigest,
-      diagnosticStatus: diagnostic.status,
-      taskEvidenceSummary: diagnostic.taskEvidence.map(workspaceBackupDiagnosticEvidenceSummary),
-      ...(diagnostic.prioritySkill ? { prioritySkill: diagnostic.prioritySkill } : {}),
-      ...(diagnostic.priorityBasis ? { priorityBasis: diagnostic.priorityBasis } : {}),
-      ...(diagnostic.evidenceSufficiency ? { evidenceSufficiency: diagnostic.evidenceSufficiency } : {}),
-    };
-    const metadataKeys = [
-      "cycleId", "diagnosticSessionId", "protocolVersion", "diagnosticProtocolVersion", "taskSetVersion",
-      "taskSetDigest", "diagnosticStatus", "taskEvidenceSummary", "prioritySkill", "priorityBasis",
-      "evidenceSufficiency",
-    ];
-    const actual = Object.fromEntries(
-      metadataKeys.filter((key) => Object.hasOwn(summary, key)).map((key) => [key, summary[key]]),
-    );
-    return workspaceBackupRuntime.canonicalJson(actual) === workspaceBackupRuntime.canonicalJson(expected);
-  };
-  const validateWorkspaceBackupLedgerCoverage = (candidateState) => {
-    const events = candidateState.learningEvents;
-    if (!events.length) return candidateState.learningEventBindings === null;
-    const bindings = candidateState.learningEventBindings;
-    const records = bindings?.records;
-    if (!isRecord(records)) return false;
-
-    const domainCycleIds = new Set([
-      candidateState.journey.activeCycle?.cycleId,
-      ...candidateState.journey.history.map((record) => record?.cycleId),
-      ...candidateState.journey.supersededCycles.map((record) => record?.cycleId),
-    ].filter(Boolean));
-    if (
-      Object.keys(records.cycle || {}).length !== domainCycleIds.size ||
-      [...domainCycleIds].some((cycleId) => !UUID_V4_PATTERN.test(records.cycle?.[cycleId] || ""))
-    ) return false;
-
-    const usedAliases = new Set();
-    const resolvedEvents = [];
-    for (const event of events) {
-      const resolved = {};
-      for (const [contextKey, alias] of Object.entries(event.context || {})) {
-        if (contextKey === "causationEventId") continue;
-        const kind = WORKSPACE_BACKUP_EVENT_CONTEXT_KIND[contextKey];
-        const domainId = kind ? workspaceBackupEventDomainId(candidateState, kind, alias) : null;
-        if (!kind || !domainId) return false;
-        usedAliases.add(alias);
-        resolved[contextKey] = domainId;
-      }
-      const cycleId = resolved.learningCycleId;
-      const cycleOwner = workspaceBackupCycleDomainOwner(candidateState, cycleId);
-      if (!cycleOwner || cycleOwner.cycle.diagnosticSessionId !== resolved.diagnosticSessionId) return false;
-
-      if (resolved.planId) {
-        const plan = planById(resolved.planId, candidateState);
-        if (
-          !plan ||
-          plan.provenance?.cycleId !== cycleId ||
-          plan.provenance?.diagnosticSessionId !== resolved.diagnosticSessionId ||
-          (cycleOwner.kind !== "superseded" && cycleOwner.cycle.basePlanId !== resolved.planId)
-        ) return false;
-      }
-      if (resolved.recommendationId) {
-        const recommendation = workspaceBackupFullCycleObject(candidateState, cycleOwner, "recommendation");
-        if (cycleOwner.kind === "superseded") {
-          if (event.eventType === "learning_cycle.completed") return false;
-        } else if (
-          recommendation?.recommendationId !== resolved.recommendationId ||
-          recommendation.cycleId !== cycleId ||
-          recommendation.diagnosticSessionId !== resolved.diagnosticSessionId
-        ) return false;
-      }
-      if (resolved.bindingId) {
-        const recommendation = workspaceBackupFullCycleObject(candidateState, cycleOwner, "recommendation");
-        if (cycleOwner.kind !== "superseded" && recommendation?.evidenceBinding?.bindingId !== resolved.bindingId) return false;
-      }
-      if (resolved.taskId) {
-        const owner = workspaceBackupTaskOwner(candidateState, resolved.taskId);
-        if (owner?.kind !== "plan" || owner.plan.planId !== resolved.planId) return false;
-      }
-      if (resolved.practiceReceiptId) {
-        const receipt = candidateState.practiceReceipts[resolved.practiceReceiptId];
-        if (!receipt || receipt.cycleId !== cycleId || receipt.diagnosticSessionId !== resolved.diagnosticSessionId) return false;
-        if (resolved.planId && receipt.planId !== resolved.planId) return false;
-        if (resolved.taskId && receipt.taskId !== resolved.taskId) return false;
-      }
-      if (resolved.baselinePracticeReceiptId) {
-        const receipt = candidateState.practiceReceipts[resolved.baselinePracticeReceiptId];
-        if (!receipt || receipt.cycleId !== cycleId || receipt.diagnosticSessionId !== resolved.diagnosticSessionId) return false;
-      }
-      if (resolved.attemptId) {
-        const matches = Object.values(candidateState.practiceReceipts).filter((receipt) =>
-          receipt?.practiceAttemptId === resolved.attemptId && receipt?.cycleId === cycleId
-        );
-        if (matches.length !== 1 || matches[0].completionReceiptId !== resolved.practiceReceiptId) return false;
-      }
-      if (resolved.checkInId) {
-        const checkIn = workspaceBackupExactCheckInById(candidateState, resolved.checkInId);
-        if (!checkIn || checkIn.cycleId !== cycleId || checkIn.diagnosticSessionId !== resolved.diagnosticSessionId) return false;
-      }
-      if (resolved.retestId) {
-        const retest = workspaceBackupFullCycleObject(candidateState, cycleOwner, "retest");
-        if (cycleOwner.kind !== "superseded" && (
-          retest?.retestId !== resolved.retestId || retest.cycleId !== cycleId
-        )) return false;
-      }
-      if (resolved.humanReviewReceiptId) return false;
-      if (resolved.updatedPlanId) {
-        const planUpdate = workspaceBackupFullCycleObject(candidateState, cycleOwner, "planUpdate");
-        const updatedPlan = planById(resolved.updatedPlanId, candidateState);
-        if (
-          cycleOwner.kind === "superseded" ||
-          planUpdate?.updatedPlanId !== resolved.updatedPlanId ||
-          planUpdate.cycleId !== cycleId ||
-          !updatedPlan ||
-          updatedPlan.provenance?.cycleId !== cycleId
-        ) return false;
-      }
-      resolvedEvents.push({ event, resolved, cycleOwner });
-    }
-
-    for (const [kind, domainRecords] of Object.entries(records)) {
-      if (!isRecord(domainRecords)) return false;
-      if (kind === "humanReviewReceipt" && Object.keys(domainRecords).length !== 0) return false;
-      for (const alias of Object.values(domainRecords)) {
-        if (!usedAliases.has(alias)) return false;
-      }
-    }
-
-    for (const summary of candidateState.journey.supersededCycles) {
-      const matchingHistory = candidateState.journey.history.filter((record) => record?.cycleId === summary.cycleId);
-      if (matchingHistory.length) {
-        if (
-          matchingHistory.length !== 1 ||
-          !workspaceBackupSupersededMatchesTerminalHistory(summary, matchingHistory[0])
-        ) return false;
-        continue;
-      }
-      const cycleAlias = records.cycle?.[summary.cycleId];
-      const cycleEvents = resolvedEvents.filter(({ event }) => event.context.learningCycleId === cycleAlias);
-      const startedEvents = cycleEvents.filter(({ event }) => event.eventType === "learning_cycle.started");
-      if (
-        !cycleEvents.length ||
-        startedEvents.length !== 1 ||
-        cycleEvents[0] !== startedEvents[0] ||
-        cycleEvents.some(({ event, resolved }) => event.eventType === "learning_cycle.completed" || resolved.updatedPlanId) ||
-        cycleEvents.some(({ event }) => Date.parse(event.occurredAt) > Date.parse(summary.supersededAt)) ||
-        startedEvents[0].resolved.diagnosticSessionId !== summary.diagnosticSessionId ||
-        startedEvents[0].event.attributes.taskSetVersion !== summary.taskSetVersion ||
-        startedEvents[0].event.attributes.taskSetDigest !== summary.taskSetDigest
-      ) return false;
-    }
-    return true;
-  };
+  const workspaceBackupSupersededMatchesTerminalHistory =
+    learningEventsRuntime?.supersededSummaryMatchesTerminalHistory;
+  const validateWorkspaceBackupLedgerCoverage = (candidateState) => Boolean(
+    typeof workspaceBackupSupersededMatchesTerminalHistory === "function" &&
+    learningEventsRuntime?.validateWorkspaceDomainLedgerCoverage?.(candidateState)?.ok,
+  );
 
   const workspaceBackupBoundAlias = (candidateState, kind, domainId) => {
     if (!historyIdValid(domainId)) return null;
     return boundHistoryAlias(candidateState.learningEventBindings, kind, domainId);
   };
 
-  const workspaceBackupDomainIdForAlias = (candidateState, kind, alias) => {
-    return workspaceBackupEventDomainId(candidateState, kind, alias);
-  };
-
-  const validateWorkspaceBackupActiveEventPrefix = (candidateState, activeValidation) => {
-    const cycle = activeValidation.chain.cycle;
-    if (!cycle) return true;
-    const cycleAlias = workspaceBackupBoundAlias(candidateState, "cycle", cycle.cycleId);
-    const diagnosticAlias = workspaceBackupBoundAlias(candidateState, "diagnostic", cycle.diagnosticSessionId);
-    if (!cycleAlias || !diagnosticAlias) return false;
-    const cycleEvents = candidateState.learningEvents.filter((event) => event?.context?.learningCycleId === cycleAlias);
-    const byType = (type) => cycleEvents.filter((event) => event.eventType === type);
-    const started = byType("learning_cycle.started");
-    const recommendations = byType("recommendation.decided");
-    const practices = byType("practice_attempt.finalized");
-    const checkIns = byType("check_in.committed");
-    const retests = byType("retest.completed");
-    const completions = byType("learning_cycle.completed");
-    if (
-      started.length !== 1 ||
-      recommendations.length !== (cycle.recommendationId ? 1 : 0) ||
-      checkIns.length !== (cycle.checkInId ? 1 : 0) ||
-      retests.length !== (cycle.retestId ? 1 : 0) ||
-      completions.length !== (cycle.status === "completed" ? 1 : 0) ||
-      (cycle.checkInId && practices.length === 0) ||
-      (!cycle.recommendationId && practices.length > 0)
-    ) return false;
-    if (
-      started[0].context.diagnosticSessionId !== diagnosticAlias ||
-      started[0].occurredAt !== cycle.createdAt ||
-      started[0].attributes.outcome !== "started" ||
-      started[0].attributes.taskSetVersion !== activeValidation.chain.diagnostic?.taskSetVersion ||
-      started[0].attributes.taskSetDigest !== activeValidation.chain.diagnostic?.taskSetDigest
-    ) return false;
-
-    const recommendation = activeValidation.chain.recommendation;
-    const basePlan = activeValidation.chain.basePlan;
-    const bindingAlias = recommendation
-      ? workspaceBackupBoundAlias(candidateState, "binding", recommendation.evidenceBinding?.bindingId)
-      : null;
-    const planAlias = basePlan ? workspaceBackupBoundAlias(candidateState, "plan", basePlan.planId) : null;
-    const recommendationAlias = recommendation
-      ? workspaceBackupBoundAlias(candidateState, "recommendation", recommendation.recommendationId)
-      : null;
-    if (recommendations.length && (
-      !planAlias ||
-      !recommendationAlias ||
-      !bindingAlias ||
-      recommendations[0].context.diagnosticSessionId !== diagnosticAlias ||
-      recommendations[0].context.planId !== planAlias ||
-      recommendations[0].context.recommendationId !== recommendationAlias ||
-      recommendations[0].context.bindingId !== bindingAlias ||
-      recommendations[0].occurredAt !== recommendation.createdAt ||
-      recommendations[0].attributes.decision !== recommendation.status ||
-      recommendations[0].attributes.bindingReviewStatus !== "gate_a_unreviewed"
-    )) return false;
-
-    const activeCycleReceipts = Object.values(candidateState.practiceReceipts).filter((receipt) => receipt?.cycleId === cycle.cycleId);
-    if (activeCycleReceipts.length !== practices.length) return false;
-    const practiceReceiptIds = new Set();
-    for (const event of practices) {
-      const receiptId = workspaceBackupDomainIdForAlias(candidateState, "practiceReceipt", event.context.practiceReceiptId);
-      const attemptId = workspaceBackupDomainIdForAlias(candidateState, "practiceAttempt", event.context.attemptId);
-      const taskId = workspaceBackupDomainIdForAlias(candidateState, "task", event.context.taskId);
-      const receipt = receiptId ? candidateState.practiceReceipts[receiptId] : null;
-      if (
-        !receipt ||
-        receipt.cycleId !== cycle.cycleId ||
-        receipt.diagnosticSessionId !== cycle.diagnosticSessionId ||
-        receipt.planId !== cycle.basePlanId ||
-        receipt.recommendationId !== cycle.recommendationId ||
-        receipt.practiceAttemptId !== attemptId ||
-        receipt.taskId !== taskId ||
-        practiceReceiptIds.has(receipt.completionReceiptId) ||
-        event.context.diagnosticSessionId !== diagnosticAlias ||
-        event.context.planId !== planAlias ||
-        event.context.recommendationId !== recommendationAlias ||
-        event.context.bindingId !== bindingAlias ||
-        event.attributes.skill !== receipt.skill ||
-        event.occurredAt !== receipt.completedAt ||
-        event.attributes.evidenceStatus !== receipt.evidenceStatus ||
-        event.attributes.automatedScoreProduced !== false ||
-        event.attributes.formalDiagnosisProduced !== false ||
-        event.attributes.officialEquivalenceClaimed !== false ||
-        (["Reading", "Listening"].includes(receipt.skill) && event.attributes.attemptCount !== receipt.evidence.attemptCount) ||
-        (receipt.skill === "Writing" && (
-          event.attributes.wordCount !== receipt.evidence.wordCount ||
-          event.attributes.selfCheckCount !== receipt.evidence.selfCheckCount
-        )) ||
-        (receipt.skill === "Speaking" && event.attributes.selfCheckCount !== receipt.evidence.selfCheckCount)
-      ) return false;
-      practiceReceiptIds.add(receipt.completionReceiptId);
-    }
-
-    const checkIn = activeValidation.chain.checkIn;
-    if (checkIns.length) {
-      const receipt = checkIn?.practiceReceipt;
-      if (
-        !receipt ||
-        checkIns[0].context.diagnosticSessionId !== diagnosticAlias ||
-        checkIns[0].context.planId !== planAlias ||
-        checkIns[0].context.recommendationId !== recommendationAlias ||
-        checkIns[0].context.bindingId !== bindingAlias ||
-        checkIns[0].context.taskId !== workspaceBackupBoundAlias(candidateState, "task", checkIn.linkedTaskId) ||
-        checkIns[0].context.practiceReceiptId !== workspaceBackupBoundAlias(candidateState, "practiceReceipt", receipt.completionReceiptId) ||
-        checkIns[0].context.checkInId !== workspaceBackupBoundAlias(candidateState, "checkIn", checkIn.checkInId) ||
-        !practiceReceiptIds.has(receipt.completionReceiptId) ||
-        checkIns[0].occurredAt !== checkIn.savedAt ||
-        checkIns[0].attributes.outcome !== "committed" ||
-        checkIns[0].attributes.questionStatus !== checkIn.questionStatus ||
-        checkIns[0].attributes.evidenceClass !== checkIn.evidenceClass ||
-        checkIns[0].attributes.evidenceStatus !== receipt.evidenceStatus
-      ) return false;
-    }
-
-    const retest = activeValidation.chain.retest;
-    if (retests.length && (
-      !retest ||
-      retests[0].context.diagnosticSessionId !== diagnosticAlias ||
-      retests[0].context.planId !== planAlias ||
-      retests[0].context.recommendationId !== recommendationAlias ||
-      retests[0].context.bindingId !== bindingAlias ||
-      retests[0].context.checkInId !== workspaceBackupBoundAlias(candidateState, "checkIn", cycle.checkInId) ||
-      retests[0].context.retestId !== workspaceBackupBoundAlias(candidateState, "retest", cycle.retestId) ||
-      retests[0].context.baselinePracticeReceiptId !== workspaceBackupBoundAlias(candidateState, "practiceReceipt", retest.baselinePracticeReceiptId) ||
-      retests[0].attributes.skill !== retest.skill ||
-      retests[0].attributes.humanConfirmationStatus !== retest.humanConfirmationStatus ||
-      retests[0].occurredAt !== retest.completedAt ||
-      retests[0].attributes.outcome !== "completed" ||
-      retests[0].attributes.evidenceType !== retest.evidence?.resultType ||
-      retests[0].attributes.evidenceSufficiency !== retest.evidenceSufficiency ||
-      retests[0].attributes.comparabilityClass !== retest.comparability?.constructAlignment
-    )) return false;
-
-    const planUpdate = activeValidation.chain.planUpdate;
-    if (completions.length && (
-      !planUpdate ||
-      completions[0].context.diagnosticSessionId !== diagnosticAlias ||
-      completions[0].context.planId !== planAlias ||
-      completions[0].context.retestId !== workspaceBackupBoundAlias(candidateState, "retest", cycle.retestId) ||
-      completions[0].context.updatedPlanId !== workspaceBackupBoundAlias(candidateState, "updatedPlan", cycle.updatedPlanId) ||
-      completions[0].attributes.nextFocusSkill !== planUpdate.focusSkill ||
-      completions[0].attributes.humanConfirmationStatus !== planUpdate.humanConfirmationStatus ||
-      completions[0].occurredAt !== cycle.closedAt ||
-      completions[0].attributes.outcome !== "completed"
-    )) return false;
-    return true;
-  };
+  const validateWorkspaceBackupActiveEventPrefix = (candidateState, activeValidation) => Boolean(
+    activeValidation?.ok &&
+    learningEventsRuntime?.validateWorkspaceActiveEventProjection?.(candidateState)?.ok,
+  );
 
   const validateWorkspaceBackupCycleIdentityGraph = (candidateState) => {
     const active = candidateState.journey.activeCycle;

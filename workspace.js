@@ -91,9 +91,9 @@
     return `${year}-${month}-${day}`;
   };
 
-  const freshState = () => ({
+  const freshState = (updatedAt = new Date().toISOString()) => ({
     schemaVersion: SCHEMA_VERSION,
-    updatedAt: new Date().toISOString(),
+    updatedAt,
     profile: { nickname: "", examDate: "", dailyMinutes: 30, focusSkill: "Balanced" },
     plan: null,
     planHistory: [],
@@ -577,8 +577,8 @@
     document.querySelector("main")?.before(banner);
   };
 
-  const normalizeState = (value) => {
-    const base = freshState();
+  const normalizeState = (value, { baseUpdatedAt } = {}) => {
+    const base = freshState(baseUpdatedAt);
     if (!isRecord(value) || value.schemaVersion !== SCHEMA_VERSION) return null;
     if (!hasValidPlanShape(value.plan)) return null;
     if (value.profile !== undefined && !isRecord(value.profile)) return null;
@@ -841,6 +841,223 @@
       return { status: "lock_unavailable" };
     }
   };
+  const exactObjectKeys = (value, expectedKeys) => Boolean(
+    isRecord(value) &&
+    JSON.stringify(Object.keys(value).sort()) === JSON.stringify([...expectedKeys].sort()),
+  );
+  const exactUtcTimestamp = (value) => {
+    if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)) return false;
+    const timestamp = Date.parse(value);
+    return Number.isFinite(timestamp) && new Date(timestamp).toISOString() === value;
+  };
+  const eventClearCalendarDateValid = (value) => {
+    if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+    const timestamp = Date.parse(`${value}T00:00:00.000Z`);
+    return Number.isFinite(timestamp) && new Date(timestamp).toISOString().slice(0, 10) === value;
+  };
+  const EVENT_CLEAR_PROFILE_KEYS = Object.freeze([
+    "dailyMinutes",
+    "examDate",
+    "focusSkill",
+    "nickname",
+  ].sort());
+  const EVENT_CLEAR_FOCUS_KEYS = Object.freeze(["active", "sessions"].sort());
+  const EVENT_CLEAR_FOCUS_ACTIVE_KEYS = Object.freeze([
+    "durationSeconds",
+    "endsAt",
+    "recordedAt",
+    "remainingSeconds",
+    "startedAt",
+    "status",
+  ].sort());
+  const EVENT_CLEAR_FOCUS_SESSION_KEYS = Object.freeze([
+    "durationSeconds",
+    "endedAt",
+    "sessionId",
+    "startedAt",
+    "status",
+  ].sort());
+  const EVENT_CLEAR_FOCUS_DURATIONS = new Set([15 * 60, 25 * 60, 45 * 60]);
+  const validEventClearProfile = (profile) => Boolean(
+    exactObjectKeys(profile, EVENT_CLEAR_PROFILE_KEYS) &&
+    typeof profile.nickname === "string" &&
+    profile.nickname === profile.nickname.trim() &&
+    profile.nickname.length <= 20 &&
+    typeof profile.examDate === "string" &&
+    (profile.examDate === "" || eventClearCalendarDateValid(profile.examDate)) &&
+    [15, 30, 45, 60].includes(profile.dailyMinutes) &&
+    ["Balanced", "Reading", "Listening", "Writing", "Speaking"].includes(profile.focusSkill)
+  );
+  const validEventClearFocusState = (focus) => {
+    if (!exactObjectKeys(focus, EVENT_CLEAR_FOCUS_KEYS) || !Array.isArray(focus.sessions)) return false;
+    const sessionIds = new Set();
+    for (const session of focus.sessions) {
+      if (
+        !exactObjectKeys(session, EVENT_CLEAR_FOCUS_SESSION_KEYS) ||
+        !/^focus-[0-9a-z]+$/.test(session.sessionId || "") ||
+        sessionIds.has(session.sessionId) ||
+        !["completed", "stopped"].includes(session.status) ||
+        !EVENT_CLEAR_FOCUS_DURATIONS.has(session.durationSeconds) ||
+        !exactUtcTimestamp(session.startedAt) ||
+        !exactUtcTimestamp(session.endedAt) ||
+        Date.parse(session.endedAt) < Date.parse(session.startedAt)
+      ) return false;
+      sessionIds.add(session.sessionId);
+    }
+    const active = focus.active;
+    if (active === null) return true;
+    if (!isRecord(active) || !["running", "paused", "completed", "stopped"].includes(active.status)) return false;
+    const terminal = ["completed", "stopped"].includes(active.status);
+    const expectedKeys = terminal
+      ? EVENT_CLEAR_FOCUS_ACTIVE_KEYS
+      : EVENT_CLEAR_FOCUS_ACTIVE_KEYS.filter((key) => key !== "recordedAt");
+    if (
+      !exactObjectKeys(active, expectedKeys) ||
+      !EVENT_CLEAR_FOCUS_DURATIONS.has(active.durationSeconds) ||
+      !Number.isInteger(active.remainingSeconds) ||
+      active.remainingSeconds < 0 ||
+      active.remainingSeconds > active.durationSeconds ||
+      !exactUtcTimestamp(active.startedAt)
+    ) return false;
+    if (active.status === "running") {
+      return Number.isInteger(active.endsAt) &&
+        active.endsAt >= Date.parse(active.startedAt) &&
+        active.remainingSeconds > 0;
+    }
+    if (active.endsAt !== null) return false;
+    if (active.status === "paused") return active.remainingSeconds > 0;
+    if (
+      !exactUtcTimestamp(active.recordedAt) ||
+      (active.status === "completed" && active.remainingSeconds !== 0)
+    ) return false;
+    const mirrors = focus.sessions.filter((session) =>
+      session.status === active.status &&
+      session.durationSeconds === active.durationSeconds &&
+      session.startedAt === active.startedAt &&
+      Date.parse(session.endedAt) <= Date.parse(active.recordedAt)
+    );
+    return mirrors.length === 1;
+  };
+  const eventClearProfileIsDefault = (profile) => Boolean(
+    profile.nickname === "" &&
+    profile.examDate === "" &&
+    profile.dailyMinutes === 30 &&
+    profile.focusSkill === "Balanced"
+  );
+  const eventBoundDomainMarkers = (candidate) => {
+    const markers = [];
+    const markRecord = (label, value) => {
+      if (isRecord(value) && Object.keys(value).length > 0) markers.push(label);
+    };
+    const markArray = (label, value) => {
+      if (Array.isArray(value) && value.length > 0) markers.push(label);
+    };
+    if (!eventClearProfileIsDefault(candidate.profile)) markers.push("profile");
+    if (candidate.focus.active !== null) markers.push("focus.active");
+    markArray("focus.sessions", candidate.focus.sessions);
+    if (candidate.plan !== null) markers.push("plan");
+    markArray("planHistory", candidate.planHistory);
+    markRecord("taskProgress", candidate.taskProgress);
+    markRecord("practice", candidate.practice);
+    markRecord("practiceReceipts", candidate.practiceReceipts);
+    markRecord("checkIns", candidate.checkIns);
+    markArray("checkInHistory", candidate.checkInHistory);
+    markArray("learningEvents", candidate.learningEvents);
+    if (candidate.learningEventBindings !== null) markers.push("learningEventBindings");
+    if (candidate.journey.activeCycle !== null) markers.push("journey.activeCycle");
+    if (candidate.journey.diagnostic !== null) markers.push("journey.diagnostic");
+    if (candidate.journey.recommendation !== null) markers.push("journey.recommendation");
+    if (candidate.journey.review !== null) markers.push("journey.review");
+    if (candidate.journey.peerHelp !== null) markers.push("journey.peerHelp");
+    if (candidate.journey.retest !== null) markers.push("journey.retest");
+    if (candidate.journey.planUpdate !== null) markers.push("journey.planUpdate");
+    markArray("journey.history", candidate.journey.history);
+    markArray("journey.supersededCycles", candidate.journey.supersededCycles);
+    return markers;
+  };
+  const inspectLearningEventClearCandidate = async (currentRaw) => {
+    if (currentRaw === null) {
+      return { status: "already_empty", code: "workspace_namespace_absent" };
+    }
+    if (
+      !workspaceBackupRuntime?.canonicalJson ||
+      !workspaceBackupRuntime?.inspectWorkspaceCapacity ||
+      !Array.isArray(workspaceBackupRuntime?.WORKSPACE_KEYS) ||
+      !Array.isArray(workspaceBackupRuntime?.JOURNEY_KEYS) ||
+      !learningEventsRuntime?.validateLedger
+    ) return { status: "runtime_unavailable", code: "strict_validation_runtime_unavailable" };
+
+    let parsed;
+    try {
+      parsed = JSON.parse(currentRaw);
+    } catch {
+      return { status: "workspace_invalid", code: "workspace_json_invalid" };
+    }
+    if (
+      !exactObjectKeys(parsed, workspaceBackupRuntime.WORKSPACE_KEYS) ||
+      !exactObjectKeys(parsed?.journey, workspaceBackupRuntime.JOURNEY_KEYS) ||
+      parsed.schemaVersion !== SCHEMA_VERSION ||
+      parsed.journey.protocolVersion !== PROTOCOL_VERSION ||
+      !exactUtcTimestamp(parsed.updatedAt) ||
+      !validEventClearProfile(parsed.profile) ||
+      !validEventClearFocusState(parsed.focus)
+    ) return { status: "workspace_invalid", code: "workspace_shape_invalid" };
+
+    const normalized = normalizeState(parsed, { baseUpdatedAt: parsed.updatedAt });
+    if (!normalized) return { status: "workspace_invalid", code: "workspace_normalization_failed" };
+    let parsedCanonical;
+    let normalizedCanonical;
+    try {
+      parsedCanonical = workspaceBackupRuntime.canonicalJson(parsed);
+      normalizedCanonical = workspaceBackupRuntime.canonicalJson(normalized);
+    } catch {
+      return { status: "workspace_invalid", code: "workspace_canonicalization_failed" };
+    }
+    if (parsedCanonical !== normalizedCanonical) {
+      return { status: "workspace_invalid", code: "workspace_normalization_changed" };
+    }
+    const capacity = workspaceBackupRuntime.inspectWorkspaceCapacity(normalized);
+    if (capacity?.status !== "ready") {
+      return { status: "workspace_invalid", code: capacity?.code || "workspace_capacity_invalid" };
+    }
+    let ledgerStatus;
+    try {
+      ledgerStatus = await learningEventsRuntime.validateLedger(normalized);
+    } catch {
+      return { status: "ledger_invalid", code: "ledger_validation_exception" };
+    }
+    if (!ledgerStatus?.ok) {
+      return { status: "ledger_invalid", code: ledgerStatus?.code || "ledger_invalid" };
+    }
+    const markers = eventBoundDomainMarkers(normalized);
+    if (markers.length > 0) {
+      return {
+        status: "blocked_event_bound_state",
+        code: "event_bound_domain_state_present",
+        markers,
+      };
+    }
+    return { status: "already_empty", code: "ledger_and_event_bound_domain_state_empty" };
+  };
+  const clearLearningEventsTransaction = async (expectedCurrentRaw = rawStoredValue) => {
+    // Capture the page-observed raw bytes before requesting the lock. The
+    // optional parameter is internal to this lexical transaction and its UI
+    // caller; no global runtime API can choose the CAS expectation.
+    // The exclusive lock callback starts with a fresh storage read. No
+    // confirmation, timestamp, ID or mutation can happen before that read.
+    return withWorkspaceRecoveryLock(async () => {
+      let currentRaw;
+      try {
+        currentRaw = window.localStorage.getItem(STORAGE_KEY);
+      } catch {
+        return { status: "read_failed", code: "workspace_storage_read_failed" };
+      }
+      if (currentRaw !== expectedCurrentRaw) {
+        return { status: "stale", code: "workspace_raw_changed_before_clear_policy_check" };
+      }
+      return inspectLearningEventClearCandidate(currentRaw);
+    });
+  };
   const appendLearningEvent = async (eventType, domain, targetState = state) => {
     if (!learningEventsRuntime) return { status: "ledger_invalid", code: "runtime_unavailable" };
     try {
@@ -1095,7 +1312,10 @@
 
   const disableWorkspaceControls = ({
     allowEventExport = false,
-    allowEventClear = false,
+    // This control now performs a read-only fail-closed policy check. Keeping
+    // it reachable lets the transaction explain a blocked state without ever
+    // relying on a disabled button as the safety boundary.
+    allowEventClear = true,
     allowDataReset = false,
   } = {}) => {
     const allowedSelectors = [
@@ -1166,12 +1386,12 @@
     showStorageWarning(
       learningLedgerStatus.code === "runtime_unavailable"
         ? "本机学习事件组件未能加载；为避免保存不完整记录，本页已切换为只读。可先导出全部原始数据，再清除学习闭环或全部本机数据后重建。"
-        : "本机学习事件链未通过完整性核对；系统不会自动修复或覆盖。请先在“我的本机数据”导出备份，或仅清除学习事件后再继续。",
+        : "本机学习事件链未通过完整性核对；系统不会自动修复或覆盖。请先在“我的本机数据”导出原始保全；不要单独清除事件，完成保全后请明确清除整个学习工作区再继续。",
     );
     const eventRecoveryAvailable = workspaceStateRecognized && Boolean(learningEventsRuntime);
     disableWorkspaceControls({
       allowEventExport: eventRecoveryAvailable,
-      allowEventClear: eventRecoveryAvailable,
+      allowEventClear: true,
       allowDataReset: true,
     });
   }
@@ -4178,29 +4398,74 @@
     });
   });
 
+  const ensureLearningEventClearMessage = () => {
+    const dangerZone = document.querySelector(".data-danger-zone");
+    if (!dangerZone) return null;
+    let message = dangerZone.querySelector("[data-event-clear-message]");
+    if (message) return message;
+    message = document.createElement("p");
+    message.id = "learning-event-clear-policy-message";
+    message.className = "data-event-clear-message";
+    message.dataset.eventClearMessage = "true";
+    message.setAttribute("tabindex", "-1");
+    message.setAttribute("aria-atomic", "true");
+    message.hidden = true;
+    dangerZone.append(message);
+    return message;
+  };
+  const presentLearningEventClearOutcome = (outcome) => {
+    const message = ensureLearningEventClearMessage();
+    if (!message) return;
+    const alreadyEmpty = outcome?.status === "already_empty";
+    message.hidden = false;
+    message.dataset.state = alreadyEmpty ? "already-empty" : "blocked";
+    message.dataset.code = outcome?.code || outcome?.status || "unknown";
+    message.setAttribute("role", alreadyEmpty ? "status" : "alert");
+    message.setAttribute("aria-live", alreadyEmpty ? "polite" : "assertive");
+
+    const text = document.createElement("span");
+    if (alreadyEmpty) {
+      text.textContent = outcome.code === "workspace_namespace_absent"
+        ? "当前浏览器没有本机学习工作区；学习事件已经为空。本次零写入，也没有生成时间或改动更新时间。无需执行单独清除事件。"
+        : "学习事件账本与事件别名已经为空，且未发现事件绑定的学习闭环记录。本次零写入，也没有生成时间或改动更新时间。无需执行单独清除事件。";
+      message.replaceChildren(text);
+      message.focus();
+      return;
+    }
+
+    const validationFailed = ["workspace_invalid", "ledger_invalid", "runtime_unavailable"].includes(outcome?.status);
+    if (outcome?.status === "blocked_event_bound_state") {
+      text.textContent = "不能单独清除学习事件：当前学习工作区仍有事件、绑定或学习闭环记录。本次零写入，现有记录完整保留。请先在“我的本机数据”导出三个命名空间原始保全 JSON，并尝试生成严格可恢复备份；若严格备份不可生成，以原始保全 JSON 为准。完成保全后，请使用“清除整个学习工作区（保留 Sofia 与教研草稿）”；请勿单独清除事件后继续。 ";
+    } else if (validationFailed) {
+      text.textContent = "无法严格核对当前学习工作区，因此拒绝单独清除学习事件。本次零写入，现有原始值保持不变；当前只能承诺原始保全 JSON。请先在“我的本机数据”导出原始保全，再使用“清除整个学习工作区（保留 Sofia 与教研草稿）”；请勿单独清除事件后继续。 ";
+    } else if (outcome?.status === "stale") {
+      text.textContent = "安全核对期间检测到学习工作区已变化，因此拒绝本次操作。本次零写入，现有记录保持不变。请刷新页面后先导出原始保全，再使用“清除整个学习工作区（保留 Sofia 与教研草稿）”；请勿单独清除事件后继续。 ";
+    } else {
+      text.textContent = "当前无法取得安全写入锁或读取真实存储值，因此拒绝单独清除学习事件。本次零写入，现有记录保持不变。请先在“我的本机数据”导出原始保全，再使用“清除整个学习工作区（保留 Sofia 与教研草稿）”；请勿单独清除事件后继续。 ";
+    }
+    const link = document.createElement("a");
+    link.href = "/my-data";
+    link.textContent = "前往“我的本机数据”导出区 →";
+    message.replaceChildren(text, link);
+    message.focus();
+  };
+
+  const eventClearMessage = ensureLearningEventClearMessage();
   document.querySelectorAll("[data-clear-learning-events]").forEach((button) => {
+    button.textContent = "核对学习事件清除边界";
+    if (eventClearMessage) button.setAttribute("aria-describedby", eventClearMessage.id);
     button.addEventListener("click", async () => {
-      const message = document.querySelector("[data-data-message]");
-      if (!window.confirm("确定仅清除学习事件账本和本机事件别名吗？计划、练习回执、打卡、复测、Sofia智能老师对话与教研复核演示草稿都会保留；清除后不会回填历史事件，此操作无法撤销。")) return;
-      if (!workspaceStateRecognized || !workspaceWriterLeaseAvailable || !learningEventsRuntime || !navigator.locks?.request) {
-        if (message) message.textContent = "当前无法安全识别或锁定本机学习数据；请先导出全部原始数据，不会自动清除。";
-        return;
-      }
-      const before = snapshotState();
+      button.setAttribute("aria-busy", "true");
+      let outcome;
       try {
-        const cleared = await navigator.locks.request(`${STORAGE_KEY}:sealed-write`, { mode: "exclusive" }, () => {
-          learningEventsRuntime.clearFromState(state);
-          state.updatedAt = new Date().toISOString();
-          window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-          return true;
-        });
-        if (!cleared) throw new Error("clear_not_committed");
+        const expectedCurrentRaw = rawStoredValue;
+        outcome = await clearLearningEventsTransaction(expectedCurrentRaw);
       } catch {
-        state = before;
-        if (message) message.textContent = "浏览器未能安全清除学习事件；计划、练习与原事件均保持不变。";
-        return;
+        outcome = { status: "transaction_exception", code: "event_clear_policy_exception" };
+      } finally {
+        button.removeAttribute("aria-busy");
       }
-      window.location.reload();
+      presentLearningEventClearOutcome(outcome);
     });
   });
 

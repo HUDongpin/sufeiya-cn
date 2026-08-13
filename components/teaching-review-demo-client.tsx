@@ -200,8 +200,8 @@ function EmptyEvidence({ state }: { state: Exclude<LoadState, TeachingReviewEvid
   }
   return (
     <div className={`${styles.stateCard} ${styles.stateError}`} role="alert">
-      <h2>本机证据未通过只读结构检查。</h2>
-      <p>为避免把跨 cycle 或未知结构当作可信证据，本页拒绝展示与草拟。错误代码：<code>{state.reason}</code></p>
+      <h2>本机证据未通过只读账本与回链核验。</h2>
+      <p>为避免把坏哈希、跨 cycle、未知结构或未绑定事件当作可信证据，本页拒绝展示与草拟。错误代码：<code>{state.reason}</code></p>
       <Link href="/my-data">前往“我的本机数据”检查或导出 <ArrowIcon /></Link>
     </div>
   );
@@ -224,6 +224,8 @@ function EvidenceWorkspace({ snapshot }: { snapshot: TeachingReviewEvidenceSnaps
           <EvidenceField term="证据充分性" value={labelFor(diagnostic?.evidenceSufficiency)} />
           <EvidenceField term="诊断任务集" value={diagnostic?.taskSetVersion || "未记录"} />
           <EvidenceField term="来源更新时间" value={formatTime(snapshot.sourceUpdatedAt)} />
+          <EvidenceField term="当前 cycle 事件" value={`${snapshot.eventLedger.currentCycleEventCount} 条（含 ${snapshot.eventLedger.practiceEventCount} 条练习事件）`} />
+          <EvidenceField term="账本完整性" value="v2 结构、绑定、顺序与 SHA-256 哈希链已核验" />
         </dl>
         <div
           className={styles.taskTableWrap}
@@ -325,7 +327,7 @@ export function TeachingReviewDemoClient() {
     try {
       const canonicalRaw = window.localStorage.getItem(CANONICAL_LEARNER_STORAGE_KEY);
       const demoRaw = window.localStorage.getItem(TEACHING_REVIEW_DEMO_STORAGE_KEY);
-      const nextEvidence = deriveTeachingReviewEvidence(canonicalRaw);
+      const nextEvidence = await deriveTeachingReviewEvidence(canonicalRaw);
       const draftInspection = inspectTeachingReviewDraft(demoRaw);
       const nextDraft = draftInspection.status === "ready" ? draftInspection.draft : null;
       const runtimeNavigator = navigator as unknown as { locks?: { request?: unknown } };
@@ -512,7 +514,15 @@ export function TeachingReviewDemoClient() {
     try {
       await navigator.locks.request(`${TEACHING_REVIEW_DEMO_STORAGE_KEY}:write`, { mode: "exclusive" }, async () => {
         const sourceBefore = window.localStorage.getItem(CANONICAL_LEARNER_STORAGE_KEY);
-        if (sourceBefore !== canonicalRawRef.current || !sourceBefore || await sha256Hex(sourceBefore) !== sourceSnapshotSha256) {
+        const admittedBeforeWrite = await deriveTeachingReviewEvidence(sourceBefore);
+        const sourceAfterAdmission = window.localStorage.getItem(CANONICAL_LEARNER_STORAGE_KEY);
+        if (
+          sourceBefore !== canonicalRawRef.current ||
+          sourceAfterAdmission !== sourceBefore ||
+          !sourceBefore ||
+          await sha256Hex(sourceBefore) !== sourceSnapshotSha256 ||
+          admittedBeforeWrite.status !== "ready"
+        ) {
           setSourceStale(true);
           setFeedback("学习证据已变化，草稿未保存；请重新读取并复核。");
           return;
@@ -550,7 +560,13 @@ export function TeachingReviewDemoClient() {
         window.localStorage.setItem(TEACHING_REVIEW_DEMO_STORAGE_KEY, serialized);
 
         const sourceAfter = window.localStorage.getItem(CANONICAL_LEARNER_STORAGE_KEY);
-        if (sourceAfter !== sourceBefore) {
+        const admittedAfterWrite = await deriveTeachingReviewEvidence(sourceAfter);
+        const sourceAfterPostWriteAdmission = window.localStorage.getItem(CANONICAL_LEARNER_STORAGE_KEY);
+        if (
+          sourceAfter !== sourceBefore ||
+          sourceAfterPostWriteAdmission !== sourceBefore ||
+          admittedAfterWrite.status !== "ready"
+        ) {
           setSourceStale(true);
           if (!restoreDemoRaw(previousDemoRaw)) {
             markStorageStateUnknown("保存期间学习证据发生变化，且演示草稿回滚失败；本机草稿状态未知，在重新读取或定向清除前不会继续写入。");
@@ -573,6 +589,22 @@ export function TeachingReviewDemoClient() {
             return;
           }
           setFeedback("演示草稿写后校验失败，原值已恢复；学习者主账本未被修改。");
+          return;
+        }
+        const sourceFinal = window.localStorage.getItem(CANONICAL_LEARNER_STORAGE_KEY);
+        const admittedFinal = await deriveTeachingReviewEvidence(sourceFinal);
+        const sourceAfterFinalAdmission = window.localStorage.getItem(CANONICAL_LEARNER_STORAGE_KEY);
+        if (
+          sourceFinal !== sourceBefore ||
+          sourceAfterFinalAdmission !== sourceBefore ||
+          admittedFinal.status !== "ready"
+        ) {
+          setSourceStale(true);
+          if (!restoreDemoRaw(previousDemoRaw)) {
+            markStorageStateUnknown("草稿写后终检期间学习证据发生变化，且演示草稿回滚失败；本机草稿状态未知，在重新读取或定向清除前不会继续写入。");
+            return;
+          }
+          setFeedback("草稿写后终检发现学习证据已变化，演示草稿已回滚；学习者主账本未被写入。");
           return;
         }
         setSavedDraft(verified);
@@ -688,7 +720,7 @@ export function TeachingReviewDemoClient() {
         <div className={styles.boundaryGrid}>
           <BoundaryCard label="账户身份" value="未核验教研身份" detail="Clerk 仅提供账户访问控制；当前没有 staff RBAC。" tone="warning" />
           <BoundaryCard label="专业确认" value="false" detail="qualifiedHumanConfirmation 固定为 false。" tone="warning" />
-          <BoundaryCard label="学习证据" value="只读" detail="从当前浏览器的本机学习状态快照派生；本页不独立核验学习事件账本。" />
+          <BoundaryCard label="学习证据" value="账本已核验 · 只读" detail="同源校验 v2 事件结构、隐私治理、顺序、SHA-256 哈希链与当前 cycle 领域绑定；仍非服务器签名。" />
           <BoundaryCard label="人工回执" value="不生成" detail="草稿合同不包含 humanReviewReceiptId 字段。" tone="warning" />
         </div>
       </section>
@@ -697,7 +729,7 @@ export function TeachingReviewDemoClient() {
         <div className={styles.sectionHeading}>
           <p>LOCAL EVIDENCE</p>
           <h2 id="evidence-title">本机证据只读视图</h2>
-          <span>结构检查并不等于密码学验真或专业测量复核；原始自由文本默认不显示。</span>
+          <span>本机 SHA-256 哈希链与领域绑定核验不等于服务器签名、身份验真或专业测量复核；原始自由文本默认不显示。</span>
         </div>
         {snapshot ? <EvidenceWorkspace snapshot={snapshot} /> : <EmptyEvidence state={evidence as Exclude<LoadState, TeachingReviewEvidenceSnapshot>} />}
       </section>

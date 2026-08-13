@@ -279,20 +279,20 @@ function workspaceState({ missingEvidence = false, crossCyclePlan = false } = {}
 }
 
 describe("Super Teacher local context derivation", () => {
-  it("admits only a complete six-task diagnostic and its same-cycle plan", () => {
-    const context = deriveLearnerContext(workspaceState());
+  it("admits only a complete six-task diagnostic and its same-cycle plan", async () => {
+    const context = await deriveLearnerContext(workspaceState());
     assert.equal(context?.terminalEvidenceTaskCount, 6);
     assert.equal(context?.plan?.planId, "plan-test-1");
   });
 
-  it("keeps a valid diagnostic but drops a cross-cycle plan", () => {
-    const context = deriveLearnerContext(workspaceState({ crossCyclePlan: true }));
+  it("keeps a valid diagnostic but drops a cross-cycle plan", async () => {
+    const context = await deriveLearnerContext(workspaceState({ crossCyclePlan: true }));
     assert.equal(context?.prioritySkill, "Writing");
     assert.equal(context?.plan, undefined);
   });
 
-  it("rejects a completed marker without all six hashed evidence records", () => {
-    assert.equal(deriveLearnerContext(workspaceState({ missingEvidence: true })), undefined);
+  it("rejects a completed marker without all six hashed evidence records", async () => {
+    assert.equal(await deriveLearnerContext(workspaceState({ missingEvidence: true })), undefined);
   });
 
   it("describes a provisional updated plan as pending qualified human confirmation", () => {
