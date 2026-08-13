@@ -33,6 +33,37 @@ const SOFIA_CHAT_KEY = "sufeiya_super_teacher_v1";
 const TEACHING_REVIEW_DEMO_KEY = "sufeiya_teaching_review_demo_v1";
 const CLERK_BROWSER_BOOT_TIMEOUT_MS = 60_000;
 
+type GateADiagnosticEvidenceRecord = {
+  audioCompleted?: boolean;
+  audioPlaybackCompletedAt?: string;
+  audioPlaybackStartedAt?: string;
+  audioPlayed?: boolean;
+  audioRecorded?: boolean;
+  audioSeekDetected?: boolean;
+  durationSeconds?: number;
+  evidenceStatus?: string;
+  firstResponse?: string;
+  qualityFlags?: string[];
+  responseText?: string;
+  resultType?: string;
+  selfReviewCount?: number;
+  skill?: string;
+  speechSynthesisEnded?: boolean;
+  speechSynthesisStarted?: boolean;
+  status?: string;
+  taskId?: string;
+  timer?: {
+    endedAt?: number;
+    endsAt?: number;
+    phase?: string;
+    prepEndsAt?: number;
+    responseEndsAt?: number;
+    startedAt?: number;
+  };
+  timerCompleted?: boolean;
+  wordCount?: number;
+};
+
 const canonicalJson = (value: unknown): string => {
   if (value === null || typeof value === "boolean" || typeof value === "number") {
     return JSON.stringify(value);
@@ -92,8 +123,12 @@ type SmokeStage =
   | "signed-in uninvited session claim refresh"
   | "authenticated Gate A fresh workspace"
   | "authenticated Gate A diagnostic preflight"
-  | "authenticated Gate A first Reading evidence"
-  | "authenticated Gate A remaining task skips"
+  | "authenticated Gate A Reading evidence"
+  | "authenticated Gate A static MP3 Listening evidence"
+  | "authenticated Gate A browser speech Listening evidence"
+  | "authenticated Gate A real Speaking timer evidence"
+  | "authenticated Gate A real Writing timer evidence"
+  | "authenticated Gate A complete six-task report"
   | "authenticated Gate A priority confirmation"
   | "authenticated Gate A plan"
   | "authenticated Gate A recommendation"
@@ -913,6 +948,8 @@ test("a temporary Development user can traverse the protected smoke path and is 
     stage = "authenticated Gate A diagnostic preflight";
     await gotoApprovedRoute("/diagnostic");
     await expect(page.locator("[data-device-storage]")).toHaveText("可用 · 本机保存");
+    await expect(page.locator("[data-device-mp3]")).toHaveText("支持");
+    await expect(page.locator("[data-device-speech]")).toHaveText("支持本机合成");
     await expect(page.locator("[data-device-lock]")).toHaveText("支持 · 防跨页覆盖");
     const diagnosticStartForm = page.locator("#diagnostic-start-form");
     for (const confirmation of [
@@ -930,7 +967,7 @@ test("a temporary Development user can traverse the protected smoke path and is 
     await expect(page.locator("[data-diagnostic-status]")).toHaveText("六项任务进行中");
     await expect(page.locator('[data-diagnostic-task][data-task-id="diagnostic-reading-library-v1"]')).toBeVisible();
 
-    stage = "authenticated Gate A first Reading evidence";
+    stage = "authenticated Gate A Reading evidence";
     const firstReadingTask = page.locator(
       '[data-diagnostic-task][data-task-id="diagnostic-reading-library-v1"]',
     );
@@ -938,35 +975,153 @@ test("a temporary Development user can traverse the protected smoke path and is 
     await firstReadingTask.locator("[data-diagnostic-submit-task]").click();
     await expect(page.locator('[data-diagnostic-step="diagnostic-reading-library-v1"] [data-step-state]'))
       .toHaveText("已留证");
+    const secondReadingTask = page.locator(
+      '[data-diagnostic-task][data-task-id="diagnostic-reading-newsletter-v1"]',
+    );
+    await expect(secondReadingTask).toBeVisible();
+    await secondReadingTask.locator('input[type="radio"][value="a"]').check();
+    await secondReadingTask.locator("[data-diagnostic-submit-task]").click();
+    await expect(page.locator('[data-diagnostic-step="diagnostic-reading-newsletter-v1"] [data-step-state]'))
+      .toHaveText("已留证");
 
-    stage = "authenticated Gate A remaining task skips";
-    const acceptDiagnosticSkipDialog = (dialog: Dialog) => {
-      expect(dialog.type()).toBe("confirm");
-      expect(dialog.message()).toContain("不会被记作零分");
-      void dialog.accept();
-    };
-    page.on("dialog", acceptDiagnosticSkipDialog);
-    const skippedDiagnosticTaskIds = [
-      "diagnostic-reading-newsletter-v1",
-      "diagnostic-listening-science-club-v1",
-      "diagnostic-listening-language-lab-v1",
-      "diagnostic-speaking-learning-skill-v1",
-      "diagnostic-writing-learning-place-v1",
-    ];
-    for (const [index, taskId] of skippedDiagnosticTaskIds.entries()) {
-      const task = page.locator(`[data-diagnostic-task][data-task-id="${taskId}"]`);
-      await expect(task).toBeVisible();
-      await task.locator("[data-diagnostic-skip-task]:visible").click();
-      if (index < skippedDiagnosticTaskIds.length - 1) {
-        await expect(page.locator(`[data-diagnostic-step="${taskId}"] [data-step-state]`))
-          .toHaveText("已跳过");
-      }
+    stage = "authenticated Gate A static MP3 Listening evidence";
+    const staticListeningTask = page.locator(
+      '[data-diagnostic-task][data-task-id="diagnostic-listening-science-club-v1"]',
+    );
+    await expect(staticListeningTask).toBeVisible();
+    const staticListeningAudio = staticListeningTask.locator("[data-diagnostic-audio]");
+    const staticListeningStatus = staticListeningTask.locator("[data-diagnostic-audio-status]");
+    const staticPlaybackStart = await staticListeningAudio.evaluate(async (element) => {
+      const audio = element as HTMLAudioElement;
+      await audio.play();
+      return {
+        currentTime: audio.currentTime,
+        paused: audio.paused,
+        playbackRate: audio.playbackRate,
+      };
+    });
+    expect(staticPlaybackStart.currentTime).toBeLessThanOrEqual(0.5);
+    expect(staticPlaybackStart.paused).toBe(false);
+    expect(staticPlaybackStart.playbackRate).toBe(1);
+    await expect(staticListeningStatus).toHaveText("正在播放英文材料。");
+    await expect(staticListeningStatus).toHaveText(
+      "英文材料已完整播放，可以保存第一次选择。",
+      { timeout: 30_000 },
+    );
+    const staticPlaybackEnd = await staticListeningAudio.evaluate((element) => {
+      const audio = element as HTMLAudioElement;
+      return {
+        currentTime: audio.currentTime,
+        duration: audio.duration,
+        ended: audio.ended,
+      };
+    });
+    expect(staticPlaybackEnd.ended).toBe(true);
+    expect(Number.isFinite(staticPlaybackEnd.duration)).toBe(true);
+    expect(staticPlaybackEnd.duration).toBeGreaterThan(0);
+    expect(staticPlaybackEnd.currentTime).toBeGreaterThanOrEqual(staticPlaybackEnd.duration - 0.25);
+    await staticListeningTask.locator('input[type="radio"][value="b"]').check();
+    await staticListeningTask.locator("[data-diagnostic-submit-task]").click();
+    await expect(page.locator('[data-diagnostic-step="diagnostic-listening-science-club-v1"] [data-step-state]'))
+      .toHaveText("已留证");
+
+    stage = "authenticated Gate A browser speech Listening evidence";
+    const speechListeningTask = page.locator(
+      '[data-diagnostic-task][data-task-id="diagnostic-listening-language-lab-v1"]',
+    );
+    await expect(speechListeningTask).toBeVisible();
+    const speechListeningStatus = speechListeningTask.locator("[data-diagnostic-audio-status]");
+    await speechListeningTask.locator("[data-diagnostic-speech-play]").click();
+    await expect(speechListeningStatus).toHaveText(
+      "当前设备正在朗读英文材料。",
+      { timeout: 30_000 },
+    );
+    await expect(speechListeningStatus).toHaveText(
+      "英文材料已完整播放，可以保存第一次选择。",
+      { timeout: 45_000 },
+    );
+    await speechListeningTask.locator('input[type="radio"][value="a"]').check();
+    await speechListeningTask.locator("[data-diagnostic-submit-task]").click();
+    await expect(page.locator('[data-diagnostic-step="diagnostic-listening-language-lab-v1"] [data-step-state]'))
+      .toHaveText("已留证");
+
+    stage = "authenticated Gate A real Speaking timer evidence";
+    const speakingTask = page.locator(
+      '[data-diagnostic-task][data-task-id="diagnostic-speaking-learning-skill-v1"]',
+    );
+    await expect(speakingTask).toBeVisible();
+    await speakingTask.locator("[data-speaking-start]").click();
+    await expect(speakingTask.locator("[data-diagnostic-timer-state]")).toHaveText("准备时间");
+    await expect(speakingTask.locator("[data-diagnostic-timer-state]")).toHaveText(
+      "请开始大声回答",
+      { timeout: 30_000 },
+    );
+    await expect(speakingTask.locator("[data-speaking-review-wrap]")).toBeVisible({
+      timeout: 105_000,
+    });
+    await expect(speakingTask.locator("[data-diagnostic-timer]")).toHaveText("00:00");
+    await expect(speakingTask.locator("[data-diagnostic-timer-state]")).toHaveText(
+      "计时结束，请完成自查",
+    );
+    for (const selfReview of ["coverage", "support", "connected"]) {
+      await speakingTask.locator(`[data-speaking-review="${selfReview}"]`).check();
     }
-    page.off("dialog", acceptDiagnosticSkipDialog);
+    await speakingTask.locator("[data-speaking-submit]").click();
+    await expect(page.locator('[data-diagnostic-step="diagnostic-speaking-learning-skill-v1"] [data-step-state]'))
+      .toHaveText("已留证");
+
+    stage = "authenticated Gate A real Writing timer evidence";
+    const diagnosticWritingPrivacyMarker = "GateAPrivacyMarker";
+    const diagnosticWritingResponse = `A quiet study room called ${diagnosticWritingPrivacyMarker} would help our community because students could focus after school, share useful resources, and ask teachers for support when difficult lessons become confusing.`;
+    const diagnosticRawResponseTransmissions: string[] = [];
+    const recordDiagnosticRawResponseRequest = (request: PlaywrightRequest) => {
+      if (
+        request.url().includes(diagnosticWritingPrivacyMarker)
+        || request.postData()?.includes(diagnosticWritingPrivacyMarker)
+      ) {
+        const requestUrl = new URL(request.url());
+        diagnosticRawResponseTransmissions.push(
+          `${request.method()}:${requestUrl.origin}${requestUrl.pathname}`,
+        );
+      }
+    };
+    page.on("request", recordDiagnosticRawResponseRequest);
+    const writingTask = page.locator(
+      '[data-diagnostic-task][data-task-id="diagnostic-writing-learning-place-v1"]',
+    );
+    await expect(writingTask).toBeVisible();
+    await writingTask.locator("[data-writing-start]").click();
+    const writingResponse = writingTask.locator("[data-diagnostic-writing-answer]");
+    await expect(writingResponse).toBeEnabled();
+    await writingResponse.pressSequentially(diagnosticWritingResponse, { delay: 5 });
+    await expect(writingTask.locator("[data-diagnostic-word-count]")).toHaveText("29");
+    await expect(writingTask.locator("[data-diagnostic-writing-save]")).toHaveText("草稿已保存在本机");
+    await expect(writingTask.locator("[data-writing-review-wrap]")).toBeVisible({
+      timeout: 195_000,
+    });
+    await expect(writingResponse).toBeDisabled();
+    await expect(writingTask.locator("[data-diagnostic-timer]")).toHaveText("00:00");
+    await expect(writingTask.locator("[data-diagnostic-timer-state]")).toHaveText(
+      "写作结束，请完成自查",
+    );
+    for (const selfReview of ["change", "support", "reviewed"]) {
+      await writingTask.locator(`[data-writing-review="${selfReview}"]`).check();
+    }
+    await writingTask.locator("[data-writing-submit]").click();
+
+    stage = "authenticated Gate A complete six-task report";
     await expect(page.locator("[data-diagnostic-report]")).toBeVisible();
     await expect(page.locator("[data-report-summary]")).toContainText(
-      "六项任务已有 6 项终态，其中 1 项形成完成证据",
+      "六项任务已有 6 项终态，其中 6 项形成完成证据",
     );
+    await expect(page.locator("[data-report-confidence]")).toHaveText("中等证据覆盖置信度");
+    await expect(page.locator("[data-diagnostic-sufficiency]")).toHaveText("证据有限，可用于行动规划");
+    const writingReportCard = page.locator("[data-report-evidence] article").filter({
+      has: page.getByRole("heading", { level: 4, name: "Writing · 写作" }),
+    });
+    await expect(writingReportCard).toContainText("29 词本机作答");
+    await expect(writingReportCard).toContainText("自查 3 / 3");
+    expect(diagnosticRawResponseTransmissions).toEqual([]);
 
     stage = "authenticated Gate A priority confirmation";
     const diagnosticPriorityForm = page.locator("#diagnostic-priority-form");
@@ -976,7 +1131,7 @@ test("a temporary Development user can traverse the protected smoke path and is 
     await expect(page.locator("[data-diagnostic-result]")).toBeVisible();
     await expect(page.locator("[data-diagnostic-priority]")).toHaveText("Reading · 阅读");
     await expect(page.locator("[data-diagnostic-receipt-sufficiency]"))
-      .toHaveText("evidence_insufficient · 证据不足");
+      .toHaveText("evidence_limited · 证据有限");
     const diagnosticSessionId = await expectNonemptyText(page.locator("[data-diagnostic-id]"));
     expect(diagnosticSessionId).toMatch(/^diagnostic-/);
 
@@ -1497,6 +1652,7 @@ test("a temporary Development user can traverse the protected smoke path and is 
     );
 
     const provisionalPrivateNarratives = [
+      diagnosticWritingResponse,
       savedCheckInDidText,
       savedCheckInEvidenceText,
     ];
@@ -1978,9 +2134,12 @@ test("a temporary Development user can traverse the protected smoke path and is 
           protocolVersion?: string;
           activeCycle?: Record<string, unknown>;
           diagnostic?: {
+            completedEvidenceSkills?: string[];
             completedEvidenceTaskCount?: number;
+            evidenceConfidence?: string;
+            evidenceSufficiency?: string;
             prioritySkill?: string;
-            taskEvidence?: Array<{ status?: string }>;
+            taskEvidence?: GateADiagnosticEvidenceRecord[];
           };
           history?: Array<Record<string, unknown>>;
           recommendation?: { recommendationId?: string };
@@ -1998,8 +2157,12 @@ test("a temporary Development user can traverse the protected smoke path and is 
         cycleStatus: cycle.status,
         diagnosticSessionId: cycle.diagnosticSessionId,
         prioritySkill: state.journey?.diagnostic?.prioritySkill,
+        completedEvidenceSkills: state.journey?.diagnostic?.completedEvidenceSkills,
         completedEvidenceTaskCount: state.journey?.diagnostic?.completedEvidenceTaskCount,
+        evidenceConfidence: state.journey?.diagnostic?.evidenceConfidence,
+        evidenceSufficiency: state.journey?.diagnostic?.evidenceSufficiency,
         evidenceCount: evidence.length,
+        diagnosticEvidence: evidence,
         evidenceStatuses: evidence.map((item) => item.status),
         cycleIds: [
           cycle.cycleId,
@@ -2035,9 +2198,12 @@ test("a temporary Development user can traverse the protected smoke path and is 
       cycleStatus: "completed",
       diagnosticSessionId,
       prioritySkill: "Reading",
-      completedEvidenceTaskCount: 1,
+      completedEvidenceSkills: ["Reading", "Listening", "Speaking", "Writing"],
+      completedEvidenceTaskCount: 6,
+      evidenceConfidence: "medium",
+      evidenceSufficiency: "evidence_limited",
       evidenceCount: 6,
-      evidenceStatuses: ["completed", "skipped", "skipped", "skipped", "skipped", "skipped"],
+      evidenceStatuses: ["completed", "completed", "completed", "completed", "completed", "completed"],
       recommendationId,
       planUpdate: {
         supersedesPlanId: supersededPlanId,
@@ -2063,6 +2229,84 @@ test("a temporary Development user can traverse the protected smoke path and is 
     expect(gateAState!.historyCycleIds).toEqual([gateAState!.cycleIds[0]]);
     expect(gateAState!.eventChain).toHaveLength(6);
     expect(gateAState!.eventHeadHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(gateAState!.diagnosticEvidence.map((item) => item.taskId)).toEqual([
+      "diagnostic-reading-library-v1",
+      "diagnostic-reading-newsletter-v1",
+      "diagnostic-listening-science-club-v1",
+      "diagnostic-listening-language-lab-v1",
+      "diagnostic-speaking-learning-skill-v1",
+      "diagnostic-writing-learning-place-v1",
+    ]);
+    const gateAEvidenceById = Object.fromEntries(
+      gateAState!.diagnosticEvidence.map((item) => [item.taskId!, item] as const),
+    );
+    expect(gateAEvidenceById["diagnostic-reading-library-v1"]).toMatchObject({
+      evidenceStatus: "evidence_limited",
+      firstResponse: "b",
+      resultType: "first_response_matched",
+      status: "completed",
+    });
+    expect(gateAEvidenceById["diagnostic-reading-newsletter-v1"]).toMatchObject({
+      evidenceStatus: "evidence_limited",
+      firstResponse: "a",
+      resultType: "first_response_not_matched",
+      status: "completed",
+    });
+    const staticListeningEvidence = gateAEvidenceById["diagnostic-listening-science-club-v1"];
+    expect(staticListeningEvidence).toMatchObject({
+      audioCompleted: true,
+      audioPlayed: true,
+      evidenceStatus: "evidence_limited",
+      firstResponse: "b",
+      resultType: "first_response_matched",
+      status: "completed",
+    });
+    expect(staticListeningEvidence.audioSeekDetected).not.toBe(true);
+    expect(Date.parse(staticListeningEvidence.audioPlaybackCompletedAt!)).toBeGreaterThanOrEqual(
+      Date.parse(staticListeningEvidence.audioPlaybackStartedAt!),
+    );
+    const speechListeningEvidence = gateAEvidenceById["diagnostic-listening-language-lab-v1"];
+    expect(speechListeningEvidence).toMatchObject({
+      audioCompleted: true,
+      audioPlayed: true,
+      evidenceStatus: "evidence_limited",
+      firstResponse: "a",
+      resultType: "first_response_matched",
+      speechSynthesisEnded: true,
+      speechSynthesisStarted: true,
+      status: "completed",
+    });
+    expect(speechListeningEvidence.qualityFlags).toContain("browser_voice_variability");
+    const speakingEvidence = gateAEvidenceById["diagnostic-speaking-learning-skill-v1"];
+    expect(speakingEvidence).toMatchObject({
+      audioRecorded: false,
+      durationSeconds: 90,
+      evidenceStatus: "evidence_insufficient",
+      selfReviewCount: 3,
+      status: "completed",
+      timerCompleted: true,
+    });
+    expect(speakingEvidence.qualityFlags).toEqual(expect.arrayContaining([
+      "audio_not_recorded",
+      "open_response_not_human_reviewed",
+    ]));
+    expect(speakingEvidence.timer!.prepEndsAt! - speakingEvidence.timer!.startedAt!).toBe(20_000);
+    expect(speakingEvidence.timer!.responseEndsAt! - speakingEvidence.timer!.prepEndsAt!).toBe(90_000);
+    expect(speakingEvidence.timer!.endedAt).toBeGreaterThanOrEqual(speakingEvidence.timer!.responseEndsAt!);
+    const writingEvidence = gateAEvidenceById["diagnostic-writing-learning-place-v1"];
+    expect(writingEvidence).toMatchObject({
+      durationSeconds: 180,
+      evidenceStatus: "evidence_insufficient",
+      responseText: diagnosticWritingResponse,
+      selfReviewCount: 3,
+      status: "completed",
+      timerCompleted: true,
+      wordCount: 29,
+    });
+    expect(writingEvidence.qualityFlags).toContain("open_response_not_human_reviewed");
+    expect(writingEvidence.qualityFlags).not.toContain("writing_paste_detected");
+    expect(writingEvidence.timer!.endsAt! - writingEvidence.timer!.startedAt!).toBe(180_000);
+    expect(writingEvidence.timer!.endedAt).toBeGreaterThanOrEqual(writingEvidence.timer!.endsAt!);
 
     stage = "authenticated Gate A next-cycle admission intent";
     const completedWorkspaceMainCta = page.locator("[data-journey-next-link]");
@@ -2243,6 +2487,7 @@ test("a temporary Development user can traverse the protected smoke path and is 
     const workspaceBackupText = workspaceBackupBuffer.toString("utf8");
     expect(workspaceBackupText).not.toContain(SOFIA_CHAT_KEY);
     expect(workspaceBackupText).not.toContain(TEACHING_REVIEW_DEMO_KEY);
+    expect(workspaceBackupText).toContain(diagnosticWritingResponse);
     const workspaceBackupEnvelope = JSON.parse(workspaceBackupText) as {
       backupProtocol?: string;
       integrity?: {
@@ -2255,6 +2500,12 @@ test("a temporary Development user can traverse the protected smoke path and is 
       workspace?: {
         journey?: {
           activeCycle?: Record<string, unknown>;
+          diagnostic?: {
+            completedEvidenceTaskCount?: number;
+            evidenceConfidence?: string;
+            evidenceSufficiency?: string;
+            taskEvidence?: GateADiagnosticEvidenceRecord[];
+          };
           history?: Array<Record<string, unknown>>;
         };
         learningEvents?: Array<{
@@ -2279,6 +2530,23 @@ test("a temporary Development user can traverse the protected smoke path and is 
     stage = "authenticated Gate A restorable backup continuity projection";
     expect(workspaceBackupEnvelope.workspace).toBeDefined();
     const exportedWorkspace = workspaceBackupEnvelope.workspace!;
+    expect(exportedWorkspace.journey?.diagnostic).toMatchObject({
+      completedEvidenceTaskCount: 6,
+      evidenceConfidence: "medium",
+      evidenceSufficiency: "evidence_limited",
+    });
+    expect(exportedWorkspace.journey?.diagnostic?.taskEvidence?.map((item) => item.status)).toEqual(
+      ["completed", "completed", "completed", "completed", "completed", "completed"],
+    );
+    expect(exportedWorkspace.journey?.diagnostic?.taskEvidence?.find(
+      (item) => item.taskId === "diagnostic-writing-learning-place-v1",
+    )).toMatchObject({
+      durationSeconds: 180,
+      responseText: diagnosticWritingResponse,
+      selfReviewCount: 3,
+      timerCompleted: true,
+      wordCount: 29,
+    });
     const exportedCycle = exportedWorkspace.journey?.activeCycle ?? {};
     expect([
       exportedCycle.cycleId,
@@ -2336,6 +2604,7 @@ test("a temporary Development user can traverse the protected smoke path and is 
     const applicationOrigin = new URL(target.baseURL).origin;
     const backupPayloadMarkers = [
       "sufeiya_workspace_backup_v1",
+      diagnosticWritingPrivacyMarker,
       workspaceBackupEnvelope.integrity?.sha256,
       workspaceBackupEnvelope.integrity?.learningEventHeadHash,
     ].filter((value): value is string => Boolean(value));
@@ -2510,7 +2779,15 @@ test("a temporary Development user can traverse the protected smoke path and is 
     expect(restoredNamespaceRaw.teachingReview).toBe(namespaceRawBeforeRestoreExercise.teachingReview);
     expect(restoredNamespaceRaw.workspace).not.toBeNull();
     const restoredWorkspace = JSON.parse(restoredNamespaceRaw.workspace!) as {
-      journey?: { activeCycle?: Record<string, unknown> };
+      journey?: {
+        activeCycle?: Record<string, unknown>;
+        diagnostic?: {
+          completedEvidenceTaskCount?: number;
+          evidenceConfidence?: string;
+          evidenceSufficiency?: string;
+          taskEvidence?: GateADiagnosticEvidenceRecord[];
+        };
+      };
       learningEvents?: Array<{
         eventHash?: string;
         eventId?: string;
@@ -2520,6 +2797,23 @@ test("a temporary Development user can traverse the protected smoke path and is 
       }>;
     };
     expect(canonicalJson(restoredWorkspace)).toBe(exportedWorkspaceCanonical);
+    expect(restoredWorkspace.journey?.diagnostic).toMatchObject({
+      completedEvidenceTaskCount: 6,
+      evidenceConfidence: "medium",
+      evidenceSufficiency: "evidence_limited",
+    });
+    expect(restoredWorkspace.journey?.diagnostic?.taskEvidence?.map((item) => item.status)).toEqual(
+      ["completed", "completed", "completed", "completed", "completed", "completed"],
+    );
+    expect(restoredWorkspace.journey?.diagnostic?.taskEvidence?.find(
+      (item) => item.taskId === "diagnostic-writing-learning-place-v1",
+    )).toMatchObject({
+      durationSeconds: 180,
+      responseText: diagnosticWritingResponse,
+      selfReviewCount: 3,
+      timerCompleted: true,
+      wordCount: 29,
+    });
     const restoredCycle = restoredWorkspace.journey?.activeCycle ?? {};
     const restoredCycleIds = [
       restoredCycle.cycleId,
@@ -2970,7 +3264,7 @@ test("a temporary Development user can traverse the protected smoke path and is 
       level: 2,
       name: "问一个与当前学习有关的问题",
     })).toBeVisible();
-    await expect(page.getByText("Reading 阅读 · 1 / 6 项本机诊断任务证据", { exact: true })).toBeVisible();
+    await expect(page.getByText("Reading 阅读 · 6 / 6 项本机诊断任务证据", { exact: true })).toBeVisible();
 
     const pageConversation = page.locator('section[aria-labelledby="conversation-title"]');
     const pageQuestionInput = pageConversation.getByRole("textbox", { name: "输入学习问题" });
@@ -3154,6 +3448,8 @@ test("a temporary Development user can traverse the protected smoke path and is 
     await expect(page.locator(".cl-signIn-root")).toBeVisible({
       timeout: CLERK_BROWSER_BOOT_TIMEOUT_MS,
     });
+    page.off("request", recordDiagnosticRawResponseRequest);
+    expect(diagnosticRawResponseTransmissions).toEqual([]);
   } catch {
     throw new Error(`Clerk Development smoke failed during ${stage}.`);
   }

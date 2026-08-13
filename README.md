@@ -16,7 +16,11 @@ Clerk Development 认证需要在被 Git 忽略的 `.env.local` 中同时提供�
 
 ### Clerk Development smoke E2E
 
-`npm run test:e2e:clerk-dev` 使用 project-based Clerk setup 与单个 Chromium worker，验证未登录保护、公开注册页不挂载普通 SignUp、已登录但没有有效资格的账户被学习页面与 Sofia POST 拒绝且不读取上一位使用者的 Sofia 本机命名空间。同一临时账户写入精确 Development 准入 metadata 并强制刷新 Clerk 签名会话令牌后，浏览器会在全新学习工作区中通过真实控件完成 Reading 首项证据与其余五项明确跳过，再依次走完诊断、计划、推荐、练习、打卡、复盘、互助状态、平行微复测与更新计划，核对 7 / 7、九个领域 ID 与六条哈希回链事件。随后测试实际下载 workspace-only 可恢复备份，证明篡改摘要时零写入拒绝、有效文件须先预检再确认、完整学习工作区的清除与恢复只替换学习命名空间、非空工作区的事件单独清除会零写入阻断、本站不接收恢复 POST 且任意请求体都不携带备份协议/摘要标记、Sofia 对话与教研草稿原始字节不变，并在恢复后继续得到同一闭环与事件链；最后再验证教研演示、Sofia 本机解释、登出隐私和重新保护。首次运行前如本机尚无对应浏览器，可执行 `npx playwright install chromium`。
+`npm run test:e2e:clerk-dev` 使用 project-based Clerk setup 与单个 Chromium worker，验证未登录保护、公开注册页不挂载普通 SignUp、已登录但没有有效资格的账户被学习页面与 Sofia POST 拒绝且不读取上一位使用者的 Sofia 本机命名空间。同一临时账户写入精确 Development 准入 metadata 并强制刷新 Clerk 签名会话令牌后，浏览器会在全新学习工作区中通过真实控件完成全部六项 Gate A 任务：两项 Reading 首答（第二项有意选择不匹配答案，以形成确定的 Reading 计划优先项）、静态 MP3 从头播放至真实 `ended`、设备 `speechSynthesis` 的真实 `start` / `end`、不使用假时钟的 20 秒准备加 90 秒 Speaking，以及真实 180 秒 Writing、逐键输入 29 个英文词与三项自查。主路径要求报告为 6 / 6 完成证据、`medium` 覆盖置信度与 `evidence_limited`，Speaking 不请求麦克风也不录音，Writing 不使用粘贴；随后依次走完计划、推荐、练习、打卡、复盘、互助状态、平行微复测与更新计划，核对 7 / 7、九个领域 ID 与六条哈希回链事件。
+
+真实 Speaking 与 Writing 计时本身固定占 290 秒，因此该单 worker 测试的总超时上限是 900 秒；这是包含 Clerk、页面导航和备份 I/O 的失败上界，不是承诺的常规耗时。跳过或不可用任务“不按零分处理”的合同继续由静态站点核对覆盖；workspace-backup VM 另验证跳过证据可通过严格 writer union，不为这条边界再创建第二个 Clerk 外部用户。
+
+随后测试实际下载 workspace-only 可恢复备份，证明六项 `completed` 诊断、`medium` / `evidence_limited` 报告与 Writing 原文进入本机严格备份，并在原子恢复后逐字保持；作文原文虽然存在于本机未加密工作区和该下载文件中，但不得出现在验证或恢复的任何请求体。测试还证明篡改摘要时零写入拒绝、有效文件须先预检再确认、完整学习工作区的清除与恢复只替换学习命名空间、非空工作区的事件单独清除会零写入阻断、本站不接收恢复 POST、Sofia 对话与教研草稿原始字节不变，并在恢复后继续得到同一闭环与事件链；最后再验证教研演示、Sofia 本机解释、登出隐私和重新保护。首次运行前如本机尚无对应浏览器，可执行 `npx playwright install chromium`。
 
 本机模式默认启动 `127.0.0.1:3210`。若 Next.js Node `proxy` 的本机 Clerk Development 握手在当前版本触发自代理循环，可对一个显式指定的 Vercel hosted target 运行同一套测试；显式目标只接受规范的 HTTPS `*.vercel.app` origin，且不会启动本机 web server。通用测试配置不把域名语法冒充 Preview 身份；形成 Preview 证据前还须用 Vercel deployment metadata 独立确认目标的 `target=preview` 与不可变 deployment ID：
 
