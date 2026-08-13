@@ -67,7 +67,10 @@ export default defineConfig({
   reporter: [["line"]],
   retries: 0,
   testDir: "./e2e/clerk-development",
-  timeout: 360_000,
+  // The authenticated happy path deliberately waits through the real Gate A
+  // 20 + 90 second Speaking clock and 180 second Writing clock. The 15-minute
+  // ceiling leaves bounded room for those 290 seconds plus Clerk and backup I/O.
+  timeout: 900_000,
   workers: 1,
   webServer: target.hosted ? undefined : {
     command: `npm run start -- --hostname localhost --port ${requestedPort}`,
