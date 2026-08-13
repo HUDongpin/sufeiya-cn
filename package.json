@@ -15,6 +15,9 @@
     "typecheck": "npm run generate:next-content && tsc --noEmit",
     "lint": "eslint .",
     "test:clerk": "tsx --test tests/clerk-auth.test.ts tests/clerk-beta-access.test.ts tests/clerk-development-e2e-config.test.ts",
+    "test:offline-navigation": "tsx --test tests/offline-navigation.test.ts",
+    "pretest:e2e:offline": "npm run build",
+    "test:e2e:offline": "playwright test --config=playwright.offline.config.ts",
     "pretest:e2e:clerk-dev": "npm run build",
     "test:e2e:clerk-dev": "playwright test --config=playwright.clerk.config.ts",
     "test:governance": "tsx --test tests/p0-decision-log.test.ts tests/p0-decision-preparation.test.ts tests/release-governance.test.ts tests/release-governance-status.test.ts",
@@ -23,7 +26,7 @@
     "test:super-teacher": "NODE_OPTIONS='--conditions=react-server' tsx --test tests/content-governance.test.ts tests/super-teacher.test.ts tests/super-teacher-approved-selection.test.ts tests/super-teacher-client-session.test.ts tests/super-teacher-local-response.test.ts tests/super-teacher-model-runtime.test.ts tests/super-teacher-rate-limit.test.ts tests/super-teacher-route-auth-boundary.test.ts tests/super-teacher-voice-release.test.ts",
     "check:legacy": "node scripts/verify-site.mjs",
     "check:next-build": "node scripts/verify-next-build.mjs",
-    "check": "npm run generate:next-content && npm run check:legacy && npm run test:clerk && npm run test:governance && npm run test:workspace-backup && npm run test:teaching-review && npm run test:super-teacher && tsc --noEmit && npm run lint && next build && npm run check:next-build"
+    "check": "npm run generate:next-content && npm run check:legacy && npm run test:clerk && npm run test:offline-navigation && npm run test:governance && npm run test:workspace-backup && npm run test:teaching-review && npm run test:super-teacher && tsc --noEmit && npm run lint && next build && npm run check:next-build"
   },
   "engines": {
     "node": ">=22.0.0"

@@ -118,6 +118,13 @@ const sitemap = await read("sitemap.xml");
 const nextSitemap = await read("app/sitemap.ts");
 const nextConfig = await read("next.config.ts");
 const rootLayout = await read("app/layout.tsx");
+const offlineNavigationBoundary = await read("components/offline-navigation-boundary.tsx");
+const offlineNavigationStyles = await read("components/offline-navigation-boundary.module.css");
+const offlineNavigationPolicy = await read("lib/offline-navigation.ts");
+const offlineNavigationUnitTest = await read("tests/offline-navigation.test.ts");
+const offlineNavigationE2E = await read("e2e/offline-navigation/offline-navigation.spec.ts");
+const offlineNavigationPlaywrightConfig = await read("playwright.offline.config.ts");
+const packageSource = await read("package.json");
 const notFoundRoute = await read("app/not-found.tsx");
 const dynamicLegacyPage = await read("app/[slug]/page.tsx");
 const routedLegacyPage = await read("components/routed-legacy-page.tsx");
@@ -6633,6 +6640,101 @@ check(!/favicon\.svg/.test(notFound), "404 page does not use the retired favicon
 check(
   /jpe\?g\|webp\|png\|gif\|svg/.test(proxyScript) && /webmanifest\|mp3/.test(proxyScript),
   "public images and audio bypass Clerk middleware",
+);
+check(
+  /import \{ OfflineNavigationBoundary \} from "@\/components\/offline-navigation-boundary"/.test(siteShell) &&
+    /<OfflineNavigationBoundary \/>[\s\S]*<SiteFrame/.test(siteShell) &&
+    !/OfflineNavigationBoundary/.test(rootLayout),
+  "the authenticated-aware site shell installs one offline-navigation boundary without expanding the anonymous 404 client graph",
+);
+check(
+  /^"use client";/m.test(offlineNavigationBoundary) &&
+    /data-offline-navigation-notice/.test(offlineNavigationBoundary) &&
+    /role="status"/.test(offlineNavigationBoundary) &&
+    /aria-live="polite"/.test(offlineNavigationBoundary) &&
+    /aria-atomic="true"/.test(offlineNavigationBoundary) &&
+    /hidden=\{!visible\}/.test(offlineNavigationBoundary) &&
+    !/tabIndex|\.focus\(/.test(offlineNavigationBoundary) &&
+    /当前离线/.test(offlineNavigationBoundary) &&
+    /不要刷新或关闭/.test(offlineNavigationBoundary) &&
+    /已重新连接/.test(offlineNavigationBoundary),
+  "offline status is a non-modal polite live region that never moves focus and states the loaded-page boundary",
+);
+check(
+  /window\.addEventListener\("offline", showOffline\)/.test(offlineNavigationBoundary) &&
+    /window\.addEventListener\("online", showRecovered\)/.test(offlineNavigationBoundary) &&
+    /window\.addEventListener\("pageshow", synchronizeConnectivity\)/.test(offlineNavigationBoundary) &&
+    /window\.addEventListener\("click", handleOfflineNavigation, true\)/.test(offlineNavigationBoundary) &&
+    /event\.preventDefault\(\)/.test(offlineNavigationBoundary) &&
+    !/stopPropagation|stopImmediatePropagation/.test(offlineNavigationBoundary) &&
+    /event\.defaultPrevented/.test(fullDocumentLink),
+  "offline navigation is intercepted before React handlers while existing menu propagation and full-document cancellation remain intact",
+);
+check(
+  /supportedCurrentContextTargets = new Set\(\["", "_self", "_top", "_parent"\]\)/.test(offlineNavigationPolicy) &&
+    /activation\.button !== 0/.test(offlineNavigationPolicy) &&
+    /activation\.altKey[\s\S]*activation\.ctrlKey[\s\S]*activation\.metaKey[\s\S]*activation\.shiftKey/.test(
+      offlineNavigationPolicy,
+    ) &&
+    /candidate\.download/.test(offlineNavigationPolicy) &&
+    /destination\.protocol !== "http:"[\s\S]*destination\.protocol !== "https:"/.test(
+      offlineNavigationPolicy,
+    ) &&
+    /destination\.origin !== current\.origin/.test(offlineNavigationPolicy) &&
+    /destination\.pathname === current\.pathname[\s\S]*destination\.search === current\.search[\s\S]*destination\.hash\.length > 0/.test(
+      offlineNavigationPolicy,
+    ),
+  "offline URL classification blocks only unmodified current-context same-origin document navigation",
+);
+check(
+  [offlineNavigationBoundary, offlineNavigationPolicy].every((source) =>
+    !/localStorage|sessionStorage|document\.cookie|\.setItem\(|\.removeItem\(|\.clear\(|\bfetch\(|XMLHttpRequest|WebSocket|EventSource|sendBeacon|serviceWorker|caches\.open|randomUUID|Date\.now|new Date|location\.(?:assign|replace|reload)/.test(
+      source,
+    )) &&
+    /position: fixed/.test(offlineNavigationStyles) &&
+    /z-index: 70/.test(offlineNavigationStyles) &&
+    /bottom: max\(112px, calc\(env\(safe-area-inset-bottom\) \+ 96px\)\)/.test(offlineNavigationStyles) &&
+    /width: min\(560px, calc\(100vw - 32px\)\)/.test(offlineNavigationStyles) &&
+    /max-height: calc\(100svh - 128px - env\(safe-area-inset-bottom\)\)/.test(offlineNavigationStyles) &&
+    /env\(safe-area-inset-bottom\)/.test(offlineNavigationStyles) &&
+    /pointer-events: none/.test(offlineNavigationStyles) &&
+    /\.notice\[hidden\][\s\S]*display: none/.test(offlineNavigationStyles) &&
+    /font-size: 14px/.test(offlineNavigationStyles) &&
+    /overflow-wrap: anywhere/.test(offlineNavigationStyles),
+  "offline continuity is memory-only, network-free, non-PWA, readable, and bounded inside the viewport",
+);
+check(
+    /target: "_top"/.test(offlineNavigationUnitTest) &&
+    /target: "_parent"/.test(offlineNavigationUnitTest) &&
+    /target: "_blank"/.test(offlineNavigationUnitTest) &&
+    /download: true/.test(offlineNavigationUnitTest) &&
+    /mailto:/.test(offlineNavigationUnitTest) &&
+    /blob:/.test(offlineNavigationUnitTest) &&
+    /defaultPrevented: true/.test(offlineNavigationUnitTest) &&
+    /context\.setOffline\(true\)/.test(offlineNavigationE2E) &&
+    /context\.setOffline\(false\)/.test(offlineNavigationE2E) &&
+    /__offlineStorageCalls/.test(offlineNavigationE2E) &&
+    /documentAttempts/.test(offlineNavigationE2E) &&
+    /rawLegacyLink/.test(offlineNavigationE2E) &&
+    /nextLink/.test(offlineNavigationE2E) &&
+    /overlapArea/.test(offlineNavigationE2E) &&
+    /layerOrder\.notice[\s\S]*layerOrder\.mobileNavigation/.test(offlineNavigationE2E) &&
+    /mobile-360/.test(offlineNavigationE2E) &&
+    /tablet-768/.test(offlineNavigationE2E) &&
+    /desktop-1440/.test(offlineNavigationE2E) &&
+    /reflow-720/.test(offlineNavigationE2E),
+  "offline regression covers link exclusions, real network state, exact zero writes, keyboard use, recovery, and responsive reflow",
+);
+check(
+  /testDir: "\.\/e2e\/offline-navigation"/.test(offlineNavigationPlaywrightConfig) &&
+    /baseURL = `http:\/\/127\.0\.0\.1:\$\{port\}`/.test(offlineNavigationPlaywrightConfig) &&
+    /trace: "off"/.test(offlineNavigationPlaywrightConfig) &&
+    /video: "off"/.test(offlineNavigationPlaywrightConfig) &&
+    !/clerk|\.env\.local/i.test(offlineNavigationPlaywrightConfig) &&
+    /"test:offline-navigation": "tsx --test tests\/offline-navigation\.test\.ts"/.test(packageSource) &&
+    /"test:e2e:offline": "playwright test --config=playwright\.offline\.config\.ts"/.test(packageSource) &&
+    /npm run test:offline-navigation/.test(JSON.parse(packageSource).scripts.check),
+  "offline tests have a separate public-page runner with no Clerk configuration or identity side effects",
 );
 check(
   /import \{ AnonymousNotFoundPage \} from "@\/components\/anonymous-legacy-page"/.test(

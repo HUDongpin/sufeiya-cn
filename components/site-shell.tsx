@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 
 import { ClerkAccountControls } from "@/components/clerk-account-controls";
 import { FullDocumentLink } from "@/components/full-document-link";
+import { OfflineNavigationBoundary } from "@/components/offline-navigation-boundary";
 import { SiteFrame } from "@/components/site-frame";
 import {
   SofiaAccessBoundary,
@@ -67,26 +68,29 @@ export async function SiteShell({
       : <SofiaUnavailableBoundary surface={sofiaSurface}>{children}</SofiaUnavailableBoundary>;
 
   const shell = (
-    <SiteFrame
-      pageKey={pageKey}
-      desktopAccountControls={clerkState.configured ? (
-        <ClerkAccountControls />
-      ) : (
-        <FullDocumentLink className="auth-link" href="/sign-in">账户未配置</FullDocumentLink>
-      )}
-      mobileAccountControls={(
-        <>
-          <FullDocumentLink href="/sign-in">登录受邀账户<span>{clerkState.configured ? "Clerk" : "未配置"}</span></FullDocumentLink>
-          <FullDocumentLink href="/sign-up">受邀注册<span>邀请链接</span></FullDocumentLink>
-          <FullDocumentLink href="/account">我的账户<span>{clerkState.configured ? "已启用" : "未配置"}</span></FullDocumentLink>
-        </>
-      )}
-      localModeLabel={clerkState.configured
-        ? localModeLabels[betaAccessContext]
-        : "Clerk 未配置 · 本机保存"}
-    >
-      {content}
-    </SiteFrame>
+    <>
+      <OfflineNavigationBoundary />
+      <SiteFrame
+        pageKey={pageKey}
+        desktopAccountControls={clerkState.configured ? (
+          <ClerkAccountControls />
+        ) : (
+          <FullDocumentLink className="auth-link" href="/sign-in">账户未配置</FullDocumentLink>
+        )}
+        mobileAccountControls={(
+          <>
+            <FullDocumentLink href="/sign-in">登录受邀账户<span>{clerkState.configured ? "Clerk" : "未配置"}</span></FullDocumentLink>
+            <FullDocumentLink href="/sign-up">受邀注册<span>邀请链接</span></FullDocumentLink>
+            <FullDocumentLink href="/account">我的账户<span>{clerkState.configured ? "已启用" : "未配置"}</span></FullDocumentLink>
+          </>
+        )}
+        localModeLabel={clerkState.configured
+          ? localModeLabels[betaAccessContext]
+          : "Clerk 未配置 · 本机保存"}
+      >
+        {content}
+      </SiteFrame>
+    </>
   );
 
   if (!clerkState.configured) return shell;

@@ -12,6 +12,8 @@ npm run dev
 
 Next.js 本地开发地址默认为 `http://localhost:3000`。
 
+不依赖 Clerk 的离线跨页连续性回归可单独运行 `npm run test:e2e:offline`；它使用公开页面与独立本机端口，不读取 Clerk 密钥或创建账户。该测试先生成 production build，再以真实 Chromium 离线网络状态核对提示、同源跨页阻断、键盘操作、恢复导航与三个本机命名空间零写入。
+
 Clerk Development 认证需要在被 Git 忽略的 `.env.local` 中同时提供同一 Development 实例的 `pk_test_` 与 `sk_test_`。若 Vercel Development 作用域未配置 server-only secret，`vercel env pull` 不能单独形成完整的本机凭据；应使用项目所有者维护的受控本机配置，且仓库和日志均不得保存或输出真实密钥值。
 
 ### Clerk Development smoke E2E
@@ -85,6 +87,8 @@ Qwen 后端已按 2026-08-11 最新的 Alibaba Cloud 官方 DashScope/OpenAI 兼
 - `/account`：登录后账户资料页，未登录访问会返回登录页。
 
 每个顶部导航按钮进入一个独立页面，不使用单页长滚动替代多页面导航。
+
+已加载的页面在浏览器报告离线时会显示非模态提示，并在当前页面内阻止普通同源跨页导航，避免用户误入浏览器错误页；同页锚点、本机下载、外部链接和新窗口操作仍保留浏览器原有行为。网络恢复后会短暂提示可以继续。该边界不读取、写入、迁移或同步任何本机学习命名空间，也不注册 Service Worker、不缓存尚未加载的页面、不承诺刷新、关闭页面或直接离线打开新地址后仍可使用，因此不是 PWA 或完整离线模式。
 
 具有当前邀请资格的 18+ 成人内测账户可以使用：
 
