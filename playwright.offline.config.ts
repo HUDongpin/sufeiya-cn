@@ -3,7 +3,15 @@ import { fileURLToPath } from "node:url";
 import { defineConfig, devices } from "@playwright/test";
 
 const repositoryRoot = fileURLToPath(new URL(".", import.meta.url));
-const port = 3211;
+const requestedPort = process.env.SUFEIYA_OFFLINE_E2E_PORT?.trim() || "3211";
+if (
+  !/^\d{4,5}$/.test(requestedPort)
+  || Number(requestedPort) < 1_024
+  || Number(requestedPort) > 65_535
+) {
+  throw new Error("SUFEIYA_OFFLINE_E2E_PORT must be an unprivileged TCP port.");
+}
+const port = Number(requestedPort);
 const baseURL = `http://127.0.0.1:${port}`;
 
 export default defineConfig({

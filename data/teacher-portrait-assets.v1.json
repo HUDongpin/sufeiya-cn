@@ -1,0 +1,179 @@
+{
+  "schemaVersion": "sufeiya_teacher_portrait_assets_v1",
+  "generatedAt": "2026-08-19T06:36:55Z",
+  "status": {
+    "engineeringAssetCompletion": "COMPLETE_LOCAL_DERIVATIVES_VERIFIED",
+    "ownerTeacherUseAcceptance": "PENDING",
+    "publicUseAuthorization": "NOT_GRANTED_BY_THIS_FILE",
+    "deployment": "NOT_EVIDENCED"
+  },
+  "source": {
+    "path": "/Volumes/WestWorld/Sufeiya/最新微笑版.jpg",
+    "repositoryCopyIncluded": false,
+    "format": "JPEG",
+    "width": 3840,
+    "height": 5760,
+    "bytes": 13713402,
+    "orientation": "TopLeft",
+    "sha256": "f0c23e3b73952cd70c085f71f9e4ca556075c8d14d140ac2dcc22f3df4954c24"
+  },
+  "processing": {
+    "kind": "faithful_non_generative_mechanical_derivative",
+    "tool": {
+      "name": "ImageMagick",
+      "version": "7.1.2-27 Q16-HDRI aarch64",
+      "buildDate": "20260705"
+    },
+    "orientationHandling": "-auto-orient; the verified source orientation is TopLeft",
+    "crop": {
+      "geometry": "3840x4800+0+480",
+      "width": 3840,
+      "height": 4800,
+      "x": 0,
+      "y": 480,
+      "purpose": "4:5 homepage portrait retaining the face, hat, wand and holding hand"
+    },
+    "resize": {
+      "filter": "Lanczos",
+      "outputAspectRatio": "4:5 (width:height)",
+      "forceExactDimensions": true
+    },
+    "metadata": "stripped",
+    "encoders": {
+      "avif": {
+        "quality": 55
+      },
+      "webp": {
+        "quality": 84,
+        "method": 6
+      }
+    },
+    "contentChanges": "none; no generative editing, retouching, compositing, face modification or background replacement"
+  },
+  "intendedUse": {
+    "domain": "sufeiya.cn",
+    "page": "homepage only",
+    "placement": "first-screen teacher portrait card beside or immediately after the primary learning CTA",
+    "altText": "苏肥鸭老师戴黑色帽子、微笑并手持教鞭的半身肖像",
+    "scopeStatus": "PENDING_OWNER_TEACHER_USE_ACCEPTANCE",
+    "receipt": "docs/p0/teacher-portrait-homepage-use-receipt.md"
+  },
+  "derivatives": [
+    {
+      "id": "sufeiyalaoshi-homepage-640w-avif",
+      "format": "AVIF",
+      "mimeType": "image/avif",
+      "width": 640,
+      "height": 800,
+      "bytes": 14218,
+      "sha256": "4b35816db90325c2d0b2be88262aca1ebf829169758cc40e02e57be984fdefe8",
+      "assetPath": "assets/teacher-portrait/sufeiyalaoshi-homepage-640w.avif",
+      "publicFilesystemPath": "public/assets/teacher-portrait/sufeiyalaoshi-homepage-640w.avif",
+      "publicUrlPath": "/assets/teacher-portrait/sufeiyalaoshi-homepage-640w.avif",
+      "crop": "3840x4800+0+480",
+      "resize": "640x800! using Lanczos",
+      "quality": 55,
+      "metadata": "stripped",
+      "copyIntegrity": "BYTE_IDENTICAL_ASSET_AND_PUBLIC_COPY"
+    },
+    {
+      "id": "sufeiyalaoshi-homepage-640w-webp",
+      "format": "WebP",
+      "mimeType": "image/webp",
+      "width": 640,
+      "height": 800,
+      "bytes": 21890,
+      "sha256": "9e70fea29be3b530180847daaa93f22009e1b416f6140be50a1485252c00397a",
+      "assetPath": "assets/teacher-portrait/sufeiyalaoshi-homepage-640w.webp",
+      "publicFilesystemPath": "public/assets/teacher-portrait/sufeiyalaoshi-homepage-640w.webp",
+      "publicUrlPath": "/assets/teacher-portrait/sufeiyalaoshi-homepage-640w.webp",
+      "crop": "3840x4800+0+480",
+      "resize": "640x800! using Lanczos",
+      "quality": 84,
+      "encoderOptions": "webp:method=6",
+      "metadata": "stripped",
+      "copyIntegrity": "BYTE_IDENTICAL_ASSET_AND_PUBLIC_COPY"
+    },
+    {
+      "id": "sufeiyalaoshi-homepage-960w-avif",
+      "format": "AVIF",
+      "mimeType": "image/avif",
+      "width": 960,
+      "height": 1200,
+      "bytes": 27436,
+      "sha256": "a706aba345af9fa355611de61236b8d5c0afcbe02cf41b9d095099eb5fb4a275",
+      "assetPath": "assets/teacher-portrait/sufeiyalaoshi-homepage-960w.avif",
+      "publicFilesystemPath": "public/assets/teacher-portrait/sufeiyalaoshi-homepage-960w.avif",
+      "publicUrlPath": "/assets/teacher-portrait/sufeiyalaoshi-homepage-960w.avif",
+      "crop": "3840x4800+0+480",
+      "resize": "960x1200! using Lanczos",
+      "quality": 55,
+      "metadata": "stripped",
+      "copyIntegrity": "BYTE_IDENTICAL_ASSET_AND_PUBLIC_COPY"
+    },
+    {
+      "id": "sufeiyalaoshi-homepage-960w-webp",
+      "format": "WebP",
+      "mimeType": "image/webp",
+      "width": 960,
+      "height": 1200,
+      "bytes": 44824,
+      "sha256": "a75883b780c60f277b0e10577948073f5bde35a362d1ef0ddf19514525e51aea",
+      "assetPath": "assets/teacher-portrait/sufeiyalaoshi-homepage-960w.webp",
+      "publicFilesystemPath": "public/assets/teacher-portrait/sufeiyalaoshi-homepage-960w.webp",
+      "publicUrlPath": "/assets/teacher-portrait/sufeiyalaoshi-homepage-960w.webp",
+      "crop": "3840x4800+0+480",
+      "resize": "960x1200! using Lanczos",
+      "quality": 84,
+      "encoderOptions": "webp:method=6",
+      "metadata": "stripped",
+      "copyIntegrity": "BYTE_IDENTICAL_ASSET_AND_PUBLIC_COPY"
+    },
+    {
+      "id": "sufeiyalaoshi-homepage-1280w-avif",
+      "format": "AVIF",
+      "mimeType": "image/avif",
+      "width": 1280,
+      "height": 1600,
+      "bytes": 45664,
+      "sha256": "b1f15c2c783e443a57296059959cff2aad3dec4604b76bfce26bd33e7504cb51",
+      "assetPath": "assets/teacher-portrait/sufeiyalaoshi-homepage-1280w.avif",
+      "publicFilesystemPath": "public/assets/teacher-portrait/sufeiyalaoshi-homepage-1280w.avif",
+      "publicUrlPath": "/assets/teacher-portrait/sufeiyalaoshi-homepage-1280w.avif",
+      "crop": "3840x4800+0+480",
+      "resize": "1280x1600! using Lanczos",
+      "quality": 55,
+      "metadata": "stripped",
+      "copyIntegrity": "BYTE_IDENTICAL_ASSET_AND_PUBLIC_COPY"
+    },
+    {
+      "id": "sufeiyalaoshi-homepage-1280w-webp",
+      "format": "WebP",
+      "mimeType": "image/webp",
+      "width": 1280,
+      "height": 1600,
+      "bytes": 72744,
+      "sha256": "cb10ed2f4fe346b6a3fab1257ba8cfb8aef880625291eb117261fdb2d57f638c",
+      "assetPath": "assets/teacher-portrait/sufeiyalaoshi-homepage-1280w.webp",
+      "publicFilesystemPath": "public/assets/teacher-portrait/sufeiyalaoshi-homepage-1280w.webp",
+      "publicUrlPath": "/assets/teacher-portrait/sufeiyalaoshi-homepage-1280w.webp",
+      "crop": "3840x4800+0+480",
+      "resize": "1280x1600! using Lanczos",
+      "quality": 84,
+      "encoderOptions": "webp:method=6",
+      "metadata": "stripped",
+      "copyIntegrity": "BYTE_IDENTICAL_ASSET_AND_PUBLIC_COPY"
+    }
+  ],
+  "verification": {
+    "sourceHashDimensionsAndBytesVerified": true,
+    "allDerivativeDimensionsVerified": true,
+    "allDerivativeFullDecodePass": true,
+    "assetAndPublicHashesMatch": true,
+    "metadataInspection": "No EXIF or IPTC payload was reported for any derivative",
+    "visualInspection": {
+      "file": "assets/teacher-portrait/sufeiyalaoshi-homepage-960w.webp",
+      "result": "PASS_FACE_HAT_WAND_AND_HOLDING_HAND_RETAINED"
+    }
+  }
+}

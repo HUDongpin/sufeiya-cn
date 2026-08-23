@@ -104,7 +104,10 @@ test("keeps an already-loaded page and every local namespace intact while offlin
   expect(documentAttempts).toEqual([]);
   await expect(notice).toHaveCount(1);
 
-  const rawLegacyLink = page.getByRole("link", { name: "查看学习路径", exact: true });
+  const rawLegacyLink = page.locator(".hero-actions").getByRole("link", {
+    name: "开始 3 分钟入门检查",
+    exact: true,
+  });
   await rawLegacyLink.focus();
   await rawLegacyLink.click();
   expect(page.url()).toBe(offlineURL);

@@ -12,7 +12,9 @@ npm run dev
 
 Next.js 本地开发地址默认为 `http://localhost:3000`。
 
-不依赖 Clerk 的离线跨页连续性回归可单独运行 `npm run test:e2e:offline`；它使用公开页面与独立本机端口，不读取 Clerk 密钥或创建账户。该测试先生成 production build，再以真实 Chromium 离线网络状态核对提示、同源跨页阻断、键盘操作、恢复导航与三个本机命名空间零写入。
+不依赖 Clerk 的离线跨页连续性回归可单独运行 `npm run test:e2e:offline`；它使用公开页面与独立本机端口，不读取 Clerk 密钥或创建账户。该测试先生成 production build，再以真实 Chromium 离线网络状态核对提示、同源跨页阻断、键盘操作、恢复导航与三个本机命名空间零写入。默认端口是 `3211`；若它被另一个本机项目占用，可用经过范围校验的覆盖值运行，例如 `SUFEIYA_OFFLINE_E2E_PORT=3216 npm run test:e2e:offline`。
+
+匿名 Reading P0 使用独立的纯领域测试与真实浏览器回归：`npm run test:public-reading` 核对原创内容包、逐对象来源/权利/版本/审核状态、客观首答证据、复测后确定性推荐、事件生命周期与本机存储失败关闭；`npm run test:e2e:public-reading` 先生成 production build，再核对首页两次点击内开始、五段式反馈、2 + 3 + 2 道不复用内容的闭环、两道复测首答全部锁定后统一反馈、前后完整推荐链、查看/导出/双确认删除、损坏与未知版本保全、多标签页冲突、事件账本降级、四个替代 CTA、公开 SignUp 关闭、全程键盘操作、移动/200% reflow、对比度与旧命名空间不变。它不需要 Clerk 密钥，不创建账户，也不发送写请求。
 
 Clerk Development 认证需要在被 Git 忽略的 `.env.local` 中同时提供同一 Development 实例的 `pk_test_` 与 `sk_test_`。若 Vercel Development 作用域未配置 server-only secret，`vercel env pull` 不能单独形成完整的本机凭据；应使用项目所有者维护的受控本机配置，且仓库和日志均不得保存或输出真实密钥值。
 
@@ -62,6 +64,7 @@ Qwen 后端已按 2026-08-11 最新的 Alibaba Cloud 官方 DashScope/OpenAI 兼
 ## Page structure
 
 - `/`：精炼首页与四个页面入口；
+- `/learn/reading`：无需登录的 Reading P0 纵向切片；使用 2 道入门检查、版本化微课、3 道主动练习与 2 道不复用短文/题目的独立平行复测，显示五段式错误反馈及复测前后的 `证据 → 能力 → 资源 → 任务 → 复测` 推荐链。本轮客观首答状态与最小事件账本分别保存在 `sufeiya_public_reading_p0_v1` 和 `sufeiya_public_learning_events_v1`，可在本页查看、导出和双确认删除；若学习状态合法而事件账本滞后，页面明确进入 `event_degraded`、冻结事件写入但继续本机学习，并把失配原因写入导出包。该路由不读取、迁移或写入 Gate A、Sofia 或教研命名空间；四个价值后入口只有本机保留、导出、受邀登录和等候名单，公开 SignUp 继续关闭。内容仍是 `draft_pending_teacher_review`，页面保持 `noindex`，不构成正式诊断、官方分数、学习增长证明、教师验收或公开发布批准；
 - `/workspace`：七阶段 Gate A 闭环进度、独立功能页入口、只投影中央校验器已确认 ID 的本轮证据链总览、最近最多 10 轮的本机计划版本历史、完成后经整轮本机容量预检开放的“开始下一轮”入口、临时更新计划专用的待资质人员确认承接卡、脱敏的 29 项 P0 书面决定汇总，以及逐条来源治理/RAG 准入的只读计数；
 - `/super-teacher`：有来源的 Gate A 学习解释、拒答边界、非 AI 退出，以及只对同时通过共享 v2 完整账本—领域覆盖核对、且当前 provisional 事件片段位于账本连续尾部的轮次开放的 Sofia 本机承接包与未发送人工支持请求；
 - `/diagnostic`：18+、本机、无评分的六任务诊断证据包（2 Reading + 2 Listening + 90 秒 Speaking + 3 分钟 Writing）；

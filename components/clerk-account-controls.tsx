@@ -7,7 +7,7 @@ export function ClerkAccountControls() {
   return (
     <div className="clerk-account-controls" aria-label="账户">
       <Show when="signed-out">
-        <Link className="auth-link auth-link-primary" href="/sign-in">登录</Link>
+        <Link className="auth-link auth-link-primary" href="/sign-in">受邀内测登录</Link>
       </Show>
       <Show when="signed-in">
         <Link className="auth-link" href="/account">我的账户</Link>

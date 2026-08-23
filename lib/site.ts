@@ -12,7 +12,14 @@ export const navItems = [
   { key: "about", label: "关于我们", href: "/about" },
 ] as const;
 
-export type NavigationKey = (typeof navItems)[number]["key"] | "home" | "workspace" | "super-teacher" | "account" | "auth";
+export type NavigationKey =
+  | (typeof navItems)[number]["key"]
+  | "home"
+  | "public-learning"
+  | "workspace"
+  | "super-teacher"
+  | "account"
+  | "auth";
 
 export function metadataForPage(key: LegacyPageKey): Metadata {
   const page = legacyPages[key];
