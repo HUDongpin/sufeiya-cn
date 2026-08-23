@@ -212,6 +212,9 @@ const teacherPortraitManifest = JSON.parse(await read("data/teacher-portrait-ass
 const publicReadingEngineeringReceipt = await read("docs/p0/public-reading-p0-engineering-receipt.md");
 const publicReadingDataContract = await read("docs/p0/public-reading-local-data-contract.md");
 const publicReadingContentReviewPacket = await read("docs/p0/public-reading-content-review-packet.md");
+const publicReadingReviewDecisionReceipt = await read(
+  "docs/p0/public-reading-p0-review-decision-receipt.md",
+);
 const parseDeclaredStringArray = (source, declaration, label) => {
   const match = source.match(
     new RegExp(`(?:export\\s+)?const\\s+${declaration}\\s*=\\s*(\\[[\\s\\S]*?\\])(?:\\s+as\\s+const)?\\s*;`),
@@ -6726,10 +6729,13 @@ check(
   "public Reading restores only ordered state evidence and lifecycle-valid local event ledgers",
 );
 check(
-  /draft_pending_teacher_review/.test(publicReadingContent) &&
+  /accepted_by_teacher_and_content_owner/.test(publicReadingContent) &&
     /original_first_party_draft/.test(publicReadingContent) &&
-    /pending_content_owner_confirmation/.test(publicReadingContent) &&
-    /reviewer: null/.test(publicReadingContent) &&
+    /confirmed_by_content_owner_for_p0_candidate/.test(publicReadingContent) &&
+    /READING_CONTENT_REVIEWER = "苏肥鸭"/.test(publicReadingContent) &&
+    /teacher_and_content_owner/.test(publicReadingContent) &&
+    /af85403cd97eff47afeea93582705a15aa7527a3/.test(publicReadingContent) &&
+    /codex_task_01a018b0_user_acceptance_2026_08_23/.test(publicReadingContent) &&
     /contentPackageVersion: READING_CONTENT_PACKAGE_VERSION/.test(publicReadingContent) &&
     /releaseDisposition: "not_release_ready"/.test(publicReadingContent) &&
     /BASELINE_READING_TASK_IDS = \[[\s\S]*?\]/.test(publicReadingContent) &&
@@ -6740,7 +6746,7 @@ check(
     /retest_remaining_error_overrides_baseline_priority/.test(publicReadingEvaluation) &&
     /same_session_objective_evidence_only/.test(publicReadingEvaluation) &&
     /evidence_insufficient/.test(publicReadingEvaluation),
-  "public Reading content and deterministic recommendation preserve teacher-review and evidence boundaries",
+  "public Reading content binds teacher/content acceptance while preserving release and evidence boundaries",
 );
 check(
   /data-reading-feedback=\{evaluation\.isCorrect \? "correct" : "five-part-wrong"\}/.test(
@@ -6818,7 +6824,7 @@ check(
   !sitemap.includes("https://sufeiya.cn/learn/reading") &&
     !nextSitemap.includes('"public-learning"') &&
     !nextSitemap.includes('"learn/reading"'),
-  "teacher-review-pending public Reading route remains excluded from both sitemaps",
+  "not-release-authorized public Reading route remains excluded from both sitemaps",
 );
 
 check(
@@ -6832,14 +6838,22 @@ check(
 );
 check(
   /NOT AUTHORIZED FOR PREVIEW OR PUBLIC RELEASE/.test(publicReadingEngineeringReceipt) &&
-    /G1 教学内容 \| `PENDING`/.test(publicReadingEngineeringReceipt) &&
+    /G1 教学内容 \| `PASS`/.test(publicReadingEngineeringReceipt) &&
     /G3 数据、隐私与注册边界 \| `PENDING`/.test(publicReadingEngineeringReceipt) &&
     /G4 真人教师、人物用途与条件性队列 \| `PENDING`/.test(publicReadingEngineeringReceipt) &&
     /G5 Preview 候选 \| `PENDING`/.test(publicReadingEngineeringReceipt) &&
     /G6 公开发布授权 \| `PENDING`/.test(publicReadingEngineeringReceipt) &&
-    /PENDING PRIVACY-PRODUCT-LEGAL REVIEW/.test(publicReadingDataContract) &&
-    /DRAFT_PENDING_TEACHER_REVIEW \/ NOT RELEASE READY/.test(publicReadingContentReviewPacket),
-  "public Reading evidence pack keeps engineering, teacher, privacy, Preview, and release gates separate",
+    /PRODUCT_PRIVACY_ACCEPTED_FOR_AF85403 \/ PROFESSIONAL_LEGAL_REVIEW_PENDING/.test(
+      publicReadingDataContract,
+    ) &&
+    /TEACHER_CONTENT_OWNER_ACCEPTED_FOR_AF85403 \/ NOT RELEASE READY/.test(
+      publicReadingContentReviewPacket,
+    ) &&
+    /CONTENT_ACCEPTED \/ PRODUCT_PRIVACY_ACCEPTED \/ PORTRAIT_AND_PROFESSIONAL_LEGAL_PENDING/.test(
+      publicReadingReviewDecisionReceipt,
+    ) &&
+    /目前只批准内容评审/.test(publicReadingReviewDecisionReceipt),
+  "public Reading evidence pack records accepted content while keeping portrait, legal, Preview, and release gates separate",
 );
 for (const derivative of teacherPortraitManifest.derivatives ?? []) {
   try {

@@ -1,8 +1,16 @@
 export const READING_CONTENT_PACKAGE_VERSION = "reading_p0_original_v1" as const;
-export const READING_CONTENT_REVIEW_STATUS = "draft_pending_teacher_review" as const;
+export const READING_CONTENT_REVIEW_STATUS =
+  "accepted_by_teacher_and_content_owner" as const;
 export const READING_CONTENT_SOURCE = "original_first_party_draft" as const;
 export const READING_CONTENT_RIGHTS_STATUS =
-  "pending_content_owner_confirmation" as const;
+  "confirmed_by_content_owner_for_p0_candidate" as const;
+export const READING_CONTENT_REVIEWER = "苏肥鸭" as const;
+export const READING_CONTENT_REVIEWER_ROLE = "teacher_and_content_owner" as const;
+export const READING_CONTENT_REVIEW_DATE = "2026-08-23" as const;
+export const READING_CONTENT_REVIEWED_CANDIDATE_COMMIT =
+  "af85403cd97eff47afeea93582705a15aa7527a3" as const;
+export const READING_CONTENT_REVIEW_EVIDENCE_REF =
+  "codex_task_01a018b0_user_acceptance_2026_08_23" as const;
 
 export const READING_SKILLS = [
   "locate_explicit_evidence",
@@ -79,7 +87,11 @@ export type ReadingTask = Readonly<{
   }>[];
   wrongFeedback: ReadingWrongFeedback;
   reviewStatus: typeof READING_CONTENT_REVIEW_STATUS;
-  reviewer: null;
+  reviewer: typeof READING_CONTENT_REVIEWER;
+  reviewerRole: typeof READING_CONTENT_REVIEWER_ROLE;
+  reviewDate: typeof READING_CONTENT_REVIEW_DATE;
+  reviewedCandidateCommit: typeof READING_CONTENT_REVIEWED_CANDIDATE_COMMIT;
+  reviewEvidenceRef: typeof READING_CONTENT_REVIEW_EVIDENCE_REF;
   rightsStatus: typeof READING_CONTENT_RIGHTS_STATUS;
   source: typeof READING_CONTENT_SOURCE;
 }>;
@@ -88,7 +100,11 @@ export type ReadingContentPackage = Readonly<{
   version: typeof READING_CONTENT_PACKAGE_VERSION;
   source: typeof READING_CONTENT_SOURCE;
   reviewStatus: typeof READING_CONTENT_REVIEW_STATUS;
-  reviewer: null;
+  reviewer: typeof READING_CONTENT_REVIEWER;
+  reviewerRole: typeof READING_CONTENT_REVIEWER_ROLE;
+  reviewDate: typeof READING_CONTENT_REVIEW_DATE;
+  reviewedCandidateCommit: typeof READING_CONTENT_REVIEWED_CANDIDATE_COMMIT;
+  reviewEvidenceRef: typeof READING_CONTENT_REVIEW_EVIDENCE_REF;
   rightsStatus: typeof READING_CONTENT_RIGHTS_STATUS;
   releaseDisposition: "not_release_ready";
   learnerEvidenceBoundary: "local_objective_response_evidence_only";
@@ -110,7 +126,11 @@ export type ReadingContentPackage = Readonly<{
       explicitEvidence: string;
     }>;
     reviewStatus: typeof READING_CONTENT_REVIEW_STATUS;
-    reviewer: null;
+    reviewer: typeof READING_CONTENT_REVIEWER;
+    reviewerRole: typeof READING_CONTENT_REVIEWER_ROLE;
+    reviewDate: typeof READING_CONTENT_REVIEW_DATE;
+    reviewedCandidateCommit: typeof READING_CONTENT_REVIEWED_CANDIDATE_COMMIT;
+    reviewEvidenceRef: typeof READING_CONTENT_REVIEW_EVIDENCE_REF;
     rightsStatus: typeof READING_CONTENT_RIGHTS_STATUS;
     source: typeof READING_CONTENT_SOURCE;
   }>;
@@ -122,10 +142,14 @@ export type ReadingContentPackage = Readonly<{
 const sharedRetestTiming =
   "完成三道练习后，先离开答案说明，再完成两道全新短文复测题。";
 
-const draftMetadata = {
+const reviewedMetadata = {
   contentPackageVersion: READING_CONTENT_PACKAGE_VERSION,
   reviewStatus: READING_CONTENT_REVIEW_STATUS,
-  reviewer: null,
+  reviewer: READING_CONTENT_REVIEWER,
+  reviewerRole: READING_CONTENT_REVIEWER_ROLE,
+  reviewDate: READING_CONTENT_REVIEW_DATE,
+  reviewedCandidateCommit: READING_CONTENT_REVIEWED_CANDIDATE_COMMIT,
+  reviewEvidenceRef: READING_CONTENT_REVIEW_EVIDENCE_REF,
   rightsStatus: READING_CONTENT_RIGHTS_STATUS,
   source: READING_CONTENT_SOURCE,
 } as const;
@@ -134,7 +158,11 @@ export const READING_CONTENT_PACKAGE: ReadingContentPackage = deepFreeze({
   version: READING_CONTENT_PACKAGE_VERSION,
   source: READING_CONTENT_SOURCE,
   reviewStatus: READING_CONTENT_REVIEW_STATUS,
-  reviewer: null,
+  reviewer: READING_CONTENT_REVIEWER,
+  reviewerRole: READING_CONTENT_REVIEWER_ROLE,
+  reviewDate: READING_CONTENT_REVIEW_DATE,
+  reviewedCandidateCommit: READING_CONTENT_REVIEWED_CANDIDATE_COMMIT,
+  reviewEvidenceRef: READING_CONTENT_REVIEW_EVIDENCE_REF,
   rightsStatus: READING_CONTENT_RIGHTS_STATUS,
   releaseDisposition: "not_release_ready",
   learnerEvidenceBoundary: "local_objective_response_evidence_only",
@@ -162,7 +190,7 @@ export const READING_CONTENT_PACKAGE: ReadingContentPackage = deepFreeze({
       supportingDetail: "The cloth catches drops of paint.",
       explicitEvidence: "The passage directly says the cloth makes cleanup faster.",
     },
-    ...draftMetadata,
+    ...reviewedMetadata,
   },
   baseline: [
     {
@@ -221,7 +249,7 @@ export const READING_CONTENT_PACKAGE: ReadingContentPackage = deepFreeze({
           "现在重读第一句，圈出 blue labels 和 need shade，再用这两个词核对每个选项。",
         retestTiming: sharedRetestTiming,
       },
-      ...draftMetadata,
+      ...reviewedMetadata,
     },
     {
       id: "reading_baseline_friday_plan",
@@ -288,7 +316,7 @@ export const READING_CONTENT_PACKAGE: ReadingContentPackage = deepFreeze({
           "给每个选项做覆盖检查：数一数它能解释段落中的几句话，再选能覆盖最多句子的概括。",
         retestTiming: sharedRetestTiming,
       },
-      ...draftMetadata,
+      ...reviewedMetadata,
     },
   ],
   practice: [
@@ -357,7 +385,7 @@ export const READING_CONTENT_PACKAGE: ReadingContentPackage = deepFreeze({
           "把 returned books、gray tray、checks 和 before 四处画线，然后逐项排除改变动作或地点的选项。",
         retestTiming: sharedRetestTiming,
       },
-      ...draftMetadata,
+      ...reviewedMetadata,
     },
     {
       id: "reading_practice_notebook",
@@ -424,7 +452,7 @@ export const READING_CONTENT_PACKAGE: ReadingContentPackage = deepFreeze({
           "分别用三个短语概括三句话，再找一个能够把这三个短语连起来的选项。",
         retestTiming: sharedRetestTiming,
       },
-      ...draftMetadata,
+      ...reviewedMetadata,
     },
     {
       id: "reading_practice_reusable_cups",
@@ -494,7 +522,7 @@ export const READING_CONTENT_PACKAGE: ReadingContentPackage = deepFreeze({
           "把题干中的 changed 和 choices 换成动作词，再找包含实际选择动作的原句。",
         retestTiming: sharedRetestTiming,
       },
-      ...draftMetadata,
+      ...reviewedMetadata,
     },
   ],
   retest: [
@@ -554,7 +582,7 @@ export const READING_CONTENT_PACKAGE: ReadingContentPackage = deepFreeze({
         retestTiming:
           "本轮复测提交后先复盘配对策略；下一次使用新短文时再检查同一能力。",
       },
-      ...draftMetadata,
+      ...reviewedMetadata,
     },
     {
       id: "reading_retest_cycle_route",
@@ -622,7 +650,7 @@ export const READING_CONTENT_PACKAGE: ReadingContentPackage = deepFreeze({
         retestTiming:
           "本轮复测提交后记录仍需练习的能力；下一次使用新短文时再检查同一能力。",
       },
-      ...draftMetadata,
+      ...reviewedMetadata,
     },
   ],
 });

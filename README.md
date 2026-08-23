@@ -64,7 +64,7 @@ Qwen 后端已按 2026-08-11 最新的 Alibaba Cloud 官方 DashScope/OpenAI 兼
 ## Page structure
 
 - `/`：精炼首页与四个页面入口；
-- `/learn/reading`：无需登录的 Reading P0 纵向切片；使用 2 道入门检查、版本化微课、3 道主动练习与 2 道不复用短文/题目的独立平行复测，显示五段式错误反馈及复测前后的 `证据 → 能力 → 资源 → 任务 → 复测` 推荐链。本轮客观首答状态与最小事件账本分别保存在 `sufeiya_public_reading_p0_v1` 和 `sufeiya_public_learning_events_v1`，可在本页查看、导出和双确认删除；若学习状态合法而事件账本滞后，页面明确进入 `event_degraded`、冻结事件写入但继续本机学习，并把失配原因写入导出包。该路由不读取、迁移或写入 Gate A、Sofia 或教研命名空间；四个价值后入口只有本机保留、导出、受邀登录和等候名单，公开 SignUp 继续关闭。内容仍是 `draft_pending_teacher_review`，页面保持 `noindex`，不构成正式诊断、官方分数、学习增长证明、教师验收或公开发布批准；
+- `/learn/reading`：无需登录的 Reading P0 纵向切片；使用 2 道入门检查、版本化微课、3 道主动练习与 2 道不复用短文/题目的独立平行复测，显示五段式错误反馈及复测前后的 `证据 → 能力 → 资源 → 任务 → 复测` 推荐链。本轮客观首答状态与最小事件账本分别保存在 `sufeiya_public_reading_p0_v1` 和 `sufeiya_public_learning_events_v1`，可在本页查看、导出和双确认删除；若学习状态合法而事件账本滞后，页面明确进入 `event_degraded`、冻结事件写入但继续本机学习，并把失配原因写入导出包。该路由不读取、迁移或写入 Gate A、Sofia 或教研命名空间；四个价值后入口只有本机保留、导出、受邀登录和等候名单，公开 SignUp 继续关闭。内容已由苏肥鸭以 Teacher / Content Owner 身份绑定候选 `af85403…` 接受，但首页肖像、专业法律审查、Product 公开旅程、Preview 和发布仍未通过；页面保持 `noindex`，不构成正式诊断、官方分数、学习增长证明或公开发布批准；
 - `/workspace`：七阶段 Gate A 闭环进度、独立功能页入口、只投影中央校验器已确认 ID 的本轮证据链总览、最近最多 10 轮的本机计划版本历史、完成后经整轮本机容量预检开放的“开始下一轮”入口、临时更新计划专用的待资质人员确认承接卡、脱敏的 29 项 P0 书面决定汇总，以及逐条来源治理/RAG 准入的只读计数；
 - `/super-teacher`：有来源的 Gate A 学习解释、拒答边界、非 AI 退出，以及只对同时通过共享 v2 完整账本—领域覆盖核对、且当前 provisional 事件片段位于账本连续尾部的轮次开放的 Sofia 本机承接包与未发送人工支持请求；
 - `/diagnostic`：18+、本机、无评分的六任务诊断证据包（2 Reading + 2 Listening + 90 秒 Speaking + 3 分钟 Writing）；

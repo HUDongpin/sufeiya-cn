@@ -1,6 +1,6 @@
 # P0 公开 Reading 本机数据与最小事件合同
 
-> 合同状态：`ENGINEERING CANDIDATE / PENDING PRIVACY-PRODUCT-LEGAL REVIEW`
+> 合同状态：`PRODUCT_PRIVACY_ACCEPTED_FOR_AF85403 / PROFESSIONAL_LEGAL_REVIEW_PENDING`
 >
 > 初建：2026-08-19；工程收口复核：2026-08-23。本文件描述当前代码实际行为，不把工程实现冒充隐私、法律、教学或发布批准。
 
@@ -114,4 +114,19 @@
 
 ## 7. 当前验收边界
 
-工程测试覆盖严格解析、有序证据前缀、事件白名单与生命周期、证据派生 `plan_offered`、state/event 同数量答案漂移、两个 key 都存在或单个 key 合法缺失时的 event-degraded 查看/导出/继续/删除、敏感/自由字段拒绝、容量、同标签页重复提交、跨标签页并发冲突、无 Web Locks 降级、未知版本和部分损坏保全、冲突后最新快照查看/导出、双确认删除、删除后重新开始、旧 namespace 字节不变和零非 GET 请求。该证据可以支持 G2 本机技术评审，但 **G3 数据/隐私/注册边界仍为 `PENDING`**，直至 Product、Privacy 与适用的专业法律评审对真实数据流和用户说明作出明确接受。
+工程测试覆盖严格解析、有序证据前缀、事件白名单与生命周期、证据派生 `plan_offered`、state/event 同数量答案漂移、两个 key 都存在或单个 key 合法缺失时的 event-degraded 查看/导出/继续/删除、敏感/自由字段拒绝、容量、同标签页重复提交、跨标签页并发冲突、无 Web Locks 降级、未知版本和部分损坏保全、冲突后最新快照查看/导出、双确认删除、删除后重新开始、旧 namespace 字节不变和零非 GET 请求。该证据可以支持 G2 本机技术评审。2026-08-23 已取得 Product/Privacy 区块对本合同和继续关闭公共 SignUp 的接受，但 **G3 仍为 `PENDING`**，因为记录没有识别具有适用专业资质的 Legal reviewer，也没有法律审查证据位置。
+
+## 8. Product / Privacy / Legal 决定记录
+
+绑定的不可变产品候选：`af85403cd97eff47afeea93582705a15aa7527a3`。
+
+证据引用：Codex task `01a018b0-b605-7af0-bba8-647158b29bdd` 中 2026-08-23 的用户消息；可追溯身份填写为“苏肥鸭”，本机数据合同决定填写为“接受”，公共 SignUp 填写为“继续关闭”，没有附加修改意见或外部证据位置。
+
+该记录的有效范围：
+
+- Product/Privacy 对当前两 namespace、本机控制、禁止字段、无学习写请求和替代 CTA 的接受：`ACCEPTED`；
+- 公共 SignUp：`CLOSED`，不得因本次接受而新增 `public_signup`、邮箱收集或账户绑定；
+- 专业 Legal review：`PENDING`。记录没有说明“苏肥鸭”具有适用于目标地区的专业法律审查角色/资质，也没有法律意见或证据位置；工程不能自行补齐该资格；
+- Preview / 发布：`NOT AUTHORIZED`。Release Owner 同一回复只批准内容评审。
+
+如未来法律审查要求修改本合同、用户说明、支持入口、地域或保留/删除边界，必须形成新候选、提升必要的协议/内容版本并重跑适用验证；本次 Product/Privacy 接受不能覆盖后续数据流。

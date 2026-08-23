@@ -1,24 +1,27 @@
 # P0 公开 Reading 内容与教学验收包
 
-> 当前状态：`DRAFT_PENDING_TEACHER_REVIEW / NOT RELEASE READY`
+> 当前状态：`TEACHER_CONTENT_OWNER_ACCEPTED_FOR_AF85403 / NOT RELEASE READY`
 >
-> 本文件把工程候选内容整理为真人教师可核对的范围。它没有记录教师接受，也不能把单测、截图或浏览器 PASS 解释成教学批准。
+> 本文件把工程候选内容和 2026-08-23 的真人教师/内容负责人接受记录绑定到精确产品候选。该接受只闭合教学内容与内容权利范围；它不批准肖像、Preview、公开发布或生产部署。
 
 ## 1. 候选能力与内容来源
 
-- 候选能力：Reading（计划中的默认建议；仍待 Product Owner 与苏肥鸭老师/授权教学内容负责人确认）。
+- 候选能力：Reading（已由苏肥鸭以 Teacher / Content Owner 身份接受；Product 对公开旅程的独立决定仍由 G4/G5 记录）。
 - 内容版本：`reading_p0_original_v1`。
 - 来源：`original_first_party_draft`。
-- 内容审核：`draft_pending_teacher_review`。
-- 权利状态：`pending_content_owner_confirmation`。
-- 审核人：`null`（尚无接受者，不代表无需审核）。
+- 内容审核：`accepted_by_teacher_and_content_owner`。
+- 权利状态：`confirmed_by_content_owner_for_p0_candidate`。
+- 审核人：`苏肥鸭`；角色：`teacher_and_content_owner`。
+- 接受日期：`2026-08-23`。
+- 被接受的不可变产品候选：`af85403cd97eff47afeea93582705a15aa7527a3`。
+- 证据引用：`codex_task_01a018b0_user_acceptance_2026_08_23`。
 - 发布处置：`not_release_ready`。
 - 证据边界：`local_objective_response_evidence_only`。
 - 目标能力：
   1. `locate_explicit_evidence`：定位原文直接证据；
   2. `distinguish_main_idea_from_supporting_detail`：区分中心意思与支持细节。
 
-内容包、微课和 7 个 task 均显式携带 `contentPackageVersion=reading_p0_original_v1`、上述来源、权利状态、审核状态与 `reviewer=null`。`original_first_party_draft` 只描述工程来源，**不等于** Content Owner 已确认发布权利；权利确认与真人教师教学验收是两个独立的 `PENDING` Gate。
+内容包、微课和 7 个 task 均显式携带 `contentPackageVersion=reading_p0_original_v1`、上述来源、权利状态、审核状态、审核人/角色、日期、候选 commit 与证据引用。`original_first_party_draft` 继续描述素材的工程来源，不覆盖已经另行记录的教师/内容负责人接受，也不等于 Release Owner 已批准公开发布。
 
 所有 7 篇短文、题目和选项均为本次一方原创草案，不使用旧 Gate A 的 Maya/library 诊断题，也不复用 baseline、practice 与 retest 的 passage、task 或 option ID。工程测试只证明结构独立与规则一致；教师仍须核对语言自然度、难度、教学价值、答案唯一性、干扰项质量和适用学习者范围。
 
@@ -40,9 +43,9 @@
 
 | 对象 | 数量 | 版本 | 来源 | 权利 | 审核人 | 审核状态 |
 |---|---:|---|---|---|---|---|
-| 内容包 | 1 | `reading_p0_original_v1` | `original_first_party_draft` | `pending_content_owner_confirmation` | `null` | `draft_pending_teacher_review` |
-| 微课 | 1 | `reading_p0_original_v1` | `original_first_party_draft` | `pending_content_owner_confirmation` | `null` | `draft_pending_teacher_review` |
-| baseline / practice / retest task | 7 | `reading_p0_original_v1` | `original_first_party_draft` | `pending_content_owner_confirmation` | `null` | `draft_pending_teacher_review` |
+| 内容包 | 1 | `reading_p0_original_v1` | `original_first_party_draft` | `confirmed_by_content_owner_for_p0_candidate` | `苏肥鸭` | `accepted_by_teacher_and_content_owner` |
+| 微课 | 1 | `reading_p0_original_v1` | `original_first_party_draft` | `confirmed_by_content_owner_for_p0_candidate` | `苏肥鸭` | `accepted_by_teacher_and_content_owner` |
+| baseline / practice / retest task | 7 | `reading_p0_original_v1` | `original_first_party_draft` | `confirmed_by_content_owner_for_p0_candidate` | `苏肥鸭` | `accepted_by_teacher_and_content_owner` |
 
 ## 3. 微课与确定性推荐
 
@@ -104,25 +107,27 @@
 - `苏肥鸭老师｜真人教师 · 教学与内容主理人`；
 - `Sofia 智能老师｜AI 学习助手`。
 
-本次公开 Reading 不启用 Sofia、远端模型、语音、录音或数字人。真人照片不能作为 Sofia 头像。首页肖像的源图、6 个机械衍生资源、拟定首页用途、排除用途与撤回流程另见 [`teacher-portrait-homepage-use-receipt.md`](./teacher-portrait-homepage-use-receipt.md)；该回执当前仍为 `PENDING OWNER-TEACHER USE ACCEPTANCE`。
+本次公开 Reading 不启用 Sofia、远端模型、语音、录音或数字人。真人照片不能作为 Sofia 头像。首页肖像的源图、6 个机械衍生资源、拟定首页用途、排除用途与撤回流程另见 [`teacher-portrait-homepage-use-receipt.md`](./teacher-portrait-homepage-use-receipt.md)；2026-08-23 的回复没有提供接受者身份，并对必须明确确认的排除用途回答“否”，所以该回执仍为 `PENDING OWNER-TEACHER USE ACCEPTANCE / CLARIFICATION REQUIRED`。
 
-## 7. 教师接受记录（当前留空）
+## 7. 教师与内容负责人接受记录
+
+证据 `E1`：Codex task `01a018b0-b605-7af0-bba8-647158b29bdd` 中 2026-08-23 的用户消息，明确绑定候选 `af85403cd97eff47afeea93582705a15aa7527a3`，以“苏肥鸭”作为 `Teacher / Content Owner` 的可追溯身份，并把 Reading 内容决定填写为“接受”，未列逐项修改意见。
 
 | 决定项 | 当前状态 | 接受者/证据引用 | 阻塞或修改意见 |
 |---|---|---|---|
-| Reading 作为首个公开能力 | `PENDING` |  |  |
-| 7 个任务的内容、难度、答案与干扰项 | `PENDING` |  |  |
-| 内容包、微课和 7 个 task 的发布权利 | `PENDING` |  |  |
-| 微课教学准确性 | `PENDING` |  |  |
-| 每题五段式错误反馈 | `PENDING` |  |  |
-| baseline/practice/retest 的测量关系 | `PENDING` |  |  |
-| 禁用宣称与最终比较文案 | `PENDING` |  |  |
-| 真人/AI 身份文案 | `PENDING` |  |  |
-| 首页肖像拟定用途 | `PENDING` |  |  |
-| 整体学习体验 | `PENDING` |  |  |
+| Reading 作为首个公开能力 | `ACCEPTED` | 苏肥鸭（Teacher / Content Owner）；`E1` | Teacher/Content 范围无修改意见；Product 旅程决定另行记录 |
+| 7 个任务的内容、难度、答案与干扰项 | `ACCEPTED` | 苏肥鸭；`E1` | 无修改意见 |
+| 内容包、微课和 7 个 task 的发布权利 | `ACCEPTED` | 苏肥鸭（Content Owner）；`E1` | 仅证明内容权利确认，不等于 G6 发布授权 |
+| 微课教学准确性 | `ACCEPTED` | 苏肥鸭；`E1` | 无修改意见 |
+| 每题五段式错误反馈 | `ACCEPTED` | 苏肥鸭；`E1` | 无修改意见 |
+| baseline/practice/retest 的测量关系 | `ACCEPTED` | 苏肥鸭；`E1` | 无修改意见；仍不构成正式诊断或增长证明 |
+| 禁用宣称与最终比较文案 | `ACCEPTED` | 苏肥鸭；`E1` | 禁用宣称继续有效 |
+| 真人/AI 身份文案 | `ACCEPTED` | 苏肥鸭；`E1` | 不扩展到肖像或 AI 合成授权 |
+| 首页肖像拟定用途 | `PENDING` | 见肖像回执 | 缺少接受者身份，且排除用途确认填写为“否” |
+| 整体学习体验 | `ACCEPTED` | 苏肥鸭（Teacher）；`E1` | 仅教师体验范围；不等于 Product/Preview/Release 接受 |
 
-有效接受必须引用不可变候选 commit、完整内容版本、接受者角色、日期和证据位置。口头同意、页面可见、截图、Build PASS 或本文件存在均不能自动填写此表。
+本表的 `ACCEPTED` 项均绑定同一不可变产品候选、内容版本、角色、日期和 task 证据引用。页面可见、截图、Build PASS 或本文件存在仍不能自动扩大到肖像、隐私/法律、Preview 或发布 Gate。
 
 ## 8. 当前结论
 
-工程候选已经具备“基线检查 → 微课 → 3 道主动练习 → 五段反馈 → 2 道独立平行复测 → 更新计划”的完整结构，且没有开放回答入口，因此真实教师开放题队列这一条件性子项可标记为 `NOT IN SCOPE`。但是 **教学内容、反馈、能力选择、角色文案、肖像用途与整体体验仍全部等待真人教师/授权内容负责人的明确接受**；G1 与 G4 不能因为代码完成而改为 PASS。
+苏肥鸭已以 Teacher / Content Owner 身份接受候选 `af85403…` 的 Reading 内容、权利、反馈、测量关系、身份文案与教师体验范围，因此 G1 可以记录为 `PASS`。本切片没有开放回答入口，真实教师开放题队列子项继续为 `NOT IN SCOPE`。**首页肖像仍未形成有效授权，Product 对公开旅程的独立接受、专业法律审查、Preview 和发布决定也没有发生**；G4–G6 不能由本次内容接受倒推为通过。

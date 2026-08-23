@@ -8,7 +8,9 @@
 >
 > 基线：`bf7cac8b3163ed5c00c5bc57607b63266ff22b21`
 >
-> 不可变产品评审候选：本文件所在的本地 Git commit；交付时以 `git rev-parse HEAD` 得到并记录完整 SHA
+> 被接受的不可变产品候选：`af85403cd97eff47afeea93582705a15aa7527a3`
+>
+> 后续证据 commit：只记录接受决定与内容审核元数据，不改学习文本、答案、反馈、推荐、数据合同实现或用户旅程
 >
 > 当前结论：`LOCAL ENGINEERING CANDIDATE / NOT AUTHORIZED FOR PREVIEW OR PUBLIC RELEASE`
 
@@ -38,7 +40,7 @@
 |---|---|
 | 匿名路由 | 新增静态 App Router `/learn/reading`，metadata 为 `index=false, follow=false`，暂不进入 sitemap |
 | Clerk 隔离 | Server page → `PublicLearningShell` → `OfflineNavigationBoundary + SiteFrame`；未导入 Clerk provider/hook/access boundary |
-| 内容 | `reading_p0_original_v1`，2 baseline + 3 practice + 2 independent retest；每个任务/微课显式绑定来源、权利状态、内容包版本和待审 reviewer；全部为一方原创草案且待教师审核/权利确认 |
+| 内容 | `reading_p0_original_v1`，2 baseline + 3 practice + 2 independent retest；2026-08-23 已由苏肥鸭以 Teacher / Content Owner 身份接受候选 `af85403…`，每个任务/微课显式绑定来源、权利状态、内容版本、审核人/角色、日期、候选 commit 与证据引用；仍为 `not_release_ready` |
 | 评分/推荐 | 纯函数、首答证据、少于 2 道返回 `evidence_insufficient`；基线与复测后都显示完整五段证据链，复测剩余错项可更新优先能力 |
 | 反馈 | baseline/practice 每题给可行动反馈；两道 retest 先全部锁定首次作答，再统一展示反馈，避免第一题讲解污染第二题测量 |
 | 数据 | 两个新本机 namespace；严格 schema、证据顺序、容量上限、Web Lock/CAS、写锁内二次阻断与跨 namespace 生命周期/答案一致性核对 |
@@ -46,9 +48,9 @@
 | 事件 | 10 个精确事件名、完整生命周期、证据派生 `plan_offered`、逐事件 payload 白名单、`local_only_no_network`、无身份/自由文本/公开注册 |
 | 旧边界 | 未修改 `workspace.js`、`journey.js`、`learning-events.js`、`workspace-backup.js`、Clerk protected-route list 或旧任务登记表 |
 | 真人/AI | 固定真人教师与 AI 学习助手文案；公开 Reading 明示不启用 AI |
-| 首页肖像 | 4:5、640/960/1280、AVIF/WebP、14–73 KiB；原 13.7 MB JPEG 未进入仓库；公开用途仍待接受 |
+| 首页肖像 | 4:5、640/960/1280、AVIF/WebP、14–73 KiB；原 13.7 MB JPEG 未进入仓库；2026-08-23 的回复缺少接受者身份且对排除用途回答“否”，公开用途仍待无冲突的明确接受或从发布候选撤下 |
 
-详细数据合同见 [`public-reading-local-data-contract.md`](./public-reading-local-data-contract.md)，教学审核范围见 [`public-reading-content-review-packet.md`](./public-reading-content-review-packet.md)，肖像工程与用途边界见 [`teacher-portrait-homepage-use-receipt.md`](./teacher-portrait-homepage-use-receipt.md)。
+详细数据合同见 [`public-reading-local-data-contract.md`](./public-reading-local-data-contract.md)，教学审核范围见 [`public-reading-content-review-packet.md`](./public-reading-content-review-packet.md)，肖像工程与用途边界见 [`teacher-portrait-homepage-use-receipt.md`](./teacher-portrait-homepage-use-receipt.md)，2026-08-23 决定的原样归纳和 Gate 效力见 [`public-reading-p0-review-decision-receipt.md`](./public-reading-p0-review-decision-receipt.md)。
 
 ## 3. 本次变更 allowlist
 
@@ -115,9 +117,10 @@ workspace.html
 ### 3.2 最终候选 Git 快照与 whitespace
 
 - 分支：`codex/learning-platform-next-20260819`；
-- 候选 parent：`bf7cac8b3163ed5c00c5bc57607b63266ff22b21`；不可变产品候选为本文件所在 commit，交付时另行记录完整 SHA；
-- upstream：`origin/main`；产品候选相对上游为 `ahead 1 / behind 0`；
+- 候选 parent：`bf7cac8b3163ed5c00c5bc57607b63266ff22b21`；被 Teacher / Content Owner 接受的不可变产品候选为 `af85403cd97eff47afeea93582705a15aa7527a3`；
+- upstream：`origin/main`；产品候选相对上游为 `ahead 1 / behind 0`；接受决定与内容审核元数据在其后的第 2 个本地 commit 中记录，完成后分支为 `ahead 2 / behind 0`，不改变被接受的学习内容；
 - 提交前候选快照为 34 个 tracked modified + 30 个实际 untracked = 64 个文件；64 个精确路径全部进入同一个产品评审 commit，提交后没有 staged、unstaged 或 untracked 候选残留；
+- 审批证据 follow-up 精确修改 8 个既有候选路径并新增 `docs/p0/public-reading-p0-review-decision-receipt.md`，因此当前分支相对基线共有 65 个唯一文件；该 follow-up 不修改题目/短文/选项/答案/反馈/推荐、状态或事件协议、页面交互、图片字节或旧 Gate A 边界；
 - tracked `git diff --check`：PASS；
 - 18 个 untracked 文本/JSON/TypeScript/CSS/Markdown 文件逐项执行等价 `git diff --no-index --check /dev/null <path>`：`18/18 PASS`；其余 untracked 为 12 个已登记的 AVIF/WebP 二进制衍生物；
 - 21 个被修改的根 HTML 与权威生成器清单完全相同，并在全新临时副本中重跑为 `21/21` byte-identical；
@@ -188,12 +191,12 @@ workspace.html
 | Gate | 当前状态 | 本次证据/阻塞 |
 |---|---|---|
 | G0a 工作树建立 | `PASS` | 独立工作树来自 `origin/main@bf7cac8b…`；旧工作树未被本次实现修改 |
-| G0b 当前发布 diff 与归属 | `PASS` | 64 个候选文件全部落在明确 allowlist/预存 governing plan 内；tracked + untracked whitespace、21/21 生成一致性、no-touch 边界、并行 worktree 归属和诊断副产物均已复核 |
-| G1 教学内容 | `PENDING` | 内容包与独立复测齐备，但 Reading 选择、语言、难度、答案、反馈和测量关系均未获真人教师/内容负责人接受 |
+| G0b 当前发布 diff 与归属 | `PASS` | 64 个产品候选文件加 1 个审批决定回执，共 65 个唯一文件；审批 follow-up 的 9 路径均在 `docs/p0`、内容元数据、对应测试/verifier 与 README allowlist 内，既有 whitespace、21/21 生成一致性、no-touch、并行归属和副产物边界不变 |
+| G1 教学内容 | `PASS` | 2026-08-23，苏肥鸭以 Teacher / Content Owner 身份绑定 `af85403…` 接受 Reading 内容、7 个任务、微课、权利、反馈、测量关系、禁用宣称和教师体验范围；内容元数据与决定回执已同步 |
 | G2 技术与浏览器 | `IN PROGRESS` | 当前本机代码、build、unit、公开 Reading `11/11` 与旧离线 `2/2` 均通过；仍缺真实 Clerk Development E2E、Preview LCP/Web Vitals 与外部验收要求的完整 a11y/performance 证据 |
-| G3 数据、隐私与注册边界 | `PENDING` | 工程合同、禁用字段、本机控制与 SignUp 关闭已实现；仍待 Product/Privacy/Legal 对实际数据流和用户说明接受 |
-| G4 真人教师、人物用途与条件性队列 | `PENDING` | 纯客观 Reading 无开放题，真实教师开放题队列子项为 `NOT IN SCOPE`；内容/体验/身份文案/首页肖像用途仍待接受 |
-| G5 Preview 候选 | `PENDING` | 本地不可变产品评审 commit 与候选级回滚步骤已经形成；仍无 deployment metadata、前一 deployment 绑定、Preview、Preview 性能证据或 Release Owner 决定；本次未部署 |
+| G3 数据、隐私与注册边界 | `PENDING` | 苏肥鸭在 Product/Privacy/Legal 区块接受本机合同并决定 SignUp 继续关闭；Product/Privacy 范围已记录，但没有专业 Legal reviewer 角色/资质或法律证据位置 |
+| G4 真人教师、人物用途与条件性队列 | `PENDING` | 纯客观 Reading 无开放题，教师内容/体验/身份文案已接受；肖像回复缺少身份且拒绝明确确认排除用途，Product 对公开旅程也未单独闭合 |
+| G5 Preview 候选 | `PENDING` | 本地不可变产品评审 commit 与候选级回滚步骤已经形成；Release Owner 明确“目前只批准内容评审”，没有授权 push/Preview，亦无 deployment metadata、前一 deployment 绑定或 Preview 性能证据 |
 | G6 公开发布授权 | `PENDING` | 没有绑定不可变候选的授权人发布决定 |
 | G7 生产部署与线上回归 | `PENDING` | 没有生产部署；未触碰 `sufeiya.cn` |
 | G8 账户同步 | `PENDING` | P0 明确为浏览器本机、非账户绑定；跨设备/RBAC/退出同步后置 |
@@ -202,12 +205,16 @@ workspace.html
 
 ## 7. 明确未完成与不应宣称
 
-当前不得宣称：
+当前可以准确宣称：
 
-- Product Owner/苏肥鸭老师已选择 Reading；
-- 7 个任务、微课、反馈或整体体验已经教师审核；
+- Teacher / Content Owner 已接受候选 `af85403…` 的 Reading 教学内容、内容权利和教师体验范围；
+- Product/Privacy 已接受当前本机数据合同，并决定公共 SignUp 继续关闭。
+
+当前仍不得宣称：
+
+- Product 已独立批准 Reading 公开旅程、首页 CTA 或人物呈现；
 - 首页照片已获得公开使用授权；
-- G3 隐私、注册或目标地区法律评审已通过；
+- G3 或目标地区专业法律评审已通过；
 - Preview 已建立、HTTP 200 已核验或 deployment metadata 已绑定；
 - 已获公开发布授权或已经部署到生产；
 - `/learn/reading` 是正式诊断、官方 DET 分数、掌握度、AI 自适应学习或学习增长证明；
@@ -215,11 +222,11 @@ workspace.html
 
 ## 8. 发布前必须完成的下一组动作
 
-1. Product Owner 与真人教师/内容负责人对 Reading 选择和 [`public-reading-content-review-packet.md`](./public-reading-content-review-packet.md) 逐项签收或给出阻塞修改。
-2. 肖像权利人/授权代表按精确源图 hash、首页位置和排除用途接受 [`teacher-portrait-homepage-use-receipt.md`](./teacher-portrait-homepage-use-receipt.md)，或在候选中撤下图片。
-3. Product、Privacy、Legal 按 [`public-reading-local-data-contract.md`](./public-reading-local-data-contract.md) 核对真实数据流、用户说明、支持/删除边界和等候名单/登录文案。
+1. Product Owner 单独确认 Reading 公开旅程、首页主/次 CTA、真人/AI 呈现和最终采用有肖像或无肖像方案；Teacher / Content Owner 内容签收已经完成。
+2. 肖像权利人/授权代表按精确源图 hash、首页位置、全部排除用途和撤回流程无冲突地接受 [`teacher-portrait-homepage-use-receipt.md`](./teacher-portrait-homepage-use-receipt.md)，或由 Product/Release Owner 明确要求从后续发布候选撤下图片。
+3. 具有适用专业资质的 Legal reviewer 按 [`public-reading-local-data-contract.md`](./public-reading-local-data-contract.md) 完成目标地区审查并提供角色、决定与证据位置；Product/Privacy 接受和 SignUp 关闭已经记录。
 4. 若对本文件所在不可变产品候选再做任何产品、内容、数据合同、资产或验证 wiring 编辑，必须形成新的候选 commit，并重新执行 diff allowlist、whitespace、`npm run check`、公开 Reading 与旧离线 E2E；获得受控 Clerk Development 凭据后还要单独运行/记录既有 Clerk E2E，无凭据不能写成 PASS。
-5. 由 Release Owner 决定是否基于该不可变 commit 建立受控 Preview；Preview 成功仍不等于 G6 公开发布授权。
+5. Release Owner 当前只批准内容评审；只有在上述剩余 Gate 取得新决定后，才能另行决定是否推送并基于新候选建立受控 Preview。Preview 成功仍不等于 G6 公开发布授权。
 6. 只有 G0b、G1–G6 全部 PASS 且无 PENDING/FAIL/BLOCKED 后才能部署；部署后另做 G7 规范域名回归。
 
 ## 9. 候选级回滚与肖像撤回边界

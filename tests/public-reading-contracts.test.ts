@@ -8,7 +8,12 @@ import {
   READING_CONTENT_PACKAGE,
   READING_CONTENT_PACKAGE_VERSION,
   READING_CONTENT_RIGHTS_STATUS,
+  READING_CONTENT_REVIEW_DATE,
+  READING_CONTENT_REVIEW_EVIDENCE_REF,
   READING_CONTENT_REVIEW_STATUS,
+  READING_CONTENT_REVIEWED_CANDIDATE_COMMIT,
+  READING_CONTENT_REVIEWER,
+  READING_CONTENT_REVIEWER_ROLE,
   READING_CONTENT_SOURCE,
   READING_MICRO_LESSON_ID,
   RETEST_READING_TASK_IDS,
@@ -63,15 +68,28 @@ function responsesThrough(count: number, correct = true): ReadingObjectiveRespon
 }
 
 describe("public Reading P0 content package", () => {
-  it("is one versioned, original, teacher-review-pending objective-response slice", () => {
+  it("binds one versioned objective-response slice to its teacher and content-owner acceptance", () => {
     assert.equal(READING_CONTENT_PACKAGE.version, READING_CONTENT_PACKAGE_VERSION);
     assert.equal(READING_CONTENT_PACKAGE.version, "reading_p0_original_v1");
     assert.equal(READING_CONTENT_PACKAGE.source, "original_first_party_draft");
-    assert.equal(READING_CONTENT_PACKAGE.reviewStatus, "draft_pending_teacher_review");
-    assert.equal(READING_CONTENT_PACKAGE.reviewer, null);
+    assert.equal(
+      READING_CONTENT_PACKAGE.reviewStatus,
+      "accepted_by_teacher_and_content_owner",
+    );
+    assert.equal(READING_CONTENT_PACKAGE.reviewer, "苏肥鸭");
+    assert.equal(READING_CONTENT_PACKAGE.reviewerRole, "teacher_and_content_owner");
+    assert.equal(READING_CONTENT_PACKAGE.reviewDate, "2026-08-23");
+    assert.equal(
+      READING_CONTENT_PACKAGE.reviewedCandidateCommit,
+      "af85403cd97eff47afeea93582705a15aa7527a3",
+    );
+    assert.equal(
+      READING_CONTENT_PACKAGE.reviewEvidenceRef,
+      "codex_task_01a018b0_user_acceptance_2026_08_23",
+    );
     assert.equal(
       READING_CONTENT_PACKAGE.rightsStatus,
-      "pending_content_owner_confirmation",
+      "confirmed_by_content_owner_for_p0_candidate",
     );
     assert.equal(READING_CONTENT_PACKAGE.releaseDisposition, "not_release_ready");
     assert.equal(
@@ -95,12 +113,36 @@ describe("public Reading P0 content package", () => {
           task.source === READING_CONTENT_SOURCE &&
           task.reviewStatus === READING_CONTENT_REVIEW_STATUS &&
           task.contentPackageVersion === READING_CONTENT_PACKAGE_VERSION &&
-          task.reviewer === null &&
+          task.reviewer === READING_CONTENT_REVIEWER &&
+          task.reviewerRole === READING_CONTENT_REVIEWER_ROLE &&
+          task.reviewDate === READING_CONTENT_REVIEW_DATE &&
+          task.reviewedCandidateCommit ===
+            READING_CONTENT_REVIEWED_CANDIDATE_COMMIT &&
+          task.reviewEvidenceRef === READING_CONTENT_REVIEW_EVIDENCE_REF &&
           task.rightsStatus === READING_CONTENT_RIGHTS_STATUS,
       ),
     );
     assert.equal(READING_CONTENT_PACKAGE.microLesson.source, READING_CONTENT_SOURCE);
-    assert.equal(READING_CONTENT_PACKAGE.microLesson.reviewer, null);
+    assert.equal(
+      READING_CONTENT_PACKAGE.microLesson.reviewer,
+      READING_CONTENT_REVIEWER,
+    );
+    assert.equal(
+      READING_CONTENT_PACKAGE.microLesson.reviewerRole,
+      READING_CONTENT_REVIEWER_ROLE,
+    );
+    assert.equal(
+      READING_CONTENT_PACKAGE.microLesson.reviewDate,
+      READING_CONTENT_REVIEW_DATE,
+    );
+    assert.equal(
+      READING_CONTENT_PACKAGE.microLesson.reviewedCandidateCommit,
+      READING_CONTENT_REVIEWED_CANDIDATE_COMMIT,
+    );
+    assert.equal(
+      READING_CONTENT_PACKAGE.microLesson.reviewEvidenceRef,
+      READING_CONTENT_REVIEW_EVIDENCE_REF,
+    );
     assert.equal(
       READING_CONTENT_PACKAGE.microLesson.rightsStatus,
       READING_CONTENT_RIGHTS_STATUS,
