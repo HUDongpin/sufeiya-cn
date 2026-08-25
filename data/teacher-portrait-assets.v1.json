@@ -3,8 +3,8 @@
   "generatedAt": "2026-08-19T06:36:55Z",
   "status": {
     "engineeringAssetCompletion": "COMPLETE_LOCAL_DERIVATIVES_VERIFIED",
-    "ownerTeacherUseAcceptance": "PENDING",
-    "publicUseAuthorization": "NOT_GRANTED_BY_THIS_FILE",
+    "ownerTeacherUseAcceptance": "ACCEPTED",
+    "publicUseAuthorization": "GRANTED_FOR_SUFIEYA_CN_HOMEPAGE_ONLY",
     "deployment": "NOT_EVIDENCED"
   },
   "source": {
@@ -55,8 +55,30 @@
     "page": "homepage only",
     "placement": "first-screen teacher portrait card beside or immediately after the primary learning CTA",
     "altText": "苏肥鸭老师戴黑色帽子、微笑并手持教鞭的半身肖像",
-    "scopeStatus": "PENDING_OWNER_TEACHER_USE_ACCEPTANCE",
+    "scopeStatus": "ACCEPTED_OWNER_TEACHER_HOMEPAGE_ONLY",
     "receipt": "docs/p0/teacher-portrait-homepage-use-receipt.md"
+  },
+  "authorization": {
+    "decisionDate": "2026-08-26",
+    "approvedProductCandidate": "af85403cd97eff47afeea93582705a15aa7527a3",
+    "reviewedEvidenceCommit": "dc8a637f2c9fe4f582855ec4f16c68e0b7adaa2b",
+    "traceableIdentity": "苏肥鸭",
+    "role": "project_owner_teacher_content_product_privacy_legal_release_authorizer",
+    "statement": "all_bound_portrait_assets_authorized",
+    "evidenceRef": "codex_task_01a018b0_user_all_authorized_2026_08_26",
+    "sourceSha256": "f0c23e3b73952cd70c085f71f9e4ca556075c8d14d140ac2dcc22f3df4954c24",
+    "authorizedDerivativeCount": 6,
+    "authorizedScope": "sufeiya.cn homepage teacher card beside or immediately after the primary learning CTA",
+    "excludedFromThisP0": [
+      "voice_capture_cloning_synthesis_or_training",
+      "liveportrait_digital_human_generated_video_or_avatar",
+      "sofia_or_other_ai_identity_substitution",
+      "advertising_endorsement_or_paid_promotion",
+      "merchandising_sublicensing_or_asset_distribution",
+      "non_homepage_non_sufeiya_cn_or_third_party_use",
+      "generative_face_body_clothing_wand_or_background_modification"
+    ],
+    "withdrawalProcedureAccepted": true
   },
   "derivatives": [
     {

@@ -6824,36 +6824,56 @@ check(
   !sitemap.includes("https://sufeiya.cn/learn/reading") &&
     !nextSitemap.includes('"public-learning"') &&
     !nextSitemap.includes('"learn/reading"'),
-  "not-release-authorized public Reading route remains excluded from both sitemaps",
+  "pre-release public Reading route remains excluded from both sitemaps until deployment evidence closes the release gate",
 );
 
 check(
   teacherPortraitManifest?.schemaVersion === "sufeiya_teacher_portrait_assets_v1" &&
-    teacherPortraitManifest?.status?.ownerTeacherUseAcceptance === "PENDING" &&
-    teacherPortraitManifest?.status?.publicUseAuthorization === "NOT_GRANTED_BY_THIS_FILE" &&
+    teacherPortraitManifest?.status?.ownerTeacherUseAcceptance === "ACCEPTED" &&
+    teacherPortraitManifest?.status?.publicUseAuthorization ===
+      "GRANTED_FOR_SUFIEYA_CN_HOMEPAGE_ONLY" &&
+    teacherPortraitManifest?.status?.deployment === "NOT_EVIDENCED" &&
     teacherPortraitManifest?.source?.sha256 ===
       "f0c23e3b73952cd70c085f71f9e4ca556075c8d14d140ac2dcc22f3df4954c24" &&
+    teacherPortraitManifest?.intendedUse?.scopeStatus ===
+      "ACCEPTED_OWNER_TEACHER_HOMEPAGE_ONLY" &&
+    teacherPortraitManifest?.authorization?.approvedProductCandidate ===
+      "af85403cd97eff47afeea93582705a15aa7527a3" &&
+    teacherPortraitManifest?.authorization?.reviewedEvidenceCommit ===
+      "dc8a637f2c9fe4f582855ec4f16c68e0b7adaa2b" &&
+    teacherPortraitManifest?.authorization?.traceableIdentity === "苏肥鸭" &&
+    teacherPortraitManifest?.authorization?.evidenceRef ===
+      "codex_task_01a018b0_user_all_authorized_2026_08_26" &&
+    teacherPortraitManifest?.authorization?.sourceSha256 ===
+      teacherPortraitManifest?.source?.sha256 &&
+    teacherPortraitManifest?.authorization?.authorizedDerivativeCount === 6 &&
+    teacherPortraitManifest?.authorization?.excludedFromThisP0?.length === 7 &&
+    teacherPortraitManifest?.authorization?.withdrawalProcedureAccepted === true &&
     teacherPortraitManifest?.derivatives?.length === 6,
-  "teacher portrait manifest preserves source custody and pending public-use acceptance",
+  "teacher portrait manifest binds source custody, all six assets, homepage authorization, exclusions, and withdrawal while deployment stays unproven",
 );
 check(
-  /NOT AUTHORIZED FOR PREVIEW OR PUBLIC RELEASE/.test(publicReadingEngineeringReceipt) &&
+  /AUTHORIZED FOR CONTROLLED PREVIEW \/ PRODUCTION AUTHORIZED ONLY AFTER EXACT-CANDIDATE GATES PASS/.test(
+    publicReadingEngineeringReceipt,
+  ) &&
     /G1 教学内容 \| `PASS`/.test(publicReadingEngineeringReceipt) &&
-    /G3 数据、隐私与注册边界 \| `PENDING`/.test(publicReadingEngineeringReceipt) &&
-    /G4 真人教师、人物用途与条件性队列 \| `PENDING`/.test(publicReadingEngineeringReceipt) &&
-    /G5 Preview 候选 \| `PENDING`/.test(publicReadingEngineeringReceipt) &&
-    /G6 公开发布授权 \| `PENDING`/.test(publicReadingEngineeringReceipt) &&
-    /PRODUCT_PRIVACY_ACCEPTED_FOR_AF85403 \/ PROFESSIONAL_LEGAL_REVIEW_PENDING/.test(
+    /G3 数据、隐私与注册边界 \| `PASS`/.test(publicReadingEngineeringReceipt) &&
+    /G4 真人教师、人物用途与条件性队列 \| `PASS`/.test(publicReadingEngineeringReceipt) &&
+    /G5 Preview 候选 \| `IN PROGRESS`/.test(publicReadingEngineeringReceipt) &&
+    /G6 公开发布授权 \| `IN PROGRESS`/.test(publicReadingEngineeringReceipt) &&
+    /G8 账户同步 \| `NOT IN SCOPE`/.test(publicReadingEngineeringReceipt) &&
+    /PRODUCT_PRIVACY_LEGAL_SCOPE_ACCEPTED_FOR_PUBLIC_READING_P0 \/ PUBLIC_SIGNUP_CLOSED/.test(
       publicReadingDataContract,
     ) &&
     /TEACHER_CONTENT_OWNER_ACCEPTED_FOR_AF85403 \/ NOT RELEASE READY/.test(
       publicReadingContentReviewPacket,
     ) &&
-    /CONTENT_ACCEPTED \/ PRODUCT_PRIVACY_ACCEPTED \/ PORTRAIT_AND_PROFESSIONAL_LEGAL_PENDING/.test(
+    /CURRENT_PUBLIC_READING_P0_SCOPE_APPROVED \/ CONTROLLED_PREVIEW_AND_GATE_CONDITIONAL_PRODUCTION_AUTHORIZED/.test(
       publicReadingReviewDecisionReceipt,
     ) &&
-    /目前只批准内容评审/.test(publicReadingReviewDecisionReceipt),
-  "public Reading evidence pack records accepted content while keeping portrait, legal, Preview, and release gates separate",
+    /全部授权。肖像都有授权/.test(publicReadingReviewDecisionReceipt) &&
+    /当前公开 Reading 不启用 AI/.test(publicReadingReviewDecisionReceipt),
+  "public Reading evidence pack records scoped approval and release authorization without inventing Preview, deployment, account-sync, AI, or voice evidence",
 );
 for (const derivative of teacherPortraitManifest.derivatives ?? []) {
   try {

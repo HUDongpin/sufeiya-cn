@@ -2,11 +2,11 @@
 
 > 当前状态：`TEACHER_CONTENT_OWNER_ACCEPTED_FOR_AF85403 / NOT RELEASE READY`
 >
-> 本文件把工程候选内容和 2026-08-23 的真人教师/内容负责人接受记录绑定到精确产品候选。该接受只闭合教学内容与内容权利范围；它不批准肖像、Preview、公开发布或生产部署。
+> 本文件把工程候选内容和 2026-08-23 的真人教师/内容负责人接受记录绑定到精确产品候选。2026-08-26 的 Product、肖像与发布授权另由决定回执记录；本内容包仍保持 `not_release_ready`，直到完整 Preview/发布 Gate 形成外部证据。
 
 ## 1. 候选能力与内容来源
 
-- 候选能力：Reading（已由苏肥鸭以 Teacher / Content Owner 身份接受；Product 对公开旅程的独立决定仍由 G4/G5 记录）。
+- 候选能力：Reading（已由苏肥鸭以 Teacher / Content Owner 身份接受；Product 对公开旅程的独立决定已于 2026-08-26 在 G4 决定记录中接受）。
 - 内容版本：`reading_p0_original_v1`。
 - 来源：`original_first_party_draft`。
 - 内容审核：`accepted_by_teacher_and_content_owner`。
@@ -107,7 +107,7 @@
 - `苏肥鸭老师｜真人教师 · 教学与内容主理人`；
 - `Sofia 智能老师｜AI 学习助手`。
 
-本次公开 Reading 不启用 Sofia、远端模型、语音、录音或数字人。真人照片不能作为 Sofia 头像。首页肖像的源图、6 个机械衍生资源、拟定首页用途、排除用途与撤回流程另见 [`teacher-portrait-homepage-use-receipt.md`](./teacher-portrait-homepage-use-receipt.md)；2026-08-23 的回复没有提供接受者身份，并对必须明确确认的排除用途回答“否”，所以该回执仍为 `PENDING OWNER-TEACHER USE ACCEPTANCE / CLARIFICATION REQUIRED`。
+本次公开 Reading 不启用 Sofia、远端模型、语音、录音或数字人。真人照片不能作为 Sofia 头像。首页肖像的源图、6 个机械衍生资源、限定首页用途、排除用途与撤回流程另见 [`teacher-portrait-homepage-use-receipt.md`](./teacher-portrait-homepage-use-receipt.md)；2026-08-23 的不完整回复保留为历史，2026-08-26 的“全部批准/全部授权，肖像都有授权”已把该回执升级为 `ACCEPTED_OWNER_TEACHER_HOMEPAGE_ONLY`。
 
 ## 7. 教师与内容负责人接受记录
 
@@ -122,12 +122,12 @@
 | 每题五段式错误反馈 | `ACCEPTED` | 苏肥鸭；`E1` | 无修改意见 |
 | baseline/practice/retest 的测量关系 | `ACCEPTED` | 苏肥鸭；`E1` | 无修改意见；仍不构成正式诊断或增长证明 |
 | 禁用宣称与最终比较文案 | `ACCEPTED` | 苏肥鸭；`E1` | 禁用宣称继续有效 |
-| 真人/AI 身份文案 | `ACCEPTED` | 苏肥鸭；`E1` | 不扩展到肖像或 AI 合成授权 |
-| 首页肖像拟定用途 | `PENDING` | 见肖像回执 | 缺少接受者身份，且排除用途确认填写为“否” |
+| 真人/AI 身份文案 | `ACCEPTED` | 苏肥鸭；`E1` | 本行不单独扩展用途；肖像另见 2026-08-26 限定首页授权，AI 合成仍不在 P0 |
+| 首页肖像限定用途 | `ACCEPTED` | 苏肥鸭；`codex_task_01a018b0_user_all_authorized_2026_08_26`；见肖像回执 | 绑定源图 SHA-256、6 个衍生物、首页人物卡和撤回流程；不扩展到 P0 外用途 |
 | 整体学习体验 | `ACCEPTED` | 苏肥鸭（Teacher）；`E1` | 仅教师体验范围；不等于 Product/Preview/Release 接受 |
 
 本表的 `ACCEPTED` 项均绑定同一不可变产品候选、内容版本、角色、日期和 task 证据引用。页面可见、截图、Build PASS 或本文件存在仍不能自动扩大到肖像、隐私/法律、Preview 或发布 Gate。
 
 ## 8. 当前结论
 
-苏肥鸭已以 Teacher / Content Owner 身份接受候选 `af85403…` 的 Reading 内容、权利、反馈、测量关系、身份文案与教师体验范围，因此 G1 可以记录为 `PASS`。本切片没有开放回答入口，真实教师开放题队列子项继续为 `NOT IN SCOPE`。**首页肖像仍未形成有效授权，Product 对公开旅程的独立接受、专业法律审查、Preview 和发布决定也没有发生**；G4–G6 不能由本次内容接受倒推为通过。
+苏肥鸭已以 Teacher / Content Owner 身份接受候选 `af85403…` 的 Reading 内容、权利、反馈、测量关系、身份文案与教师体验范围，因此 G1 为 `PASS`。本切片没有开放回答入口，真实教师开放题队列子项继续为 `NOT IN SCOPE`。2026-08-26 的补充决定另行接受 Product 公开旅程与首页肖像用途，使 G4 可以记录为 `PASS`，并授权建立 Preview 及在完整 Gate 后发布；**这些后续授权不把本内容对象的 `not_release_ready` 字段、尚未建立的 Preview/性能证据或部署事实倒推成已经通过**，G5/G6 仍按评审决定与工程回执逐步关闭。
