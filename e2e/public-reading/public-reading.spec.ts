@@ -164,6 +164,8 @@ test("starts anonymously from the homepage in two clicks without touching legacy
   await expect(page).toHaveURL(/\/learn\/reading$/);
   await expect(page.locator('a[href="/sign-up"]')).toHaveCount(0);
   await expect(page.getByText("无需登录，不收集自由文本，不启用 AI。")).toBeVisible();
+  await expect(page.getByText("原创一方内容 · Teacher / Content Owner 已接受 · 非正式诊断 · 暂不索引")).toBeVisible();
+  await expect(page.getByText("本页内容已由苏肥鸭以 Teacher / Content Owner 身份接受。")).toBeVisible();
 
   await page.locator("main").getByRole("button", { name: "开始第 1 道入门检查" }).first().click();
   await expect(page.locator('[data-reading-task="reading_baseline_shade_labels"]')).toBeVisible();

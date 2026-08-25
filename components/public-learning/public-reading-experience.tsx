@@ -509,7 +509,7 @@ function FinalPlan({
         </ol>
       </div>
       <p className={styles.measurementCaveat}>
-        以上是同一次短练中的客观作答证据，不是正式诊断、官方分数或能力增长证明。内容版本 {READING_CONTENT_PACKAGE.version} 仍待真人教师审核。
+        以上是同一次短练中的客观作答证据，不是正式诊断、官方分数或能力增长证明。内容版本 {READING_CONTENT_PACKAGE.version} 已由苏肥鸭以 Teacher / Content Owner 身份接受；公开发布仍须通过独立 Gate。
       </p>
       <div className={styles.continuations} aria-label="获得价值后的继续方式">
         <button type="button" onClick={() => onContinuation("local_continue")}>本机保留，稍后继续</button>
@@ -534,7 +534,7 @@ function IdentityBoundary() {
       <article>
         <span>HUMAN</span>
         <strong>苏肥鸭老师｜真人教师 · 教学与内容主理人</strong>
-        <p>负责课程方向与真人教学审核；本页内容目前仍在等待她或授权内容负责人的明确验收。</p>
+        <p>负责课程方向与真人教学审核；本页内容已由苏肥鸭以 Teacher / Content Owner 身份接受。</p>
       </article>
       <article>
         <span>AI</span>
@@ -1144,7 +1144,7 @@ export function PublicReadingExperience() {
           {state.currentStep !== "entry" && runtimeMode !== "read_only" && runtimeMode !== "conflict" && (
             <a className={styles.resumeLink} href="#learning-flow">继续当前进度：{state.currentStep === "plan" || state.currentStep === "continuation" ? "查看计划" : "回到学习任务"}</a>
           )}
-          <p className={styles.draftNotice}>原创一方内容草案 · 待真人教师审核 · 非正式诊断 · 暂不索引</p>
+          <p className={styles.draftNotice}>原创一方内容 · Teacher / Content Owner 已接受 · 非正式诊断 · 暂不索引</p>
         </div>
         <IdentityBoundary />
       </section>

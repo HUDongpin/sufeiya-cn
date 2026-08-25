@@ -6763,6 +6763,17 @@ check(
   "public Reading renders the complete five-part feedback and recommendation chain",
 );
 check(
+  /内容版本 \{READING_CONTENT_PACKAGE\.version\} 已由苏肥鸭以 Teacher \/ Content Owner 身份接受/.test(
+    publicReadingExperience,
+  ) &&
+    /原创一方内容 · Teacher \/ Content Owner 已接受 · 非正式诊断 · 暂不索引/.test(
+      publicReadingExperience,
+    ) &&
+    /本页内容已由苏肥鸭以 Teacher \/ Content Owner 身份接受/.test(publicReadingExperience) &&
+    !/待真人教师审核|仍在等待她或授权内容负责人的明确验收/.test(publicReadingExperience),
+  "public Reading learner-facing review state matches the accepted Teacher and Content Owner evidence",
+);
+check(
   /data-retest-answer-locked/.test(publicReadingExperience) &&
     /两道首次作答都锁定后，再统一核对/.test(publicReadingExperience) &&
     /task\.phase !== "retest"/.test(publicReadingExperience) &&

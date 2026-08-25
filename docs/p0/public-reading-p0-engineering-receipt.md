@@ -118,7 +118,7 @@ workspace.html
 
 - 分支：`codex/learning-platform-next-20260819`；
 - 候选 parent：`bf7cac8b3163ed5c00c5bc57607b63266ff22b21`；被 Teacher / Content Owner 接受的不可变产品候选为 `af85403cd97eff47afeea93582705a15aa7527a3`；
-- upstream：`origin/main`；产品候选相对上游为 `ahead 1 / behind 0`；接受决定与内容审核元数据在其后的第 2 个本地 commit 中记录；2026-08-26 的全部授权、肖像 manifest 与相应证据/verifier 更新形成第 3 个 commit 后，分支为 `ahead 3 / behind 0`，不改变被接受的学习内容或运行时旅程；
+- upstream：`origin/main`；产品候选相对上游为 `ahead 1 / behind 0`；接受决定与内容审核元数据在其后的第 2 个本地 commit 中记录；2026-08-26 的全部授权、肖像 manifest 与相应证据/verifier 更新形成第 3 个 commit `b2c3a537f8912fec3e337b69f529fd7baf0aa869`，分支当时为 `ahead 3 / behind 0`；首个真实 Preview 发现学习页仍显示旧的“待真人教师审核”状态，因此第 4 个 commit 只对齐三处验收状态文案、相应 E2E/verifier 与本回执，不改变题目、答案、反馈、协议或旅程；
 - 提交前候选快照为 34 个 tracked modified + 30 个实际 untracked = 64 个文件；64 个精确路径全部进入同一个产品评审 commit，提交后没有 staged、unstaged 或 untracked 候选残留；
 - 审批证据 follow-up 精确修改 8 个既有候选路径并新增 `docs/p0/public-reading-p0-review-decision-receipt.md`，因此当前分支相对基线共有 65 个唯一文件；该 follow-up 不修改题目/短文/选项/答案/反馈/推荐、状态或事件协议、页面交互、图片字节或旧 Gate A 边界；
 - tracked `git diff --check`：PASS；
@@ -147,7 +147,7 @@ workspace.html
 ### 当前候选的最终本机技术证据
 
 - `npm run check`：PASS。它在当前候选上重新生成受管 Next 内容，并依次通过：
-  - legacy verifier `1758 checks`；
+  - legacy verifier `1759 checks`；
   - Node 测试 `274/274`（Clerk `25`、offline unit `3`、public Reading `28`、governance `28`、workspace backup `73`、teaching review `28`、super-teacher `89`）；
   - TypeScript；
   - ESLint `0 errors / 6 warnings`，6 条均位于本次 no-touch 的 `journey.js`；
@@ -170,7 +170,15 @@ workspace.html
 
 2026-08-26 在写入全部授权、肖像 manifest 和 Gate 证据后，又对同一 8-path 审批更新候选完整复跑：`npm run check` 再次通过上述 legacy `1758`、Node `274/274`、TypeScript、lint、Next `32/32` 与两组 bundle 隔离；`npx playwright test --config=playwright.public-reading.config.ts` 为 `11/11 PASS`；`SUFEIYA_OFFLINE_E2E_PORT=3216 npm run test:e2e:offline` 为 `2/2 PASS`；`git diff --check` 与 manifest JSON 解析均通过。首次沙箱内运行因 `tsx` Unix IPC socket 被环境以 `EPERM` 拒绝，随后用同一未改代码在允许本机 IPC/浏览器进程的受控执行环境重跑并取得上述真实退出码；该环境限制不被记录为测试 PASS。
 
-需要真实 Clerk Development 凭据的既有账户 E2E 本次没有运行；当前工作树没有 `.env.local`，环境也没有形成可用的 Clerk Development 配置。不得把 Clerk 单元合同 `25/25`、公开匿名 E2E 或无凭据状态写成真实 Clerk 会话回归 PASS。Preview Web Vitals/LCP 也尚未建立，所以正式 G2 仍不能整体升级为 PASS。
+### 首个受控 Preview 与发布阻断
+
+PR `#15` 把 base `bf7cac8b3163ed5c00c5bc57607b63266ff22b21`、head `b2c3a537f8912fec3e337b69f529fd7baf0aa869` 与 GitHub Preview deployment `6089410876` 精确绑定；Vercel 返回不可变 deployment `Gn93Lyc5i5L9bmsJeWegDh9RR76T` 和 `success`。回滚目标绑定为最近成功的 Production deployment `5886136926`、SHA `bf7cac8b3163ed5c00c5bc57607b63266ff22b21`。Preview 受 Vercel SSO 保护；匿名 `curl -L` 最终到达登录页，因此没有把登录页的 HTTP 200 冒充应用 PASS，而是使用已获授权的受控浏览器会话读取真实页面。
+
+真实 DOM 检查发现 `/learn/reading` 仍显示“待真人教师审核”“仍在等待明确验收”，与已接受的 Teacher / Content Owner 证据冲突。该 Preview 因此明确判为 `REJECTED_FOR_RELEASE`，未推进生产 alias。组件现改为“已由苏肥鸭以 Teacher / Content Owner 身份接受；公开发布仍须通过独立 Gate”，E2E 新增两条可见文案断言，legacy verifier 新增无旧文案防回归，计数由 `1758` 增至 `1759`。修复候选已通过 `npm run check`、Reading `11/11`、offline `2/2`，须等待新的精确 Preview 后才能关闭 G5。
+
+同一 1280×720、DPR 2 的受控会话中，候选连接复用后的首页 LCP 为 `1.272s`，前一不可变 Vercel deployment 为 `1.136s`，绝对差 `+136ms`；候选 LCP 元素是 45,664-byte 1280w AVIF 肖像。390×844、DPR 2 的设备仿真中，候选 LCP 为 `0.976s`，选择 960w AVIF，横向溢出为 `0`，console error 为 `0`。首次冷访问曾受 TLS/SSO 连接建立影响出现 `8.172s`，因此不把单个冷样本解释成应用回归，也不把单会话观察冒充生产 field Web Vitals；最终修复 Preview 仍须复测。
+
+需要真实 Clerk Development 凭据的既有账户 E2E 本次没有运行；当前工作树没有 `.env.local`，环境也没有形成可用的 Clerk Development 配置。不得把 Clerk 单元合同 `25/25`、公开匿名 E2E、Preview 上的 Development-key warning 或无凭据状态写成真实 Clerk 会话回归 PASS。正式 G2 仍保持 `IN PROGRESS`，直到最终 Preview 技术证据完成并对 Clerk 证据缺口作出适用性结论。
 
 ## 5. 性能与图片证据
 
@@ -184,7 +192,7 @@ workspace.html
 | 960 | 27,436 B | 44,824 B |
 | 1280 | 45,664 B | 72,744 B |
 
-6 个文件都低于 80 KiB，工程目录与 `public/` 副本逐字节一致，manifest SHA-256 与完整解码通过。真实移动 Chromium 选择响应式 AVIF/WebP，decoded body 小于 80 KiB，未请求原 JPEG。尚未建立 Preview Web Vitals/LCP 基线，故不能声称生产性能改善。
+6 个文件都低于 80 KiB，工程目录与 `public/` 副本逐字节一致，manifest SHA-256 与完整解码通过。真实移动 Chromium 和受控 Preview 的 390×844 仿真均选择 960w AVIF/WebP，decoded body 小于 80 KiB，未请求原 JPEG。首个 Preview 已形成上述单会话 LCP 对照，但因发现验收状态文案阻断而被拒绝；新的修复 Preview 尚未复测，故此时仍不能声称生产性能改善或 G2/G5 完成。
 
 ## 6. Gate 状态
 
@@ -195,10 +203,10 @@ workspace.html
 | G0a 工作树建立 | `PASS` | 独立工作树来自 `origin/main@bf7cac8b…`；旧工作树未被本次实现修改 |
 | G0b 当前发布 diff 与归属 | `PASS` | 64 个产品候选文件加 1 个审批决定回执，共 65 个唯一文件；审批 follow-up 的 9 路径均在 `docs/p0`、内容元数据、对应测试/verifier 与 README allowlist 内，既有 whitespace、21/21 生成一致性、no-touch、并行归属和副产物边界不变 |
 | G1 教学内容 | `PASS` | 2026-08-23，苏肥鸭以 Teacher / Content Owner 身份绑定 `af85403…` 接受 Reading 内容、7 个任务、微课、权利、反馈、测量关系、禁用宣称和教师体验范围；内容元数据与决定回执已同步 |
-| G2 技术与浏览器 | `IN PROGRESS` | 当前本机代码、build、unit、公开 Reading `11/11` 与旧离线 `2/2` 均通过；仍缺真实 Clerk Development E2E、Preview LCP/Web Vitals 与外部验收要求的完整 a11y/performance 证据 |
+| G2 技术与浏览器 | `IN PROGRESS` | 修复候选本机 build/unit、公开 Reading `11/11` 与旧离线 `2/2` 均通过；首个 Preview 有受控 LCP/移动证据但因旧验收状态文案被拒绝，仍须复测最终 Preview，并诚实处理无 Clerk Development 凭据的证据缺口 |
 | G3 数据、隐私与注册边界 | `PASS` | 苏肥鸭接受当前本机零上传合同与 Product/Privacy/Legal 治理范围；公共 SignUp、身份/自由文本、账户绑定和上传继续关闭，四个替代 CTA 已由真实浏览器验证；不为未来新增数据流提供法律结论 |
 | G4 真人教师、人物用途与条件性队列 | `PASS` | 纯客观 Reading 无开放题，教师内容/体验/身份文案与 Product 公开旅程已接受；2026-08-26 又绑定源图 SHA-256、6 个衍生物、限定首页人物卡与撤回流程完成肖像授权 |
-| G5 Preview 候选 | `IN PROGRESS` | Release Owner 已授权 push/PR/受控 Preview；本地不可变候选、完整验证与回滚步骤已形成，仍须绑定实际 Preview deployment metadata、前一 deployment 与 Preview 性能证据 |
+| G5 Preview 候选 | `IN PROGRESS` | PR #15、首个精确 Preview 与回滚目标已经绑定，但真实 DOM 发现验收状态文案漂移，首个 Preview 明确拒绝；等待第 4 个修复 commit 的新 deployment、浏览器与性能证据 |
 | G6 公开发布授权 | `IN PROGRESS` | 2026-08-26 已授权在 G0b、G1–G6 全部 PASS 后发布；仍须把最终不可变候选、Preview 证据和 deployment plan 精确绑定后才能记录 PASS |
 | G7 生产部署与线上回归 | `PENDING` | 没有生产部署；未触碰 `sufeiya.cn` |
 | G8 账户同步 | `NOT IN SCOPE` | 当前 P0 明确为浏览器本机、非账户绑定；跨设备/RBAC/退出同步属于 Phase 2 新候选与新决定 |
@@ -218,7 +226,7 @@ workspace.html
 当前仍不得宣称：
 
 - 该项目治理决定是执业律师意见，或覆盖未来公开注册、账户同步、远端分析/模型、跨地区数据流；
-- Preview 已建立、HTTP 200 已核验或 deployment metadata 已绑定；
+- 首个 Preview 已经因验收状态文案漂移被拒绝；不得宣称最终 Preview PASS 或把它的 HTTP 200/Ready 当作发布证据；
 - G5/G6 已因一句授权自动通过，或已经部署到生产；
 - `/learn/reading` 是正式诊断、官方 DET 分数、掌握度、AI 自适应学习或学习增长证明；
 - 本机记录可以跨设备、与账户同步、被教师看到或由服务器恢复。
@@ -233,7 +241,7 @@ workspace.html
 
 ## 9. 候选级回滚与肖像撤回边界
 
-本工作树已经形成不可变产品评审与审批证据 commits；截至本段最后更新时仍没有 Preview deployment 或生产 deployment，也没有改变任何线上 alias。Release Owner 已授权建立 Preview，但实际操作前仍必须在决策单中绑定：候选 commit SHA、不可变 deployment ID、当时的前一已知正常 deployment ID、执行人角色和回滚触发条件。
+本工作树已经形成不可变产品评审与审批证据 commits，并为 `b2c3a537…` 建立了首个受控 Preview；该 Preview 因用户可见验收状态漂移被拒绝，没有改变生产 alias。已绑定的回滚目标是 Production deployment `5886136926` / `bf7cac8b…`。第 4 个修复 commit 产生新 Preview 后，仍必须再次绑定其候选 SHA、不可变 deployment ID、同一回滚目标、执行人角色和触发条件，不能沿用旧 Preview 的成功状态。
 
 候选级回滚遵循以下顺序：
 
