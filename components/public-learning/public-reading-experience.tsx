@@ -509,7 +509,7 @@ function FinalPlan({
         </ol>
       </div>
       <p className={styles.measurementCaveat}>
-        以上是同一次短练中的客观作答证据，不是正式诊断、官方分数或能力增长证明。内容版本 {READING_CONTENT_PACKAGE.version} 已由苏肥鸭以 Teacher / Content Owner 身份接受；公开发布仍须通过独立 Gate。
+        以上是同一次短练中的客观作答证据，不是正式诊断、官方分数或能力增长证明。内容版本 {READING_CONTENT_PACKAGE.version} 已由苏肥鸭以 Teacher / Content Owner 身份接受；本次公开版本已通过独立发布 Gate，后续内容变更仍须重新审查。
       </p>
       <div className={styles.continuations} aria-label="获得价值后的继续方式">
         <button type="button" onClick={() => onContinuation("local_continue")}>本机保留，稍后继续</button>

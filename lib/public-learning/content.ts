@@ -3,7 +3,18 @@ export const READING_CONTENT_REVIEW_STATUS =
   "accepted_by_teacher_and_content_owner" as const;
 export const READING_CONTENT_SOURCE = "original_first_party_draft" as const;
 export const READING_CONTENT_RIGHTS_STATUS =
-  "confirmed_by_content_owner_for_p0_candidate" as const;
+  "confirmed_by_content_owner_for_public_reading_p0" as const;
+export const READING_CONTENT_RELEASE_DISPOSITION =
+  "released_public_reading_p0" as const;
+export const READING_CONTENT_RELEASE_EVIDENCE = deepFreeze({
+  mergeCommit: "1d39883c6e0aca2c379e80918417c77c2d9c624c",
+  githubDeploymentId: 6090012530,
+  vercelDeploymentId: "CvMMarFynAJtjc2VWrVLWUJCz8nq",
+  canonicalOrigin: "https://sufeiya.cn",
+  verifiedAt: "2026-08-26",
+  receipt:
+    "https://github.com/HUDongpin/sufeiya-cn/pull/15#issuecomment-5415305539",
+} as const);
 export const READING_CONTENT_REVIEWER = "苏肥鸭" as const;
 export const READING_CONTENT_REVIEWER_ROLE = "teacher_and_content_owner" as const;
 export const READING_CONTENT_REVIEW_DATE = "2026-08-23" as const;
@@ -106,7 +117,8 @@ export type ReadingContentPackage = Readonly<{
   reviewedCandidateCommit: typeof READING_CONTENT_REVIEWED_CANDIDATE_COMMIT;
   reviewEvidenceRef: typeof READING_CONTENT_REVIEW_EVIDENCE_REF;
   rightsStatus: typeof READING_CONTENT_RIGHTS_STATUS;
-  releaseDisposition: "not_release_ready";
+  releaseDisposition: typeof READING_CONTENT_RELEASE_DISPOSITION;
+  releaseEvidence: typeof READING_CONTENT_RELEASE_EVIDENCE;
   learnerEvidenceBoundary: "local_objective_response_evidence_only";
   objective: Readonly<{
     title: string;
@@ -164,7 +176,8 @@ export const READING_CONTENT_PACKAGE: ReadingContentPackage = deepFreeze({
   reviewedCandidateCommit: READING_CONTENT_REVIEWED_CANDIDATE_COMMIT,
   reviewEvidenceRef: READING_CONTENT_REVIEW_EVIDENCE_REF,
   rightsStatus: READING_CONTENT_RIGHTS_STATUS,
-  releaseDisposition: "not_release_ready",
+  releaseDisposition: READING_CONTENT_RELEASE_DISPOSITION,
+  releaseEvidence: READING_CONTENT_RELEASE_EVIDENCE,
   learnerEvidenceBoundary: "local_objective_response_evidence_only",
   objective: {
     title: "从原文证据到中心意思",

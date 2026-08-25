@@ -5,7 +5,7 @@
     "engineeringAssetCompletion": "COMPLETE_LOCAL_DERIVATIVES_VERIFIED",
     "ownerTeacherUseAcceptance": "ACCEPTED",
     "publicUseAuthorization": "GRANTED_FOR_SUFIEYA_CN_HOMEPAGE_ONLY",
-    "deployment": "NOT_EVIDENCED"
+    "deployment": "VERIFIED_PRODUCTION_HOMEPAGE_ONLY"
   },
   "source": {
     "path": "/Volumes/WestWorld/Sufeiya/最新微笑版.jpg",
@@ -79,6 +79,17 @@
       "generative_face_body_clothing_wand_or_background_modification"
     ],
     "withdrawalProcedureAccepted": true
+  },
+  "deploymentEvidence": {
+    "verifiedAt": "2026-08-26",
+    "mergeCommit": "1d39883c6e0aca2c379e80918417c77c2d9c624c",
+    "githubDeploymentId": 6090012530,
+    "vercelDeploymentId": "CvMMarFynAJtjc2VWrVLWUJCz8nq",
+    "canonicalOrigin": "https://sufeiya.cn",
+    "verifiedPage": "homepage only",
+    "selectedDesktopAsset": "/assets/teacher-portrait/sufeiyalaoshi-homepage-1280w.avif",
+    "selectedMobileAsset": "/assets/teacher-portrait/sufeiyalaoshi-homepage-960w.avif",
+    "evidence": "https://github.com/HUDongpin/sufeiya-cn/pull/15#issuecomment-5415305539"
   },
   "derivatives": [
     {
