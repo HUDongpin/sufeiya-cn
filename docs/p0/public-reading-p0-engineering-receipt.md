@@ -263,7 +263,7 @@ G7 之后的证据同步 follow-up 只把内容包的 `releaseDisposition`、逐
 
 ## 9. 候选级回滚与肖像撤回边界
 
-当前生产部署为 GitHub deployment `6090012530`、Vercel `CvMMarFynAJtjc2VWrVLWUJCz8nq`，绑定 merge commit `1d39883c6e0aca2c379e80918417c77c2d9c624c`。发布前已绑定的回滚目标仍是 Production deployment `5886136926` / `bf7cac8b3163ed5c00c5bc57607b63266ff22b21`。首个 `b2c3a537…` Preview 的拒绝记录继续保留，不能被后续成功覆盖或当作曾经可发布。
+P0 首次通过 G7 的生产证据基线为 GitHub deployment `6090012530`、Vercel `CvMMarFynAJtjc2VWrVLWUJCz8nq`，绑定 merge commit `1d39883c6e0aca2c379e80918417c77c2d9c624c`。后续不改变学习行为的证据/元数据部署不会反复改写这个历史基线；“最新生产 deployment”必须在操作时从 GitHub Environment/Vercel 和对应 PR 外部回执重新查询。发布前已绑定的回滚目标仍是 Production deployment `5886136926` / `bf7cac8b3163ed5c00c5bc57607b63266ff22b21`。首个 `b2c3a537…` Preview 的拒绝记录继续保留，不能被后续成功覆盖或当作曾经可发布。
 
 候选级回滚遵循以下顺序：
 
