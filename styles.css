@@ -472,6 +472,78 @@ button {
   box-shadow: 0 0 0 4px rgba(244, 184, 39, 0.1);
 }
 
+.teacher-card {
+  position: relative;
+  width: min(100%, 520px);
+  margin: 0;
+  justify-self: end;
+  overflow: hidden;
+  border: 1px solid rgba(16, 44, 41, 0.17);
+  border-radius: 28px 28px 8px 8px;
+  background: var(--color-white);
+  box-shadow: 0 36px 100px rgba(16, 44, 41, 0.14);
+}
+
+.teacher-card picture,
+.teacher-card img {
+  display: block;
+  width: 100%;
+}
+
+.teacher-card picture {
+  aspect-ratio: 4 / 5;
+  overflow: hidden;
+  background: #413d3f;
+}
+
+.teacher-card img {
+  height: 100%;
+  object-fit: cover;
+}
+
+.teacher-card figcaption {
+  padding: 24px 26px 26px;
+}
+
+.teacher-card figcaption > span {
+  color: var(--color-accent-deep);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 0.15em;
+}
+
+.teacher-card h2 {
+  margin: 7px 0 0;
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: clamp(28px, 3vw, 38px);
+  font-weight: 650;
+  letter-spacing: -0.035em;
+  line-height: 1.25;
+}
+
+.teacher-card figcaption > p {
+  margin: 6px 0 0;
+  color: var(--color-ink-soft);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.teacher-card figcaption > small {
+  margin-top: 18px;
+  padding-top: 16px;
+  display: block;
+  border-top: 1px solid rgba(16, 44, 41, 0.12);
+  color: var(--color-muted);
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.teacher-card figcaption > small strong {
+  color: var(--color-ink);
+}
+
 .learning-plate {
   position: relative;
   min-height: 550px;
@@ -4118,6 +4190,11 @@ button:disabled {
     justify-self: end;
   }
 
+  .teacher-card {
+    width: min(100%, 620px);
+    justify-self: start;
+  }
+
   .method-intro,
   .system-heading,
   .resources-heading {
@@ -4437,6 +4514,15 @@ button:disabled {
   .learning-plate {
     min-height: 525px;
     padding: 20px;
+  }
+
+  .teacher-card {
+    width: 100%;
+    border-radius: 22px 22px 6px 6px;
+  }
+
+  .teacher-card figcaption {
+    padding: 21px 20px 23px;
   }
 
   .plate-core {

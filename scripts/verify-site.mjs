@@ -56,6 +56,8 @@ const protectedLearnerPaths = [
 const betaProtectedLearnerPaths = protectedLearnerPaths.filter((path) => path !== "/account");
 const sitemapPublicPaths = ["/", "/super-teacher", "/learning-path", "/platform", "/resources", "/about"];
 const nextOnlyTargets = new Map([
+  ["/learn/reading", "app/learn/reading/page.tsx"],
+  ["/sign-in", "app/sign-in/[[...sign-in]]/page.tsx"],
   ["/super-teacher", "app/super-teacher/page.tsx"],
   ["/teaching-review-demo", "app/teaching-review-demo/page.tsx"],
   ["/assets/sufeiya-super-teacher-avatar.webp", "public/assets/sufeiya-super-teacher-avatar.webp"],
@@ -193,6 +195,26 @@ const superTeacherContracts = await read("lib/super-teacher/contracts.ts");
 const superTeacherLocalContext = await read("lib/super-teacher/local-context.ts");
 const superTeacherPolicy = await read("lib/super-teacher/policy.ts");
 const legacyContent = await read("lib/legacy-content.generated.ts");
+const homepage = await read("index.html");
+const publicReadingPage = await read("app/learn/reading/page.tsx");
+const publicLearningShell = await read("components/public-learning-shell.tsx");
+const publicReadingExperience = await read("components/public-learning/public-reading-experience.tsx");
+const publicReadingStyles = await read("components/public-learning/public-reading-experience.module.css");
+const publicReadingContent = await read("lib/public-learning/content.ts");
+const publicReadingContracts = await read("lib/public-learning/contracts.ts");
+const publicReadingEvaluation = await read("lib/public-learning/evaluation.ts");
+const publicReadingStorage = await read("lib/public-learning/storage.ts");
+const publicReadingContractTest = await read("tests/public-reading-contracts.test.ts");
+const publicReadingStorageTest = await read("tests/public-reading-storage.test.ts");
+const publicReadingE2E = await read("e2e/public-reading/public-reading.spec.ts");
+const publicReadingPlaywrightConfig = await read("playwright.public-reading.config.ts");
+const teacherPortraitManifest = JSON.parse(await read("data/teacher-portrait-assets.v1.json"));
+const publicReadingEngineeringReceipt = await read("docs/p0/public-reading-p0-engineering-receipt.md");
+const publicReadingDataContract = await read("docs/p0/public-reading-local-data-contract.md");
+const publicReadingContentReviewPacket = await read("docs/p0/public-reading-content-review-packet.md");
+const publicReadingReviewDecisionReceipt = await read(
+  "docs/p0/public-reading-p0-review-decision-receipt.md",
+);
 const parseDeclaredStringArray = (source, declaration, label) => {
   const match = source.match(
     new RegExp(`(?:export\\s+)?const\\s+${declaration}\\s*=\\s*(\\[[\\s\\S]*?\\])(?:\\s+as\\s+const)?\\s*;`),
@@ -6610,6 +6632,273 @@ check(publicJourney.size > 20_000, "Next.js public build includes the journey ru
 const publicWorkspaceBackup = await stat(join(root, "public/workspace-backup.js"));
 check(publicWorkspaceBackup.size > 8_000, "Next.js public build includes the workspace backup runtime");
 
+check(
+  /robots: \{ index: false, follow: false \}/.test(publicReadingPage) &&
+    /canonical: "\/learn\/reading"/.test(publicReadingPage) &&
+    /<PublicReadingExperience \/>/.test(publicReadingPage) &&
+    !/@clerk|SiteShell|RoutedLegacyPage|LegacyPage/.test(publicReadingPage),
+  "public Reading route is an explicit noindex Clerk-free Server Component boundary",
+);
+check(
+  /OfflineNavigationBoundary/.test(publicLearningShell) &&
+    /SiteFrame/.test(publicLearningShell) &&
+    /pageKey="public-learning"/.test(publicLearningShell) &&
+    /公开试学 · 本机保存/.test(publicLearningShell) &&
+    !/@clerk|ClerkProvider|ClerkAccountControls|SofiaAccessBoundary/.test(publicLearningShell),
+  "public Reading shell preserves offline navigation and avoids the Clerk runtime",
+);
+check(
+  !clerkConfig.includes('"/learn/reading"') && !proxyScript.includes('"/learn/reading/:path*"'),
+  "public Reading is not added to the protected Gate A route contract",
+);
+check(
+  /href="\/learn\/reading"/.test(homepage) &&
+    /开始 3 分钟入门检查/.test(homepage) &&
+    /sufeiyalaoshi-homepage-640w\.avif/.test(homepage) &&
+    /sufeiyalaoshi-homepage-1280w\.webp/.test(homepage) &&
+    /苏肥鸭老师戴黑色帽子、微笑并手持教鞭的半身肖像/.test(homepage) &&
+    /真人教师 · 教学与内容主理人/.test(homepage) &&
+    /Sofia 智能老师是 AI 学习助手/.test(homepage),
+  "homepage presents the anonymous Reading CTA, responsive teacher portrait, and human-AI identity boundary",
+);
+check(
+  !homepage.includes('href="/sign-up"') &&
+    !publicReadingPage.includes("/sign-up") &&
+    !publicReadingExperience.includes("/sign-up") &&
+    !publicReadingContracts.includes("public_signup"),
+  "public signup remains absent while product, privacy, and legal gates are pending",
+);
+
+const expectedPublicLearningEventNames = [
+  "learning_entry_viewed",
+  "first_task_started",
+  "task_answered",
+  "feedback_viewed",
+  "next_task_started",
+  "practice_completed",
+  "retest_started",
+  "retest_completed",
+  "plan_offered",
+  "post_value_continuation_started",
+];
+const publicLearningEventNames = parseDeclaredStringArray(
+  publicReadingContracts,
+  "PUBLIC_LEARNING_EVENT_NAMES",
+  "public Reading contracts",
+);
+const publicReadingContinuations = parseDeclaredStringArray(
+  publicReadingContracts,
+  "PUBLIC_READING_CONTINUATIONS",
+  "public Reading contracts",
+);
+check(
+  JSON.stringify(publicLearningEventNames) === JSON.stringify(expectedPublicLearningEventNames) &&
+    JSON.stringify(publicReadingContinuations) === JSON.stringify([
+      "local_continue",
+      "local_export",
+      "invite_login",
+      "waitlist",
+    ]) &&
+    /PUBLIC_LEARNING_EVENT_DISPATCH_MODE = "local_only_no_network"/.test(publicReadingContracts) &&
+    /dispatchMode: z\.literal\(PUBLIC_LEARNING_EVENT_DISPATCH_MODE\)/.test(publicReadingContracts),
+  "public Reading uses the exact minimal local-only event and continuation enums",
+);
+check(
+  /sufeiya_public_reading_p0_v1/.test(publicReadingContracts) &&
+    /sufeiya_public_learning_events_v1/.test(publicReadingContracts) &&
+    !/sufeiya_workspace_v1|sufeiya_super_teacher_v1|sufeiya_teaching_review_demo_v1/.test(
+      publicReadingStorage,
+    ) &&
+    /deletePublicReadingLocalData/.test(publicReadingStorage) &&
+    /withPublicReadingWriteLock/.test(publicReadingStorage) &&
+    /publicReadingWriteLockSupported/.test(publicReadingStorage) &&
+    /persistent public Reading writes are disabled/.test(publicReadingStorage) &&
+    /reason: "conflict"/.test(publicReadingStorage),
+  "public Reading storage is isolated, bounded, recoverable, and fail-closed on conflicts",
+);
+check(
+  /EXPECTED_PUBLIC_READING_JOURNEY/.test(publicReadingStorage) &&
+    /validatePublicLearningEventLifecycle/.test(publicReadingStorage) &&
+    /validatePublicReadingSnapshotCompatibility/.test(publicReadingStorage) &&
+    /event ledger must begin with learning_entry_viewed/.test(publicReadingStorage) &&
+    /plan_offered does not match the recommendation derived/.test(publicReadingStorage) &&
+    /state responses do not match the objective evidence/.test(publicReadingStorage) &&
+    /status:[\s\S]*?"event_degraded"/.test(publicReadingStorage) &&
+    /ordered, gap-free prefix/.test(publicReadingContracts) &&
+    /allowedResponseCounts/.test(publicReadingContracts),
+  "public Reading restores only ordered state evidence and lifecycle-valid local event ledgers",
+);
+check(
+  /accepted_by_teacher_and_content_owner/.test(publicReadingContent) &&
+    /original_first_party_draft/.test(publicReadingContent) &&
+    /confirmed_by_content_owner_for_p0_candidate/.test(publicReadingContent) &&
+    /READING_CONTENT_REVIEWER = "苏肥鸭"/.test(publicReadingContent) &&
+    /teacher_and_content_owner/.test(publicReadingContent) &&
+    /af85403cd97eff47afeea93582705a15aa7527a3/.test(publicReadingContent) &&
+    /codex_task_01a018b0_user_acceptance_2026_08_23/.test(publicReadingContent) &&
+    /contentPackageVersion: READING_CONTENT_PACKAGE_VERSION/.test(publicReadingContent) &&
+    /releaseDisposition: "not_release_ready"/.test(publicReadingContent) &&
+    /BASELINE_READING_TASK_IDS = \[[\s\S]*?\]/.test(publicReadingContent) &&
+    /PRACTICE_READING_TASK_IDS = \[[\s\S]*?\]/.test(publicReadingContent) &&
+    /RETEST_READING_TASK_IDS = \[[\s\S]*?\]/.test(publicReadingContent) &&
+    /buildReadingRecommendationFromResponses/.test(publicReadingEvaluation) &&
+    /updateReadingRecommendationAfterRetest/.test(publicReadingEvaluation) &&
+    /retest_remaining_error_overrides_baseline_priority/.test(publicReadingEvaluation) &&
+    /same_session_objective_evidence_only/.test(publicReadingEvaluation) &&
+    /evidence_insufficient/.test(publicReadingEvaluation),
+  "public Reading content binds teacher/content acceptance while preserving release and evidence boundaries",
+);
+check(
+  /data-reading-feedback=\{evaluation\.isCorrect \? "correct" : "five-part-wrong"\}/.test(
+    publicReadingExperience,
+  ) &&
+    /错在哪里/.test(publicReadingExperience) &&
+    /正确答案为什么成立/.test(publicReadingExperience) &&
+    /其他选项为什么不成立/.test(publicReadingExperience) &&
+    /回看哪个微课/.test(publicReadingExperience) &&
+    /立即重练与复测/.test(publicReadingExperience) &&
+    /证据 → 能力 → 资源 → 任务 → 复测/.test(publicReadingExperience) &&
+    /data-updated-recommendation-chain/.test(publicReadingExperience) &&
+    /retest_remaining_error_overrides_baseline_priority/.test(publicReadingExperience),
+  "public Reading renders the complete five-part feedback and recommendation chain",
+);
+check(
+  /内容版本 \{READING_CONTENT_PACKAGE\.version\} 已由苏肥鸭以 Teacher \/ Content Owner 身份接受/.test(
+    publicReadingExperience,
+  ) &&
+    /原创一方内容 · Teacher \/ Content Owner 已接受 · 非正式诊断 · 暂不索引/.test(
+      publicReadingExperience,
+    ) &&
+    /本页内容已由苏肥鸭以 Teacher \/ Content Owner 身份接受/.test(publicReadingExperience) &&
+    !/待真人教师审核|仍在等待她或授权内容负责人的明确验收/.test(publicReadingExperience),
+  "public Reading learner-facing review state matches the accepted Teacher and Content Owner evidence",
+);
+check(
+  /data-retest-answer-locked/.test(publicReadingExperience) &&
+    /两道首次作答都锁定后，再统一核对/.test(publicReadingExperience) &&
+    /task\.phase !== "retest"/.test(publicReadingExperience) &&
+    /updateReadingRecommendationAfterRetest/.test(publicReadingExperience) &&
+    /data-reading-stage="plan"/.test(publicReadingExperience),
+  "public Reading locks both independent retest responses before unified feedback and an evidence-updated plan",
+);
+check(
+  /查看本机记录/.test(publicReadingExperience) &&
+    /导出 JSON/.test(publicReadingExperience) &&
+    /确认永久删除两类记录/.test(publicReadingExperience) &&
+    /data-public-reading-runtime/.test(publicReadingExperience) &&
+    !/\bfetch\s*\(|XMLHttpRequest|sendBeacon|WebSocket/.test(publicReadingExperience) &&
+    !/<textarea|type="text"|type="email"|type="file"/.test(publicReadingExperience),
+  "public Reading exposes view-export-two-step-delete controls without remote dispatch or free-text collection",
+);
+check(
+  /@media \(max-width: 760px\)/.test(publicReadingStyles) &&
+    /@media \(max-width: 430px\)/.test(publicReadingStyles) &&
+    /@media \(prefers-reduced-motion: reduce\)/.test(publicReadingStyles) &&
+    /input:focus-visible \+ span/.test(publicReadingStyles) &&
+    !publicReadingStyles.includes("teacher-portrait") &&
+    !publicReadingExperience.includes("teacher-portrait") &&
+    /lang="en"/.test(publicReadingExperience) &&
+    /tabIndex=\{-1\}/.test(publicReadingExperience),
+  "public Reading styles include accessibility handling and keep the homepage-only portrait out of the learning route",
+);
+check(
+  /"test:public-reading": "tsx --test tests\/public-reading-contracts\.test\.ts tests\/public-reading-storage\.test\.ts"/.test(
+    packageSource,
+  ) &&
+    /"test:e2e:public-reading": "playwright test --config=playwright\.public-reading\.config\.ts"/.test(
+      packageSource,
+    ) &&
+    /npm run test:public-reading/.test(JSON.parse(packageSource).scripts.check) &&
+    /testDir: "\.\/e2e\/public-reading"/.test(publicReadingPlaywrightConfig) &&
+    /fivePartFeedback/.test(publicReadingE2E) &&
+    /preserves corrupt and unknown-version/.test(publicReadingE2E) &&
+    /preserves each namespace independently/.test(publicReadingE2E) &&
+    /Web Locks are unavailable/.test(publicReadingE2E) &&
+    /another tab changes state and events/.test(publicReadingE2E) &&
+    /rapid same-tab submissions/.test(publicReadingE2E) &&
+    /every replacement CTA/.test(publicReadingE2E) &&
+    /event-degraded/.test(publicReadingE2E) &&
+    /single-namespace gaps event-degraded/.test(publicReadingE2E) &&
+    /keyboard controls only/.test(publicReadingE2E) &&
+    /data-clerk-invitation-entry/.test(publicReadingE2E) &&
+    /minimumTextContrast/.test(publicReadingE2E) &&
+    /borderContrast/.test(publicReadingE2E) &&
+    /fails closed without overwriting corrupt/.test(publicReadingStorageTest) &&
+    /shape-valid event ledger that skips/.test(publicReadingStorageTest) &&
+    /legal but contradictory payload/.test(publicReadingStorageTest) &&
+    /state and event lifecycle drift/.test(publicReadingStorageTest) &&
+    /exactly one public Reading namespace is missing/.test(publicReadingStorageTest) &&
+    /five-part wrong feedback/.test(publicReadingContractTest),
+  "public Reading unit and isolated real-browser regression suites are wired into verification",
+);
+check(
+  !sitemap.includes("https://sufeiya.cn/learn/reading") &&
+    !nextSitemap.includes('"public-learning"') &&
+    !nextSitemap.includes('"learn/reading"'),
+  "pre-release public Reading route remains excluded from both sitemaps until deployment evidence closes the release gate",
+);
+
+check(
+  teacherPortraitManifest?.schemaVersion === "sufeiya_teacher_portrait_assets_v1" &&
+    teacherPortraitManifest?.status?.ownerTeacherUseAcceptance === "ACCEPTED" &&
+    teacherPortraitManifest?.status?.publicUseAuthorization ===
+      "GRANTED_FOR_SUFIEYA_CN_HOMEPAGE_ONLY" &&
+    teacherPortraitManifest?.status?.deployment === "NOT_EVIDENCED" &&
+    teacherPortraitManifest?.source?.sha256 ===
+      "f0c23e3b73952cd70c085f71f9e4ca556075c8d14d140ac2dcc22f3df4954c24" &&
+    teacherPortraitManifest?.intendedUse?.scopeStatus ===
+      "ACCEPTED_OWNER_TEACHER_HOMEPAGE_ONLY" &&
+    teacherPortraitManifest?.authorization?.approvedProductCandidate ===
+      "af85403cd97eff47afeea93582705a15aa7527a3" &&
+    teacherPortraitManifest?.authorization?.reviewedEvidenceCommit ===
+      "dc8a637f2c9fe4f582855ec4f16c68e0b7adaa2b" &&
+    teacherPortraitManifest?.authorization?.traceableIdentity === "苏肥鸭" &&
+    teacherPortraitManifest?.authorization?.evidenceRef ===
+      "codex_task_01a018b0_user_all_authorized_2026_08_26" &&
+    teacherPortraitManifest?.authorization?.sourceSha256 ===
+      teacherPortraitManifest?.source?.sha256 &&
+    teacherPortraitManifest?.authorization?.authorizedDerivativeCount === 6 &&
+    teacherPortraitManifest?.authorization?.excludedFromThisP0?.length === 7 &&
+    teacherPortraitManifest?.authorization?.withdrawalProcedureAccepted === true &&
+    teacherPortraitManifest?.derivatives?.length === 6,
+  "teacher portrait manifest binds source custody, all six assets, homepage authorization, exclusions, and withdrawal while deployment stays unproven",
+);
+check(
+  /AUTHORIZED FOR CONTROLLED PREVIEW \/ PRODUCTION AUTHORIZED ONLY AFTER EXACT-CANDIDATE GATES PASS/.test(
+    publicReadingEngineeringReceipt,
+  ) &&
+    /G1 教学内容 \| `PASS`/.test(publicReadingEngineeringReceipt) &&
+    /G3 数据、隐私与注册边界 \| `PASS`/.test(publicReadingEngineeringReceipt) &&
+    /G4 真人教师、人物用途与条件性队列 \| `PASS`/.test(publicReadingEngineeringReceipt) &&
+    /G5 Preview 候选 \| `IN PROGRESS`/.test(publicReadingEngineeringReceipt) &&
+    /G6 公开发布授权 \| `IN PROGRESS`/.test(publicReadingEngineeringReceipt) &&
+    /G8 账户同步 \| `NOT IN SCOPE`/.test(publicReadingEngineeringReceipt) &&
+    /PRODUCT_PRIVACY_LEGAL_SCOPE_ACCEPTED_FOR_PUBLIC_READING_P0 \/ PUBLIC_SIGNUP_CLOSED/.test(
+      publicReadingDataContract,
+    ) &&
+    /TEACHER_CONTENT_OWNER_ACCEPTED_FOR_AF85403 \/ NOT RELEASE READY/.test(
+      publicReadingContentReviewPacket,
+    ) &&
+    /CURRENT_PUBLIC_READING_P0_SCOPE_APPROVED \/ CONTROLLED_PREVIEW_AND_GATE_CONDITIONAL_PRODUCTION_AUTHORIZED/.test(
+      publicReadingReviewDecisionReceipt,
+    ) &&
+    /全部授权。肖像都有授权/.test(publicReadingReviewDecisionReceipt) &&
+    /当前公开 Reading 不启用 AI/.test(publicReadingReviewDecisionReceipt),
+  "public Reading evidence pack records scoped approval and release authorization without inventing Preview, deployment, account-sync, AI, or voice evidence",
+);
+for (const derivative of teacherPortraitManifest.derivatives ?? []) {
+  try {
+    const asset = await readFile(join(root, derivative.assetPath));
+    const publicAsset = await readFile(join(root, derivative.publicFilesystemPath));
+    check(asset.length === derivative.bytes, `${derivative.id} matches its registered byte count`);
+    check(sha256(asset) === derivative.sha256, `${derivative.id} matches its registered SHA-256`);
+    check(asset.equals(publicAsset), `${derivative.id} asset and public copy are byte-identical`);
+    check(asset.length < 80_000, `${derivative.id} stays below the 80 KB homepage image budget`);
+  } catch (error) {
+    failures.push(`${derivative?.id ?? "portrait derivative"} is missing or unreadable: ${error.message}`);
+  }
+}
+
 for (const path of ["package.json", "vercel.json"]) {
   try {
     JSON.parse(await read(path));
@@ -6728,6 +7017,10 @@ check(
 check(
   /testDir: "\.\/e2e\/offline-navigation"/.test(offlineNavigationPlaywrightConfig) &&
     /baseURL = `http:\/\/127\.0\.0\.1:\$\{port\}`/.test(offlineNavigationPlaywrightConfig) &&
+    /SUFEIYA_OFFLINE_E2E_PORT/.test(offlineNavigationPlaywrightConfig) &&
+    offlineNavigationPlaywrightConfig.includes("!/^\\d{4,5}$/.test(requestedPort)") &&
+    /Number\(requestedPort\) < 1_024/.test(offlineNavigationPlaywrightConfig) &&
+    /Number\(requestedPort\) > 65_535/.test(offlineNavigationPlaywrightConfig) &&
     /trace: "off"/.test(offlineNavigationPlaywrightConfig) &&
     /video: "off"/.test(offlineNavigationPlaywrightConfig) &&
     !/clerk|\.env\.local/i.test(offlineNavigationPlaywrightConfig) &&

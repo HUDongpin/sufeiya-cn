@@ -203,8 +203,8 @@ const header = (page) => `
           )
           .join("")}
       </nav>
-      <a class="header-cta${page === "workspace" ? " is-current" : ""}" href="/workspace"${page === "workspace" ? ' aria-current="page"' : ""}>
-        <span>开始学习</span>
+      <a class="header-cta" href="/learn/reading">
+        <span>开始 3 分钟入门检查</span>
         ${arrow}
       </a>
       <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="mobile-nav" aria-label="打开导航菜单">
@@ -220,10 +220,11 @@ const header = (page) => `
             </a>`,
         )
         .join("")}
-      <a class="mobile-external" href="/workspace"${page === "workspace" ? ' aria-current="page"' : ""}>
-        进入学习工作台
+      <a class="mobile-external" href="/learn/reading">
+        开始 3 分钟入门检查
         ${arrow}
       </a>
+      <a href="/sign-in">受邀内测登录<span>邀请制</span></a>
     </nav>
   </header>`;
 
@@ -236,7 +237,8 @@ const footer = () => `
       <div class="footer-nav">
         <div>
           <strong>页面</strong>
-          <a href="/workspace">开始学习</a>
+          <a href="/learn/reading">3 分钟入门检查</a>
+          <a href="/workspace">受邀学习工作台</a>
           <a href="/super-teacher">Sofia智能老师</a>
           <a href="/my-data">我的本机数据</a>
           <a href="/learning-path">学习路径</a>
@@ -293,42 +295,29 @@ const homeContent = `
           <p class="eyebrow eyebrow-light">
             <span>SUFEIYA</span><span class="eyebrow-rule"></span><span>中文 DET 在线学习平台</span>
           </p>
-          <h1 id="hero-title">为每一次学习，<br />找到<span>清晰的下一步。</span></h1>
+          <h1 id="hero-title">先完成一次学习，<br />再决定<span>下一步。</span></h1>
           <p class="hero-lead">
-            受邀内测账户可以生成 7 天学习计划、完成今日任务、练习英文听说读写并记录复盘。
-            公开介绍可浏览；交互式学习区会在登录后核验邀请资格。
+            无需登录，读一段原创英文材料，完成检查、微课、主动练习与平行复测。
+            反馈解释证据和下一项行动；本次记录只保存在当前浏览器。
           </p>
           <div class="hero-actions">
-            <a class="button button-accent" href="/workspace">核验资格并开始学习${arrow}</a>
-            <a class="button button-ghost" href="/learning-path">查看学习路径</a>
+            <a class="button button-accent" href="/learn/reading">开始 3 分钟入门检查${arrow}</a>
+            <a class="button button-ghost" href="/sign-in">受邀内测登录</a>
           </div>
-          <p class="hero-note"><span aria-hidden="true"></span>首轮仅面向 18+ 成人的邀请制 Gate A 内测</p>
+          <p class="hero-note"><span aria-hidden="true"></span>本机保存 · 可查看、导出和删除 · 不是正式诊断或官方分数</p>
         </div>
-        <figure class="learning-plate" aria-labelledby="learning-plate-title">
+        <figure class="teacher-card" aria-labelledby="teacher-card-title">
+          <picture>
+            <source type="image/avif" srcset="/assets/teacher-portrait/sufeiyalaoshi-homepage-640w.avif 640w, /assets/teacher-portrait/sufeiyalaoshi-homepage-960w.avif 960w, /assets/teacher-portrait/sufeiyalaoshi-homepage-1280w.avif 1280w" sizes="(max-width: 760px) calc(100vw - 36px), 42vw" />
+            <source type="image/webp" srcset="/assets/teacher-portrait/sufeiyalaoshi-homepage-640w.webp 640w, /assets/teacher-portrait/sufeiyalaoshi-homepage-960w.webp 960w, /assets/teacher-portrait/sufeiyalaoshi-homepage-1280w.webp 1280w" sizes="(max-width: 760px) calc(100vw - 36px), 42vw" />
+            <img src="/assets/teacher-portrait/sufeiyalaoshi-homepage-960w.webp" width="960" height="1200" alt="苏肥鸭老师戴黑色帽子、微笑并手持教鞭的半身肖像" fetchpriority="high" />
+          </picture>
           <figcaption>
-            <div>
-              <span class="plate-index">学习闭环 / 01</span>
-              <h2 id="learning-plate-title">让证据回到行动</h2>
-            </div>
-            <span class="plate-status">方法</span>
+            <span>HUMAN TEACHER</span>
+            <h2 id="teacher-card-title">苏肥鸭老师</h2>
+            <p>真人教师 · 教学与内容主理人</p>
+            <small><strong>角色区分：</strong>Sofia 智能老师是 AI 学习助手；本次公开试学不启用 AI。</small>
           </figcaption>
-          <div class="plate-core">
-            <div class="plate-seal" aria-hidden="true">
-              <span>证据</span>
-              <svg viewBox="0 0 72 72">
-                <circle cx="36" cy="36" r="30" />
-                <path d="M24 37h23M41 30l7 7-7 7" />
-              </svg>
-              <span>行动</span>
-            </div>
-            <ol class="mini-loop">
-              <li><span>01</span><strong>诊断</strong><small>看见当前证据</small></li>
-              <li><span>02</span><strong>计划</strong><small>确定学习优先级</small></li>
-              <li><span>03</span><strong>行动</strong><small>完成最小任务</small></li>
-              <li><span>04</span><strong>复测</strong><small>验证是否前进</small></li>
-            </ol>
-          </div>
-          <div class="plate-footer"><span>诊断</span><span>计划</span><span>学习</span><span>复盘</span></div>
         </figure>
       </div>
     </section>
@@ -346,7 +335,7 @@ const homeContent = `
         <div class="section-kicker"><span>01</span><p>页面导航</p></div>
         <div class="portal-heading">
           <h2 id="portal-title">一个入口，一个页面。<br />清楚找到你需要的内容。</h2>
-          <p>首页负责给出方向，学习工作台负责真正练习。每一项导航仍进入独立页面，内容不挤在同一条长页面里。</p>
+          <p>首页可直接进入公开 Reading 入门检查；受邀学习工作台继续承载完整 Gate A 闭环。每一项导航仍进入独立页面，内容不挤在同一条长页面里。</p>
         </div>
         <div class="portal-grid">
           <a href="/learning-path">
@@ -377,10 +366,11 @@ const homeContent = `
       <div class="current-status-inner">
         <div>
           <p>平台当前状态</p>
-          <h2 id="status-title">受邀账户完成资格核验后可开始，<br />高级能力再分阶段开放。</h2>
+          <h2 id="status-title">先完成公开 Reading 入门检查，<br />高级能力仍分阶段开放。</h2>
         </div>
         <dl>
-          <div><dt>受邀内测可用</dt><dd>Gate A 本机学习闭环，以及有来源、有限范围的 Sofia智能老师</dd></div>
+          <div><dt>公开、无需登录</dt><dd>Reading 客观任务、解释性反馈、微课、练习与平行复测；记录保存在本机</dd></div>
+          <div><dt>受邀内测</dt><dd>Gate A 本机学习闭环，以及有来源、有限范围的 Sofia 智能老师</dd></div>
           <div><dt>分阶段开放</dt><dd>正式学习诊断、完整知识服务、带教打卡营与真实社区互助</dd></div>
           <div><dt>明确不提供</dt><dd>官方成绩预测、真题机经、考试中协助或结果保证</dd></div>
         </dl>
@@ -388,10 +378,10 @@ const homeContent = `
     </section>
 
     ${nextPage({
-      eyebrow: "受邀后可以开始",
-      title: "核验内测资格，<br />再完成一轮 Gate A 本机学习。",
-      href: "/workspace",
-      label: "进入邀请制工作台",
+      eyebrow: "无需登录，现在开始",
+      title: "用一段原创短文，<br />找到今天优先练什么。",
+      href: "/learn/reading",
+      label: "开始 3 分钟入门检查",
     })}
   </main>`;
 
@@ -1575,7 +1565,7 @@ const pages = [
     page: "home",
     path: "/",
     title: "苏肥鸭多邻国｜Sufeiya DET 在线学习平台",
-    description: "面向中国大陆 DET 学习者的中文在线学习平台；公开介绍可浏览，受邀内测账户可完成 Gate A 本机学习闭环。",
+    description: "面向中国大陆 DET 学习者的中文在线学习平台；无需登录可完成公开 Reading 入门检查，受邀账户可进入 Gate A 本机学习闭环。",
     content: homeContent,
   },
   {

@@ -79,4 +79,19 @@ await copyFile(
   new URL("../public/assets/listening-writing-center.mp3", import.meta.url),
 );
 
+await mkdir(new URL("../public/assets/teacher-portrait/", import.meta.url), { recursive: true });
+for (const filename of [
+  "sufeiyalaoshi-homepage-640w.avif",
+  "sufeiyalaoshi-homepage-640w.webp",
+  "sufeiyalaoshi-homepage-960w.avif",
+  "sufeiyalaoshi-homepage-960w.webp",
+  "sufeiyalaoshi-homepage-1280w.avif",
+  "sufeiyalaoshi-homepage-1280w.webp",
+]) {
+  await copyFile(
+    new URL(`../assets/teacher-portrait/${filename}`, import.meta.url),
+    new URL(`../public/assets/teacher-portrait/${filename}`, import.meta.url),
+  );
+}
+
 console.log(`Generated ${Object.keys(pages).length} release page records and synchronized public runtimes from ${root}`);

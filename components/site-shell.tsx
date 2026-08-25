@@ -75,7 +75,7 @@ export async function SiteShell({
         desktopAccountControls={clerkState.configured ? (
           <ClerkAccountControls />
         ) : (
-          <FullDocumentLink className="auth-link" href="/sign-in">账户未配置</FullDocumentLink>
+          <FullDocumentLink className="auth-link" href="/sign-in">受邀内测登录</FullDocumentLink>
         )}
         mobileAccountControls={(
           <>

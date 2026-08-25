@@ -52,11 +52,11 @@ function SiteHeader({
           </nav>
           <div className="header-actions">
             <FullDocumentLink
-              className={`header-cta${pageKey === "workspace" ? " is-current" : ""}`}
-              href="/workspace"
-              aria-current={pageKey === "workspace" ? "page" : undefined}
+              className={`header-cta${pageKey === "public-learning" ? " is-current" : ""}`}
+              href="/learn/reading"
+              aria-current={pageKey === "public-learning" ? "page" : undefined}
             >
-              <span>开始学习</span>
+              <span>开始 3 分钟入门检查</span>
               <ArrowIcon />
             </FullDocumentLink>
             <FullDocumentLink
@@ -79,10 +79,11 @@ function SiteHeader({
               {item.label}<span>{String(index + 1).padStart(2, "0")}</span>
             </FullDocumentLink>
           ))}
-          <FullDocumentLink className="mobile-external" href="/workspace" aria-current={pageKey === "workspace" ? "page" : undefined}>
-            进入学习工作台
+          <FullDocumentLink className="mobile-external" href="/learn/reading" aria-current={pageKey === "public-learning" ? "page" : undefined}>
+            开始 3 分钟入门检查
             <ArrowIcon />
           </FullDocumentLink>
+          <FullDocumentLink href="/sign-in">受邀内测登录<span>邀请制</span></FullDocumentLink>
           <FullDocumentLink href="/super-teacher" aria-current={pageKey === "super-teacher" ? "page" : undefined}>Sofia智能老师<span>Gate A</span></FullDocumentLink>
           <FullDocumentLink href="/my-data">我的本机数据<span>本机</span></FullDocumentLink>
           <FullDocumentLink href="/teaching-review-demo">教研复核演示<span>本机</span></FullDocumentLink>
@@ -104,7 +105,8 @@ function SiteFooter() {
         <div className="footer-nav">
           <div>
             <strong>页面</strong>
-            <FullDocumentLink href="/workspace">开始学习</FullDocumentLink>
+            <FullDocumentLink href="/learn/reading">3 分钟入门检查</FullDocumentLink>
+            <FullDocumentLink href="/workspace">受邀学习工作台</FullDocumentLink>
             <FullDocumentLink href="/super-teacher">Sofia智能老师</FullDocumentLink>
             <FullDocumentLink href="/my-data">我的本机数据</FullDocumentLink>
             <FullDocumentLink href="/learning-path">学习路径</FullDocumentLink>

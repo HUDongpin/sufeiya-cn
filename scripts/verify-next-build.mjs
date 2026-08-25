@@ -15,6 +15,12 @@ const catchAllClientReferenceManifestPath =
 const catchAllBuildManifestPath = ".next/server/app/[slug]/page/build-manifest.json";
 const catchAllServerPagePath = ".next/server/app/[slug]/page.js";
 const catchAllTracePath = ".next/server/app/[slug]/page.js.nft.json";
+const publicReadingHtmlPath = ".next/server/app/learn/reading.html";
+const publicReadingRscPath = ".next/server/app/learn/reading.rsc";
+const publicReadingClientReferenceManifestPath =
+  ".next/server/app/learn/reading/page_client-reference-manifest.js";
+const publicReadingBuildManifestPath =
+  ".next/server/app/learn/reading/page/build-manifest.json";
 
 const [
   appNotFoundHtml,
@@ -25,6 +31,10 @@ const [
   catchAllBuildManifest,
   catchAllServerPage,
   catchAllTrace,
+  publicReadingHtml,
+  publicReadingRsc,
+  publicReadingClientReferenceManifest,
+  publicReadingBuildManifest,
 ] = await Promise.all([
   read(appNotFoundHtmlPath),
   read(pagesNotFoundHtmlPath),
@@ -34,6 +44,10 @@ const [
   read(catchAllBuildManifestPath),
   read(catchAllServerPagePath),
   read(catchAllTracePath),
+  read(publicReadingHtmlPath),
+  read(publicReadingRscPath),
+  read(publicReadingClientReferenceManifestPath),
+  read(publicReadingBuildManifestPath),
 ]);
 
 const forbiddenBuildPatterns = [
@@ -54,6 +68,13 @@ const forbiddenCatchAllPatterns = [
   ["legacy page component", /components\/legacy-page/i],
   ["authenticated site shell", /components\/site-shell/i],
 ];
+const forbiddenPublicReadingPatterns = [
+  ["authenticated site shell", /components\/site-shell/i],
+  ["routed legacy page", /components\/routed-legacy-page/i],
+  ["legacy page", /components\/legacy-page/i],
+  ["Clerk runtime config", /lib\/auth\/clerk-config/i],
+  ["Sofia API route", /api\/super-teacher/i],
+];
 
 const assertNoForbiddenContent = (content, label) => {
   for (const [description, pattern] of forbiddenBuildPatterns) {
@@ -66,6 +87,15 @@ const assertNoForbiddenContent = (content, label) => {
 const assertNoCatchAllDependency = (content, label) => {
   assertNoForbiddenContent(content, label);
   for (const [description, pattern] of forbiddenCatchAllPatterns) {
+    if (pattern.test(content)) {
+      throw new Error(`${label} unexpectedly contains ${description}.`);
+    }
+  }
+};
+
+const assertNoPublicReadingDependency = (content, label) => {
+  assertNoForbiddenContent(content, label);
+  for (const [description, pattern] of forbiddenPublicReadingPatterns) {
     if (pattern.test(content)) {
       throw new Error(`${label} unexpectedly contains ${description}.`);
     }
@@ -109,6 +139,21 @@ assertNoCatchAllDependency(catchAllClientReferenceManifest, catchAllClientRefere
 assertNoCatchAllDependency(catchAllBuildManifest, catchAllBuildManifestPath);
 assertNoCatchAllDependency(catchAllServerPage, catchAllServerPagePath);
 assertNoCatchAllDependency(catchAllTrace, catchAllTracePath);
+if (
+  !/<meta name="robots" content="noindex, nofollow"\s*\/?\s*>/i.test(publicReadingHtml) ||
+  !publicReadingHtml.includes("无需登录，不收集自由文本，不启用 AI。") ||
+  publicReadingHtml.includes('href="/sign-up"') ||
+  publicReadingHtml.includes("teacher-portrait")
+) {
+  throw new Error(`${publicReadingHtmlPath} does not preserve the reviewed public Reading boundary.`);
+}
+assertNoPublicReadingDependency(publicReadingHtml, publicReadingHtmlPath);
+assertNoPublicReadingDependency(publicReadingRsc, publicReadingRscPath);
+assertNoPublicReadingDependency(
+  publicReadingClientReferenceManifest,
+  publicReadingClientReferenceManifestPath,
+);
+assertNoPublicReadingDependency(publicReadingBuildManifest, publicReadingBuildManifestPath);
 
 const parsedCatchAllTrace = JSON.parse(catchAllTrace);
 if (
@@ -238,6 +283,35 @@ const parsedClientManifests = [
     }),
   },
 ];
+const parsedPublicReadingClientManifest = parseClientReferenceManifest({
+  source: publicReadingClientReferenceManifest,
+  path: publicReadingClientReferenceManifestPath,
+  routeAssignment: "/learn/reading/page",
+  requiredEntry: "[project]/app/learn/reading/page",
+  structuredAssertion: assertNoPublicReadingDependency,
+});
+const allowedPublicReadingProjectClientModules = new Set([
+  "[project]/app/error.tsx",
+  "[project]/app/global-error.tsx",
+  "[project]/components/full-document-link.tsx",
+  "[project]/components/offline-navigation-boundary.tsx",
+  "[project]/components/public-learning/public-reading-experience.tsx",
+]);
+const publicReadingProjectClientModules = Object.keys(
+  parsedPublicReadingClientManifest.clientModules,
+).filter((name) => name.startsWith("[project]/") && !name.startsWith("[project]/node_modules/"));
+if (
+  publicReadingProjectClientModules.some(
+    (name) => !allowedPublicReadingProjectClientModules.has(name),
+  ) ||
+  [...allowedPublicReadingProjectClientModules].some(
+    (name) => !publicReadingProjectClientModules.includes(name),
+  )
+) {
+  throw new Error(
+    `${publicReadingClientReferenceManifestPath} contains an unreviewed project client module.`,
+  );
+}
 
 const parsedCatchAllClientManifest = parsedClientManifests[1].parsed;
 const allowedAnonymousProjectClientModules = new Set([
@@ -330,6 +404,11 @@ const parsedBuildManifests = [
     }),
   },
 ];
+const parsedPublicReadingBuildManifest = parseBuildManifest({
+  source: publicReadingBuildManifest,
+  path: publicReadingBuildManifestPath,
+  structuredAssertion: assertNoPublicReadingDependency,
+});
 if (
   JSON.stringify(parsedBuildManifests[0].parsed) !==
   JSON.stringify(parsedBuildManifests[1].parsed)
@@ -345,6 +424,7 @@ const allowedPublicScripts = new Map([
   ["/script.js", "public/script.js"],
 ]);
 const executablePaths = new Set(allowedPublicScripts.values());
+const publicReadingExecutablePaths = new Set();
 const htmlNextChunkPattern =
   /^\/_next\/static\/(?:immutable\/)?chunks\/[A-Za-z0-9._-]+\.js$/;
 const manifestStaticScriptPattern =
@@ -377,6 +457,35 @@ const addHtmlScript = (resource, label) => {
     throw new Error(`${label} contains an unapproved or non-local script resource: ${resource}`);
   }
   executablePaths.add(`.next/${resource.replace(/^\/_next\//, "")}`);
+};
+
+const addPublicReadingManifestScript = (resource, label) => {
+  if (typeof resource !== "string" || !manifestStaticScriptPattern.test(resource)) {
+    throw new Error(`${label} contains an unapproved or non-local script resource: ${resource}`);
+  }
+  const relativePath = resource.replace(/^\/_next\//, "");
+  if (relativePath.split("/").some((segment) => segment === "." || segment === "..")) {
+    throw new Error(`${label} contains a non-canonical script resource: ${resource}`);
+  }
+  const absolutePath = resolve(root, ".next", relativePath);
+  if (!absolutePath.startsWith(`${nextStaticRoot}${sep}`)) {
+    throw new Error(`${label} contains a script resource outside .next/static: ${resource}`);
+  }
+  publicReadingExecutablePaths.add(`.next/${relativePath}`);
+};
+
+const addPublicReadingHtmlScript = (resource, label) => {
+  if (typeof resource !== "string" || resource.length === 0) {
+    throw new Error(`${label} contains an empty script resource.`);
+  }
+  if (allowedPublicScripts.has(resource)) {
+    publicReadingExecutablePaths.add(allowedPublicScripts.get(resource));
+    return;
+  }
+  if (!htmlNextChunkPattern.test(resource)) {
+    throw new Error(`${label} contains an unapproved or non-local script resource: ${resource}`);
+  }
+  publicReadingExecutablePaths.add(`.next/${resource.replace(/^\/_next\//, "")}`);
 };
 
 const extractStartTags = (html, tagName) => {
@@ -504,8 +613,16 @@ const looksLikeScriptReference = (value) =>
   [...scriptReferenceVariants(value)].some((variant) => /\.js(?:[^A-Za-z0-9]|$)/i.test(variant));
 const allowedAnonymousNonScriptSources = new Set(["/assets/sufeiya-logo.png"]);
 
-const addFlightScriptReferences = (decoded, path) => {
-  assertNoCatchAllDependency(decoded, `${path}:decoded Flight`);
+const addFlightScriptReferences = (
+  decoded,
+  path,
+  {
+    structuredAssertion = assertNoCatchAllDependency,
+    addScript = addHtmlScript,
+    allowedNonScriptSources = allowedAnonymousNonScriptSources,
+  } = {},
+) => {
+  structuredAssertion(decoded, `${path}:decoded Flight`);
   const jsonStringPattern = /"(?:\\[\s\S]|[^"\\])*"/g;
   const stringTokens = [];
   let match;
@@ -521,11 +638,11 @@ const addFlightScriptReferences = (decoded, path) => {
       throw new Error(`${path} contains malformed JSON string data in Flight: ${error.message}`);
     }
     if (typeof value === "string") {
-      assertNoCatchAllDependency(value, `${path}:decoded Flight string`);
+      structuredAssertion(value, `${path}:decoded Flight string`);
       stringTokens.push({ start: match.index, end: jsonStringPattern.lastIndex, value });
     }
     if (typeof value === "string" && looksLikeScriptReference(value)) {
-      addHtmlScript(value, `${path}:inline Flight`);
+      addScript(value, `${path}:inline Flight`);
     }
   }
   residual += decoded.slice(cursor);
@@ -542,8 +659,8 @@ const addFlightScriptReferences = (decoded, path) => {
     if (!nextToken || !/^\s*:\s*$/.test(separator)) {
       throw new Error(`${path} contains a non-string or unreviewed Flight src property.`);
     }
-    if (allowedAnonymousNonScriptSources.has(nextToken.value)) continue;
-    addHtmlScript(nextToken.value, `${path}:Flight src`);
+    if (allowedNonScriptSources.has(nextToken.value)) continue;
+    addScript(nextToken.value, `${path}:Flight src`);
   }
 };
 
@@ -587,6 +704,11 @@ for (const path of anonymousRscArtifactPaths) {
   assertNoCatchAllDependency(rsc, path);
   addFlightScriptReferences(rsc, path);
 }
+addFlightScriptReferences(publicReadingRsc, publicReadingRscPath, {
+  structuredAssertion: assertNoPublicReadingDependency,
+  addScript: addPublicReadingHtmlScript,
+  allowedNonScriptSources: allowedAnonymousNonScriptSources,
+});
 
 const assertAllowedInlineScript = (html, tag, endIndex, path) => {
   if (tag !== "<script>") {
@@ -705,6 +827,65 @@ for (const [path, html] of [
   }
 }
 
+{
+  const scriptTags = extractStartTags(publicReadingHtml, "script");
+  const flightSegments = [];
+  if (scriptTags.length === 0) {
+    throw new Error(`${publicReadingHtmlPath} does not expose an inspectable client script list.`);
+  }
+  for (const { tag, endIndex } of scriptTags) {
+    const attributes = parseTagAttributes(tag, "script");
+    if (attributes.has("src")) {
+      assertAllowedResourceScriptAttributes(attributes, publicReadingHtmlPath);
+      assertEmptyResourceScriptBody(publicReadingHtml, endIndex, publicReadingHtmlPath);
+      addPublicReadingHtmlScript(attributes.get("src"), publicReadingHtmlPath);
+    } else {
+      const flightSegment = assertAllowedInlineScript(
+        publicReadingHtml,
+        tag,
+        endIndex,
+        publicReadingHtmlPath,
+      );
+      if (flightSegment !== null) flightSegments.push(flightSegment);
+    }
+  }
+  if (flightSegments.length === 0) {
+    throw new Error(`${publicReadingHtmlPath} does not expose inspectable inline Flight data.`);
+  }
+  addFlightScriptReferences(flightSegments.join(""), publicReadingHtmlPath, {
+    structuredAssertion: assertNoPublicReadingDependency,
+    addScript: addPublicReadingHtmlScript,
+    allowedNonScriptSources: allowedAnonymousNonScriptSources,
+  });
+
+  for (const { tag } of extractStartTags(publicReadingHtml, "link")) {
+    const attributes = parseTagAttributes(tag, "link");
+    for (const name of attributes.keys()) {
+      if (name.startsWith("on")) {
+        throw new Error(`${publicReadingHtmlPath} contains an inline event handler on a link.`);
+      }
+    }
+    const relTokens = (attributes.get("rel") ?? "").toLowerCase().split(/\s+/);
+    const isScriptPreload =
+      relTokens.includes("preload") && attributes.get("as")?.toLowerCase() === "script";
+    const isModulePreload = relTokens.includes("modulepreload");
+    if (isScriptPreload || isModulePreload) {
+      if (!attributes.has("href")) {
+        throw new Error(`${publicReadingHtmlPath} contains a script resource preload without an href.`);
+      }
+      if (
+        isModulePreload &&
+        attributes.has("as") &&
+        attributes.get("as")?.toLowerCase() !== "script"
+      ) {
+        throw new Error(`${publicReadingHtmlPath} contains an unapproved modulepreload as value.`);
+      }
+      assertAllowedScriptPreloadAttributes(attributes, publicReadingHtmlPath);
+      addPublicReadingHtmlScript(attributes.get("href"), publicReadingHtmlPath);
+    }
+  }
+}
+
 for (const { path, parsed } of parsedClientManifests) {
   for (const [moduleName, moduleEntry] of Object.entries(parsed.clientModules)) {
     if (!moduleEntry || typeof moduleEntry !== "object" || !Array.isArray(moduleEntry.chunks)) {
@@ -722,6 +903,37 @@ for (const { path, parsed } of parsedClientManifests) {
     for (const resource of resources) {
       addManifestScript(resource, `${path}:${entryName}`);
     }
+  }
+}
+
+for (const [moduleName, moduleEntry] of Object.entries(
+  parsedPublicReadingClientManifest.clientModules,
+)) {
+  if (!moduleEntry || typeof moduleEntry !== "object" || !Array.isArray(moduleEntry.chunks)) {
+    throw new Error(
+      `${publicReadingClientReferenceManifestPath} has invalid chunks for ${moduleName}.`,
+    );
+  }
+  for (const resource of moduleEntry.chunks) {
+    addPublicReadingManifestScript(
+      resource,
+      `${publicReadingClientReferenceManifestPath}:${moduleName}`,
+    );
+  }
+}
+for (const [entryName, resources] of Object.entries(
+  parsedPublicReadingClientManifest.entryJSFiles,
+)) {
+  if (!Array.isArray(resources)) {
+    throw new Error(
+      `${publicReadingClientReferenceManifestPath} has an invalid entry for ${entryName}.`,
+    );
+  }
+  for (const resource of resources) {
+    addPublicReadingManifestScript(
+      resource,
+      `${publicReadingClientReferenceManifestPath}:${entryName}`,
+    );
   }
 }
 
@@ -765,6 +977,56 @@ for (const { path, parsed } of parsedBuildManifests) {
   }
 }
 
+for (const field of ["devFiles", "ampDevFiles", "polyfillFiles", "lowPriorityFiles", "rootMainFiles"]) {
+  const resources = parsedPublicReadingBuildManifest[field];
+  if (!Array.isArray(resources)) {
+    throw new Error(`${publicReadingBuildManifestPath} is missing the ${field} script list.`);
+  }
+  for (const resource of resources) {
+    addPublicReadingManifestScript(resource, `${publicReadingBuildManifestPath}:${field}`);
+  }
+}
+if (
+  !parsedPublicReadingBuildManifest.pages ||
+  Array.isArray(parsedPublicReadingBuildManifest.pages) ||
+  typeof parsedPublicReadingBuildManifest.pages !== "object"
+) {
+  throw new Error(`${publicReadingBuildManifestPath} has an invalid pages script map.`);
+}
+for (const [pageName, resources] of Object.entries(parsedPublicReadingBuildManifest.pages)) {
+  if (!Array.isArray(resources)) {
+    throw new Error(`${publicReadingBuildManifestPath} has an invalid pages entry for ${pageName}.`);
+  }
+  for (const resource of resources) {
+    addPublicReadingManifestScript(
+      resource,
+      `${publicReadingBuildManifestPath}:pages:${pageName}`,
+    );
+  }
+}
+if (
+  !parsedPublicReadingBuildManifest.rootMainFilesTree ||
+  Array.isArray(parsedPublicReadingBuildManifest.rootMainFilesTree) ||
+  typeof parsedPublicReadingBuildManifest.rootMainFilesTree !== "object"
+) {
+  throw new Error(`${publicReadingBuildManifestPath} has an invalid route-specific root script map.`);
+}
+for (const [routeName, resources] of Object.entries(
+  parsedPublicReadingBuildManifest.rootMainFilesTree,
+)) {
+  if (!Array.isArray(resources)) {
+    throw new Error(
+      `${publicReadingBuildManifestPath} has an invalid root script entry for ${routeName}.`,
+    );
+  }
+  for (const resource of resources) {
+    addPublicReadingManifestScript(
+      resource,
+      `${publicReadingBuildManifestPath}:rootMainFilesTree:${routeName}`,
+    );
+  }
+}
+
 if (executablePaths.size === 0) {
   throw new Error("The anonymous 404 build did not expose any inspectable client chunks.");
 }
@@ -773,6 +1035,16 @@ for (const executablePath of executablePaths) {
   assertNoForbiddenContent(await read(executablePath), executablePath);
 }
 
+if (publicReadingExecutablePaths.size === 0) {
+  throw new Error("The public Reading build did not expose any inspectable client chunks.");
+}
+for (const executablePath of publicReadingExecutablePaths) {
+  assertNoPublicReadingDependency(await read(executablePath), executablePath);
+}
+
 process.stdout.write(
   `PASS: anonymous 404 build excludes Clerk and Sofia client code across ${executablePaths.size} referenced scripts.\n`,
+);
+process.stdout.write(
+  `PASS: public Reading build keeps its reviewed Clerk-free client graph across ${publicReadingExecutablePaths.size} referenced scripts.\n`,
 );
