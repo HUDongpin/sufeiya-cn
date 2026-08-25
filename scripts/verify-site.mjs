@@ -6731,13 +6731,17 @@ check(
 check(
   /accepted_by_teacher_and_content_owner/.test(publicReadingContent) &&
     /original_first_party_draft/.test(publicReadingContent) &&
-    /confirmed_by_content_owner_for_p0_candidate/.test(publicReadingContent) &&
+    /confirmed_by_content_owner_for_public_reading_p0/.test(publicReadingContent) &&
     /READING_CONTENT_REVIEWER = "苏肥鸭"/.test(publicReadingContent) &&
     /teacher_and_content_owner/.test(publicReadingContent) &&
     /af85403cd97eff47afeea93582705a15aa7527a3/.test(publicReadingContent) &&
     /codex_task_01a018b0_user_acceptance_2026_08_23/.test(publicReadingContent) &&
     /contentPackageVersion: READING_CONTENT_PACKAGE_VERSION/.test(publicReadingContent) &&
-    /releaseDisposition: "not_release_ready"/.test(publicReadingContent) &&
+    /READING_CONTENT_RELEASE_DISPOSITION =[\s\S]*?"released_public_reading_p0"/.test(
+      publicReadingContent,
+    ) &&
+    /1d39883c6e0aca2c379e80918417c77c2d9c624c/.test(publicReadingContent) &&
+    /githubDeploymentId: 6090012530/.test(publicReadingContent) &&
     /BASELINE_READING_TASK_IDS = \[[\s\S]*?\]/.test(publicReadingContent) &&
     /PRACTICE_READING_TASK_IDS = \[[\s\S]*?\]/.test(publicReadingContent) &&
     /RETEST_READING_TASK_IDS = \[[\s\S]*?\]/.test(publicReadingContent) &&
@@ -6746,7 +6750,7 @@ check(
     /retest_remaining_error_overrides_baseline_priority/.test(publicReadingEvaluation) &&
     /same_session_objective_evidence_only/.test(publicReadingEvaluation) &&
     /evidence_insufficient/.test(publicReadingEvaluation),
-  "public Reading content binds teacher/content acceptance while preserving release and evidence boundaries",
+  "public Reading content binds teacher/content acceptance and the independently verified release evidence",
 );
 check(
   /data-reading-feedback=\{evaluation\.isCorrect \? "correct" : "five-part-wrong"\}/.test(
@@ -6766,6 +6770,9 @@ check(
   /内容版本 \{READING_CONTENT_PACKAGE\.version\} 已由苏肥鸭以 Teacher \/ Content Owner 身份接受/.test(
     publicReadingExperience,
   ) &&
+    /本次公开版本已通过独立发布 Gate，后续内容变更仍须重新审查/.test(
+      publicReadingExperience,
+    ) &&
     /原创一方内容 · Teacher \/ Content Owner 已接受 · 非正式诊断 · 暂不索引/.test(
       publicReadingExperience,
     ) &&
@@ -6835,7 +6842,7 @@ check(
   !sitemap.includes("https://sufeiya.cn/learn/reading") &&
     !nextSitemap.includes('"public-learning"') &&
     !nextSitemap.includes('"learn/reading"'),
-  "pre-release public Reading route remains excluded from both sitemaps until deployment evidence closes the release gate",
+  "released noindex public Reading P0 remains deliberately excluded from both sitemaps",
 );
 
 check(
@@ -6843,7 +6850,8 @@ check(
     teacherPortraitManifest?.status?.ownerTeacherUseAcceptance === "ACCEPTED" &&
     teacherPortraitManifest?.status?.publicUseAuthorization ===
       "GRANTED_FOR_SUFIEYA_CN_HOMEPAGE_ONLY" &&
-    teacherPortraitManifest?.status?.deployment === "NOT_EVIDENCED" &&
+    teacherPortraitManifest?.status?.deployment ===
+      "VERIFIED_PRODUCTION_HOMEPAGE_ONLY" &&
     teacherPortraitManifest?.source?.sha256 ===
       "f0c23e3b73952cd70c085f71f9e4ca556075c8d14d140ac2dcc22f3df4954c24" &&
     teacherPortraitManifest?.intendedUse?.scopeStatus ===
@@ -6860,31 +6868,42 @@ check(
     teacherPortraitManifest?.authorization?.authorizedDerivativeCount === 6 &&
     teacherPortraitManifest?.authorization?.excludedFromThisP0?.length === 7 &&
     teacherPortraitManifest?.authorization?.withdrawalProcedureAccepted === true &&
+    teacherPortraitManifest?.deploymentEvidence?.mergeCommit ===
+      "1d39883c6e0aca2c379e80918417c77c2d9c624c" &&
+    teacherPortraitManifest?.deploymentEvidence?.githubDeploymentId === 6090012530 &&
+    teacherPortraitManifest?.deploymentEvidence?.vercelDeploymentId ===
+      "CvMMarFynAJtjc2VWrVLWUJCz8nq" &&
+    teacherPortraitManifest?.deploymentEvidence?.canonicalOrigin ===
+      "https://sufeiya.cn" &&
+    teacherPortraitManifest?.deploymentEvidence?.verifiedPage === "homepage only" &&
     teacherPortraitManifest?.derivatives?.length === 6,
-  "teacher portrait manifest binds source custody, all six assets, homepage authorization, exclusions, and withdrawal while deployment stays unproven",
+  "teacher portrait manifest binds source custody, all six assets, homepage authorization, exclusions, withdrawal, and production evidence",
 );
 check(
-  /AUTHORIZED FOR CONTROLLED PREVIEW \/ PRODUCTION AUTHORIZED ONLY AFTER EXACT-CANDIDATE GATES PASS/.test(
+  /PUBLIC READING P0 RELEASED \/ G0a–G7 PASS/.test(
     publicReadingEngineeringReceipt,
   ) &&
     /G1 教学内容 \| `PASS`/.test(publicReadingEngineeringReceipt) &&
+    /G2 技术与浏览器 \| `PASS`/.test(publicReadingEngineeringReceipt) &&
     /G3 数据、隐私与注册边界 \| `PASS`/.test(publicReadingEngineeringReceipt) &&
     /G4 真人教师、人物用途与条件性队列 \| `PASS`/.test(publicReadingEngineeringReceipt) &&
-    /G5 Preview 候选 \| `IN PROGRESS`/.test(publicReadingEngineeringReceipt) &&
-    /G6 公开发布授权 \| `IN PROGRESS`/.test(publicReadingEngineeringReceipt) &&
+    /G5 Preview 候选 \| `PASS`/.test(publicReadingEngineeringReceipt) &&
+    /G6 公开发布授权 \| `PASS`/.test(publicReadingEngineeringReceipt) &&
+    /G7 生产部署与线上回归 \| `PASS`/.test(publicReadingEngineeringReceipt) &&
     /G8 账户同步 \| `NOT IN SCOPE`/.test(publicReadingEngineeringReceipt) &&
     /PRODUCT_PRIVACY_LEGAL_SCOPE_ACCEPTED_FOR_PUBLIC_READING_P0 \/ PUBLIC_SIGNUP_CLOSED/.test(
       publicReadingDataContract,
     ) &&
-    /TEACHER_CONTENT_OWNER_ACCEPTED_FOR_AF85403 \/ NOT RELEASE READY/.test(
+    /TEACHER_CONTENT_OWNER_ACCEPTED_FOR_AF85403 \/ RELEASED_PUBLIC_READING_P0/.test(
       publicReadingContentReviewPacket,
     ) &&
-    /CURRENT_PUBLIC_READING_P0_SCOPE_APPROVED \/ CONTROLLED_PREVIEW_AND_GATE_CONDITIONAL_PRODUCTION_AUTHORIZED/.test(
+    /CURRENT_PUBLIC_READING_P0_SCOPE_APPROVED \/ PRODUCTION_RELEASED_AND_G7_VERIFIED/.test(
       publicReadingReviewDecisionReceipt,
     ) &&
+    /6090012530/.test(publicReadingReviewDecisionReceipt) &&
     /全部授权。肖像都有授权/.test(publicReadingReviewDecisionReceipt) &&
     /当前公开 Reading 不启用 AI/.test(publicReadingReviewDecisionReceipt),
-  "public Reading evidence pack records scoped approval and release authorization without inventing Preview, deployment, account-sync, AI, or voice evidence",
+  "public Reading evidence pack separates scoped approval, Preview, production, account-sync, AI, and voice evidence",
 );
 for (const derivative of teacherPortraitManifest.derivatives ?? []) {
   try {

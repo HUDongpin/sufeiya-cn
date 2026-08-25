@@ -1,8 +1,8 @@
 # 苏肥鸭老师首页肖像使用回执
 
-> **状态：OWNER-TEACHER HOMEPAGE USE ACCEPTED / PREVIEW AND DEPLOYMENT EVIDENCE PENDING**
+> **状态：OWNER-TEACHER HOMEPAGE USE ACCEPTED / PRODUCTION HOMEPAGE VERIFIED**
 >
-> 本回执记录工程衍生物、限定首页用途、2026-08-26 的可追溯授权决定和撤回机制。授权决定允许这些绑定资产进入受控 Preview，并在完整发布 Gate 通过后用于 `sufeiya.cn` 首页；它不证明 Preview/生产已经部署，也不扩展到第 4 节用途。
+> 本回执记录工程衍生物、限定首页用途、2026-08-26 的可追溯授权决定、生产部署证据和撤回机制。Production deployment `6090012530` 已在 `sufeiya.cn` 首页验证这些绑定资产；该事实不扩展到第 4 节用途。
 
 ## 1. 两条独立状态线
 
@@ -10,8 +10,9 @@
 |---|---|---|
 | 工程资产完成 | `COMPLETE_LOCAL_DERIVATIVES_VERIFIED` | 已从精确源图机械生成 6 个响应式衍生文件；尺寸、字节数、SHA-256、完整解码、元数据和两处副本一致性已经核验；960w WebP 已人工目视检查 |
 | 公开用途授权 | `ACCEPTED_OWNER_TEACHER_HOMEPAGE_ONLY` | 2026-08-26，同一 task 中可追溯身份“苏肥鸭”以“全部批准/全部授权，肖像都有授权”补充并取代不完整的旧回答，接受精确源图、6 个衍生物、首页人物卡范围与撤回流程 |
+| 生产部署证据 | `VERIFIED_PRODUCTION_HOMEPAGE_ONLY` | merge commit `1d39883…`、Production deployment `6090012530`、Vercel `CvMMarFynAJtjc2VWrVLWUJCz8nq`；规范域名桌面选择 1280w AVIF，移动选择 960w AVIF，学习页引用为 0 |
 
-`Build PASS`、图片可打开、浏览器 HTTP 200、Preview 截图或资源已经进入 Git 都不是授权证据；本次通过来自明确的可追溯决定。源图哈希继续只负责把决定绑定到精确素材，不能单独证明权利。Preview deployment、生产 deployment 和线上可见性仍须用各自的不可变部署证据证明。
+`Build PASS`、图片可打开、浏览器 HTTP 200、Preview 截图或资源已经进入 Git 都不是授权证据；本次授权来自明确的可追溯决定，部署事实另由不可变 deployment/commit 与规范域名回归证明。源图哈希继续只负责把决定绑定到精确素材，不能单独证明权利。
 
 ## 2. 不可变源图绑定
 
@@ -75,7 +76,7 @@
 5. 接受时间、记录位置和可撤回方式；
 6. Product Owner / Website Release Owner 的发布 Gate 记录。
 
-这些字段现已由 6.2 节和绑定的 manifest 齐备，公开用途授权状态为 `ACCEPTED_OWNER_TEACHER_HOMEPAGE_ONLY`；部署状态仍独立保持 `NOT_EVIDENCED`，直到 Preview/生产回执形成。
+这些字段现已由 6.2 节和绑定的 manifest 齐备，公开用途授权状态为 `ACCEPTED_OWNER_TEACHER_HOMEPAGE_ONLY`；部署状态由独立生产回执升级为 `VERIFIED_PRODUCTION_HOMEPAGE_ONLY`。
 
 ### 6.1 2026-08-23 回复的记录与效力
 
@@ -125,4 +126,4 @@
 
 ## 8. 当前结论
 
-工程衍生资产已经完成并通过本地完整性/视觉核验。2026-08-23 的矛盾回复作为历史被保留；2026-08-26 的可追溯补充决定已无修改接受精确源图、全部 6 个衍生物、限定首页用途与撤回流程，并授权受控 Preview 和满足完整 Gate 后的首页生产使用。**当前授权状态为 `ACCEPTED_OWNER_TEACHER_HOMEPAGE_ONLY`；Preview/生产实际部署仍未被本回执证明，第 4 节扩展用途仍不属于本 P0。**
+工程衍生资产已经完成并通过本地完整性/视觉核验。2026-08-23 的矛盾回复作为历史被保留；2026-08-26 的可追溯补充决定已无修改接受精确源图、全部 6 个衍生物、限定首页用途与撤回流程。merge commit `1d39883…`、Production deployment `6090012530` 与规范域名回归证明首页实际使用；桌面选择 1280w AVIF、移动选择 960w AVIF，`/learn/reading` 肖像引用为 0。**当前授权状态为 `ACCEPTED_OWNER_TEACHER_HOMEPAGE_ONLY`，部署状态为 `VERIFIED_PRODUCTION_HOMEPAGE_ONLY`；第 4 节扩展用途仍不属于本 P0。**

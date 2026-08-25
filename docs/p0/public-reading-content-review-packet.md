@@ -1,8 +1,8 @@
 # P0 公开 Reading 内容与教学验收包
 
-> 当前状态：`TEACHER_CONTENT_OWNER_ACCEPTED_FOR_AF85403 / NOT RELEASE READY`
+> 当前状态：`TEACHER_CONTENT_OWNER_ACCEPTED_FOR_AF85403 / RELEASED_PUBLIC_READING_P0`
 >
-> 本文件把工程候选内容和 2026-08-23 的真人教师/内容负责人接受记录绑定到精确产品候选。2026-08-26 的 Product、肖像与发布授权另由决定回执记录；本内容包仍保持 `not_release_ready`，直到完整 Preview/发布 Gate 形成外部证据。
+> 本文件把工程候选内容和 2026-08-23 的真人教师/内容负责人接受记录绑定到精确产品候选。2026-08-26 的 Product、肖像与发布授权另由决定回执记录；内容包在发布前保持 `not_release_ready`，并仅在 Preview、发布 Gate、Production deployment 和 G7 规范域名回归形成外部证据后升级为 `released_public_reading_p0`。
 
 ## 1. 候选能力与内容来源
 
@@ -10,12 +10,12 @@
 - 内容版本：`reading_p0_original_v1`。
 - 来源：`original_first_party_draft`。
 - 内容审核：`accepted_by_teacher_and_content_owner`。
-- 权利状态：`confirmed_by_content_owner_for_p0_candidate`。
+- 权利状态：`confirmed_by_content_owner_for_public_reading_p0`。
 - 审核人：`苏肥鸭`；角色：`teacher_and_content_owner`。
 - 接受日期：`2026-08-23`。
 - 被接受的不可变产品候选：`af85403cd97eff47afeea93582705a15aa7527a3`。
 - 证据引用：`codex_task_01a018b0_user_acceptance_2026_08_23`。
-- 发布处置：`not_release_ready`。
+- 发布处置：`released_public_reading_p0`；发布证据为 merge commit `1d39883c6e0aca2c379e80918417c77c2d9c624c`、Production deployment `6090012530` 与 [G7 回执](https://github.com/HUDongpin/sufeiya-cn/pull/15#issuecomment-5415305539)。
 - 证据边界：`local_objective_response_evidence_only`。
 - 目标能力：
   1. `locate_explicit_evidence`：定位原文直接证据；
@@ -43,9 +43,9 @@
 
 | 对象 | 数量 | 版本 | 来源 | 权利 | 审核人 | 审核状态 |
 |---|---:|---|---|---|---|---|
-| 内容包 | 1 | `reading_p0_original_v1` | `original_first_party_draft` | `confirmed_by_content_owner_for_p0_candidate` | `苏肥鸭` | `accepted_by_teacher_and_content_owner` |
-| 微课 | 1 | `reading_p0_original_v1` | `original_first_party_draft` | `confirmed_by_content_owner_for_p0_candidate` | `苏肥鸭` | `accepted_by_teacher_and_content_owner` |
-| baseline / practice / retest task | 7 | `reading_p0_original_v1` | `original_first_party_draft` | `confirmed_by_content_owner_for_p0_candidate` | `苏肥鸭` | `accepted_by_teacher_and_content_owner` |
+| 内容包 | 1 | `reading_p0_original_v1` | `original_first_party_draft` | `confirmed_by_content_owner_for_public_reading_p0` | `苏肥鸭` | `accepted_by_teacher_and_content_owner` |
+| 微课 | 1 | `reading_p0_original_v1` | `original_first_party_draft` | `confirmed_by_content_owner_for_public_reading_p0` | `苏肥鸭` | `accepted_by_teacher_and_content_owner` |
+| baseline / practice / retest task | 7 | `reading_p0_original_v1` | `original_first_party_draft` | `confirmed_by_content_owner_for_public_reading_p0` | `苏肥鸭` | `accepted_by_teacher_and_content_owner` |
 
 ## 3. 微课与确定性推荐
 
@@ -130,4 +130,4 @@
 
 ## 8. 当前结论
 
-苏肥鸭已以 Teacher / Content Owner 身份接受候选 `af85403…` 的 Reading 内容、权利、反馈、测量关系、身份文案与教师体验范围，因此 G1 为 `PASS`。本切片没有开放回答入口，真实教师开放题队列子项继续为 `NOT IN SCOPE`。2026-08-26 的补充决定另行接受 Product 公开旅程与首页肖像用途，使 G4 可以记录为 `PASS`，并授权建立 Preview 及在完整 Gate 后发布；**这些后续授权不把本内容对象的 `not_release_ready` 字段、尚未建立的 Preview/性能证据或部署事实倒推成已经通过**，G5/G6 仍按评审决定与工程回执逐步关闭。
+苏肥鸭已以 Teacher / Content Owner 身份接受候选 `af85403…` 的 Reading 内容、权利、反馈、测量关系、身份文案与教师体验范围，因此 G1 为 `PASS`。本切片没有开放回答入口，真实教师开放题队列子项继续为 `NOT IN SCOPE`。2026-08-26 的补充决定另行接受 Product 公开旅程与首页肖像用途；随后 `e85ef86…` 的精确 Preview、merge commit `1d39883…`、Production deployment `6090012530` 和 G7 规范域名回归独立形成证据，才把发布处置升级为 `released_public_reading_p0`。这不改变禁用宣称，也不扩展到账户同步、AI、语音或数字人。

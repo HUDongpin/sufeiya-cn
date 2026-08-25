@@ -8,7 +8,7 @@
 >
 > 证据来源：Codex task `01a018b0-b605-7af0-bba8-647158b29bdd` 中 2026-08-23 以“候选：af85403…”开头的用户消息，以及 2026-08-26 的“全部批准。”与“全部授权。肖像都有授权”补充消息
 >
-> 当前效力：`CURRENT_PUBLIC_READING_P0_SCOPE_APPROVED / CONTROLLED_PREVIEW_AND_GATE_CONDITIONAL_PRODUCTION_AUTHORIZED`
+> 当前效力：`CURRENT_PUBLIC_READING_P0_SCOPE_APPROVED / PRODUCTION_RELEASED_AND_G7_VERIFIED`
 
 本文件把原始填写、后续澄清与它们对 Gate 的效力分开记录。2026-08-26 的两条补充决定由同一 task、同一可追溯身份“苏肥鸭”作出，明确取代 2026-08-23 中“目前只批准内容评审”及肖像字段不完整造成的限制。授权仍只覆盖本文件和候选实际存在的 P0 表面；它不把未实现的账户同步、Grounded Sofia、声音、数字人、广告或其他未来能力变成已批准交付。
 
@@ -22,7 +22,7 @@
 
 有效解释：对 `reading_p0_original_v1` 的 Reading 教学内容、7 个任务、微课、答案/干扰项、五段反馈、测量关系、禁用宣称、身份文案、内容权利和教师体验范围作出无修改接受。2026-08-26 的“全部批准/全部授权”再次确认该决定，没有提出内容修改。
 
-Gate 影响：`G1 = PASS`。内容包自己的 `releaseDisposition=not_release_ready` 继续只表示内容对象不能绕过完整 Preview/发布 Gate；它不否定本次授权，也不自动把尚未建立的 Preview 证据写成通过。
+Gate 影响：`G1 = PASS`。内容包在发布前保持 `releaseDisposition=not_release_ready`，没有用本次授权绕过 Preview/发布 Gate；在这些独立 Gate 和生产回归实际通过后，发布证据 follow-up 才把它升级为 `released_public_reading_p0`。
 
 ## 2. 首页肖像与全部绑定资产
 
@@ -61,7 +61,7 @@ Gate 影响：肖像状态改为 `ACCEPTED_OWNER_TEACHER_HOMEPAGE_ONLY`，`G4` �
 3. 在 G0b、G1–G6 全部 `PASS`、无发布前 `PENDING/FAIL/BLOCKED`，且 Preview 的构建、真实浏览器、性能与回滚证据均绑定到同一精确候选后执行生产发布；
 4. 发布后立即完成 G7 规范域名、关键旅程、console、资产、SignUp 关闭、deployment/commit 与旧 Gate A 边界回归；失败时按候选级回滚方案恢复前一不可变部署。
 
-授权本身不能替代尚未发生的构建、Preview、性能或部署证据。因此记录本决定时 `G5/G6 = IN PROGRESS`；当外部系统给出精确 Preview/deployment 绑定且余下技术 Gate 通过后，可按上述授权升级，不需要把 2026-08-23 的旧限制继续当作阻断。
+授权本身不能替代尚未发生的构建、Preview、性能或部署证据。因此记录本决定时 `G5/G6 = IN PROGRESS`。随后 PR #15 的精确 Preview、回滚、浏览器与性能证据关闭 G2/G5，授权绑定最终候选与 deployment plan 后关闭 G6；生产 deployment 和规范域名回归再独立关闭 G7。这个后续结果不反写成“授权当时已经部署”。
 
 ## 5. 当前 Gate 汇总
 
@@ -70,12 +70,12 @@ Gate 影响：肖像状态改为 `ACCEPTED_OWNER_TEACHER_HOMEPAGE_ONLY`，`G4` �
 | G0a | `PASS` | 无变化 |
 | G0b | `PASS` | 产品候选与审批证据 commit 归属已冻结；本次仅追加授权证据与对应 verifier/manifest 元数据 |
 | G1 | `PASS` | Teacher / Content Owner 已绑定 `af85403…` 接受 Reading 内容和权利 |
-| G2 | `IN PROGRESS` | 本机技术证据已通过；仍须把 Preview 性能和任何可用的 Clerk Development 证据绑定到最终候选 |
+| G2 | `PASS` | 本机完整验证、精确 Preview 的桌面/移动/a11y/性能、完整 7 题旅程、零写请求与边界回归通过；无真实 Clerk 登录凭据的限制已按未改动 Gate A 范围诚实记录，不冒充已测试 |
 | G3 | `PASS` | 当前本机零上传合同已接受；公共 SignUp/账户绑定继续关闭，未来新增数据流不继承本决定 |
 | G4 | `PASS` | Product 旅程、真人/AI 区分、教师体验与首页肖像用途已接受；开放题队列为 `NOT IN SCOPE` |
-| G5 | `IN PROGRESS` | 已授权 push/PR/Preview；等待精确 Preview deployment、完整证据包与回滚绑定 |
-| G6 | `IN PROGRESS` | 已给出满足 Gate 后的生产授权；等待最终不可变候选与 deployment plan 绑定后形成 PASS 记录 |
-| G7 | `PENDING` | 只能在生产部署后以线上回归关闭 |
+| G5 | `PASS` | PR #15、`e85ef86…`、Preview deployment `6089850676`、Vercel `3BhSGbbkABrWLQi1G6Qsn5EhB2ix`、完整证据包与回滚目标已绑定 |
+| G6 | `PASS` | 全部发布前 Gate 通过后，2026-08-26 的授权已绑定同一不可变候选与 deployment plan |
+| G7 | `PASS` | merge commit `1d39883…`、Production deployment `6090012530`、Vercel `CvMMarFynAJtjc2VWrVLWUJCz8nq` 与 `sufeiya.cn` 规范域名回归通过 |
 | G8 | `NOT IN SCOPE` | 当前 P0 明确不做账户同步；Phase 2 需要新决定 |
 | G9 | `BLOCKED` | 当前公开 Reading 不启用 AI；既有 Grounded Sofia 治理 Gate 不变 |
 | G10 | `BLOCKED` | 当前不启用声音/数字人；首页肖像授权不等于这些未来用途通过 |
@@ -87,3 +87,10 @@ Gate 影响：肖像状态改为 `ACCEPTED_OWNER_TEACHER_HOMEPAGE_ONLY`，`G4` �
 - 本次批准允许为诚实记录批准、Gate、manifest、README 和 verifier 所需的证据性修改；若后续改变题目、答案、反馈、数据字段/发送、账户边界、肖像字节或用途、用户旅程或运行时行为，则原产品接受不自动覆盖新候选，必须重新审查。
 - 肖像权利人/授权代表可按肖像回执随时撤回首页用途；撤回不需要先撤销 Reading 内容，但必须移除首页引用和公开资源并形成下架证据。
 - `G9/G10` 与 Phase 2–4 不因“全部批准”自动关闭：它们不在当前候选发布表面中，仍需各自实现、数据流、治理、测试和用途明确的后续决定。
+
+## 7. Preview、生产与线上回归闭环
+
+- 最终 Preview 候选：`e85ef86b78654c691a04b6e47785d72ac0f9f2fc`；GitHub deployment `6089850676`；Vercel deployment/check ID `3BhSGbbkABrWLQi1G6Qsn5EhB2ix`。真实浏览器确认验收文案、完整 7 题旅程、SignUp 关闭、桌面/移动、LCP、零远端写入和零应用运行时异常；前一 `b2c3a537…` Preview 因旧“待审核”文案被明确拒绝，未进入生产。
+- 生产 merge commit：`1d39883c6e0aca2c379e80918417c77c2d9c624c`；GitHub Production deployment `6090012530`；Vercel deployment/check ID `CvMMarFynAJtjc2VWrVLWUJCz8nq`。规范域名 `/`、`/learn/reading`、`/sign-up`、`/workspace`、完整 7 题/24-event 本机闭环、响应式图片、noindex、console 和零写请求回归通过。
+- 发布前回滚目标保留为 Production deployment `5886136926` / `bf7cac8b3163ed5c00c5bc57607b63266ff22b21`；本次无需回滚。
+- 完整外部证据：[`PR #15 Preview 决策`](https://github.com/HUDongpin/sufeiya-cn/pull/15#issuecomment-5415240829) 与 [`PR #15 G7 回执`](https://github.com/HUDongpin/sufeiya-cn/pull/15#issuecomment-5415305539)。

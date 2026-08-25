@@ -258,6 +258,9 @@ test("completes the learning loop, verifies every replacement CTA, export, recov
   await expect(page.locator("[data-retest-review]")).toHaveCount(2);
   await expect(page.getByRole("heading", { name: "更新后的“今天优先练什么”" })).toBeVisible();
   await expect(page.getByText("不是正式诊断、官方分数或能力增长证明")).toBeVisible();
+  await expect(page.getByText("本次公开版本已通过独立发布 Gate，后续内容变更仍须重新审查。", {
+    exact: false,
+  })).toBeVisible();
   await expect(page.locator('a[href="/sign-up"]')).toHaveCount(0);
   const updatedChain = page.locator("[data-updated-recommendation-chain]");
   await expect(updatedChain).toContainText("证据");

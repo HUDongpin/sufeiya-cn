@@ -12,9 +12,9 @@
 >
 > 第一份后续证据 commit：`dc8a637f2c9fe4f582855ec4f16c68e0b7adaa2b`，只记录 2026-08-23 接受决定与内容审核元数据，不改学习文本、答案、反馈、推荐、数据合同实现或用户旅程
 >
-> 当前结论：`AUTHORIZED FOR CONTROLLED PREVIEW / PRODUCTION AUTHORIZED ONLY AFTER EXACT-CANDIDATE GATES PASS`
+> 当前结论：`PUBLIC READING P0 RELEASED / G0a–G7 PASS`
 
-本回执记录计划在代码中的落地范围、技术证据、真人/Owner 决定和仍未发生的外部部署事实。2026-08-26 的全部授权允许 push、PR、受控 Preview，以及在精确候选的发布前 Gate 全部通过后生产发布；它本身不冒充 Preview deployment、生产 deployment 或线上回归。
+本回执记录计划在代码中的落地范围、技术证据、真人/Owner 决定、Preview、生产 deployment 与规范域名回归。2026-08-26 的全部授权允许 push、PR、受控 Preview，以及在精确候选的发布前 Gate 全部通过后生产发布；授权本身没有冒充部署证据，G5–G7 只在外部系统与真实浏览器分别形成证据后关闭。
 
 ## 1. 已落地的用户旅程
 
@@ -40,7 +40,7 @@
 |---|---|
 | 匿名路由 | 新增静态 App Router `/learn/reading`，metadata 为 `index=false, follow=false`，暂不进入 sitemap |
 | Clerk 隔离 | Server page → `PublicLearningShell` → `OfflineNavigationBoundary + SiteFrame`；未导入 Clerk provider/hook/access boundary |
-| 内容 | `reading_p0_original_v1`，2 baseline + 3 practice + 2 independent retest；2026-08-23 已由苏肥鸭以 Teacher / Content Owner 身份接受候选 `af85403…`，每个任务/微课显式绑定来源、权利状态、内容版本、审核人/角色、日期、候选 commit 与证据引用；仍为 `not_release_ready` |
+| 内容 | `reading_p0_original_v1`，2 baseline + 3 practice + 2 independent retest；2026-08-23 已由苏肥鸭以 Teacher / Content Owner 身份接受候选 `af85403…`，每个任务/微课显式绑定来源、权利状态、内容版本、审核人/角色、日期、候选 commit 与证据引用；独立 Preview/发布/G7 证据形成后为 `released_public_reading_p0` |
 | 评分/推荐 | 纯函数、首答证据、少于 2 道返回 `evidence_insufficient`；基线与复测后都显示完整五段证据链，复测剩余错项可更新优先能力 |
 | 反馈 | baseline/practice 每题给可行动反馈；两道 retest 先全部锁定首次作答，再统一展示反馈，避免第一题讲解污染第二题测量 |
 | 数据 | 两个新本机 namespace；严格 schema、证据顺序、容量上限、Web Lock/CAS、写锁内二次阻断与跨 namespace 生命周期/答案一致性核对 |
@@ -118,7 +118,7 @@ workspace.html
 
 - 分支：`codex/learning-platform-next-20260819`；
 - 候选 parent：`bf7cac8b3163ed5c00c5bc57607b63266ff22b21`；被 Teacher / Content Owner 接受的不可变产品候选为 `af85403cd97eff47afeea93582705a15aa7527a3`；
-- upstream：`origin/main`；产品候选相对上游为 `ahead 1 / behind 0`；接受决定与内容审核元数据在其后的第 2 个本地 commit 中记录；2026-08-26 的全部授权、肖像 manifest 与相应证据/verifier 更新形成第 3 个 commit `b2c3a537f8912fec3e337b69f529fd7baf0aa869`，分支当时为 `ahead 3 / behind 0`；首个真实 Preview 发现学习页仍显示旧的“待真人教师审核”状态，因此第 4 个 commit 只对齐三处验收状态文案、相应 E2E/verifier 与本回执，不改变题目、答案、反馈、协议或旅程；
+- upstream：`origin/main`；产品候选相对原基线为 `ahead 1 / behind 0`；接受决定与内容审核元数据在其后的第 2 个 commit 中记录；2026-08-26 的全部授权、肖像 manifest 与相应证据/verifier 更新形成第 3 个 commit `b2c3a537f8912fec3e337b69f529fd7baf0aa869`；首个真实 Preview 发现学习页仍显示旧的“待真人教师审核”状态，因此第 4 个 commit `e85ef86b78654c691a04b6e47785d72ac0f9f2fc` 只对齐三处验收状态文案、相应 E2E/verifier 与本回执，不改变题目、答案、反馈、协议或旅程；PR #15 随后以 merge commit `1d39883c6e0aca2c379e80918417c77c2d9c624c` 进入 `origin/main`；
 - 提交前候选快照为 34 个 tracked modified + 30 个实际 untracked = 64 个文件；64 个精确路径全部进入同一个产品评审 commit，提交后没有 staged、unstaged 或 untracked 候选残留；
 - 审批证据 follow-up 精确修改 8 个既有候选路径并新增 `docs/p0/public-reading-p0-review-decision-receipt.md`，因此当前分支相对基线共有 65 个唯一文件；该 follow-up 不修改题目/短文/选项/答案/反馈/推荐、状态或事件协议、页面交互、图片字节或旧 Gate A 边界；
 - tracked `git diff --check`：PASS；
@@ -180,6 +180,27 @@ PR `#15` 把 base `bf7cac8b3163ed5c00c5bc57607b63266ff22b21`、head `b2c3a537f89
 
 需要真实 Clerk Development 凭据的既有账户 E2E 本次没有运行；当前工作树没有 `.env.local`，环境也没有形成可用的 Clerk Development 配置。不得把 Clerk 单元合同 `25/25`、公开匿名 E2E、Preview 上的 Development-key warning 或无凭据状态写成真实 Clerk 会话回归 PASS。正式 G2 仍保持 `IN PROGRESS`，直到最终 Preview 技术证据完成并对 Clerk 证据缺口作出适用性结论。
 
+### 最终 Preview、发布决定与生产回归
+
+第 4 个提交 `e85ef86b78654c691a04b6e47785d72ac0f9f2fc` 绑定 GitHub Preview deployment `6089850676` 与 Vercel deployment/check ID `3BhSGbbkABrWLQi1G6Qsn5EhB2ix`。受控浏览器确认两条已接受文案可见、旧待审核文案为 0、`/learn/reading` 肖像引用为 0、公共 SignUp 关闭、`/workspace` 无会话时转入邀请登录边界；完整 7 题旅程形成 7 条作答和本机 `local_only_no_network` 事件，捕获到的非 GET/HEAD/OPTIONS 写请求为 0，应用 runtime exception 为 0。390×844 与 1280×720 都无横向溢出。Vercel Preview 工具条尝试注入的 frame/script 被站点 CSP 拒绝，作为第三方 Preview chrome 记录，不冒充应用错误。
+
+最终 Preview 的三次连接复用桌面 LCP 为 `1.356s`、`1.404s`、`0.912s`，中位数 `1.356s`；同一会话的发布前回滚 deployment 为 `0.532s`、`0.492s`、`0.624s`，中位数 `0.532s`。绝对中位差为 `+0.824s`，由 45,664-byte 1280w AVIF 肖像成为 LCP 元素解释，全部候选样本低于 `2.5s`。Preview 移动 LCP 为 `1.480s`，选择 27,436-byte 960w AVIF。它们是单个受控会话的 lab 证据，不是生产 field Web Vitals。
+
+无真实 Clerk 登录凭据的限制继续保留，且没有被改写为“真实 Clerk E2E PASS”。G2 针对本次公开匿名 P0 仍可关闭：`lib/auth/clerk-config.ts`、`proxy.ts`、protected route wrappers 与 Gate A auth 合同均 no-touch；Clerk 单元合同 `25/25`、公开 Reading 17-script 构建级 Clerk-free 隔离、Preview 上 `/sign-up` 无票据 0 表单、`/workspace` 无会话重定向均通过。这个适用性结论不声称已登录 Clerk 账户旅程被重新验证。
+
+PR #15 在 G0b–G6 `PASS` 后合并为 `1d39883c6e0aca2c379e80918417c77c2d9c624c`。GitHub Production deployment `6090012530`、Vercel deployment/check ID `CvMMarFynAJtjc2VWrVLWUJCz8nq` 返回 `success`。规范域名 `https://sufeiya.cn` 随后通过：
+
+- 首页新公开学习文案和授权肖像可见，旧首页/待审核文案为 0；
+- `/learn/reading` 为 `noindex, nofollow`，已接受文案可见、旧文案与肖像引用为 0；
+- 生产完整旅程为 7 条作答、24 条事件、全部 `local_only_no_network`、非读取型网络写请求 0、runtime/log/loading error 0，最终焦点位于更新计划；
+- `/sign-up` 无邀请票据时为邀请制面板、表单 0、输入 0、普通 Clerk SignUp root 0；`/workspace` 无会话时转到规范域名 `/sign-in`；
+- 390×844 首页 LCP `1.380s`，选择 960w AVIF；首页与 Reading 横向溢出均为 0；
+- 生产桌面连接复用 LCP 四个样本为 `2.420s`、`2.752s`、`1.180s`、`1.380s`，四样本中位数 `1.900s`；其中一个样本高于 `2.5s`，没有被删去或冒充 field 指标，保留为后续监测项。
+
+完整外部证据位于 [`PR #15 Preview 决策`](https://github.com/HUDongpin/sufeiya-cn/pull/15#issuecomment-5415240829) 和 [`PR #15 G7 回执`](https://github.com/HUDongpin/sufeiya-cn/pull/15#issuecomment-5415305539)。发布前回滚目标继续绑定 Production deployment `5886136926` / `bf7cac8b3163ed5c00c5bc57607b63266ff22b21`；本次没有触发回滚。
+
+G7 之后的证据同步 follow-up 只把内容包的 `releaseDisposition`、逐对象公开权利状态、肖像 manifest deployment、Gate 表与最终页发布状态文案对齐上述已经发生的外部事实，并增加对应合同/E2E/verifier；它不修改短文、题目、选项、正确答案、反馈、推荐规则、存储/事件协议、入口、肖像字节或授权范围。该 11-path follow-up 重新通过 `git diff --check`、manifest JSON、legacy `1759`、Node `274/274`、TypeScript、lint `0 errors / 6 no-touch warnings`、Next `32/32`、两组 build bundle 隔离、Reading E2E `11/11` 与旧离线 E2E `2/2`。
+
 ## 5. 性能与图片证据
 
 源图 `/Volumes/WestWorld/Sufeiya/最新微笑版.jpg` 为 `3840×5760`、`13,713,402 bytes`，SHA-256 为 `f0c23e3b73952cd70c085f71f9e4ca556075c8d14d140ac2dcc22f3df4954c24`，没有复制进仓库。
@@ -192,7 +213,7 @@ PR `#15` 把 base `bf7cac8b3163ed5c00c5bc57607b63266ff22b21`、head `b2c3a537f89
 | 960 | 27,436 B | 44,824 B |
 | 1280 | 45,664 B | 72,744 B |
 
-6 个文件都低于 80 KiB，工程目录与 `public/` 副本逐字节一致，manifest SHA-256 与完整解码通过。真实移动 Chromium 和受控 Preview 的 390×844 仿真均选择 960w AVIF/WebP，decoded body 小于 80 KiB，未请求原 JPEG。首个 Preview 已形成上述单会话 LCP 对照，但因发现验收状态文案阻断而被拒绝；新的修复 Preview 尚未复测，故此时仍不能声称生产性能改善或 G2/G5 完成。
+6 个文件都低于 80 KiB，工程目录与 `public/` 副本逐字节一致，manifest SHA-256 与完整解码通过。真实移动 Chromium、最终 Preview 与生产规范域名的 390×844 仿真均选择 960w AVIF，decoded body 为 27,436 bytes；桌面生产选择 1280w AVIF，encoded body 为 45,664 bytes；原 JPEG 未被请求或复制进仓库。上节记录全部 Preview/生产样本与波动，不能把它们冒充生产 field Web Vitals 或学习效果证据。
 
 ## 6. Gate 状态
 
@@ -203,12 +224,12 @@ PR `#15` 把 base `bf7cac8b3163ed5c00c5bc57607b63266ff22b21`、head `b2c3a537f89
 | G0a 工作树建立 | `PASS` | 独立工作树来自 `origin/main@bf7cac8b…`；旧工作树未被本次实现修改 |
 | G0b 当前发布 diff 与归属 | `PASS` | 64 个产品候选文件加 1 个审批决定回执，共 65 个唯一文件；审批 follow-up 的 9 路径均在 `docs/p0`、内容元数据、对应测试/verifier 与 README allowlist 内，既有 whitespace、21/21 生成一致性、no-touch、并行归属和副产物边界不变 |
 | G1 教学内容 | `PASS` | 2026-08-23，苏肥鸭以 Teacher / Content Owner 身份绑定 `af85403…` 接受 Reading 内容、7 个任务、微课、权利、反馈、测量关系、禁用宣称和教师体验范围；内容元数据与决定回执已同步 |
-| G2 技术与浏览器 | `IN PROGRESS` | 修复候选本机 build/unit、公开 Reading `11/11` 与旧离线 `2/2` 均通过；首个 Preview 有受控 LCP/移动证据但因旧验收状态文案被拒绝，仍须复测最终 Preview，并诚实处理无 Clerk Development 凭据的证据缺口 |
+| G2 技术与浏览器 | `PASS` | 最终候选本机 check、公开 Reading `11/11`、旧离线 `2/2`、Preview 完整旅程、桌面/移动/a11y/performance、零写请求与边界回归通过；真实 Clerk 登录未重测的限制按 no-touch Gate A 适用性明确保留 |
 | G3 数据、隐私与注册边界 | `PASS` | 苏肥鸭接受当前本机零上传合同与 Product/Privacy/Legal 治理范围；公共 SignUp、身份/自由文本、账户绑定和上传继续关闭，四个替代 CTA 已由真实浏览器验证；不为未来新增数据流提供法律结论 |
 | G4 真人教师、人物用途与条件性队列 | `PASS` | 纯客观 Reading 无开放题，教师内容/体验/身份文案与 Product 公开旅程已接受；2026-08-26 又绑定源图 SHA-256、6 个衍生物、限定首页人物卡与撤回流程完成肖像授权 |
-| G5 Preview 候选 | `IN PROGRESS` | PR #15、首个精确 Preview 与回滚目标已经绑定，但真实 DOM 发现验收状态文案漂移，首个 Preview 明确拒绝；等待第 4 个修复 commit 的新 deployment、浏览器与性能证据 |
-| G6 公开发布授权 | `IN PROGRESS` | 2026-08-26 已授权在 G0b、G1–G6 全部 PASS 后发布；仍须把最终不可变候选、Preview 证据和 deployment plan 精确绑定后才能记录 PASS |
-| G7 生产部署与线上回归 | `PENDING` | 没有生产部署；未触碰 `sufeiya.cn` |
+| G5 Preview 候选 | `PASS` | `e85ef86…`、GitHub Preview deployment `6089850676`、Vercel `3BhSGbbkABrWLQi1G6Qsn5EhB2ix`、浏览器/性能证据和回滚目标精确绑定 |
+| G6 公开发布授权 | `PASS` | 2026-08-26 的全部授权在 G0b–G5 通过后绑定最终候选和 deployment plan，发布决策记录于 PR #15 |
+| G7 生产部署与线上回归 | `PASS` | merge commit `1d39883…`、Production deployment `6090012530`、Vercel `CvMMarFynAJtjc2VWrVLWUJCz8nq` 与规范域名完整回归通过 |
 | G8 账户同步 | `NOT IN SCOPE` | 当前 P0 明确为浏览器本机、非账户绑定；跨设备/RBAC/退出同步属于 Phase 2 新候选与新决定 |
 | G9 Grounded Sofia | `BLOCKED` | 本次公开 Reading 不启用 AI；既有治理 Gate 不变 |
 | G10 语音/数字人 | `BLOCKED` | 本次没有录音、语音或数字人；独立授权和治理仍未满足 |
@@ -221,32 +242,33 @@ PR `#15` 把 base `bf7cac8b3163ed5c00c5bc57607b63266ff22b21`、head `b2c3a537f89
 - Product 已接受 Reading 公开旅程、首页 CTA、真人/AI 区分和有肖像首页方案；
 - Product/Privacy/Legal 项目治理范围已接受当前本机数据合同，并决定公共 SignUp 继续关闭；
 - 苏肥鸭已确认精确源图与全部 6 个绑定肖像衍生物的限定首页用途授权，并接受撤回流程；
-- Release Owner 已授权 push、PR、受控 Preview，以及精确候选发布前 Gate 全部通过后的生产发布。
+- Release Owner 已授权 push、PR、受控 Preview，以及精确候选发布前 Gate 全部通过后的生产发布；
+- PR #15 已合并，Production deployment `6090012530` 已绑定 merge commit `1d39883…`，规范域名 G7 回归通过。
 
 当前仍不得宣称：
 
 - 该项目治理决定是执业律师意见，或覆盖未来公开注册、账户同步、远端分析/模型、跨地区数据流；
-- 首个 Preview 已经因验收状态文案漂移被拒绝；不得宣称最终 Preview PASS 或把它的 HTTP 200/Ready 当作发布证据；
-- G5/G6 已因一句授权自动通过，或已经部署到生产；
+- 第一版 Preview 的 HTTP 200/Ready 可替代其已记录的拒绝结论，或单独证明最终版本通过；
+- 一句授权、Vercel Ready、页面截图或本回执单独构成 G2/G5/G6/G7 证据；这些 Gate 的 PASS 依赖上面分层证据；
 - `/learn/reading` 是正式诊断、官方 DET 分数、掌握度、AI 自适应学习或学习增长证明；
 - 本机记录可以跨设备、与账户同步、被教师看到或由服务器恢复。
 
-## 8. 发布前必须完成的下一组动作
+## 8. 发布后维护边界
 
-1. 将 2026-08-26 的全部授权、肖像权利状态与 verifier 变化形成独立 commit；重新执行 diff allowlist、whitespace、`npm run check`、公开 Reading 与旧离线 E2E。
-2. 刷新 `origin/main` 后推送分支并创建 PR；记录最终 HEAD、base、diff、CI 和 reviewer 状态。
-3. 建立受控 Preview，独立核对 `target=preview`、不可变 deployment ID、commit、前一已知正常 deployment 与回滚触发条件；Preview HTTP 200 不能替代这些 metadata。
-4. 在 Preview 用真实浏览器复核首页、`/learn/reading` 完整学习路径、`/sign-up` 关闭、受邀边界、桌面/移动/a11y/console，并记录首页肖像 LCP/Web Vitals 与对照证据。获得可用 Clerk Development 配置后单独运行 Clerk E2E；无凭据不能写成 PASS。
-5. 只有 G0b、G1–G6 全部 PASS 且无发布前 PENDING/FAIL/BLOCKED 后才按授权执行生产部署；部署后另做 G7 规范域名回归，任何失败立即按第 9 节回滚。
+1. 继续观察首页真实 field Web Vitals；当前受控浏览器 LCP 样本不是长期生产指标，任何稳定回退需单独优化并重新经过 Preview。
+2. 保持 `/learn/reading` 的 `noindex, nofollow`、sitemap 排除、本机零上传、公共 SignUp 关闭和首页限定肖像范围；改变任一项都形成新候选和新 Gate。
+3. 真实 Clerk 已登录账户旅程本次没有重新验证；未来修改 auth、protected wrapper、Clerk 配置或 Gate A 交互时必须取得受控凭据并单独回归。
+4. G8–G10 与 Phase 2–4 没有因 P0 发布而通过；账户同步、远端模型、语音、数字人或新肖像用途必须重新授权、建模和验证。
+5. 任何规范域名关键旅程、数据边界、肖像用途或 deployment/commit 绑定回归，立即按第 9 节回滚或下架，不以历史 G7 PASS 覆盖新故障。
 
 ## 9. 候选级回滚与肖像撤回边界
 
-本工作树已经形成不可变产品评审与审批证据 commits，并为 `b2c3a537…` 建立了首个受控 Preview；该 Preview 因用户可见验收状态漂移被拒绝，没有改变生产 alias。已绑定的回滚目标是 Production deployment `5886136926` / `bf7cac8b…`。第 4 个修复 commit 产生新 Preview 后，仍必须再次绑定其候选 SHA、不可变 deployment ID、同一回滚目标、执行人角色和触发条件，不能沿用旧 Preview 的成功状态。
+当前生产部署为 GitHub deployment `6090012530`、Vercel `CvMMarFynAJtjc2VWrVLWUJCz8nq`，绑定 merge commit `1d39883c6e0aca2c379e80918417c77c2d9c624c`。发布前已绑定的回滚目标仍是 Production deployment `5886136926` / `bf7cac8b3163ed5c00c5bc57607b63266ff22b21`。首个 `b2c3a537…` Preview 的拒绝记录继续保留，不能被后续成功覆盖或当作曾经可发布。
 
 候选级回滚遵循以下顺序：
 
-1. 若尚未提升 alias，停止发布并保留当前生产部署；不得以“Preview 构建成功”代替回滚准备。
-2. 若 Preview 或生产 alias 已指向本候选，由 Release Owner 按已绑定的前一不可变 deployment 恢复 alias；仓库侧以一个经过审阅的 revert 还原同一候选 commit，不使用未归因的部分文件覆盖。
+1. 若后续候选尚未提升 alias，停止发布并保留当前已验证 deployment；不得以“Preview 构建成功”代替回滚准备。
+2. 若当前 P0 生产 alias 需要回滚，由 Release Owner 把 alias 恢复到已绑定的 `5886136926`，仓库侧以一个经过审阅的 revert 还原 PR #15，不使用未归因的部分文件覆盖。
 3. 代码回滚范围必须一起覆盖首页公开 CTA/文案、`/learn/reading` 路由与 public-learning 模块、两个新 namespace 的 UI/合同、最小事件、肖像衍生物引用、生成 HTML 与 build/verifier wiring。回滚不得删除学习者浏览器中的本机记录；若旧页面不再读取新 namespace，它们保持孤立，后续删除/迁移需另行批准。
 4. 回滚后重新核对规范域名 `/`、`/learn/reading`、`/sign-in`、`/workspace`，首页肖像资源 URL、公开 SignUp 关闭、关键旅程、HTTP 状态、console、deployment/commit 绑定与旧 Gate A namespace 未变。
 5. 任一步骤无法恢复前一不可变部署或核验失败时，保持 G6/G7 关闭并升级给 Release Owner；不得继续公开发布。

@@ -89,9 +89,18 @@ describe("public Reading P0 content package", () => {
     );
     assert.equal(
       READING_CONTENT_PACKAGE.rightsStatus,
-      "confirmed_by_content_owner_for_p0_candidate",
+      "confirmed_by_content_owner_for_public_reading_p0",
     );
-    assert.equal(READING_CONTENT_PACKAGE.releaseDisposition, "not_release_ready");
+    assert.equal(READING_CONTENT_PACKAGE.releaseDisposition, "released_public_reading_p0");
+    assert.deepEqual(READING_CONTENT_PACKAGE.releaseEvidence, {
+      mergeCommit: "1d39883c6e0aca2c379e80918417c77c2d9c624c",
+      githubDeploymentId: 6090012530,
+      vercelDeploymentId: "CvMMarFynAJtjc2VWrVLWUJCz8nq",
+      canonicalOrigin: "https://sufeiya.cn",
+      verifiedAt: "2026-08-26",
+      receipt:
+        "https://github.com/HUDongpin/sufeiya-cn/pull/15#issuecomment-5415305539",
+    });
     assert.equal(
       READING_CONTENT_PACKAGE.learnerEvidenceBoundary,
       "local_objective_response_evidence_only",
