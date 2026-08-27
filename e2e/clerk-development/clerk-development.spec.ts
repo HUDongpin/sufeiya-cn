@@ -729,7 +729,7 @@ test("a temporary Development user can traverse the protected smoke path and is 
     stage = "temporary synthetic identifier preflight";
     const uniqueSuffix = randomUUID().replaceAll("-", "");
     const temporaryEmail = `sufeiya-e2e+clerk_test_${uniqueSuffix}@example.com`;
-    const temporaryPassword = `S7!${randomBytes(24).toString("base64url")}`;
+    const temporaryPassword = `S7!a${randomBytes(24).toString("base64url")}`;
     cleanupState.temporaryExternalId = `sufeiya-clerk-e2e-${uniqueSuffix}`;
 
     if (
@@ -3564,12 +3564,45 @@ test("a temporary Development user can traverse the protected smoke path and is 
     const credentialSignInRoot = credentialPage.locator(".cl-signIn-root");
     const credentialIdentifier = credentialSignInRoot.locator('input[name="identifier"]');
     const credentialPassword = credentialSignInRoot.locator('input[name="password"]');
-    const responseUsesEmailCodeStrategy = (response: PlaywrightResponse) => {
+    const isExactPasswordSubmissionRequest = (request: PlaywrightRequest) => {
+      const requestUrl = new URL(request.url());
+      const contentType = request.headers()["content-type"] ?? "";
+      const form = new URLSearchParams(request.postData() ?? "");
+      const pathSegments = requestUrl.pathname.split("/").filter(Boolean);
+      const exactInstantPasswordCreate = requestUrl.pathname === "/v1/client/sign_ins"
+        && form.getAll("identifier").length === 1
+        && form.get("identifier") === temporaryEmail;
+      const exactTwoStepPasswordAttempt = pathSegments.length === 5
+        && pathSegments[0] === "v1"
+        && pathSegments[1] === "client"
+        && pathSegments[2] === "sign_ins"
+        && /^sia_[A-Za-z0-9_-]{1,249}$/.test(pathSegments[3] ?? "")
+        && pathSegments[4] === "attempt_first_factor"
+        && form.getAll("identifier").length === 0;
+      return request.method() === "POST"
+        && requestUrl.protocol === "https:"
+        && requestUrl.host === keyPair.frontendApiHost
+        && !requestUrl.username
+        && !requestUrl.password
+        && !requestUrl.hash
+        && /^application\/x-www-form-urlencoded(?:;|$)/i.test(contentType)
+        && form.getAll("strategy").length === 1
+        && form.get("strategy") === "password"
+        && form.getAll("password").length === 1
+        && form.get("password") === temporaryPassword
+        && (exactInstantPasswordCreate || exactTwoStepPasswordAttempt);
+    };
+    let passwordSubmissionObserved = false;
+    const recordPasswordSubmission = (request: PlaywrightRequest) => {
+      if (isExactPasswordSubmissionRequest(request)) passwordSubmissionObserved = true;
+    };
+    credentialPage.on("request", recordPasswordSubmission);
+    const responseUsesStrategy = (response: PlaywrightResponse, strategy: string) => {
       const body = response.request().postData() ?? "";
       try {
-        return (JSON.parse(body) as { strategy?: string }).strategy === "email_code";
+        return (JSON.parse(body) as { strategy?: string }).strategy === strategy;
       } catch {
-        return new URLSearchParams(body).get("strategy") === "email_code";
+        return new URLSearchParams(body).get("strategy") === strategy;
       }
     };
     const isExactEmailCodeFactorResponse = (
@@ -3577,12 +3610,18 @@ test("a temporary Development user can traverse the protected smoke path and is 
       endpoint: "prepare_second_factor" | "attempt_second_factor",
     ) => {
       const responseUrl = new URL(response.url());
+      const pathSegments = responseUrl.pathname.split("/").filter(Boolean);
       return response.request().method() === "POST"
         && responseUrl.protocol === "https:"
         && responseUrl.host === keyPair.frontendApiHost
-        && responseUrl.pathname.split("/").filter(Boolean).at(-1) === endpoint
+        && pathSegments.length === 5
+        && pathSegments[0] === "v1"
+        && pathSegments[1] === "client"
+        && pathSegments[2] === "sign_ins"
+        && /^sia_[A-Za-z0-9_-]{1,249}$/.test(pathSegments[3] ?? "")
+        && pathSegments[4] === endpoint
         && response.status() === 200
-        && responseUsesEmailCodeStrategy(response);
+        && responseUsesStrategy(response, "email_code");
     };
     try {
       stage = "password credential re-login identifier";
@@ -3614,13 +3653,18 @@ test("a temporary Development user can traverse the protected smoke path and is 
         (response) => isExactEmailCodeFactorResponse(response, "prepare_second_factor"),
         { timeout: CLERK_BROWSER_BOOT_TIMEOUT_MS },
       ).then(() => "email_code" as const);
-      await credentialPassword.press("Enter");
-
-      stage = "password credential re-login outcome";
-      const credentialReloginBranch = await Promise.race([
+      const credentialReloginOutcome = Promise.race([
         directCredentialSession,
         secondFactorPreparation,
       ]);
+      await credentialPassword.press("Enter");
+      await expect.poll(() => passwordSubmissionObserved, {
+        intervals: [250, 500, 1_000],
+        timeout: 10_000,
+      }).toBe(true);
+
+      stage = "password credential re-login outcome";
+      const credentialReloginBranch = await credentialReloginOutcome;
       if (credentialReloginBranch === "email_code") {
         stage = "password credential re-login email-code preparation";
         await expect(credentialPassword).not.toBeVisible({
@@ -3680,6 +3724,7 @@ test("a temporary Development user can traverse the protected smoke path and is 
       }
     } finally {
       // A failure screenshot must not retain form fields, identity previews, or errors.
+      credentialPage.off("request", recordPasswordSubmission);
       await credentialPage.goto("about:blank", {
         timeout: 5_000,
         waitUntil: "commit",
