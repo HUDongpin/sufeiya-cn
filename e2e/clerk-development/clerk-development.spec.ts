@@ -24,6 +24,7 @@ import {
   getClerkDevelopmentKeyPair,
   getVercelHostedProtectionBypass,
   installClerkTestingLogRedaction,
+  isExactClerkPasswordSubmissionRequest,
   recoverClerkExactUserDuringCreationUncertainty,
   retryClerkIdempotentMutation,
 } from "./clerk-development-config";
@@ -3564,37 +3565,15 @@ test("a temporary Development user can traverse the protected smoke path and is 
     const credentialSignInRoot = credentialPage.locator(".cl-signIn-root");
     const credentialIdentifier = credentialSignInRoot.locator('input[name="identifier"]');
     const credentialPassword = credentialSignInRoot.locator('input[name="password"]');
-    const isExactPasswordSubmissionRequest = (request: PlaywrightRequest) => {
-      const requestUrl = new URL(request.url());
-      const contentType = request.headers()["content-type"] ?? "";
-      const form = new URLSearchParams(request.postData() ?? "");
-      const pathSegments = requestUrl.pathname.split("/").filter(Boolean);
-      const exactInstantPasswordCreate = requestUrl.pathname === "/v1/client/sign_ins"
-        && form.getAll("identifier").length === 1
-        && form.get("identifier") === temporaryEmail;
-      const exactTwoStepPasswordAttempt = pathSegments.length === 5
-        && pathSegments[0] === "v1"
-        && pathSegments[1] === "client"
-        && pathSegments[2] === "sign_ins"
-        && /^sia_[A-Za-z0-9_-]{1,249}$/.test(pathSegments[3] ?? "")
-        && pathSegments[4] === "attempt_first_factor"
-        && form.getAll("identifier").length === 0;
-      return request.method() === "POST"
-        && requestUrl.protocol === "https:"
-        && requestUrl.host === keyPair.frontendApiHost
-        && !requestUrl.username
-        && !requestUrl.password
-        && !requestUrl.hash
-        && /^application\/x-www-form-urlencoded(?:;|$)/i.test(contentType)
-        && form.getAll("strategy").length === 1
-        && form.get("strategy") === "password"
-        && form.getAll("password").length === 1
-        && form.get("password") === temporaryPassword
-        && (exactInstantPasswordCreate || exactTwoStepPasswordAttempt);
-    };
     let passwordSubmissionObserved = false;
     const recordPasswordSubmission = (request: PlaywrightRequest) => {
-      if (isExactPasswordSubmissionRequest(request)) passwordSubmissionObserved = true;
+      if (isExactClerkPasswordSubmissionRequest(request, {
+        frontendApiHost: keyPair.frontendApiHost,
+        identifier: temporaryEmail,
+        password: temporaryPassword,
+      })) {
+        passwordSubmissionObserved = true;
+      }
     };
     credentialPage.on("request", recordPasswordSubmission);
     const responseUsesStrategy = (response: PlaywrightResponse, strategy: string) => {
@@ -3657,6 +3636,7 @@ test("a temporary Development user can traverse the protected smoke path and is 
         directCredentialSession,
         secondFactorPreparation,
       ]);
+      void credentialReloginOutcome.catch(() => undefined);
       await credentialPassword.press("Enter");
       await expect.poll(() => passwordSubmissionObserved, {
         intervals: [250, 500, 1_000],

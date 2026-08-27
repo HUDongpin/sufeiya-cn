@@ -19,7 +19,9 @@ import {
   getClerkDevelopmentE2ETarget,
   getClerkDevelopmentE2ESuite,
   installClerkTestingLogRedaction,
+  isExactClerkPasswordSubmissionRequest,
   isExactClerkInvitationSignUpRedirect,
+  isExactClerkTicketSignUpRequest,
   isRetryableClerkIdempotentMutationError,
   getVercelHostedProtectionBypass,
   recoverClerkExactUserDuringCreationUncertainty,
@@ -45,6 +47,25 @@ function clerkApiError(
 
 function developmentPublishableKey(host = "safe-example.clerk.accounts.dev") {
   return `pk_test_${Buffer.from(`${host}$`).toString("base64url")}`;
+}
+
+function clerkFrontendFormRequest({
+  body,
+  contentType = "application/x-www-form-urlencoded;charset=UTF-8",
+  method = "POST",
+  url,
+}: {
+  body: string | null;
+  contentType?: string;
+  method?: string;
+  url: string;
+}) {
+  return {
+    headers: () => ({ "content-type": contentType }),
+    method: () => method,
+    postData: () => body,
+    url: () => url,
+  };
 }
 
 function compatibleInvitationEnvironment() {
@@ -217,6 +238,82 @@ describe("Clerk Development E2E configuration", () => {
       ),
       false,
     );
+  });
+
+  it("binds password submissions to the exact instant or two-step Clerk FAPI contract", () => {
+    const frontendApiHost = "safe-example.clerk.accounts.dev";
+    const identifier = "synthetic+clerk_test@example.com";
+    const password = "S7!a-synthetic-password";
+    const expected = { frontendApiHost, identifier, password };
+    const instantUrl = `https://${frontendApiHost}/v1/client/sign_ins?_clerk_js_version=6`;
+    const twoStepUrl = `https://${frontendApiHost}/v1/client/sign_ins/sia_synthetic_123/attempt_first_factor`;
+    const instantBody = new URLSearchParams({ identifier, password, strategy: "password" }).toString();
+    const twoStepBody = new URLSearchParams({ password, strategy: "password" }).toString();
+
+    assert.equal(isExactClerkPasswordSubmissionRequest(
+      clerkFrontendFormRequest({ body: instantBody, url: instantUrl }),
+      expected,
+    ), true);
+    assert.equal(isExactClerkPasswordSubmissionRequest(
+      clerkFrontendFormRequest({ body: twoStepBody, url: twoStepUrl }),
+      expected,
+    ), true);
+
+    const rejected = [
+      clerkFrontendFormRequest({ body: instantBody, method: "GET", url: instantUrl }),
+      clerkFrontendFormRequest({ body: instantBody, url: instantUrl.replace("https:", "http:") }),
+      clerkFrontendFormRequest({ body: instantBody, url: instantUrl.replace(frontendApiHost, `user@${frontendApiHost}`) }),
+      clerkFrontendFormRequest({ body: instantBody, url: `${instantUrl}#fragment` }),
+      clerkFrontendFormRequest({ body: instantBody, url: instantUrl.replace(frontendApiHost, "wrong.clerk.accounts.dev") }),
+      clerkFrontendFormRequest({ body: instantBody, contentType: "application/json", url: instantUrl }),
+      clerkFrontendFormRequest({ body: instantBody, url: `https://${frontendApiHost}/v1/client/sign_ups` }),
+      clerkFrontendFormRequest({ body: twoStepBody, url: twoStepUrl.replace("sia_synthetic_123", "invalid") }),
+      clerkFrontendFormRequest({ body: `${instantBody}&strategy=password`, url: instantUrl }),
+      clerkFrontendFormRequest({ body: `${instantBody}&password=${encodeURIComponent(password)}`, url: instantUrl }),
+      clerkFrontendFormRequest({ body: `${instantBody}&identifier=${encodeURIComponent(identifier)}`, url: instantUrl }),
+      clerkFrontendFormRequest({ body: instantBody.replace("strategy=password", "strategy=ticket"), url: instantUrl }),
+      clerkFrontendFormRequest({
+        body: new URLSearchParams({ identifier, password: "wrong", strategy: "password" }).toString(),
+        url: instantUrl,
+      }),
+      clerkFrontendFormRequest({ body: twoStepBody, url: instantUrl }),
+      clerkFrontendFormRequest({ body: instantBody, url: twoStepUrl }),
+    ];
+    for (const [index, request] of rejected.entries()) {
+      assert.equal(
+        isExactClerkPasswordSubmissionRequest(request, expected),
+        false,
+        `rejected password request ${index}`,
+      );
+    }
+  });
+
+  it("binds invitation ticket SignUp to the exact Clerk FAPI request", () => {
+    const frontendApiHost = "safe-example.clerk.accounts.dev";
+    const ticket = "synthetic-invitation-ticket";
+    const expected = { frontendApiHost, ticket };
+    const url = `https://${frontendApiHost}/v1/client/sign_ups?_clerk_js_version=6`;
+    const body = new URLSearchParams({ strategy: "ticket", ticket }).toString();
+    assert.equal(isExactClerkTicketSignUpRequest(
+      clerkFrontendFormRequest({ body, url }),
+      expected,
+    ), true);
+
+    for (const request of [
+      clerkFrontendFormRequest({ body, method: "GET", url }),
+      clerkFrontendFormRequest({ body, url: url.replace("https:", "http:") }),
+      clerkFrontendFormRequest({ body, url: url.replace(frontendApiHost, `user@${frontendApiHost}`) }),
+      clerkFrontendFormRequest({ body, url: `${url}#fragment` }),
+      clerkFrontendFormRequest({ body, url: url.replace(frontendApiHost, "wrong.clerk.accounts.dev") }),
+      clerkFrontendFormRequest({ body, contentType: "application/json", url }),
+      clerkFrontendFormRequest({ body, url: url.replace("sign_ups", "sign_ins") }),
+      clerkFrontendFormRequest({ body: `${body}&strategy=ticket`, url }),
+      clerkFrontendFormRequest({ body: `${body}&ticket=${encodeURIComponent(ticket)}`, url }),
+      clerkFrontendFormRequest({ body: body.replace("strategy=ticket", "strategy=password"), url }),
+      clerkFrontendFormRequest({ body: body.replace(encodeURIComponent(ticket), "wrong"), url }),
+    ]) {
+      assert.equal(isExactClerkTicketSignUpRequest(request, expected), false);
+    }
   });
 
   it("refuses incompatible invitation UI settings before creating persistent history", () => {

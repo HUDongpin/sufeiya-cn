@@ -43,6 +43,13 @@ export type ClerkDevelopmentE2ESuite =
   | "credential-smoke"
   | "invitation-acceptance";
 
+type ClerkFrontendFormRequest = Readonly<{
+  headers(): Record<string, string>;
+  method(): string;
+  postData(): string | null;
+  url(): string;
+}>;
+
 const VERCEL_PROTECTION_BYPASS_ERROR =
   "The Vercel protection bypass must be an explicit URL-safe secret used only with a hosted Vercel target.";
 
@@ -113,6 +120,76 @@ export function buildClerkDevelopmentSyntheticInvitationEmail(runId: string) {
     throw new Error("Clerk Development invitation E2E requires a current UUID run marker.");
   }
   return `sufeiya-invitation-${runId.replaceAll("-", "")}+clerk_test@example.com`;
+}
+
+export function isExactClerkPasswordSubmissionRequest(
+  request: ClerkFrontendFormRequest,
+  expected: Readonly<{
+    frontendApiHost: string;
+    identifier: string;
+    password: string;
+  }>,
+) {
+  let requestUrl: URL;
+  try {
+    requestUrl = new URL(request.url());
+  } catch {
+    return false;
+  }
+  const contentType = request.headers()["content-type"] ?? "";
+  const form = new URLSearchParams(request.postData() ?? "");
+  const pathSegments = requestUrl.pathname.split("/").filter(Boolean);
+  const exactInstantPasswordCreate = requestUrl.pathname === "/v1/client/sign_ins"
+    && form.getAll("identifier").length === 1
+    && form.get("identifier") === expected.identifier;
+  const exactTwoStepPasswordAttempt = pathSegments.length === 5
+    && pathSegments[0] === "v1"
+    && pathSegments[1] === "client"
+    && pathSegments[2] === "sign_ins"
+    && /^sia_[A-Za-z0-9_-]{1,249}$/.test(pathSegments[3] ?? "")
+    && pathSegments[4] === "attempt_first_factor"
+    && form.getAll("identifier").length === 0;
+  return request.method() === "POST"
+    && requestUrl.protocol === "https:"
+    && requestUrl.host === expected.frontendApiHost
+    && !requestUrl.username
+    && !requestUrl.password
+    && !requestUrl.hash
+    && /^application\/x-www-form-urlencoded(?:;|$)/i.test(contentType)
+    && form.getAll("strategy").length === 1
+    && form.get("strategy") === "password"
+    && form.getAll("password").length === 1
+    && form.get("password") === expected.password
+    && (exactInstantPasswordCreate || exactTwoStepPasswordAttempt);
+}
+
+export function isExactClerkTicketSignUpRequest(
+  request: ClerkFrontendFormRequest,
+  expected: Readonly<{
+    frontendApiHost: string;
+    ticket: string;
+  }>,
+) {
+  let requestUrl: URL;
+  try {
+    requestUrl = new URL(request.url());
+  } catch {
+    return false;
+  }
+  const contentType = request.headers()["content-type"] ?? "";
+  const form = new URLSearchParams(request.postData() ?? "");
+  return request.method() === "POST"
+    && requestUrl.protocol === "https:"
+    && requestUrl.host === expected.frontendApiHost
+    && requestUrl.pathname === "/v1/client/sign_ups"
+    && !requestUrl.username
+    && !requestUrl.password
+    && !requestUrl.hash
+    && /^application\/x-www-form-urlencoded(?:;|$)/i.test(contentType)
+    && form.getAll("strategy").length === 1
+    && form.get("strategy") === "ticket"
+    && form.getAll("ticket").length === 1
+    && form.get("ticket") === expected.ticket;
 }
 
 export function isExactClerkInvitationSignUpRedirect(

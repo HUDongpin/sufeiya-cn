@@ -9,6 +9,7 @@ import {
   expect,
   test,
   type Page,
+  type Request as PlaywrightRequest,
   type Response as PlaywrightResponse,
   type Route,
 } from "@playwright/test";
@@ -28,7 +29,9 @@ import {
   getClerkDevelopmentKeyPair,
   getVercelHostedProtectionBypass,
   installClerkTestingLogRedaction,
+  isExactClerkPasswordSubmissionRequest,
   isExactClerkInvitationSignUpRedirect,
+  isExactClerkTicketSignUpRequest,
   retryClerkIdempotentMutation,
 } from "./clerk-development-config";
 
@@ -190,28 +193,33 @@ async function readClerkInvitationEnvironment(frontendApiHost: string) {
   }
 }
 
-function responseUsesStrategy(response: PlaywrightResponse, strategy: string) {
-  const body = response.request().postData() ?? "";
-  try {
-    return (JSON.parse(body) as { strategy?: string }).strategy === strategy;
-  } catch {
-    return new URLSearchParams(body).get("strategy") === strategy;
-  }
-}
-
-function exactFrontendApiResponse(
+function exactEmailCodeFactorResponse(
   response: PlaywrightResponse,
   frontendApiHost: string,
-  terminalEndpoint: string,
-  strategy: string,
+  terminalEndpoint: "prepare_second_factor" | "attempt_second_factor",
 ) {
   const url = new URL(response.url());
+  const contentType = response.request().headers()["content-type"] ?? "";
+  const strategyValues = new URLSearchParams(
+    response.request().postData() ?? "",
+  ).getAll("strategy");
+  const pathSegments = url.pathname.split("/").filter(Boolean);
   return response.request().method() === "POST"
     && url.protocol === "https:"
     && url.host === frontendApiHost
-    && url.pathname.split("/").filter(Boolean).at(-1) === terminalEndpoint
+    && !url.username
+    && !url.password
+    && !url.hash
+    && pathSegments.length === 5
+    && pathSegments[0] === "v1"
+    && pathSegments[1] === "client"
+    && pathSegments[2] === "sign_ins"
+    && /^sia_[A-Za-z0-9_-]{1,249}$/.test(pathSegments[3] ?? "")
+    && pathSegments[4] === terminalEndpoint
+    && /^application\/x-www-form-urlencoded(?:;|$)/i.test(contentType)
     && response.status() === 200
-    && responseUsesStrategy(response, strategy);
+    && strategyValues.length === 1
+    && strategyValues[0] === "email_code";
 }
 
 async function expectClearedClerkBrowserSession(page: Page) {
@@ -510,18 +518,20 @@ test("an explicitly authorized Development invitation is accepted through SignUp
 
   let stage: string = "testing-token handoff";
   let flowFailure: Error | null = null;
+  let invitationTicketForObservation: string | null = null;
   let ticketStrategyObserved = false;
-  const recordTicketStrategy = (response: PlaywrightResponse) => {
-    if (exactFrontendApiResponse(
-      response,
-      keyPair.frontendApiHost,
-      "sign_ups",
-      "ticket",
-    )) {
+  const recordTicketStrategy = (request: PlaywrightRequest) => {
+    if (
+      invitationTicketForObservation !== null
+      && isExactClerkTicketSignUpRequest(request, {
+        frontendApiHost: keyPair.frontendApiHost,
+        ticket: invitationTicketForObservation,
+      })
+    ) {
       ticketStrategyObserved = true;
     }
   };
-  page.on("response", recordTicketStrategy);
+  page.on("request", recordTicketStrategy);
 
   const forceRefreshClerkSessionToken = async () => page.evaluate(async () => {
     const runtime = (window as Window & {
@@ -653,6 +663,7 @@ test("an explicitly authorized Development invitation is accepted through SignUp
     ) {
       throw new Error("application invitation acceptance URL boundary mismatch");
     }
+    invitationTicketForObservation = invitationTicket;
 
     stage = "pending invitation visibility";
     await expect.poll(async () => {
@@ -885,35 +896,50 @@ test("an explicitly authorized Development invitation is accepted through SignUp
 
     stage = "invited credential re-login password";
     await credentialPassword.fill(temporaryPassword);
+    let passwordSubmissionObserved = false;
+    const recordPasswordSubmission = (request: PlaywrightRequest) => {
+      if (isExactClerkPasswordSubmissionRequest(request, {
+        frontendApiHost: keyPair.frontendApiHost,
+        identifier: invitationEmail,
+        password: temporaryPassword,
+      })) {
+        passwordSubmissionObserved = true;
+      }
+    };
+    page.on("request", recordPasswordSubmission);
     const directCredentialSession = page.waitForFunction(() => Boolean(
       (window as Window & { Clerk?: { session?: unknown } }).Clerk?.session,
     ), undefined, {
       timeout: CLERK_BROWSER_BOOT_TIMEOUT_MS,
     }).then(() => "direct_session" as const);
     const secondFactorPreparation = page.waitForResponse(
-      (response) => exactFrontendApiResponse(
+      (response) => exactEmailCodeFactorResponse(
         response,
         keyPair.frontendApiHost,
         "prepare_second_factor",
-        "email_code",
       ),
       { timeout: CLERK_BROWSER_BOOT_TIMEOUT_MS },
     ).then(() => "email_code" as const);
-    const passwordFirstFactorAttempt = page.waitForResponse(
-      (response) => exactFrontendApiResponse(
-        response,
-        keyPair.frontendApiHost,
-        "attempt_first_factor",
-        "password",
-      ),
-      { timeout: CLERK_BROWSER_BOOT_TIMEOUT_MS },
-    );
-    await credentialPassword.press("Enter");
-    const credentialReloginBranch = await Promise.race([
+    const credentialReloginOutcome = Promise.race([
       directCredentialSession,
       secondFactorPreparation,
     ]);
-    await passwordFirstFactorAttempt;
+    void credentialReloginOutcome.catch(() => undefined);
+    const credentialReloginBranch = await (async () => {
+      try {
+        await credentialPassword.press("Enter");
+        const [branch] = await Promise.all([
+          credentialReloginOutcome,
+          expect.poll(() => passwordSubmissionObserved, {
+            intervals: [250, 500, 1_000],
+            timeout: 10_000,
+          }).toBe(true),
+        ]);
+        return branch;
+      } finally {
+        page.off("request", recordPasswordSubmission);
+      }
+    })();
 
     if (credentialReloginBranch === "email_code") {
       stage = "invited credential email-code verification";
@@ -943,11 +969,10 @@ test("an explicitly authorized Development invitation is accepted through SignUp
       );
       await expect(verificationInput).toHaveCount(1);
       const secondFactorAttempt = page.waitForResponse(
-        (response) => exactFrontendApiResponse(
+        (response) => exactEmailCodeFactorResponse(
           response,
           keyPair.frontendApiHost,
           "attempt_second_factor",
-          "email_code",
         ),
         { timeout: CLERK_BROWSER_BOOT_TIMEOUT_MS },
       );
@@ -991,7 +1016,7 @@ test("an explicitly authorized Development invitation is accepted through SignUp
       `Clerk Development invitation E2E failed during ${stage}.`,
     );
   } finally {
-    page.off("response", recordTicketStrategy);
+    page.off("request", recordTicketStrategy);
     await page.goto("about:blank", {
       timeout: 5_000,
       waitUntil: "commit",
