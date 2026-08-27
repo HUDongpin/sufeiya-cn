@@ -112,6 +112,38 @@ export function buildClerkDevelopmentSyntheticInvitationEmail(runId: string) {
   return `sufeiya-invitation-${runId.replaceAll("-", "")}+clerk_test@example.com`;
 }
 
+export function isExactClerkInvitationSignUpRedirect(
+  candidate: URL,
+  expectedApplicationOrigin: string,
+  expectedTicket: string,
+) {
+  let canonicalExpectedOrigin: string;
+  try {
+    const expectedOriginUrl = new URL(expectedApplicationOrigin);
+    canonicalExpectedOrigin = expectedOriginUrl.origin;
+    if (expectedApplicationOrigin !== canonicalExpectedOrigin) return false;
+  } catch {
+    return false;
+  }
+
+  const ticketValues = candidate.searchParams.getAll("__clerk_ticket");
+  const statusValues = candidate.searchParams.getAll("__clerk_status");
+  const queryKeys = [...candidate.searchParams.keys()].sort().join(",");
+  const hasDocumentedTicketOnlyContract = queryKeys === "__clerk_ticket"
+    && statusValues.length === 0;
+  const hasObservedSignUpStatusContract = queryKeys === "__clerk_status,__clerk_ticket"
+    && statusValues.length === 1
+    && statusValues[0] === "sign_up";
+  return candidate.origin === canonicalExpectedOrigin
+    && candidate.pathname === "/sign-up"
+    && !candidate.username
+    && !candidate.password
+    && !candidate.hash
+    && ticketValues.length === 1
+    && ticketValues[0] === expectedTicket
+    && (hasDocumentedTicketOnlyContract || hasObservedSignUpStatusContract);
+}
+
 function isClerkNetworkFailure(error: Error) {
   return error.name === "AbortError" || CLERK_NETWORK_FAILURE_PATTERN.test(error.message);
 }

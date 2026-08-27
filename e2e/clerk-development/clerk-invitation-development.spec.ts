@@ -26,6 +26,7 @@ import {
   getClerkDevelopmentKeyPair,
   getVercelHostedProtectionBypass,
   installClerkTestingLogRedaction,
+  isExactClerkInvitationSignUpRedirect,
   retryClerkIdempotentMutation,
 } from "./clerk-development-config";
 
@@ -638,16 +639,18 @@ test("an explicitly authorized Development invitation is accepted through SignUp
       timeout: 60_000,
       waitUntil: "domcontentloaded",
     });
-    await page.waitForURL((url) => (
-      url.origin === new URL(target.baseURL).origin
-      && url.pathname === "/sign-up"
-      && url.searchParams.get("__clerk_ticket") === invitationTicket
+    stage = "invitation redirect boundary";
+    await page.waitForURL((url) => isExactClerkInvitationSignUpRedirect(
+      url,
+      new URL(target.baseURL).origin,
+      invitationTicket,
     ), { timeout: 60_000 });
     const acceptedEntryUrl = new URL(page.url());
-    if (
-      [...acceptedEntryUrl.searchParams.keys()].join(",") !== "__clerk_ticket"
-      || acceptedEntryUrl.searchParams.get("__clerk_ticket") !== invitationTicket
-    ) {
+    if (!isExactClerkInvitationSignUpRedirect(
+      acceptedEntryUrl,
+      new URL(target.baseURL).origin,
+      invitationTicket,
+    )) {
       throw new Error("invitation ticket redirect boundary mismatch");
     }
 

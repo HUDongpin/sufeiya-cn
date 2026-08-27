@@ -18,6 +18,7 @@ import {
   getClerkDevelopmentE2ETarget,
   getClerkDevelopmentE2ESuite,
   installClerkTestingLogRedaction,
+  isExactClerkInvitationSignUpRedirect,
   isRetryableClerkIdempotentMutationError,
   getVercelHostedProtectionBypass,
   recoverClerkExactUserDuringCreationUncertainty,
@@ -117,6 +118,47 @@ describe("Clerk Development E2E configuration", () => {
         SUFEIYA_CLERK_E2E_BASE_URL: value,
       }));
     }
+  });
+
+  it("accepts only Clerk's documented ticket and observed sign-up-status redirects", () => {
+    const origin = "http://localhost:3210";
+    const ticket = "synthetic-invitation-ticket";
+    for (const candidate of [
+      `${origin}/sign-up?__clerk_ticket=${ticket}`,
+      `${origin}/sign-up?__clerk_status=sign_up&__clerk_ticket=${ticket}`,
+      `${origin}/sign-up?__clerk_ticket=${ticket}&__clerk_status=sign_up`,
+    ]) {
+      assert.equal(
+        isExactClerkInvitationSignUpRedirect(new URL(candidate), origin, ticket),
+        true,
+      );
+    }
+
+    for (const candidate of [
+      `${origin}/sign-up?__clerk_status=sign_in&__clerk_ticket=${ticket}`,
+      `${origin}/sign-up?__clerk_status=complete&__clerk_ticket=${ticket}`,
+      `${origin}/sign-up?__clerk_status=sign_up&__clerk_ticket=wrong`,
+      `${origin}/sign-up?__clerk_status=sign_up&__clerk_ticket=${ticket}&extra=1`,
+      `${origin}/sign-up?__clerk_status=sign_up&__clerk_status=sign_up&__clerk_ticket=${ticket}`,
+      `${origin}/sign-up?__clerk_status=sign_up&__clerk_ticket=${ticket}&__clerk_ticket=${ticket}`,
+      `${origin}/sign-in?__clerk_status=sign_up&__clerk_ticket=${ticket}`,
+      `http://localhost:3211/sign-up?__clerk_status=sign_up&__clerk_ticket=${ticket}`,
+      `${origin}/sign-up?__clerk_status=sign_up&__clerk_ticket=${ticket}#fragment`,
+    ]) {
+      assert.equal(
+        isExactClerkInvitationSignUpRedirect(new URL(candidate), origin, ticket),
+        false,
+      );
+    }
+
+    assert.equal(
+      isExactClerkInvitationSignUpRedirect(
+        new URL(`${origin}/sign-up?__clerk_status=sign_up&__clerk_ticket=${ticket}`),
+        `${origin}/sign-up`,
+        ticket,
+      ),
+      false,
+    );
   });
 
   it("accepts an explicit Vercel automation bypass only for a canonical hosted target", () => {
