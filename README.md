@@ -38,6 +38,20 @@ SUFEIYA_CLERK_E2E_BASE_URL=https://your-new-preview.vercel.app npm run test:e2e:
 
 证据边界：loopback 模式只证明本机 Next.js 生产构建；显式 hosted 模式只证明该次指定并另行核对 deployment metadata 的 Vercel target。两种模式都只使用所核对的 Clerk Development 实例；浏览器侧还会把目标实际加载的 Clerk Frontend API 与已核对的 Publishable Key 精确绑定，然后用精确临时 user ID 的短期 server-side testing ticket 形成第一条真实 Development session，先验证无有效资格时失败关闭，再验证当前协议的后台 metadata 经会话令牌刷新后放行 `/workspace` 和 `/teaching-review-demo`。完整 Gate A、登出和重新保护通过后，同一合成用户必须再经可见 SignIn 邮箱/密码表单形成第二条 session；如果该次运行实际观察到 Development email-code client-trust 分支，还必须完成固定 test code，再次通过 approved workspace、设备本机数据连续性和二次登出保护。它证明的是 metadata approval gate、受控合成用户的密码式 credential re-login、该次实际记录的 Development 认证分支与这两条测试 session，不是 `createInvitation → __clerk_ticket → 受邀注册` 的真实邀请接受链；也不证明 `sufeiya.cn` 的 Production Clerk 登录或生产受邀用户，不覆盖真实邮件投递、首次 invitation 注册邮箱验证、真实验证码、全新设备验证或账户级 MFA，不证明角色、教研资质、成人身份或个案授权，不提供账户级本机数据隔离，也不构成 production release readiness。
 
+### Clerk Development 原生邀请接受 E2E
+
+`npm run test:e2e:clerk-invitation-dev` 是与上述 10 分钟 Gate A smoke 分离的、具有持久外部影响的测试。它默认失败关闭：suite 名称由 npm script 固定，但在调用 Clerk API、启动浏览器或执行 Clerk setup 前，还必须收到以下逐字确认；普通 credential smoke 即使环境里残留该确认值也会拒绝运行：
+
+```bash
+SUFEIYA_CLERK_INVITATION_E2E_ACK=I_ACCEPT_ONE_PERSISTENT_CLERK_DEVELOPMENT_INVITATION_HISTORY_USING_SYNTHETIC_EXAMPLE_DOT_COM npm run test:e2e:clerk-invitation-dev
+```
+
+这个确认值不是密钥，而是对不可回滚 Clerk invitation history 的单次操作授权。测试只接受已在线匹配的 `pk_test_` / `sk_test_` Development 实例和同一受限 loopback / Vercel target；它以当前 run UUID 构造唯一、无真实收件人的 `+clerk_test@example.com` 地址，预检用户与四种 invitation 状态均无同标识记录后，调用一次 `createInvitation({ notify:false })`，把 redirect 精确绑定到目标 `/sign-up`，public metadata 精确绑定到当前 `sufeiyaBetaAccess` 协议。创建调用不做盲目重试；响应不确定时只按唯一邮箱恢复刚才的 invitation，避免重复留下历史。
+
+浏览器只接受已核对 Clerk FAPI host 的 `/v1/tickets/accept` URL，要求它把同一 ticket 转成本站 `/sign-up?__clerk_ticket=…`，并观察精确 FAPI `ticket` strategy 后通过本站真实 `<SignUp>` 输入进程内随机密码。成功必须同时证明：邀请邮箱由 invitation 自动验证、用户启用密码、invitation metadata 原样复制到新用户、invitation 从 pending 变成 accepted、刷新后的签名 session 以 `x-sufeiya-beta-access: approved` 放行 workspace；随后还要登出、用可见 SignIn 邮箱/密码重新登录、再次放行 workspace，并二次登出恢复保护。它不通过 Backend `createUser`、metadata patch 或 sign-in ticket 代替这些证据。
+
+无论成功或失败，临时 user 都按精确 ID 删除并验证总人数回到基线。区别在于 invitation 没有 delete API：成功或已接受后的失败会永久增加一条 accepted history；创建已发生但接受前失败会尝试精确 revoke，并永久增加一条 revoked history；只有 Clerk 根本没有提交创建时四种计数才保持不变。页面 ticket、邮箱和密码不写入 storage state、日志、截图、trace、video、HAR 或 Playwright 页面快照，测试结束后还会清空并关闭全部页面。该测试不得与同一 Development 实例的用户或 invitation 增删并行运行，也不得在没有 Owner 明确确认上述历史影响时执行。它仍不证明真实邮件投递、Production invitation、`sufeiya.cn` Production 登录、真实用户、全新设备或账户 MFA。
+
 ## Product boundary
 
 公开学习页源稿仍以经过检查的 HTML 保存。每次修改页面源稿后，先运行 `npm run generate` 生成 HTML 页面，再运行 `npm run check` 完成旧页面结构、TypeScript、ESLint 与生产构建检查。`generate:next-content` 会把页面正文写入 `lib/legacy-content.generated.ts`，并同步浏览器运行时与音频到 `public/`；发布必须来自明确提交的干净工作树。

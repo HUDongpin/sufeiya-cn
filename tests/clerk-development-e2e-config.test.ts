@@ -8,12 +8,15 @@ import {
   assertCleanClerkTestingInitialEnvironment,
   assertMatchingDevelopmentClerkInstance,
   assertVerifiedClerkTestingHandoff,
+  buildClerkDevelopmentSyntheticInvitationEmail,
   ClerkExactUserDeletionError,
+  CLERK_INVITATION_E2E_PERSISTENT_HISTORY_ACK,
   getClerkDevelopmentKeyPair,
   combineClerkE2EFailures,
   createClerkTestingHandoffAttestation,
   deleteClerkExactUserWithVerification,
   getClerkDevelopmentE2ETarget,
+  getClerkDevelopmentE2ESuite,
   installClerkTestingLogRedaction,
   isRetryableClerkIdempotentMutationError,
   getVercelHostedProtectionBypass,
@@ -43,6 +46,50 @@ function developmentPublishableKey(host = "safe-example.clerk.accounts.dev") {
 }
 
 describe("Clerk Development E2E configuration", () => {
+  it("requires an exact acknowledgement before selecting persistent invitation acceptance", () => {
+    assert.equal(getClerkDevelopmentE2ESuite({}), "credential-smoke");
+    assert.equal(getClerkDevelopmentE2ESuite({
+      SUFEIYA_CLERK_E2E_SUITE: "credential-smoke",
+    }), "credential-smoke");
+    assert.equal(getClerkDevelopmentE2ESuite({
+      SUFEIYA_CLERK_E2E_SUITE: "invitation-acceptance",
+      SUFEIYA_CLERK_INVITATION_E2E_ACK:
+        CLERK_INVITATION_E2E_PERSISTENT_HISTORY_ACK,
+    }), "invitation-acceptance");
+
+    for (const environment of [
+      { SUFEIYA_CLERK_E2E_SUITE: "unknown" },
+      { SUFEIYA_CLERK_E2E_SUITE: " invitation-acceptance" },
+      { SUFEIYA_CLERK_E2E_SUITE: "invitation-acceptance" },
+      {
+        SUFEIYA_CLERK_E2E_SUITE: "invitation-acceptance",
+        SUFEIYA_CLERK_INVITATION_E2E_ACK: "I_ACCEPT",
+      },
+      {
+        SUFEIYA_CLERK_E2E_SUITE: "credential-smoke",
+        SUFEIYA_CLERK_INVITATION_E2E_ACK:
+          CLERK_INVITATION_E2E_PERSISTENT_HISTORY_ACK,
+      },
+    ]) {
+      assert.throws(() => getClerkDevelopmentE2ESuite(environment));
+    }
+
+    assert.equal(
+      buildClerkDevelopmentSyntheticInvitationEmail(
+        "87c0c5d4-68fc-45bc-a65e-194c5c96bec9",
+      ),
+      "sufeiya-invitation-87c0c5d468fc45bca65e194c5c96bec9+clerk_test@example.com",
+    );
+    for (const runId of [
+      "",
+      "87c0c5d4-68fc-45bc-a65e-194c5c96bec9 ",
+      "87c0c5d4-68fc-15bc-a65e-194c5c96bec9",
+      "87c0c5d4-68fc-45bc-765e-194c5c96bec9",
+    ]) {
+      assert.throws(() => buildClerkDevelopmentSyntheticInvitationEmail(runId));
+    }
+  });
+
   it("uses loopback by default and only accepts a canonical HTTPS hosted Vercel override", () => {
     assert.deepEqual(getClerkDevelopmentE2ETarget({}), {
       baseURL: "http://localhost:3210",

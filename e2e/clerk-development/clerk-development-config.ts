@@ -15,8 +15,10 @@ type ClerkDevelopmentEnvironment = {
   SUFEIYA_CLERK_E2E_BASE_URL?: string;
   SUFEIYA_CLERK_E2E_PORT?: string;
   SUFEIYA_CLERK_E2E_RUN_ID?: string;
+  SUFEIYA_CLERK_E2E_SUITE?: string;
   SUFEIYA_CLERK_E2E_SETUP_ATTESTATION?: string;
   SUFEIYA_CLERK_E2E_SETUP_ISSUED_AT?: string;
+  SUFEIYA_CLERK_INVITATION_E2E_ACK?: string;
   SUFEIYA_VERCEL_PROTECTION_BYPASS?: string;
 };
 
@@ -37,6 +39,10 @@ export type ClerkDevelopmentE2ETarget = Readonly<{
   readinessURL: string | null;
 }>;
 
+export type ClerkDevelopmentE2ESuite =
+  | "credential-smoke"
+  | "invitation-acceptance";
+
 const VERCEL_PROTECTION_BYPASS_ERROR =
   "The Vercel protection bypass must be an explicit URL-safe secret used only with a hosted Vercel target.";
 
@@ -55,6 +61,12 @@ const CLERK_TESTING_BOOTSTRAP_ERROR =
 const CLERK_TESTING_HANDOFF_ERROR =
   "Clerk Development E2E requires the verified project-based setup handoff before any user operation.";
 
+const CLERK_E2E_SUITE_ERROR =
+  "Clerk Development E2E only accepts an explicitly selected known suite.";
+
+const CLERK_INVITATION_E2E_AUTHORIZATION_ERROR =
+  "Clerk Development invitation acceptance requires the exact persistent-history acknowledgement.";
+
 const CLERK_IDEMPOTENT_MUTATION_RETRY_DELAYS_MS = [1_000, 2_500] as const;
 const CLERK_IDEMPOTENT_MUTATION_MAX_RETRY_AFTER_MS = 10_000;
 const CLERK_EXACT_DELETION_ABSENCE_POLL_DELAYS_MS = [0, 1_000, 2_500, 5_000] as const;
@@ -64,6 +76,41 @@ const CLERK_NETWORK_FAILURE_PATTERN =
 
 export const CLERK_E2E_API_URL = "https://api.clerk.com";
 export const CLERK_E2E_API_VERSION = "v1";
+export const CLERK_INVITATION_E2E_PERSISTENT_HISTORY_ACK =
+  "I_ACCEPT_ONE_PERSISTENT_CLERK_DEVELOPMENT_INVITATION_HISTORY_USING_SYNTHETIC_EXAMPLE_DOT_COM";
+
+export function getClerkDevelopmentE2ESuite(
+  environment: ClerkDevelopmentEnvironment = process.env,
+): ClerkDevelopmentE2ESuite {
+  const configuredSuite = environment.SUFEIYA_CLERK_E2E_SUITE;
+  const acknowledgement = environment.SUFEIYA_CLERK_INVITATION_E2E_ACK;
+  if (
+    configuredSuite === undefined
+    || configuredSuite === "credential-smoke"
+  ) {
+    if (acknowledgement !== undefined && acknowledgement !== "") {
+      throw new Error(CLERK_INVITATION_E2E_AUTHORIZATION_ERROR);
+    }
+    return "credential-smoke";
+  }
+  if (configuredSuite !== "invitation-acceptance") {
+    throw new Error(CLERK_E2E_SUITE_ERROR);
+  }
+  if (acknowledgement !== CLERK_INVITATION_E2E_PERSISTENT_HISTORY_ACK) {
+    throw new Error(CLERK_INVITATION_E2E_AUTHORIZATION_ERROR);
+  }
+  return "invitation-acceptance";
+}
+
+export function buildClerkDevelopmentSyntheticInvitationEmail(runId: string) {
+  if (
+    runId !== runId.trim()
+    || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(runId)
+  ) {
+    throw new Error("Clerk Development invitation E2E requires a current UUID run marker.");
+  }
+  return `sufeiya-invitation-${runId.replaceAll("-", "")}+clerk_test@example.com`;
+}
 
 function isClerkNetworkFailure(error: Error) {
   return error.name === "AbortError" || CLERK_NETWORK_FAILURE_PATTERN.test(error.message);
