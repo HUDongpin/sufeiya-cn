@@ -13,6 +13,11 @@ import {
   getClerkDevelopmentKeyPair,
 } from "./e2e/clerk-development/clerk-development-config";
 
+// Playwright 1.62 otherwise captures an ARIA page snapshot in error-context.md.
+// Disable that page artifact for this credential-bearing E2E, including when a
+// browser failure prevents the explicit about:blank/close cleanup from landing.
+process.env.PLAYWRIGHT_NO_COPY_PROMPT = "1";
+
 const repositoryRoot = fileURLToPath(new URL(".", import.meta.url));
 const localEnvironmentPath = fileURLToPath(new URL(".env.local", import.meta.url));
 if (existsSync(localEnvironmentPath)) process.loadEnvFile(localEnvironmentPath);
@@ -85,7 +90,7 @@ export default defineConfig({
     actionTimeout: 20_000,
     baseURL: target.baseURL,
     locale: "zh-CN",
-    screenshot: "only-on-failure",
+    screenshot: "off",
     trace: "off",
     video: "off",
   },
