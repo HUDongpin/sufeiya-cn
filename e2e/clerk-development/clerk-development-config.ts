@@ -67,6 +67,9 @@ const CLERK_E2E_SUITE_ERROR =
 const CLERK_INVITATION_E2E_AUTHORIZATION_ERROR =
   "Clerk Development invitation acceptance requires the exact persistent-history acknowledgement.";
 
+const CLERK_INVITATION_ENVIRONMENT_ERROR =
+  "Clerk Development invitation E2E refused incompatible public Frontend API settings before invitation creation.";
+
 const CLERK_IDEMPOTENT_MUTATION_RETRY_DELAYS_MS = [1_000, 2_500] as const;
 const CLERK_IDEMPOTENT_MUTATION_MAX_RETRY_AFTER_MS = 10_000;
 const CLERK_EXACT_DELETION_ABSENCE_POLL_DELAYS_MS = [0, 1_000, 2_500, 5_000] as const;
@@ -142,6 +145,117 @@ export function isExactClerkInvitationSignUpRedirect(
     && ticketValues.length === 1
     && ticketValues[0] === expectedTicket
     && (hasDocumentedTicketOnlyContract || hasObservedSignUpStatusContract);
+}
+
+function clerkEnvironmentRecord(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function clerkStringArray(value: unknown): readonly string[] | null {
+  return Array.isArray(value) && value.every((item) => typeof item === "string")
+    ? value
+    : null;
+}
+
+export function assertCompatibleClerkInvitationEnvironment(
+  snapshot: unknown,
+  temporaryPassword: string,
+) {
+  const environment = clerkEnvironmentRecord(snapshot);
+  const authConfig = clerkEnvironmentRecord(environment?.auth_config);
+  const displayConfig = clerkEnvironmentRecord(environment?.display_config);
+  const userSettings = clerkEnvironmentRecord(environment?.user_settings);
+  const signUpSettings = clerkEnvironmentRecord(userSettings?.sign_up);
+  const mfaSettings = clerkEnvironmentRecord(signUpSettings?.mfa);
+  const attributes = clerkEnvironmentRecord(userSettings?.attributes);
+  const emailAttribute = clerkEnvironmentRecord(attributes?.email_address);
+  const passwordAttribute = clerkEnvironmentRecord(attributes?.password);
+  const usernameAttribute = clerkEnvironmentRecord(attributes?.username);
+  const phoneAttribute = clerkEnvironmentRecord(attributes?.phone_number);
+  const firstNameAttribute = clerkEnvironmentRecord(attributes?.first_name);
+  const lastNameAttribute = clerkEnvironmentRecord(attributes?.last_name);
+  const passwordSettings = clerkEnvironmentRecord(userSettings?.password_settings);
+  const restrictions = clerkEnvironmentRecord(userSettings?.restrictions);
+  const allowlist = clerkEnvironmentRecord(restrictions?.allowlist);
+  const blocklist = clerkEnvironmentRecord(restrictions?.blocklist);
+  const blockSubaddresses = clerkEnvironmentRecord(restrictions?.block_email_subaddresses);
+  const firstFactors = clerkStringArray(authConfig?.first_factors);
+  const secondFactors = clerkStringArray(authConfig?.second_factors);
+  const emailVerificationStrategies = clerkStringArray(
+    authConfig?.email_address_verification_strategies,
+  );
+  const emailVerifications = clerkStringArray(emailAttribute?.verifications);
+  const minimumPasswordLength = passwordSettings?.min_length;
+  const maximumPasswordLength = passwordSettings?.max_length;
+  const allowedSpecialCharacters = passwordSettings?.allowed_special_characters;
+  const temporarySpecialCharacters = [...temporaryPassword].filter(
+    (character) => !/[A-Za-z0-9]/.test(character),
+  );
+
+  if (
+    displayConfig?.instance_environment_type !== "development"
+    || displayConfig.clerk_js_version !== "6"
+    || authConfig?.test_mode !== true
+    || authConfig.email_address !== "on"
+    || authConfig.password !== "required"
+    || authConfig.username !== "off"
+    || authConfig.phone_number !== "off"
+    || authConfig.first_name !== "off"
+    || authConfig.last_name !== "off"
+    || firstFactors === null
+    || !firstFactors.includes("ticket")
+    || !firstFactors.includes("password")
+    || secondFactors === null
+    || secondFactors.length !== 0
+    || emailVerificationStrategies === null
+    || emailVerificationStrategies.length !== 1
+    || emailVerificationStrategies[0] !== "email_code"
+    || signUpSettings?.mode !== "public"
+    || signUpSettings.progressive !== true
+    || signUpSettings.custom_action_required !== false
+    || signUpSettings.legal_consent_enabled !== false
+    || mfaSettings?.required !== false
+    || emailAttribute?.enabled !== true
+    || emailAttribute.required !== true
+    || emailAttribute.verify_at_sign_up !== true
+    || emailVerifications === null
+    || emailVerifications.length !== 1
+    || emailVerifications[0] !== "email_code"
+    || passwordAttribute?.enabled !== true
+    || passwordAttribute.required !== true
+    || usernameAttribute?.enabled !== false
+    || usernameAttribute.required !== false
+    || phoneAttribute?.enabled !== false
+    || phoneAttribute.required !== false
+    || firstNameAttribute?.enabled !== false
+    || firstNameAttribute.required !== false
+    || lastNameAttribute?.enabled !== false
+    || lastNameAttribute.required !== false
+    || allowlist?.enabled !== false
+    || blocklist?.enabled !== false
+    || blockSubaddresses?.enabled !== false
+    || typeof minimumPasswordLength !== "number"
+    || !Number.isSafeInteger(minimumPasswordLength)
+    || minimumPasswordLength < 1
+    || temporaryPassword.length < minimumPasswordLength
+    || typeof maximumPasswordLength !== "number"
+    || !Number.isSafeInteger(maximumPasswordLength)
+    || maximumPasswordLength < 0
+    || (maximumPasswordLength !== 0 && temporaryPassword.length > maximumPasswordLength)
+    || typeof allowedSpecialCharacters !== "string"
+    || temporarySpecialCharacters.some(
+      (character) => !allowedSpecialCharacters.includes(character),
+    )
+    || !/[A-Z]/.test(temporaryPassword)
+    || !/[a-z]/.test(temporaryPassword)
+    || !/[0-9]/.test(temporaryPassword)
+    || !/[^A-Za-z0-9]/.test(temporaryPassword)
+    || /\s/.test(temporaryPassword)
+  ) {
+    throw new Error(CLERK_INVITATION_ENVIRONMENT_ERROR);
+  }
 }
 
 function isClerkNetworkFailure(error: Error) {

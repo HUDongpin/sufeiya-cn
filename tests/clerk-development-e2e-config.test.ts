@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import { ClerkAPIResponseError } from "@clerk/backend/errors";
 
 import {
+  assertCompatibleClerkInvitationEnvironment,
   assertCanonicalClerkApiEnvironment,
   assertCleanClerkTestingBootstrap,
   assertCleanClerkTestingInitialEnvironment,
@@ -44,6 +45,63 @@ function clerkApiError(
 
 function developmentPublishableKey(host = "safe-example.clerk.accounts.dev") {
   return `pk_test_${Buffer.from(`${host}$`).toString("base64url")}`;
+}
+
+function compatibleInvitationEnvironment() {
+  const disabledAttribute = {
+    enabled: false,
+    required: false,
+  };
+  return {
+    auth_config: {
+      email_address: "on",
+      email_address_verification_strategies: ["email_code"],
+      first_factors: ["email_code", "oauth_google", "password", "ticket"],
+      first_name: "off",
+      last_name: "off",
+      password: "required",
+      phone_number: "off",
+      second_factors: [] as string[],
+      test_mode: true,
+      username: "off",
+    },
+    display_config: {
+      clerk_js_version: "6",
+      instance_environment_type: "development",
+    },
+    user_settings: {
+      attributes: {
+        email_address: {
+          enabled: true,
+          required: true,
+          verifications: ["email_code"],
+          verify_at_sign_up: true,
+        },
+        first_name: { ...disabledAttribute },
+        last_name: { ...disabledAttribute },
+        password: { enabled: true, required: true },
+        phone_number: { ...disabledAttribute },
+        username: { ...disabledAttribute },
+      },
+      password_settings: {
+        allowed_special_characters: "!_-",
+        max_length: 0,
+        min_length: 15,
+      },
+      restrictions: {
+        allowlist: { enabled: false },
+        block_email_subaddresses: { enabled: false },
+        blocklist: { enabled: false },
+      },
+      sign_up: {
+        custom_action_required: false,
+        legal_consent_enabled: false,
+        mfa: { required: false },
+        mode: "public",
+        progressive: true,
+      },
+    },
+  };
 }
 
 describe("Clerk Development E2E configuration", () => {
@@ -159,6 +217,40 @@ describe("Clerk Development E2E configuration", () => {
       ),
       false,
     );
+  });
+
+  it("refuses incompatible invitation UI settings before creating persistent history", () => {
+    const password = `S7!a${"x".repeat(32)}`;
+    const compatible = compatibleInvitationEnvironment();
+    assert.doesNotThrow(() => assertCompatibleClerkInvitationEnvironment(
+      compatible,
+      password,
+    ));
+
+    const incompatibleSnapshots = [
+      (snapshot: typeof compatible) => { snapshot.display_config.instance_environment_type = "production"; },
+      (snapshot: typeof compatible) => { snapshot.display_config.clerk_js_version = "7"; },
+      (snapshot: typeof compatible) => { snapshot.auth_config.test_mode = false; },
+      (snapshot: typeof compatible) => { snapshot.auth_config.first_factors = ["password"]; },
+      (snapshot: typeof compatible) => { snapshot.auth_config.second_factors = ["totp"]; },
+      (snapshot: typeof compatible) => { snapshot.auth_config.username = "on"; },
+      (snapshot: typeof compatible) => { snapshot.user_settings.sign_up.legal_consent_enabled = true; },
+      (snapshot: typeof compatible) => { snapshot.user_settings.sign_up.mfa.required = true; },
+      (snapshot: typeof compatible) => {
+        snapshot.user_settings.restrictions.block_email_subaddresses.enabled = true;
+      },
+      (snapshot: typeof compatible) => { snapshot.user_settings.password_settings.min_length = 100; },
+      (snapshot: typeof compatible) => { snapshot.user_settings.password_settings.max_length = 20; },
+      (snapshot: typeof compatible) => {
+        snapshot.user_settings.password_settings.allowed_special_characters = "_-";
+      },
+    ];
+    for (const makeIncompatible of incompatibleSnapshots) {
+      const snapshot = structuredClone(compatible);
+      makeIncompatible(snapshot);
+      assert.throws(() => assertCompatibleClerkInvitationEnvironment(snapshot, password));
+    }
+    assert.throws(() => assertCompatibleClerkInvitationEnvironment(compatible, "lowercase-only"));
   });
 
   it("accepts an explicit Vercel automation bypass only for a canonical hosted target", () => {

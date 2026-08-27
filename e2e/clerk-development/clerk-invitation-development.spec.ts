@@ -10,9 +10,11 @@ import {
   test,
   type Page,
   type Response as PlaywrightResponse,
+  type Route,
 } from "@playwright/test";
 
 import {
+  assertCompatibleClerkInvitationEnvironment,
   assertCanonicalClerkApiEnvironment,
   assertMatchingDevelopmentClerkInstance,
   assertVerifiedClerkTestingHandoff,
@@ -148,6 +150,44 @@ async function readExactUsers(client: ClerkClient, emailAddress: string) {
   return users.data.filter((user) => user.emailAddresses.some(
     (email) => email.emailAddress === emailAddress,
   ));
+}
+
+async function readClerkInvitationEnvironment(frontendApiHost: string) {
+  const environmentUrl = new URL(`https://${frontendApiHost}/v1/environment`);
+  let response: Response;
+  try {
+    response = await fetch(environmentUrl, {
+      headers: { accept: "application/json" },
+      redirect: "error",
+      signal: AbortSignal.timeout(20_000),
+    });
+  } catch {
+    throw new Error("Clerk Development invitation environment GET failed before creation.");
+  }
+
+  const contentType = response.headers.get("content-type") ?? "";
+  const contentLength = Number(response.headers.get("content-length") ?? "0");
+  if (
+    response.status !== 200
+    || response.url !== environmentUrl.toString()
+    || !/^application\/json(?:;|$)/i.test(contentType)
+    || !Number.isSafeInteger(contentLength)
+    || contentLength < 0
+    || contentLength > 1_048_576
+  ) {
+    await response.body?.cancel();
+    throw new Error("Clerk Development invitation environment response was refused.");
+  }
+
+  const body = await response.text();
+  if (Buffer.byteLength(body, "utf8") > 1_048_576) {
+    throw new Error("Clerk Development invitation environment response was oversized.");
+  }
+  try {
+    return JSON.parse(body) as unknown;
+  } catch {
+    throw new Error("Clerk Development invitation environment response was malformed.");
+  }
 }
 
 function responseUsesStrategy(response: PlaywrightResponse, strategy: string) {
@@ -448,7 +488,7 @@ test("an explicitly authorized Development invitation is accepted through SignUp
   const runId = process.env.SUFEIYA_CLERK_E2E_RUN_ID;
   if (!runId) throw new Error("Clerk Development invitation E2E run marker is unavailable.");
   const invitationEmail = buildClerkDevelopmentSyntheticInvitationEmail(runId);
-  const temporaryPassword = `S7!${randomBytes(24).toString("base64url")}`;
+  const temporaryPassword = `S7!a${randomBytes(24).toString("base64url")}`;
 
   if (invitationCleanupState !== null) {
     throw new Error("Clerk Development invitation E2E refused stale cleanup state.");
@@ -518,6 +558,12 @@ test("an explicitly authorized Development invitation is accepted through SignUp
       environmentType: instance.environmentType,
       frontendApiUrls: domains.data.map((domain) => domain.frontendApiUrl),
     });
+
+    stage = "Development invitation environment preflight";
+    assertCompatibleClerkInvitationEnvironment(
+      await readClerkInvitationEnvironment(keyPair.frontendApiHost),
+      temporaryPassword,
+    );
 
     stage = "persistent-history baseline";
     cleanupState.baselineUserCount = await retryClerkIdempotentMutation(
@@ -635,10 +681,27 @@ test("an explicitly authorized Development invitation is accepted through SignUp
 
     cleanupState.browserUiMayContainSecrets = true;
     stage = "invitation URL handoff";
-    await page.goto(invitation.url, {
-      timeout: 60_000,
-      waitUntil: "domcontentloaded",
-    });
+    const invitationAcceptanceNavigation = async (route: Route) => route.continue();
+    await page.context().route(invitation.url, invitationAcceptanceNavigation);
+    let invitationNavigationCompleted = false;
+    let invitationRouteRemoved = false;
+    try {
+      await page.goto(invitation.url, {
+        timeout: 60_000,
+        waitUntil: "domcontentloaded",
+      });
+      invitationNavigationCompleted = true;
+    } finally {
+      await page.context().unroute(
+        invitation.url,
+        invitationAcceptanceNavigation,
+      ).then(() => {
+        invitationRouteRemoved = true;
+      }).catch(() => undefined);
+    }
+    if (!invitationNavigationCompleted || !invitationRouteRemoved) {
+      throw new Error("invitation acceptance navigation or route teardown failed");
+    }
     stage = "invitation redirect boundary";
     await page.waitForURL((url) => isExactClerkInvitationSignUpRedirect(
       url,
@@ -663,20 +726,40 @@ test("an explicitly authorized Development invitation is accepted through SignUp
       (expectedEmail) => {
         const runtime = (window as Window & {
           Clerk?: {
-            client?: { signUp?: { emailAddress?: string | null } };
+            client?: {
+              signUp?: {
+                emailAddress?: string | null;
+                hasPassword?: boolean;
+                missingFields?: string[];
+                status?: string | null;
+              };
+            };
             frontendApi?: string;
           };
         }).Clerk;
         return {
           emailMatches: runtime?.client?.signUp?.emailAddress === expectedEmail,
+          hasPassword: runtime?.client?.signUp?.hasPassword ?? null,
+          missingFields: [...(runtime?.client?.signUp?.missingFields ?? [])].sort(),
           runtimeAvailable: Boolean(runtime),
+          status: runtime?.client?.signUp?.status ?? "unavailable",
         };
       },
       invitationEmail,
     ), {
       intervals: [250, 500, 1_000, 2_000],
       timeout: CLERK_BROWSER_BOOT_TIMEOUT_MS,
-    }).toEqual({ emailMatches: true, runtimeAvailable: true });
+    }).toEqual({
+      emailMatches: true,
+      hasPassword: false,
+      missingFields: ["password"],
+      runtimeAvailable: true,
+      status: "missing_requirements",
+    });
+    await expect.poll(() => ticketStrategyObserved, {
+      intervals: [250, 500, 1_000],
+      timeout: 10_000,
+    }).toBe(true);
     expect(await page.evaluate(
       (expectedHost) => (window as Window & {
         Clerk?: { frontendApi?: string };
@@ -714,10 +797,6 @@ test("an explicitly authorized Development invitation is accepted through SignUp
     ), undefined, { timeout: CLERK_BROWSER_BOOT_TIMEOUT_MS });
     await passwordInput.press("Enter");
     await invitationSession;
-    await expect.poll(() => ticketStrategyObserved, {
-      intervals: [250, 500, 1_000],
-      timeout: 10_000,
-    }).toBe(true);
 
     stage = "invitation metadata auto-copy";
     let invitedUser = null as Awaited<ReturnType<typeof readExactUsers>>[number] | null;
