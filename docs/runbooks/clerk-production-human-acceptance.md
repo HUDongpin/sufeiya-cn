@@ -29,9 +29,16 @@ Clerk 官方明确说明 Dashboard 创建 application invitation 时不能设置
 
 `notify:true` 只证明请求 Clerk 发送真实 invitation email，不证明投递、收取或打开。控制器不支持 `notify:false`，因为它也不会输出或持久化含 ticket 的 invitation URL；无另行批准的安全 handoff 时，`notify:false` 会生成无法安全交付的邀请。七天有效期是当前冻结合同，真正 execute 前必须在 Owner 授权记录中逐字确认；不得用 SDK 默认 30 天或临时环境旋钮替换。
 
-三个命令的权限严格分离。真实 Owner 命令必须由 Owner 本人在系统 Terminal.app 的新独立 shell、仓库根目录直接运行受审启动器；Codex 的 Computer Use 不得打开、聚焦、点击、输入或以其他方式控制 Terminal.app。启动器要求祖先进程链包含系统 `Terminal`，只允许直接 shell/`login` 过渡，并在任何敏感输入前显式拒绝 Codex、ChatGPT/Electron、IDE、`npm`、`npx`、`tsx`、`node --import` 或任何仍存活的 Node/Bun/Deno ancestor；其他未知祖先进程也默认拒绝。下面是唯一受支持的命令形状；固定 Node 路径与摘要是当前 Owner Mac 的受审边界，不能替换为另一个 `node`：
+四个命令的权限严格分离。真实 Owner 命令必须由 Owner 本人在系统 Terminal.app 的新独立 shell、仓库根目录直接运行受审启动器；Codex 的 Computer Use 不得打开、聚焦、点击、输入或以其他方式控制 Terminal.app。启动器要求祖先进程链包含系统 `Terminal`，只允许直接 shell/`login` 过渡，并在任何敏感输入前显式拒绝 Codex、ChatGPT/Electron、IDE、`npm`、`npx`、`tsx`、`node --import` 或任何仍存活的 Node/Bun/Deno ancestor；其他未知祖先进程也默认拒绝。下面是唯一受支持的命令形状；固定 Node 路径与摘要是当前 Owner Mac 的受审边界，不能替换为另一个 `node`：
 
 ```bash
+# 纯本机 launch-check：验证Finder/Terminal祖先进程、ambient、摘要与clean Git；
+# 不读取key/邮箱，不访问GitHub/Vercel/Clerk，不写marker/receipt，不启动runtime
+/usr/bin/env -i \
+  PATH='/Users/peter/.local/share/node-v24.18.0-darwin-arm64/bin:/usr/bin:/bin' \
+  LANG=C LC_ALL=C \
+  ./scripts/clerk-production-invitation-owner launch-check
+
 # 只读 preflight：先由 Owner 签发唯一 run ID；不写 marker/receipt，不创建邀请
 /usr/bin/env -i \
   PATH='/Users/peter/.local/share/node-v24.18.0-darwin-arm64/bin:/usr/bin:/bin' \
@@ -65,6 +72,8 @@ Clerk 官方明确说明 Dashboard 创建 application invitation 时不能设置
 ```
 
 Secret Key 与真实 recipient 不得作为命令参数、环境变量、`.env.local`、聊天、终端历史或仓库文件。`/bin/zsh -f` 启动器先证明系统 Terminal 祖先进程、拒绝 Codex/IDE/npm/tsx/Node ancestors、Clerk state、proxy/TLS/debug/CI/Git override与解释器 preload，核对固定 Node 24.18.0 二进制、已审单文件 runtime 的 SHA-256 和干净工作树；随后以 `env -i` 和 `exec` 进入无 loader 的 bundled runtime。固定 runtime 仍在任何敏感输入前核对共享 one-shot seal、live GitHub deployment/status 与公开 Clerk environment；全部通过后才在同一受控 TTY 读取 hidden live key、hidden recipient，并要求第二次 hidden recipient 逐字相同。输入有固定长度上限，TTY error/end/close 统一恢复 terminal state；敏感值只存在于最终 Node 进程内存。
+
+`launch-check` 只运行 launcher 本地边界并在成功时输出固定 `PASS_LAUNCH_BOUNDARY_NO_SENSITIVE_INPUT; stage=complete`；它不会启动 bundled runtime、不会访问网络，也不会读取敏感值。任一失败只输出固定 `FAIL_REDACTED_BEFORE_SENSITIVE_INPUT; stage=<allowlisted-stage>`，其中 stage 只能来自源码内固定集合，不包含进程名、路径、环境值、key、邮箱或provider响应。它可在修复本机启动边界期间重复运行，不消费 invitation授权；`execute` 仍不得因 launcher失败而擅自重跑。
 
 `preflight` 在只读核对 exact recipient 与全局 users/pending/accepted/revoked/expired 分母后，输出 `helper_source_git_sha`、64-hex `provider_baseline_commitment` 与同 run ID 分域的 64-hex `recipient_commitment`。Owner 授权必须把三个值与真实 recipient、七天 `notify:true`、固定请求、当前 deployment 和 run ID 绑定；helper commit 或 generated runtime 变化后必须重新 preflight/重新授权，旧输出不能复用。`preflight` 发现 execute ACK、baseline、外部 recipient commitment 或外部 helper SHA 残留会失败；`execute` 在任何 seal/POST 前逐字匹配当前 clean helper SHA，并复算 recipient commitment匹配 Owner 授权值。`status` 只接受同一 run ID，并拒绝 execute-only 状态；它用同一 hidden key/两次一致的 recipient 复算 canonical seal 中的 HMAC。若 run/source/deployment/instance/recipient 任一不匹配便在 provider GET 前停止。为保住该唯一恢复入口，在 provider/browser closure 完成前必须保留固定 Node 24.18.0 二进制、该 helper commit及其 exact generated runtime；仓库前进后应在独立干净 worktree 恢复 seal 中的原 helper SHA，再运行 status，不能用新 HEAD 冒充。即使 status 观察到 `none`，输出也固定携带 `creation_outcome_remains_unknown=true`，永远不能据此解除 no-retry。
 

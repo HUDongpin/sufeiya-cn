@@ -968,6 +968,33 @@ describe("Clerk Production invitation local persistence boundary", () => {
     );
     assert.match(launcherSource, /zsh:\/bin\/zsh\|bash:\/bin\/bash\|sh:\/bin\/sh/);
     assert.match(launcherSource, /\*\)\n      fail_closed/);
+    assert.match(launcherSource, /mode" == launch-check/);
+    assert.match(
+      launcherSource,
+      /PASS_LAUNCH_BOUNDARY_NO_SENSITIVE_INPUT; stage=complete/,
+    );
+    for (const stage of [
+      "invocation",
+      "runtime_path",
+      "ambient_environment",
+      "node_resolution",
+      "node_integrity",
+      "runtime_integrity",
+      "ancestor_read",
+      "ancestor_shape",
+      "ancestor_uid",
+      "ancestor_allowlist",
+      "ancestor_completion",
+      "git_config_read",
+      "git_config_allowlist",
+      "git_top_level",
+      "git_status",
+      "runtime_exec",
+    ]) assert.match(launcherSource, new RegExp(`failure_stage='${stage}'`));
+    assert.ok(
+      launcherSource.indexOf('if [[ "$mode" == launch-check ]]')
+        < launcherSource.indexOf("typeset -a child_environment"),
+    );
   });
 
   test("rejects launcher hooks and automated parents before sensitive input", {
@@ -984,6 +1011,17 @@ describe("Clerk Production invitation local persistence boundary", () => {
       SUFEIYA_CLERK_PRODUCTION_DEPLOYMENT_GIT_SHA: deploymentGitSha,
       SUFEIYA_CLERK_PRODUCTION_DEPLOYMENT_ID: deploymentId,
     };
+    const invalidModeLaunch = spawnSync(launcher, ["invalid-mode"], {
+      cwd: fileURLToPath(new URL("../", import.meta.url)),
+      encoding: "utf8",
+      env: baseEnvironment,
+    });
+    assert.equal(invalidModeLaunch.status, 1);
+    assert.equal(
+      invalidModeLaunch.stderr.trim(),
+      "[Clerk Production invitation launcher] "
+        + "FAIL_REDACTED_BEFORE_SENSITIVE_INPUT; stage=invocation",
+    );
     for (const forbiddenEnvironment of [
       { NODE_OPTIONS: "--require=/private/tmp/forbidden-owner-hook.cjs" },
       { TSX_TSCONFIG_PATH: "/private/tmp/forbidden-owner-tsconfig.json" },
@@ -999,7 +1037,8 @@ describe("Clerk Production invitation local persistence boundary", () => {
       assert.equal(result.status, 1);
       assert.equal(
         result.stderr.trim(),
-        "[Clerk Production invitation launcher] FAIL_REDACTED_BEFORE_SENSITIVE_INPUT",
+        "[Clerk Production invitation launcher] "
+          + "FAIL_REDACTED_BEFORE_SENSITIVE_INPUT; stage=ambient_environment",
       );
       assert.equal(result.stdout, "");
       assert.equal(result.stderr.includes("forbidden-owner"), false);
@@ -1012,7 +1051,19 @@ describe("Clerk Production invitation local persistence boundary", () => {
     assert.equal(nodeParentLaunch.status, 1);
     assert.equal(
       nodeParentLaunch.stderr.trim(),
-      "[Clerk Production invitation launcher] FAIL_REDACTED_BEFORE_SENSITIVE_INPUT",
+      "[Clerk Production invitation launcher] "
+        + "FAIL_REDACTED_BEFORE_SENSITIVE_INPUT; stage=ancestor_allowlist",
+    );
+    const nodeParentLaunchCheck = spawnSync(launcher, ["launch-check"], {
+      cwd: fileURLToPath(new URL("../", import.meta.url)),
+      encoding: "utf8",
+      env: baseEnvironment,
+    });
+    assert.equal(nodeParentLaunchCheck.status, 1);
+    assert.equal(
+      nodeParentLaunchCheck.stderr.trim(),
+      "[Clerk Production invitation launcher] "
+        + "FAIL_REDACTED_BEFORE_SENSITIVE_INPUT; stage=ancestor_allowlist",
     );
   });
 });
