@@ -4,6 +4,7 @@ import { describe, test } from "node:test";
 import {
   assertCompatibleClerkProductionHumanEnvironment,
   assertClerkProductionHumanCommandLine,
+  buildClerkProductionGitEnvironment,
   buildClerkProductionHumanReceipt,
   CLERK_PRODUCTION_CANONICAL_ORIGIN,
   CLERK_PRODUCTION_HUMAN_ACCEPTANCE_ACK,
@@ -200,6 +201,13 @@ describe("Clerk Production human acceptance input", () => {
       "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY",
       "SUFEIYA_CLERK_E2E_SUITE",
       "SUFEIYA_CLERK_INVITATION_E2E_ACK",
+      "SUFEIYA_CLERK_PRODUCTION_INSTANCE_ID",
+      "SUFEIYA_CLERK_PRODUCTION_INVITATION_RECIPIENT_EMAIL",
+      "SUFEIYA_CLERK_PRODUCTION_INVITATION_CREATE_ACK",
+      "SUFEIYA_CLERK_PRODUCTION_HELPER_SOURCE_GIT_SHA",
+      "SUFEIYA_CLERK_PRODUCTION_INVITATION_LAUNCHER_ATTESTATION",
+      "SUFEIYA_CLERK_PRODUCTION_PROVIDER_BASELINE_COMMITMENT",
+      "SUFEIYA_CLERK_PRODUCTION_RECIPIENT_COMMITMENT",
       "SUFEIYA_VERCEL_PROTECTION_BYPASS",
       "VERCEL_AUTOMATION_BYPASS_SECRET",
       "PLAYWRIGHT_STORAGE_STATE",
@@ -239,6 +247,24 @@ describe("Clerk Production human acceptance input", () => {
         /refuses local Clerk keys, testing\/debug state, storage state, and deployment bypass state/,
       );
     }
+  });
+
+  test("passes only a fixed non-sensitive environment to Git source checks", () => {
+    assert.deepEqual(buildClerkProductionGitEnvironment({
+      CLERK_SECRET_KEY: "secret-sentinel",
+      HOME: "/sensitive-home",
+      NODE_ENV: "test",
+      SUFEIYA_CLERK_PRODUCTION_INVITATION_RECIPIENT_EMAIL:
+        "recipient-sentinel@example.invalid",
+    }), {
+      GIT_CONFIG_GLOBAL: "/dev/null",
+      GIT_CONFIG_NOSYSTEM: "1",
+      GIT_OPTIONAL_LOCKS: "0",
+      LANG: "C",
+      LC_ALL: "C",
+      NODE_ENV: "test",
+      PATH: "/usr/bin:/bin",
+    });
   });
 
   test("accepts only the package script's exact Playwright command line", () => {

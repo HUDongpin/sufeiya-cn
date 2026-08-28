@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { realpathSync } from "node:fs";
+import { resolve } from "node:path";
 
 export const CLERK_PRODUCTION_CANONICAL_ORIGIN = "https://sufeiya.cn";
 export const CLERK_PRODUCTION_FRONTEND_API_HOST = "clerk.sufeiya.cn";
@@ -205,6 +206,11 @@ function hasForbiddenAmbientState(environment: ClerkProductionHumanEnvironment) 
     return key.startsWith("CLERK_")
       || key.startsWith("NEXT_PUBLIC_CLERK_")
       || key.startsWith("SUFEIYA_CLERK_E2E_")
+      || key.startsWith("SUFEIYA_CLERK_PRODUCTION_INVITATION_")
+      || key === "SUFEIYA_CLERK_PRODUCTION_HELPER_SOURCE_GIT_SHA"
+      || key === "SUFEIYA_CLERK_PRODUCTION_INSTANCE_ID"
+      || key === "SUFEIYA_CLERK_PRODUCTION_PROVIDER_BASELINE_COMMITMENT"
+      || key === "SUFEIYA_CLERK_PRODUCTION_RECIPIENT_COMMITMENT"
       || key === "SUFEIYA_CLERK_INVITATION_E2E_ACK"
       || key === "SUFEIYA_VERCEL_PROTECTION_BYPASS"
       || key === "VERCEL_AUTOMATION_BYPASS_SECRET"
@@ -219,6 +225,20 @@ function hasForbiddenAmbientState(environment: ClerkProductionHumanEnvironment) 
       || key === "PW_CHROMIUM_ATTACH_TO_OTHER"
       || key.startsWith("SELENIUM_REMOTE_");
   });
+}
+
+export function buildClerkProductionGitEnvironment(
+  environment: NodeJS.ProcessEnv = process.env,
+): NodeJS.ProcessEnv {
+  return {
+    GIT_CONFIG_GLOBAL: "/dev/null",
+    GIT_CONFIG_NOSYSTEM: "1",
+    GIT_OPTIONAL_LOCKS: "0",
+    LANG: "C",
+    LC_ALL: "C",
+    NODE_ENV: environment.NODE_ENV ?? "production",
+    PATH: "/usr/bin:/bin",
+  };
 }
 
 export function assertClerkProductionHumanCommandLine(
@@ -241,10 +261,7 @@ export function readClerkProductionHumanSourceSnapshot(
   repositoryRoot: string,
 ): ClerkProductionHumanSourceSnapshot {
   try {
-    const gitEnvironment = { ...process.env } as NodeJS.ProcessEnv;
-    for (const key of Object.keys(gitEnvironment)) {
-      if (key.startsWith("GIT_")) delete gitEnvironment[key];
-    }
+    const gitEnvironment = buildClerkProductionGitEnvironment();
     const canonicalRepositoryRoot = realpathSync(repositoryRoot);
     const topLevel = execFileSync("/usr/bin/git", ["rev-parse", "--show-toplevel"], {
       cwd: canonicalRepositoryRoot,
@@ -272,6 +289,25 @@ export function readClerkProductionHumanSourceSnapshot(
       },
     );
     return { clean: status === "", gitSha };
+  } catch {
+    throw new Error(PRODUCTION_HUMAN_INPUT_ERROR);
+  }
+}
+
+export function readClerkProductionGitCommonDirectory(repositoryRoot: string) {
+  try {
+    const canonicalRepositoryRoot = realpathSync(repositoryRoot);
+    const gitCommonDirectory = execFileSync(
+      "/usr/bin/git",
+      ["rev-parse", "--git-common-dir"],
+      {
+        cwd: canonicalRepositoryRoot,
+        encoding: "utf8",
+        env: buildClerkProductionGitEnvironment(),
+        stdio: ["ignore", "pipe", "ignore"],
+      },
+    ).trim();
+    return realpathSync(resolve(canonicalRepositoryRoot, gitCommonDirectory));
   } catch {
     throw new Error(PRODUCTION_HUMAN_INPUT_ERROR);
   }
