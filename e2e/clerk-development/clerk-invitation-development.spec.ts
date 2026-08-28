@@ -29,9 +29,11 @@ import {
   getClerkDevelopmentKeyPair,
   getVercelHostedProtectionBypass,
   installClerkTestingLogRedaction,
+  isCompatibleClerkInvitationSignUpRuntime,
   isExactClerkPasswordSubmissionRequest,
   isExactClerkInvitationSignUpRedirect,
   isExactClerkTicketSignUpRequest,
+  isReadyClerkInvitationPasswordRuntime,
   retryClerkIdempotentMutation,
 } from "./clerk-development-config";
 
@@ -44,6 +46,15 @@ const APPROVED_INVITATION_METADATA = Object.freeze({
 
 const INVITATION_STATUSES = ["pending", "accepted", "revoked", "expired"] as const;
 const CLERK_BROWSER_BOOT_TIMEOUT_MS = 90_000;
+const AUTHORIZED_INVITATION_BASELINE = Object.freeze({
+  invitations: Object.freeze({
+    accepted: 0,
+    expired: 0,
+    pending: 0,
+    revoked: 4,
+  }),
+  users: 0,
+});
 
 type InvitationStatus = (typeof INVITATION_STATUSES)[number];
 type ClerkClient = ReturnType<typeof createClerkClient>;
@@ -580,6 +591,10 @@ test("an explicitly authorized Development invitation is accepted through SignUp
       () => client.users.getCount(),
     );
     cleanupState.baselineInvitationCounts = await readInvitationStatusCounts(client);
+    expect({
+      invitations: cleanupState.baselineInvitationCounts,
+      users: cleanupState.baselineUserCount,
+    }).toEqual(AUTHORIZED_INVITATION_BASELINE);
     expect(await readExactUsers(client, invitationEmail)).toEqual([]);
     expect(await readExactInvitations(client, invitationEmail)).toEqual([]);
 
@@ -728,49 +743,60 @@ test("an explicitly authorized Development invitation is accepted through SignUp
       throw new Error("invitation ticket redirect boundary mismatch");
     }
 
-    stage = "invitation SignUp runtime";
+    stage = "invitation SignUp Clerk loaded";
     await clerk.loaded({ page });
+    stage = "invitation SignUp app marker";
     await expect(page.locator('[data-clerk-invitation-entry="ticket-present"]')).toBeVisible();
     const signUpRoot = page.locator(".cl-signUp-root");
+    stage = "invitation SignUp widget root";
     await expect(signUpRoot).toBeVisible({ timeout: CLERK_BROWSER_BOOT_TIMEOUT_MS });
-    await expect.poll(() => page.evaluate(
-      (expectedEmail) => {
-        const runtime = (window as Window & {
-          Clerk?: {
-            client?: {
-              signUp?: {
-                emailAddress?: string | null;
-                hasPassword?: boolean;
-                missingFields?: string[];
-                status?: string | null;
-              };
-            };
-            frontendApi?: string;
-          };
-        }).Clerk;
-        return {
-          emailMatches: runtime?.client?.signUp?.emailAddress === expectedEmail,
-          hasPassword: runtime?.client?.signUp?.hasPassword ?? null,
-          missingFields: [...(runtime?.client?.signUp?.missingFields ?? [])].sort(),
-          runtimeAvailable: Boolean(runtime),
-          status: runtime?.client?.signUp?.status ?? "unavailable",
-        };
-      },
-      invitationEmail,
-    ), {
-      intervals: [250, 500, 1_000, 2_000],
-      timeout: CLERK_BROWSER_BOOT_TIMEOUT_MS,
-    }).toEqual({
-      emailMatches: true,
-      hasPassword: false,
-      missingFields: ["password"],
-      runtimeAvailable: true,
-      status: "missing_requirements",
-    });
+    stage = "invitation SignUp ticket request";
     await expect.poll(() => ticketStrategyObserved, {
       intervals: [250, 500, 1_000],
       timeout: 10_000,
     }).toBe(true);
+    const readInvitationSignUpRuntimeState = () => page.evaluate(() => {
+      const signUp = (window as Window & {
+        Clerk?: {
+          client?: {
+            signUp?: {
+              emailAddress?: string | null;
+              hasPassword?: boolean;
+              missingFields?: string[];
+              protectCheck?: { status?: string } | null;
+              status?: string | null;
+            };
+          };
+        };
+      }).Clerk?.client?.signUp;
+      return {
+        emailAddress: signUp?.emailAddress ?? null,
+        hasPassword: signUp?.hasPassword ?? null,
+        missingFields: [...(signUp?.missingFields ?? [])],
+        protectCheckPending: signUp?.protectCheck?.status === "pending",
+        status: signUp?.status ?? null,
+      };
+    });
+    stage = "invitation SignUp runtime state";
+    await expect.poll(async () => isCompatibleClerkInvitationSignUpRuntime(
+      await readInvitationSignUpRuntimeState(),
+      invitationEmail,
+    ), {
+      intervals: [250, 500, 1_000, 2_000],
+      timeout: CLERK_BROWSER_BOOT_TIMEOUT_MS,
+    }).toBe(true);
+    const passwordInput = signUpRoot.locator('input[name="password"]:visible');
+    stage = "invitation SignUp password input";
+    await expect(passwordInput).toBeVisible({ timeout: CLERK_BROWSER_BOOT_TIMEOUT_MS });
+    stage = "invitation SignUp password runtime ready";
+    await expect.poll(async () => isReadyClerkInvitationPasswordRuntime(
+      await readInvitationSignUpRuntimeState(),
+      invitationEmail,
+    ), {
+      intervals: [250, 500, 1_000, 2_000],
+      timeout: CLERK_BROWSER_BOOT_TIMEOUT_MS,
+    }).toBe(true);
+    stage = "invitation SignUp FAPI binding";
     expect(await page.evaluate(
       (expectedHost) => (window as Window & {
         Clerk?: { frontendApi?: string };
@@ -798,7 +824,6 @@ test("an explicitly authorized Development invitation is accepted through SignUp
     if (await firstNameInput.count()) await firstNameInput.fill("Synthetic");
     const lastNameInput = signUpRoot.locator('input[name="lastName"]:visible');
     if (await lastNameInput.count()) await lastNameInput.fill("Invitation");
-    const passwordInput = signUpRoot.locator('input[name="password"]:visible');
     await expect(passwordInput).toHaveCount(1);
     await passwordInput.fill(temporaryPassword);
 

@@ -19,9 +19,11 @@ import {
   getClerkDevelopmentE2ETarget,
   getClerkDevelopmentE2ESuite,
   installClerkTestingLogRedaction,
+  isCompatibleClerkInvitationSignUpRuntime,
   isExactClerkPasswordSubmissionRequest,
   isExactClerkInvitationSignUpRedirect,
   isExactClerkTicketSignUpRequest,
+  isReadyClerkInvitationPasswordRuntime,
   isRetryableClerkIdempotentMutationError,
   getVercelHostedProtectionBypass,
   recoverClerkExactUserDuringCreationUncertainty,
@@ -313,6 +315,77 @@ describe("Clerk Development E2E configuration", () => {
       clerkFrontendFormRequest({ body: body.replace(encodeURIComponent(ticket), "wrong"), url }),
     ]) {
       assert.equal(isExactClerkTicketSignUpRequest(request, expected), false);
+    }
+  });
+
+  it("accepts only a password-pending invitation runtime with optional Clerk Protect", () => {
+    const expectedEmail = "synthetic+clerk_test@example.com";
+    const base = {
+      emailAddress: expectedEmail,
+      hasPassword: false,
+      status: "missing_requirements",
+    } as const;
+    for (const missingFields of [
+      ["password"],
+      ["protect_check", "password"],
+    ]) {
+      assert.equal(isCompatibleClerkInvitationSignUpRuntime(
+        { ...base, missingFields },
+        expectedEmail,
+      ), true);
+    }
+
+    for (const snapshot of [
+      { ...base, missingFields: [] },
+      { ...base, missingFields: ["protect_check"] },
+      { ...base, missingFields: ["password", "password"] },
+      { ...base, missingFields: ["password", "first_name"] },
+      { ...base, emailAddress: "wrong@example.com", missingFields: ["password"] },
+      { ...base, hasPassword: true, missingFields: ["password"] },
+      { ...base, status: "complete", missingFields: ["password"] },
+      {},
+    ]) {
+      assert.equal(isCompatibleClerkInvitationSignUpRuntime(
+        snapshot,
+        expectedEmail,
+      ), false);
+    }
+  });
+
+  it("does not unlock password entry while Clerk Protect is pending", () => {
+    const expectedEmail = "synthetic+clerk_test@example.com";
+    const base = {
+      emailAddress: expectedEmail,
+      hasPassword: false,
+      status: "missing_requirements",
+    } as const;
+    assert.equal(isReadyClerkInvitationPasswordRuntime({
+      ...base,
+      missingFields: ["password"],
+      protectCheckPending: false,
+    }, expectedEmail), true);
+
+    for (const snapshot of [
+      {
+        ...base,
+        missingFields: ["password", "protect_check"],
+        protectCheckPending: true,
+      },
+      {
+        ...base,
+        missingFields: ["password"],
+        protectCheckPending: true,
+      },
+      {
+        ...base,
+        missingFields: ["password", "protect_check"],
+        protectCheckPending: false,
+      },
+    ]) {
+      assert.equal(isReadyClerkInvitationPasswordRuntime(
+        snapshot,
+        expectedEmail,
+      ), false);
     }
   });
 

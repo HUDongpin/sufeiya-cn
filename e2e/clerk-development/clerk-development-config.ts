@@ -192,6 +192,40 @@ export function isExactClerkTicketSignUpRequest(
     && form.get("ticket") === expected.ticket;
 }
 
+export function isCompatibleClerkInvitationSignUpRuntime(
+  snapshot: Readonly<{
+    emailAddress?: string | null;
+    hasPassword?: boolean | null;
+    missingFields?: readonly string[] | null;
+    status?: string | null;
+  }>,
+  expectedEmail: string,
+) {
+  const missingFields = snapshot.missingFields ?? [];
+  return snapshot.emailAddress === expectedEmail
+    && snapshot.hasPassword === false
+    && snapshot.status === "missing_requirements"
+    && missingFields.includes("password")
+    && new Set(missingFields).size === missingFields.length
+    && missingFields.every((field) => field === "password" || field === "protect_check");
+}
+
+export function isReadyClerkInvitationPasswordRuntime(
+  snapshot: Readonly<{
+    emailAddress?: string | null;
+    hasPassword?: boolean | null;
+    missingFields?: readonly string[] | null;
+    protectCheckPending?: boolean | null;
+    status?: string | null;
+  }>,
+  expectedEmail: string,
+) {
+  return isCompatibleClerkInvitationSignUpRuntime(snapshot, expectedEmail)
+    && snapshot.protectCheckPending === false
+    && snapshot.missingFields?.length === 1
+    && snapshot.missingFields[0] === "password";
+}
+
 export function isExactClerkInvitationSignUpRedirect(
   candidate: URL,
   expectedApplicationOrigin: string,
