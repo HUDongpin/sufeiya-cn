@@ -10,11 +10,19 @@ import {
   CLERK_E2E_API_URL,
   CLERK_E2E_API_VERSION,
   getClerkDevelopmentE2ETarget,
+  getClerkDevelopmentE2ESuite,
   getClerkDevelopmentKeyPair,
 } from "./e2e/clerk-development/clerk-development-config";
 
+// Playwright 1.62 otherwise captures an ARIA page snapshot in error-context.md.
+// Disable that page artifact for this credential-bearing E2E, including when a
+// browser failure prevents the explicit about:blank/close cleanup from landing.
+process.env.PLAYWRIGHT_NO_COPY_PROMPT = "1";
+
 const repositoryRoot = fileURLToPath(new URL(".", import.meta.url));
 const localEnvironmentPath = fileURLToPath(new URL(".env.local", import.meta.url));
+const suite = getClerkDevelopmentE2ESuite();
+const invitationAcceptanceSuite = suite === "invitation-acceptance";
 if (existsSync(localEnvironmentPath)) process.loadEnvFile(localEnvironmentPath);
 
 const runtimeState = globalThis as typeof globalThis & {
@@ -62,7 +70,9 @@ export default defineConfig({
   expect: { timeout: 20_000 },
   forbidOnly: true,
   fullyParallel: false,
-  outputDir: "output/playwright/clerk-development-e2e",
+  outputDir: invitationAcceptanceSuite
+    ? "output/playwright/clerk-invitation-development-e2e"
+    : "output/playwright/clerk-development-e2e",
   preserveOutput: "failures-only",
   reporter: [["line"]],
   retries: 0,
@@ -70,7 +80,9 @@ export default defineConfig({
   // The authenticated happy path deliberately waits through the real Gate A
   // 20 + 90 second Speaking clock and 180 second Writing clock. The 15-minute
   // ceiling leaves bounded room for those 290 seconds plus Clerk and backup I/O.
-  timeout: 900_000,
+  // Invitation acceptance is isolated from that long path so one persistent
+  // invitation record is not coupled to unrelated learning timers.
+  timeout: invitationAcceptanceSuite ? 600_000 : 900_000,
   workers: 1,
   webServer: target.hosted ? undefined : {
     command: `npm run start -- --hostname localhost --port ${requestedPort}`,
@@ -85,7 +97,7 @@ export default defineConfig({
     actionTimeout: 20_000,
     baseURL: target.baseURL,
     locale: "zh-CN",
-    screenshot: "only-on-failure",
+    screenshot: "off",
     trace: "off",
     video: "off",
   },
@@ -95,9 +107,13 @@ export default defineConfig({
       testMatch: /global\.setup\.ts/,
     },
     {
-      name: "clerk-development-smoke",
+      name: invitationAcceptanceSuite
+        ? "clerk-invitation-development-acceptance"
+        : "clerk-development-smoke",
       dependencies: ["clerk-development-setup"],
-      testMatch: /clerk-development\.spec\.ts/,
+      testMatch: invitationAcceptanceSuite
+        ? /clerk-invitation-development\.spec\.ts/
+        : /clerk-development\.spec\.ts/,
       use: { ...devices["Desktop Chrome"], channel: "chrome" },
     },
   ],

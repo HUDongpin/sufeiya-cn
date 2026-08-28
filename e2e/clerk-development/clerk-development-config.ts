@@ -15,8 +15,10 @@ type ClerkDevelopmentEnvironment = {
   SUFEIYA_CLERK_E2E_BASE_URL?: string;
   SUFEIYA_CLERK_E2E_PORT?: string;
   SUFEIYA_CLERK_E2E_RUN_ID?: string;
+  SUFEIYA_CLERK_E2E_SUITE?: string;
   SUFEIYA_CLERK_E2E_SETUP_ATTESTATION?: string;
   SUFEIYA_CLERK_E2E_SETUP_ISSUED_AT?: string;
+  SUFEIYA_CLERK_INVITATION_E2E_ACK?: string;
   SUFEIYA_VERCEL_PROTECTION_BYPASS?: string;
 };
 
@@ -37,6 +39,17 @@ export type ClerkDevelopmentE2ETarget = Readonly<{
   readinessURL: string | null;
 }>;
 
+export type ClerkDevelopmentE2ESuite =
+  | "credential-smoke"
+  | "invitation-acceptance";
+
+type ClerkFrontendFormRequest = Readonly<{
+  headers(): Record<string, string>;
+  method(): string;
+  postData(): string | null;
+  url(): string;
+}>;
+
 const VERCEL_PROTECTION_BYPASS_ERROR =
   "The Vercel protection bypass must be an explicit URL-safe secret used only with a hosted Vercel target.";
 
@@ -55,6 +68,15 @@ const CLERK_TESTING_BOOTSTRAP_ERROR =
 const CLERK_TESTING_HANDOFF_ERROR =
   "Clerk Development E2E requires the verified project-based setup handoff before any user operation.";
 
+const CLERK_E2E_SUITE_ERROR =
+  "Clerk Development E2E only accepts an explicitly selected known suite.";
+
+const CLERK_INVITATION_E2E_AUTHORIZATION_ERROR =
+  "Clerk Development invitation acceptance requires the exact persistent-history acknowledgement.";
+
+const CLERK_INVITATION_ENVIRONMENT_ERROR =
+  "Clerk Development invitation E2E refused incompatible public Frontend API settings before invitation creation.";
+
 const CLERK_IDEMPOTENT_MUTATION_RETRY_DELAYS_MS = [1_000, 2_500] as const;
 const CLERK_IDEMPOTENT_MUTATION_MAX_RETRY_AFTER_MS = 10_000;
 const CLERK_EXACT_DELETION_ABSENCE_POLL_DELAYS_MS = [0, 1_000, 2_500, 5_000] as const;
@@ -64,6 +86,288 @@ const CLERK_NETWORK_FAILURE_PATTERN =
 
 export const CLERK_E2E_API_URL = "https://api.clerk.com";
 export const CLERK_E2E_API_VERSION = "v1";
+export const CLERK_INVITATION_E2E_PERSISTENT_HISTORY_ACK =
+  "I_ACCEPT_ONE_PERSISTENT_CLERK_DEVELOPMENT_INVITATION_HISTORY_USING_SYNTHETIC_EXAMPLE_DOT_COM";
+
+export function getClerkDevelopmentE2ESuite(
+  environment: ClerkDevelopmentEnvironment = process.env,
+): ClerkDevelopmentE2ESuite {
+  const configuredSuite = environment.SUFEIYA_CLERK_E2E_SUITE;
+  const acknowledgement = environment.SUFEIYA_CLERK_INVITATION_E2E_ACK;
+  if (
+    configuredSuite === undefined
+    || configuredSuite === "credential-smoke"
+  ) {
+    if (acknowledgement !== undefined && acknowledgement !== "") {
+      throw new Error(CLERK_INVITATION_E2E_AUTHORIZATION_ERROR);
+    }
+    return "credential-smoke";
+  }
+  if (configuredSuite !== "invitation-acceptance") {
+    throw new Error(CLERK_E2E_SUITE_ERROR);
+  }
+  if (acknowledgement !== CLERK_INVITATION_E2E_PERSISTENT_HISTORY_ACK) {
+    throw new Error(CLERK_INVITATION_E2E_AUTHORIZATION_ERROR);
+  }
+  return "invitation-acceptance";
+}
+
+export function buildClerkDevelopmentSyntheticInvitationEmail(runId: string) {
+  if (
+    runId !== runId.trim()
+    || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(runId)
+  ) {
+    throw new Error("Clerk Development invitation E2E requires a current UUID run marker.");
+  }
+  return `sufeiya-invitation-${runId.replaceAll("-", "")}+clerk_test@example.com`;
+}
+
+export function isExactClerkPasswordSubmissionRequest(
+  request: ClerkFrontendFormRequest,
+  expected: Readonly<{
+    frontendApiHost: string;
+    identifier: string;
+    password: string;
+  }>,
+) {
+  let requestUrl: URL;
+  try {
+    requestUrl = new URL(request.url());
+  } catch {
+    return false;
+  }
+  const contentType = request.headers()["content-type"] ?? "";
+  const form = new URLSearchParams(request.postData() ?? "");
+  const pathSegments = requestUrl.pathname.split("/").filter(Boolean);
+  const exactInstantPasswordCreate = requestUrl.pathname === "/v1/client/sign_ins"
+    && form.getAll("identifier").length === 1
+    && form.get("identifier") === expected.identifier;
+  const exactTwoStepPasswordAttempt = pathSegments.length === 5
+    && pathSegments[0] === "v1"
+    && pathSegments[1] === "client"
+    && pathSegments[2] === "sign_ins"
+    && /^sia_[A-Za-z0-9_-]{1,249}$/.test(pathSegments[3] ?? "")
+    && pathSegments[4] === "attempt_first_factor"
+    && form.getAll("identifier").length === 0;
+  return request.method() === "POST"
+    && requestUrl.protocol === "https:"
+    && requestUrl.host === expected.frontendApiHost
+    && !requestUrl.username
+    && !requestUrl.password
+    && !requestUrl.hash
+    && /^application\/x-www-form-urlencoded(?:;|$)/i.test(contentType)
+    && form.getAll("strategy").length === 1
+    && form.get("strategy") === "password"
+    && form.getAll("password").length === 1
+    && form.get("password") === expected.password
+    && (exactInstantPasswordCreate || exactTwoStepPasswordAttempt);
+}
+
+export function isExactClerkTicketSignUpRequest(
+  request: ClerkFrontendFormRequest,
+  expected: Readonly<{
+    frontendApiHost: string;
+    ticket: string;
+  }>,
+) {
+  let requestUrl: URL;
+  try {
+    requestUrl = new URL(request.url());
+  } catch {
+    return false;
+  }
+  const contentType = request.headers()["content-type"] ?? "";
+  const form = new URLSearchParams(request.postData() ?? "");
+  return request.method() === "POST"
+    && requestUrl.protocol === "https:"
+    && requestUrl.host === expected.frontendApiHost
+    && requestUrl.pathname === "/v1/client/sign_ups"
+    && !requestUrl.username
+    && !requestUrl.password
+    && !requestUrl.hash
+    && /^application\/x-www-form-urlencoded(?:;|$)/i.test(contentType)
+    && form.getAll("strategy").length === 1
+    && form.get("strategy") === "ticket"
+    && form.getAll("ticket").length === 1
+    && form.get("ticket") === expected.ticket;
+}
+
+export function isCompatibleClerkInvitationSignUpRuntime(
+  snapshot: Readonly<{
+    emailAddress?: string | null;
+    hasPassword?: boolean | null;
+    missingFields?: readonly string[] | null;
+    status?: string | null;
+  }>,
+  expectedEmail: string,
+) {
+  const missingFields = snapshot.missingFields ?? [];
+  return snapshot.emailAddress === expectedEmail
+    && snapshot.hasPassword === false
+    && snapshot.status === "missing_requirements"
+    && missingFields.includes("password")
+    && new Set(missingFields).size === missingFields.length
+    && missingFields.every((field) => field === "password" || field === "protect_check");
+}
+
+export function isReadyClerkInvitationPasswordRuntime(
+  snapshot: Readonly<{
+    emailAddress?: string | null;
+    hasPassword?: boolean | null;
+    missingFields?: readonly string[] | null;
+    protectCheckPending?: boolean | null;
+    status?: string | null;
+  }>,
+  expectedEmail: string,
+) {
+  return isCompatibleClerkInvitationSignUpRuntime(snapshot, expectedEmail)
+    && snapshot.protectCheckPending === false
+    && snapshot.missingFields?.length === 1
+    && snapshot.missingFields[0] === "password";
+}
+
+export function isExactClerkInvitationSignUpRedirect(
+  candidate: URL,
+  expectedApplicationOrigin: string,
+  expectedTicket: string,
+) {
+  let canonicalExpectedOrigin: string;
+  try {
+    const expectedOriginUrl = new URL(expectedApplicationOrigin);
+    canonicalExpectedOrigin = expectedOriginUrl.origin;
+    if (expectedApplicationOrigin !== canonicalExpectedOrigin) return false;
+  } catch {
+    return false;
+  }
+
+  const ticketValues = candidate.searchParams.getAll("__clerk_ticket");
+  const statusValues = candidate.searchParams.getAll("__clerk_status");
+  const queryKeys = [...candidate.searchParams.keys()].sort().join(",");
+  const hasDocumentedTicketOnlyContract = queryKeys === "__clerk_ticket"
+    && statusValues.length === 0;
+  const hasObservedSignUpStatusContract = queryKeys === "__clerk_status,__clerk_ticket"
+    && statusValues.length === 1
+    && statusValues[0] === "sign_up";
+  return candidate.origin === canonicalExpectedOrigin
+    && candidate.pathname === "/sign-up"
+    && !candidate.username
+    && !candidate.password
+    && !candidate.hash
+    && ticketValues.length === 1
+    && ticketValues[0] === expectedTicket
+    && (hasDocumentedTicketOnlyContract || hasObservedSignUpStatusContract);
+}
+
+function clerkEnvironmentRecord(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function clerkStringArray(value: unknown): readonly string[] | null {
+  return Array.isArray(value) && value.every((item) => typeof item === "string")
+    ? value
+    : null;
+}
+
+export function assertCompatibleClerkInvitationEnvironment(
+  snapshot: unknown,
+  temporaryPassword: string,
+) {
+  const environment = clerkEnvironmentRecord(snapshot);
+  const authConfig = clerkEnvironmentRecord(environment?.auth_config);
+  const displayConfig = clerkEnvironmentRecord(environment?.display_config);
+  const userSettings = clerkEnvironmentRecord(environment?.user_settings);
+  const signUpSettings = clerkEnvironmentRecord(userSettings?.sign_up);
+  const mfaSettings = clerkEnvironmentRecord(signUpSettings?.mfa);
+  const attributes = clerkEnvironmentRecord(userSettings?.attributes);
+  const emailAttribute = clerkEnvironmentRecord(attributes?.email_address);
+  const passwordAttribute = clerkEnvironmentRecord(attributes?.password);
+  const usernameAttribute = clerkEnvironmentRecord(attributes?.username);
+  const phoneAttribute = clerkEnvironmentRecord(attributes?.phone_number);
+  const firstNameAttribute = clerkEnvironmentRecord(attributes?.first_name);
+  const lastNameAttribute = clerkEnvironmentRecord(attributes?.last_name);
+  const passwordSettings = clerkEnvironmentRecord(userSettings?.password_settings);
+  const restrictions = clerkEnvironmentRecord(userSettings?.restrictions);
+  const allowlist = clerkEnvironmentRecord(restrictions?.allowlist);
+  const blocklist = clerkEnvironmentRecord(restrictions?.blocklist);
+  const blockSubaddresses = clerkEnvironmentRecord(restrictions?.block_email_subaddresses);
+  const firstFactors = clerkStringArray(authConfig?.first_factors);
+  const secondFactors = clerkStringArray(authConfig?.second_factors);
+  const emailVerificationStrategies = clerkStringArray(
+    authConfig?.email_address_verification_strategies,
+  );
+  const emailVerifications = clerkStringArray(emailAttribute?.verifications);
+  const minimumPasswordLength = passwordSettings?.min_length;
+  const maximumPasswordLength = passwordSettings?.max_length;
+  const allowedSpecialCharacters = passwordSettings?.allowed_special_characters;
+  const temporarySpecialCharacters = [...temporaryPassword].filter(
+    (character) => !/[A-Za-z0-9]/.test(character),
+  );
+
+  if (
+    displayConfig?.instance_environment_type !== "development"
+    || displayConfig.clerk_js_version !== "6"
+    || authConfig?.test_mode !== true
+    || authConfig.email_address !== "on"
+    || authConfig.password !== "required"
+    || authConfig.username !== "off"
+    || authConfig.phone_number !== "off"
+    || authConfig.first_name !== "off"
+    || authConfig.last_name !== "off"
+    || firstFactors === null
+    || !firstFactors.includes("ticket")
+    || !firstFactors.includes("password")
+    || secondFactors === null
+    || secondFactors.length !== 0
+    || emailVerificationStrategies === null
+    || emailVerificationStrategies.length !== 1
+    || emailVerificationStrategies[0] !== "email_code"
+    || signUpSettings?.mode !== "public"
+    || signUpSettings.progressive !== true
+    || signUpSettings.custom_action_required !== false
+    || signUpSettings.legal_consent_enabled !== false
+    || mfaSettings?.required !== false
+    || emailAttribute?.enabled !== true
+    || emailAttribute.required !== true
+    || emailAttribute.verify_at_sign_up !== true
+    || emailVerifications === null
+    || emailVerifications.length !== 1
+    || emailVerifications[0] !== "email_code"
+    || passwordAttribute?.enabled !== true
+    || passwordAttribute.required !== true
+    || usernameAttribute?.enabled !== false
+    || usernameAttribute.required !== false
+    || phoneAttribute?.enabled !== false
+    || phoneAttribute.required !== false
+    || firstNameAttribute?.enabled !== false
+    || firstNameAttribute.required !== false
+    || lastNameAttribute?.enabled !== false
+    || lastNameAttribute.required !== false
+    || allowlist?.enabled !== false
+    || blocklist?.enabled !== false
+    || blockSubaddresses?.enabled !== false
+    || typeof minimumPasswordLength !== "number"
+    || !Number.isSafeInteger(minimumPasswordLength)
+    || minimumPasswordLength < 1
+    || temporaryPassword.length < minimumPasswordLength
+    || typeof maximumPasswordLength !== "number"
+    || !Number.isSafeInteger(maximumPasswordLength)
+    || maximumPasswordLength < 0
+    || (maximumPasswordLength !== 0 && temporaryPassword.length > maximumPasswordLength)
+    || typeof allowedSpecialCharacters !== "string"
+    || temporarySpecialCharacters.some(
+      (character) => !allowedSpecialCharacters.includes(character),
+    )
+    || !/[A-Z]/.test(temporaryPassword)
+    || !/[a-z]/.test(temporaryPassword)
+    || !/[0-9]/.test(temporaryPassword)
+    || !/[^A-Za-z0-9]/.test(temporaryPassword)
+    || /\s/.test(temporaryPassword)
+  ) {
+    throw new Error(CLERK_INVITATION_ENVIRONMENT_ERROR);
+  }
+}
 
 function isClerkNetworkFailure(error: Error) {
   return error.name === "AbortError" || CLERK_NETWORK_FAILURE_PATTERN.test(error.message);

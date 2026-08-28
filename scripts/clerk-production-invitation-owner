@@ -1,0 +1,191 @@
+#!/bin/zsh -f
+
+emulate -LR zsh
+setopt NO_UNSET PIPE_FAIL
+umask 077
+
+readonly FAILURE_MESSAGE='[Clerk Production invitation launcher] FAIL_REDACTED_BEFORE_SENSITIVE_INPUT'
+readonly SUCCESS_MESSAGE='[Clerk Production invitation launcher] PASS_LAUNCH_BOUNDARY_NO_SENSITIVE_INPUT; stage=complete'
+readonly EXPECTED_NODE_SHA256='ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a'
+readonly EXPECTED_RUNTIME_SHA256='980aa0221af62f7ba90b91e916f51d7fd8f778a0d94d27a395fedccea290929d'
+typeset failure_stage='invocation'
+
+fail_closed() {
+  print -ru2 -- "$FAILURE_MESSAGE; stage=$failure_stage"
+  exit 1
+}
+
+[[ $# -eq 1 ]] || fail_closed
+readonly mode="$1"
+[[ "$mode" == preflight || "$mode" == execute || "$mode" == status \
+  || "$mode" == launch-check ]] || fail_closed
+
+readonly launcher_path="${0:A}"
+readonly scripts_directory="${launcher_path:h}"
+readonly repository_root="${scripts_directory:h}"
+readonly runtime_path="${scripts_directory}/clerk-production-invitation-owner.mjs"
+
+failure_stage='runtime_path'
+[[ -f "$runtime_path" && ! -L "$runtime_path" ]] || fail_closed
+
+readonly -a allowed_owner_variables=(
+  SUFEIYA_CLERK_PRODUCTION_AUTHORIZATION_RUN_ID
+  SUFEIYA_CLERK_PRODUCTION_DEPLOYMENT_GIT_SHA
+  SUFEIYA_CLERK_PRODUCTION_DEPLOYMENT_ID
+  SUFEIYA_CLERK_PRODUCTION_HELPER_SOURCE_GIT_SHA
+  SUFEIYA_CLERK_PRODUCTION_INVITATION_CREATE_ACK
+  SUFEIYA_CLERK_PRODUCTION_PROVIDER_BASELINE_COMMITMENT
+  SUFEIYA_CLERK_PRODUCTION_RECIPIENT_COMMITMENT
+)
+
+failure_stage='ambient_environment'
+for environment_name in ${(k)parameters}; do
+  [[ "${(tP)environment_name}" == *-export* ]] || continue
+  [[ -n "${(P)environment_name}" ]] || continue
+  case "$environment_name" in
+    SUFEIYA_CLERK_PRODUCTION_AUTHORIZATION_RUN_ID|\
+    SUFEIYA_CLERK_PRODUCTION_DEPLOYMENT_GIT_SHA|\
+    SUFEIYA_CLERK_PRODUCTION_DEPLOYMENT_ID|\
+    SUFEIYA_CLERK_PRODUCTION_HELPER_SOURCE_GIT_SHA|\
+    SUFEIYA_CLERK_PRODUCTION_INVITATION_CREATE_ACK|\
+    SUFEIYA_CLERK_PRODUCTION_PROVIDER_BASELINE_COMMITMENT|\
+    SUFEIYA_CLERK_PRODUCTION_RECIPIENT_COMMITMENT)
+      ;;
+    CLERK_*|NEXT_PUBLIC_CLERK_*|SUFEIYA_CLERK_*|GIT_*|TSX_*|npm_*|NPM_*|\
+    DYLD_*|LD_*|BASH_ENV|ENV|ZDOTDIR|FPATH|NODE_OPTIONS|NODE_PATH|NODE_DEBUG|\
+    NODE_DEBUG_NATIVE|NODE_EXTRA_CA_CERTS|NODE_TLS_REJECT_UNAUTHORIZED|\
+    NODE_USE_ENV_PROXY|ALL_PROXY|HTTP_PROXY|HTTPS_PROXY|NO_PROXY|all_proxy|\
+    http_proxy|https_proxy|no_proxy|OPENSSL_CONF|SSL_CERT_DIR|SSL_CERT_FILE|\
+    SSLKEYLOGFILE|PERL5OPT|PERL5LIB|PERLLIB|DEBUG|DEBUG_FILE|CI|\
+    GITHUB_ACTIONS|VERCEL)
+      fail_closed
+      ;;
+  esac
+done
+
+failure_stage='node_resolution'
+readonly node_candidate="${commands[node]-}"
+[[ -n "$node_candidate" ]] || fail_closed
+readonly node_path="${node_candidate:A}"
+[[ -f "$node_path" && -x "$node_path" && ! -L "$node_path" ]] || fail_closed
+
+readonly -a base_environment=(
+  'LANG=C'
+  'LC_ALL=C'
+  'NODE_ENV=production'
+  'PATH=/usr/bin:/bin'
+)
+failure_stage='node_integrity'
+node_digest="$(
+  /usr/bin/env -i "${base_environment[@]}" \
+    /usr/bin/shasum -a 256 -- "$node_path" 2>/dev/null
+)" || fail_closed
+readonly node_digest
+[[ "${node_digest%% *}" == "$EXPECTED_NODE_SHA256" ]] || fail_closed
+failure_stage='runtime_integrity'
+runtime_digest="$(
+  /usr/bin/env -i "${base_environment[@]}" \
+    /usr/bin/shasum -a 256 -- "$runtime_path" 2>/dev/null
+)" || fail_closed
+readonly runtime_digest
+[[ "${runtime_digest%% *}" == "$EXPECTED_RUNTIME_SHA256" ]] || fail_closed
+
+ancestor_pid="$PPID"
+typeset -i ancestor_depth=0
+typeset -i system_terminal_seen=0
+readonly owner_uid="$EUID"
+while (( ancestor_pid > 1 && ancestor_depth < 32 )); do
+  failure_stage='ancestor_read'
+  ancestor_record="$(
+    /usr/bin/env -i "${base_environment[@]}" 'COLUMNS=1000' \
+      /bin/ps -ww -p "$ancestor_pid" \
+        -o uid= -o ppid= -o ucomm= -o comm= 2>/dev/null
+  )" || fail_closed
+  failure_stage='ancestor_shape'
+  typeset -a ancestor_fields=(${=ancestor_record})
+  (( ${#ancestor_fields} == 4 )) || fail_closed
+  failure_stage='ancestor_uid'
+  [[ "${ancestor_fields[1]}" == "$owner_uid" ]] || fail_closed
+  failure_stage='ancestor_allowlist'
+  case "${ancestor_fields[3]:l}:${ancestor_fields[4]}" in
+    codex:*|chatgpt:*|electron:*|code:*|code-insiders:*|cursor:*|\
+    windsurf:*|zed:*|xcode:*|idea:*|idea64:*|pycharm:*|pycharm64:*|\
+    webstorm:*|webstorm64:*|clion:*|clion64:*|goland:*|goland64:*|\
+    rubymine:*|rubymine64:*|rider:*|rider64:*|androidstudio:*|studio:*|\
+    devenv:*|node:*|nodejs:*|npm:*|npx:*|tsx:*|deno:*|bun:*)
+      fail_closed
+      ;;
+    terminal:/System/Applications/Utilities/Terminal.app/Contents/MacOS/Terminal)
+      (( system_terminal_seen == 0 )) || fail_closed
+      system_terminal_seen=1
+      ;;
+    zsh:/bin/zsh|bash:/bin/bash|sh:/bin/sh|tcsh:/bin/tcsh|\
+    csh:/bin/csh|login:/usr/bin/login)
+      (( system_terminal_seen == 0 )) || fail_closed
+      ;;
+    *)
+      fail_closed
+      ;;
+  esac
+  ancestor_pid="${ancestor_fields[2]}"
+  (( ancestor_depth += 1 ))
+done
+failure_stage='ancestor_completion'
+(( ancestor_pid <= 1 )) || fail_closed
+(( system_terminal_seen == 1 )) || fail_closed
+
+readonly -a git_environment=(
+  "${base_environment[@]}"
+  'GIT_CONFIG_GLOBAL=/dev/null'
+  'GIT_CONFIG_NOSYSTEM=1'
+  'GIT_OPTIONAL_LOCKS=0'
+)
+failure_stage='git_config_read'
+git_config_names="$(
+  /usr/bin/env -i "${git_environment[@]}" \
+    /usr/bin/git -C "$repository_root" config --local --name-only --list \
+    2>/dev/null
+)" || fail_closed
+failure_stage='git_config_allowlist'
+for git_config_name in ${(f)git_config_names}; do
+  case "${git_config_name:l}" in
+    core.fsmonitor|core.fsmonitorhookversion|core.hookspath|core.attributesfile|\
+    filter.*|diff.external|diff.*.textconv|include.*|includeif.*)
+      fail_closed
+      ;;
+  esac
+done
+failure_stage='git_top_level'
+git_top_level="$(
+  /usr/bin/env -i "${git_environment[@]}" \
+    /usr/bin/git -C "$repository_root" rev-parse --show-toplevel 2>/dev/null
+)" || fail_closed
+readonly git_top_level
+[[ "${git_top_level:A}" == "$repository_root" ]] || fail_closed
+failure_stage='git_status'
+git_status="$(
+  /usr/bin/env -i "${git_environment[@]}" \
+    /usr/bin/git -C "$repository_root" status --porcelain=v1 --untracked-files=all \
+    2>/dev/null
+)" || fail_closed
+readonly git_status
+[[ -z "$git_status" ]] || fail_closed
+
+if [[ "$mode" == launch-check ]]; then
+  print -r -- "$SUCCESS_MESSAGE"
+  exit 0
+fi
+
+typeset -a child_environment=(
+  "${base_environment[@]}"
+  'SUFEIYA_CLERK_PRODUCTION_INVITATION_LAUNCHER_ATTESTATION=sufeiya_clerk_production_invitation_clean_launcher_v1'
+)
+for environment_name in "${allowed_owner_variables[@]}"; do
+  (( ${+parameters[$environment_name]} )) || continue
+  [[ -n "${(P)environment_name}" ]] || continue
+  child_environment+=("${environment_name}=${(P)environment_name}")
+done
+
+failure_stage='runtime_exec'
+exec /usr/bin/env -i "${child_environment[@]}" \
+  "$node_path" "$runtime_path" "$mode" || fail_closed

@@ -15,6 +15,7 @@ export default defineConfig([
     "resources.js",
     "public/**",
     "scripts/generate-pages.mjs",
+    "scripts/clerk-production-invitation-owner.mjs",
     "scripts/serve.mjs",
   ]),
 ]);

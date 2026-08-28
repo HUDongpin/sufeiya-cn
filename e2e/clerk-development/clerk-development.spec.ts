@@ -24,6 +24,7 @@ import {
   getClerkDevelopmentKeyPair,
   getVercelHostedProtectionBypass,
   installClerkTestingLogRedaction,
+  isExactClerkPasswordSubmissionRequest,
   recoverClerkExactUserDuringCreationUncertainty,
   retryClerkIdempotentMutation,
 } from "./clerk-development-config";
@@ -186,12 +187,31 @@ type SmokeStage =
   | "authenticated Sofia landscape launcher"
   | "authenticated Sofia landscape dialog"
   | "Clerk sign-out"
+  | "Clerk sign-out session clearance"
   | "post-sign-out Sofia privacy"
-  | "post-sign-out route protection";
+  | "post-sign-out route navigation"
+  | "post-sign-out route redirect"
+  | "post-sign-out Clerk runtime"
+  | "post-sign-out Clerk UI"
+  | "password credential re-login identifier"
+  | "password credential re-login password"
+  | "password credential re-login outcome"
+  | "password credential re-login email-code preparation"
+  | "password credential re-login email-code verification"
+  | "password credential re-login session"
+  | "password credential re-login approved workspace"
+  | "password credential re-login local-data continuity"
+  | "password credential re-login sign-out"
+  | "password credential re-login sign-out session clearance"
+  | "post-password-relogin route navigation"
+  | "post-password-relogin route redirect"
+  | "post-password-relogin Clerk runtime"
+  | "post-password-relogin Clerk UI";
 
 type ClerkCleanupState = {
   baselineUserCount: number | null;
   client: ReturnType<typeof createClerkClient>;
+  credentialUiMayContainSecrets: boolean;
   creationAttempted: boolean;
   restoreClerkLogs: () => void;
   temporaryExternalId: string | null;
@@ -217,7 +237,28 @@ test.afterEach("remove the exact synthetic Development user", async ({ context }
 
   let cleanupFailure: Error | null = null;
   let cleanupPhase: ClerkCleanupPhase = "identity_recovery";
+  let credentialUiSanitizationFailure: Error | null = null;
   let contextTeardownFailure: Error | null = null;
+
+  if (cleanupState.credentialUiMayContainSecrets) {
+    for (let attempt = 0; attempt < 2 && context.pages().length > 0; attempt += 1) {
+      for (const openPage of context.pages()) {
+        await openPage.goto("about:blank", {
+          timeout: 5_000,
+          waitUntil: "commit",
+        }).catch(() => undefined);
+        await openPage.close().catch(() => undefined);
+      }
+    }
+    if (context.pages().length === 0) {
+      cleanupState.credentialUiMayContainSecrets = false;
+    } else {
+      credentialUiSanitizationFailure = new Error(
+        "Clerk Development credential UI sanitization failed without retaining identity details.",
+      );
+    }
+  }
+
   try {
     if (cleanupState.creationAttempted) {
       if (cleanupState.baselineUserCount === null || cleanupState.temporaryExternalId === null) {
@@ -331,14 +372,18 @@ test.afterEach("remove the exact synthetic Development user", async ({ context }
     cleanupState.restoreClerkLogs();
   }
 
-  if (cleanupFailure && contextTeardownFailure) {
+  const teardownFailures = [
+    credentialUiSanitizationFailure,
+    cleanupFailure,
+    contextTeardownFailure,
+  ].filter((failure): failure is Error => failure !== null);
+  if (teardownFailures.length > 1) {
     throw new AggregateError(
-      [cleanupFailure, contextTeardownFailure],
-      "Clerk Development cleanup and browser-context teardown both failed without identity details.",
+      teardownFailures,
+      "Clerk Development teardown failed in multiple phases without identity details.",
     );
   }
-  if (cleanupFailure) throw cleanupFailure;
-  if (contextTeardownFailure) throw contextTeardownFailure;
+  if (teardownFailures[0]) throw teardownFailures[0];
 });
 
 test("a temporary Development user can traverse the protected smoke path and is removed", async ({ page }) => {
@@ -363,6 +408,7 @@ test("a temporary Development user can traverse the protected smoke path and is 
   const cleanupState: ClerkCleanupState = {
     baselineUserCount: null,
     client,
+    credentialUiMayContainSecrets: false,
     creationAttempted: false,
     restoreClerkLogs,
     temporaryExternalId: null,
@@ -388,6 +434,55 @@ test("a temporary Development user can traverse the protected smoke path and is 
       intervals: [1_000, 2_000, 5_000, 10_000],
       timeout: 30_000,
     }).toBe("token_refreshed");
+  };
+  const expectClearedClerkBrowserSession = async () => {
+    await expect.poll(async () => page.evaluate(() => ({
+      runtimeLoaded: (window as Window & {
+        Clerk?: { loaded?: boolean };
+      }).Clerk?.loaded === true,
+      sessionIsNull: (window as Window & {
+        Clerk?: { session?: unknown | null };
+      }).Clerk?.session === null,
+      userIsNull: (window as Window & {
+        Clerk?: { user?: unknown | null };
+      }).Clerk?.user === null,
+    })), {
+      intervals: [250, 500, 1_000, 2_000],
+      timeout: 30_000,
+    }).toEqual({ runtimeLoaded: true, sessionIsNull: true, userIsNull: true });
+  };
+  const expectSignedOutWorkspaceBoundary = async (stages: {
+    clerkRuntime: SmokeStage;
+    clerkUI: SmokeStage;
+    navigation: SmokeStage;
+    redirect: SmokeStage;
+  }) => {
+    stage = stages.navigation;
+    await page.goto("/workspace", {
+      timeout: 30_000,
+      waitUntil: "domcontentloaded",
+    });
+    stage = stages.redirect;
+    await page.waitForURL((url) => url.pathname === "/sign-in", { timeout: 30_000 });
+
+    let boundaryReady = false;
+    for (let attempt = 0; attempt < 2 && !boundaryReady; attempt += 1) {
+      try {
+        stage = stages.clerkRuntime;
+        await clerk.loaded({ page });
+        stage = stages.clerkUI;
+        await page.locator(".cl-signIn-root").waitFor({ state: "visible", timeout: 30_000 });
+        boundaryReady = true;
+      } catch {
+        if (attempt === 0) {
+          stage = stages.clerkUI;
+          await page.reload({ timeout: 30_000, waitUntil: "domcontentloaded" });
+          stage = stages.redirect;
+          await page.waitForURL((url) => url.pathname === "/sign-in", { timeout: 30_000 });
+        }
+      }
+    }
+    expect(boundaryReady).toBe(true);
   };
 
   try {
@@ -635,7 +730,7 @@ test("a temporary Development user can traverse the protected smoke path and is 
     stage = "temporary synthetic identifier preflight";
     const uniqueSuffix = randomUUID().replaceAll("-", "");
     const temporaryEmail = `sufeiya-e2e+clerk_test_${uniqueSuffix}@example.com`;
-    const temporaryPassword = `S7!${randomBytes(24).toString("base64url")}`;
+    const temporaryPassword = `S7!a${randomBytes(24).toString("base64url")}`;
     cleanupState.temporaryExternalId = `sufeiya-clerk-e2e-${uniqueSuffix}`;
 
     if (
@@ -656,6 +751,15 @@ test("a temporary Development user can traverse the protected smoke path and is 
       privateMetadata: { sufeiyaSyntheticClerkE2E: true },
     });
     cleanupState.temporaryUserId = temporaryUser.id;
+    expect({
+      backupCodeEnabled: temporaryUser.backupCodeEnabled,
+      phoneNumberCount: temporaryUser.phoneNumbers.length,
+      totpEnabled: temporaryUser.totpEnabled,
+    }).toEqual({
+      backupCodeEnabled: false,
+      phoneNumberCount: 0,
+      totpEnabled: false,
+    });
 
     stage = "temporary synthetic user visibility";
     await expect.poll(async () => ({
@@ -3397,10 +3501,14 @@ test("a temporary Development user can traverse the protected smoke path and is 
     await expect(sofiaLauncher).toBeFocused();
     expect(superTeacherPosts).toEqual([]);
 
+    const namespaceRawBeforeCredentialRelogin = await readLocalNamespaces();
+
     stage = "Clerk sign-out";
     await page.goto("/", { waitUntil: "domcontentloaded" });
     await clerk.loaded({ page });
     await clerk.signOut({ page });
+    stage = "Clerk sign-out session clearance";
+    await expectClearedClerkBrowserSession();
 
     stage = "post-sign-out Sofia privacy";
     await page.addInitScript(
@@ -3442,11 +3550,218 @@ test("a temporary Development user can traverse the protected smoke path and is 
     expect(retainedLocalQuestion).toBe(sofiaQuestion);
     expect(superTeacherPosts).toEqual([]);
 
-    stage = "post-sign-out route protection";
-    await page.goto("/workspace", { waitUntil: "domcontentloaded" });
-    await page.waitForURL((url) => url.pathname === "/sign-in");
-    await expect(page.locator(".cl-signIn-root")).toBeVisible({
-      timeout: CLERK_BROWSER_BOOT_TIMEOUT_MS,
+    await expectSignedOutWorkspaceBoundary({
+      clerkRuntime: "post-sign-out Clerk runtime",
+      clerkUI: "post-sign-out Clerk UI",
+      navigation: "post-sign-out route navigation",
+      redirect: "post-sign-out route redirect",
+    });
+
+    cleanupState.credentialUiMayContainSecrets = true;
+    await page.goto("about:blank", { waitUntil: "commit" });
+    const credentialPage = await page.context().newPage();
+    const credentialSignInUrl = new URL("/sign-in", target.baseURL);
+    credentialSignInUrl.searchParams.set("redirect_url", `${target.baseURL}/workspace`);
+    const credentialSignInRoot = credentialPage.locator(".cl-signIn-root");
+    const credentialIdentifier = credentialSignInRoot.locator('input[name="identifier"]');
+    const credentialPassword = credentialSignInRoot.locator('input[name="password"]');
+    let passwordSubmissionObserved = false;
+    const recordPasswordSubmission = (request: PlaywrightRequest) => {
+      if (isExactClerkPasswordSubmissionRequest(request, {
+        frontendApiHost: keyPair.frontendApiHost,
+        identifier: temporaryEmail,
+        password: temporaryPassword,
+      })) {
+        passwordSubmissionObserved = true;
+      }
+    };
+    credentialPage.on("request", recordPasswordSubmission);
+    const responseUsesStrategy = (response: PlaywrightResponse, strategy: string) => {
+      const body = response.request().postData() ?? "";
+      try {
+        return (JSON.parse(body) as { strategy?: string }).strategy === strategy;
+      } catch {
+        return new URLSearchParams(body).get("strategy") === strategy;
+      }
+    };
+    const isExactEmailCodeFactorResponse = (
+      response: PlaywrightResponse,
+      endpoint: "prepare_second_factor" | "attempt_second_factor",
+    ) => {
+      const responseUrl = new URL(response.url());
+      const pathSegments = responseUrl.pathname.split("/").filter(Boolean);
+      return response.request().method() === "POST"
+        && responseUrl.protocol === "https:"
+        && responseUrl.host === keyPair.frontendApiHost
+        && pathSegments.length === 5
+        && pathSegments[0] === "v1"
+        && pathSegments[1] === "client"
+        && pathSegments[2] === "sign_ins"
+        && /^sia_[A-Za-z0-9_-]{1,249}$/.test(pathSegments[3] ?? "")
+        && pathSegments[4] === endpoint
+        && response.status() === 200
+        && responseUsesStrategy(response, "email_code");
+    };
+    try {
+      stage = "password credential re-login identifier";
+      await credentialPage.goto(credentialSignInUrl.toString(), {
+        waitUntil: "domcontentloaded",
+      });
+      await clerk.loaded({ page: credentialPage });
+      await expect(credentialSignInRoot).toBeVisible({
+        timeout: CLERK_BROWSER_BOOT_TIMEOUT_MS,
+      });
+      await expect(credentialIdentifier).toBeVisible();
+      await credentialIdentifier.fill(temporaryEmail);
+
+      if (!await credentialPassword.isVisible()) {
+        await credentialIdentifier.press("Enter");
+        await expect(credentialPassword).toBeVisible({
+          timeout: CLERK_BROWSER_BOOT_TIMEOUT_MS,
+        });
+      }
+
+      stage = "password credential re-login password";
+      await credentialPassword.fill(temporaryPassword);
+      const directCredentialSession = credentialPage.waitForFunction(() => Boolean(
+        (window as Window & { Clerk?: { session?: unknown } }).Clerk?.session,
+      ), undefined, {
+        timeout: CLERK_BROWSER_BOOT_TIMEOUT_MS,
+      }).then(() => "direct_session" as const);
+      const secondFactorPreparation = credentialPage.waitForResponse(
+        (response) => isExactEmailCodeFactorResponse(response, "prepare_second_factor"),
+        { timeout: CLERK_BROWSER_BOOT_TIMEOUT_MS },
+      ).then(() => "email_code" as const);
+      const credentialReloginOutcome = Promise.race([
+        directCredentialSession,
+        secondFactorPreparation,
+      ]);
+      void credentialReloginOutcome.catch(() => undefined);
+      await credentialPassword.press("Enter");
+      await expect.poll(() => passwordSubmissionObserved, {
+        intervals: [250, 500, 1_000],
+        timeout: 10_000,
+      }).toBe(true);
+
+      stage = "password credential re-login outcome";
+      const credentialReloginBranch = await credentialReloginOutcome;
+      if (credentialReloginBranch === "email_code") {
+        stage = "password credential re-login email-code preparation";
+        await expect(credentialPassword).not.toBeVisible({
+          timeout: CLERK_BROWSER_BOOT_TIMEOUT_MS,
+        });
+        await expect.poll(async () => credentialPage.evaluate(() => {
+          const signIn = (window as Window & {
+            Clerk?: {
+              client?: {
+                signIn?: {
+                  status?: string;
+                  supportedSecondFactors?: Array<{ strategy?: string }> | null;
+                };
+              };
+            };
+          }).Clerk?.client?.signIn;
+          return {
+            status: signIn?.status ?? "unavailable",
+            strategies: signIn?.supportedSecondFactors?.map(
+              (factor) => factor.strategy ?? "unknown",
+            ) ?? [],
+          };
+        }), {
+          intervals: [250, 500, 1_000],
+          timeout: CLERK_BROWSER_BOOT_TIMEOUT_MS,
+        }).toEqual({
+          status: "needs_client_trust",
+          strategies: ["email_code"],
+        });
+
+        stage = "password credential re-login email-code verification";
+        const verificationInput = credentialSignInRoot.locator(
+          'input[autocomplete="one-time-code"][inputmode="numeric"][maxlength="6"]:visible',
+        );
+        await expect(verificationInput).toHaveCount(1);
+        await expect(verificationInput).toBeVisible({
+          timeout: CLERK_BROWSER_BOOT_TIMEOUT_MS,
+        });
+        const secondFactorAttempt = credentialPage.waitForResponse(
+          (response) => isExactEmailCodeFactorResponse(response, "attempt_second_factor"),
+          { timeout: CLERK_BROWSER_BOOT_TIMEOUT_MS },
+        );
+        const credentialSessionAfterEmailCode = credentialPage.waitForFunction(() => Boolean(
+          (window as Window & { Clerk?: { session?: unknown } }).Clerk?.session,
+        ), undefined, {
+          timeout: CLERK_BROWSER_BOOT_TIMEOUT_MS,
+        });
+        await verificationInput.fill("424242");
+        await Promise.all([secondFactorAttempt, credentialSessionAfterEmailCode]);
+        process.stdout.write(
+          "[Clerk Development E2E] credential re-login branch: development_email_code_client_trust.\n",
+        );
+      } else {
+        process.stdout.write(
+          "[Clerk Development E2E] credential re-login branch: direct_password_session.\n",
+        );
+      }
+    } finally {
+      // A failure screenshot must not retain form fields, identity previews, or errors.
+      credentialPage.off("request", recordPasswordSubmission);
+      await credentialPage.goto("about:blank", {
+        timeout: 5_000,
+        waitUntil: "commit",
+      })
+        .catch(() => undefined);
+      await credentialPage.close().catch(() => undefined);
+      if (
+        page.context().pages().length === 1
+        && page.context().pages()[0] === page
+        && page.url() === "about:blank"
+      ) {
+        cleanupState.credentialUiMayContainSecrets = false;
+      }
+    }
+
+    if (cleanupState.credentialUiMayContainSecrets) {
+      throw new Error("credential UI sanitization did not complete");
+    }
+
+    stage = "password credential re-login session";
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    await clerk.loaded({ page });
+    await expect.poll(async () => page.evaluate(() => Boolean(
+      (window as Window & {
+        Clerk?: { session?: unknown; user?: unknown };
+      }).Clerk?.session
+      && (window as Window & {
+        Clerk?: { session?: unknown; user?: unknown };
+      }).Clerk?.user,
+    )), {
+      intervals: [500, 1_000, 2_000, 5_000],
+      timeout: 30_000,
+    }).toBe(true);
+    await expect.poll(forceRefreshClerkSessionToken, {
+      intervals: [1_000, 2_000, 5_000, 10_000],
+      timeout: 30_000,
+    }).toBe("token_refreshed");
+
+    stage = "password credential re-login approved workspace";
+    await gotoApprovedRoute("/workspace");
+    await expect(page.locator("[data-journey-summary]")).toHaveText("7 / 7 步已留证");
+
+    stage = "password credential re-login local-data continuity";
+    expect(await readLocalNamespaces()).toEqual(namespaceRawBeforeCredentialRelogin);
+
+    stage = "password credential re-login sign-out";
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    await clerk.loaded({ page });
+    await clerk.signOut({ page });
+    stage = "password credential re-login sign-out session clearance";
+    await expectClearedClerkBrowserSession();
+
+    await expectSignedOutWorkspaceBoundary({
+      clerkRuntime: "post-password-relogin Clerk runtime",
+      clerkUI: "post-password-relogin Clerk UI",
+      navigation: "post-password-relogin route navigation",
+      redirect: "post-password-relogin route redirect",
     });
     page.off("request", recordDiagnosticRawResponseRequest);
     expect(diagnosticRawResponseTransmissions).toEqual([]);
