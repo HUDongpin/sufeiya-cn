@@ -54,6 +54,14 @@ SUFEIYA_CLERK_INVITATION_E2E_ACK=I_ACCEPT_ONE_PERSISTENT_CLERK_DEVELOPMENT_INVIT
 
 2026-08-28 的第二条且最终一条授权已在 `33a56cf` 上消耗：运行前基线为 users 0、pending 0、accepted 0、revoked 4、expired 0；唯一 invitation 在 `invitation SignUp runtime` 阶段、接受前失败，cleanup 独立核对为 `pre_acceptance_history_revoked; exact_user_cleanup=pass`；运行后基线为 users 0、pending 0、accepted 0、revoked 5、expired 0。当前测试把授权时的运行前基线固化为创建前硬门，因此旧 ACK 在现状下会于 `createInvitation` 之前失败，不能被复用为第三次授权。后续离线修复只细分脱敏阶段并区分合法的可选 `protect_check` 中间状态与真正 password-ready 状态；没有再次执行真实 invitation acceptance，故仍不得声明 accepted 或完整邀请链 PASS。
 
+同日的只读 Dashboard 核对确认 Development 与 Production 实例都已经保存上述精确 session-token template，核对期间没有点击保存或修改配置。最终授权运行对应的 Development Application Logs 依次记录 `invitation.created`、`sign_up.created`、因 Testing Token 跳过 CAPTCHA、ticket 进入 SignUp、邀请邮箱验证，以及稍后的 `invitation.revoked`；另一次只读恢复得到的**当前持久化资源（不是 10:11 的逐字段历史快照）**仍是 `missing_requirements`、只缺 password、`created_user=false`、`created_session=false`。这把失败范围收窄到 password 提交以前的 SignUp/UI harness 阶段，但日志中的 `invitation.accepted` 事件只是 ticket/SignUp handoff 事件，不能覆盖最终 provider 资源的 revoked 状态，也不能改写 accepted 0、users 0 的运行后基线。
+
+### Clerk Production 真人受邀验收
+
+`npm run test:e2e:clerk-production-human` 提供一条完全隔离的 headed Chrome 验收入口，只消费一条**已存在并另行授权**的 Production invitation；它不加载 `.env.local`，不接受 Clerk keys、Testing Token、Development E2E 状态、storage state、remote/reused browser 或 Vercel bypass，也不调用 Backend invitation/user API。Invitation URL、邮箱、密码和 OTP 只由真人在临时浏览器 UI 中输入；URL/ticket 会存在于浏览器导航和 Playwright driver 的瞬时内存，但 harness 业务代码不提取、打印、附件化或持久化这些值，也不读取 Clerk inputs、请求体、cookie 或 token。在提示真人打开 ticket 前，测试会无密钥读取公开 Production Clerk environment，核对 live instance、ticket/password/email-code 因子、必填属性、密码策略及 MFA/法律同意/额外动作边界；随后在浏览器内只返回布尔值地核对精确 ticket query、Production runtime 和 native ticket SignUp，并阻止改走普通 SignIn 或新标签。两次 session 的 opaque user ID 与三个本机 namespace 只在浏览器内部以不可导出的临时 HMAC 做相等性比较；为了把 browser account 与 provider created user 绑定，回执只额外保留一个按固定协议、run ID 和高熵 Clerk user ID 在浏览器内计算的单次 SHA-256 账户承诺，不保存原始 ID。完整 approved workspace、`/account`、非空本机 canary、两次真人登出保护和同账户重登全部通过、临时 context 成功关闭后，才写本地脱敏回执；同一 `authorizationRunId` 的 no-clobber attempt marker 会保留以阻止本机意外重跑。
+
+该命令不会自动证明 Vercel deployment ID 与 Git SHA 的 provider 绑定，也不会读取 Clerk provider 的最终 invitation 状态；运行前必须独立核对 Production deployment，运行后还必须取得单独的 provider accepted 回执。当前尚未获得具体 Production 收件人与 invitation 运行授权，因此此 harness 只完成离线实现，**没有运行，也不得声明 Production 真人邀请链 PASS**。操作硬门、固定 ACK、现场步骤、失败后的禁止盲重试和回执字段见 [`docs/runbooks/clerk-production-human-acceptance.md`](./docs/runbooks/clerk-production-human-acceptance.md)。
+
 ## Product boundary
 
 公开学习页源稿仍以经过检查的 HTML 保存。每次修改页面源稿后，先运行 `npm run generate` 生成 HTML 页面，再运行 `npm run check` 完成旧页面结构、TypeScript、ESLint 与生产构建检查。`generate:next-content` 会把页面正文写入 `lib/legacy-content.generated.ts`，并同步浏览器运行时与音频到 `public/`；发布必须来自明确提交的干净工作树。
