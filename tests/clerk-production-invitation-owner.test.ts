@@ -956,9 +956,21 @@ describe("Clerk Production invitation local persistence boundary", () => {
       launcherSource,
       /SUFEIYA_CLERK_PRODUCTION_INVITATION_LAUNCHER_ATTESTATION=/,
     );
+    assert.match(launcherSource, /system_terminal_seen=0/);
+    assert.match(launcherSource, /system_terminal_seen == 1/);
+    assert.match(launcherSource, /readonly owner_uid="\$EUID"/);
+    assert.match(launcherSource, /COLUMNS=1000/);
+    assert.match(launcherSource, /codex:\*\|chatgpt:\*\|electron:\*\|code:\*/);
+    assert.match(launcherSource, /node:\*\|nodejs:\*\|npm:\*\|npx:\*\|tsx:\*\|deno:\*\|bun:\*/);
+    assert.match(
+      launcherSource,
+      /terminal:\/System\/Applications\/Utilities\/Terminal\.app\/Contents\/MacOS\/Terminal/,
+    );
+    assert.match(launcherSource, /zsh:\/bin\/zsh\|bash:\/bin\/bash\|sh:\/bin\/sh/);
+    assert.match(launcherSource, /\*\)\n      fail_closed/);
   });
 
-  test("rejects launcher hooks and Node parents before sensitive input", {
+  test("rejects launcher hooks and automated parents before sensitive input", {
     skip: process.platform !== "darwin" || process.arch !== "arm64",
   }, async () => {
     const launcher = fileURLToPath(new URL(

@@ -84,22 +84,42 @@ readonly runtime_digest
 
 ancestor_pid="$PPID"
 typeset -i ancestor_depth=0
+typeset -i system_terminal_seen=0
+readonly owner_uid="$EUID"
 while (( ancestor_pid > 1 && ancestor_depth < 32 )); do
   ancestor_record="$(
-    /usr/bin/env -i "${base_environment[@]}" \
-      /bin/ps -p "$ancestor_pid" -o ppid= -o ucomm= 2>/dev/null
+    /usr/bin/env -i "${base_environment[@]}" 'COLUMNS=1000' \
+      /bin/ps -ww -p "$ancestor_pid" \
+        -o uid= -o ppid= -o ucomm= -o comm= 2>/dev/null
   )" || fail_closed
   typeset -a ancestor_fields=(${=ancestor_record})
-  (( ${#ancestor_fields} == 2 )) || fail_closed
-  case "${ancestor_fields[2]:l}" in
-    node|npm|npx|tsx|deno|bun)
+  (( ${#ancestor_fields} == 4 )) || fail_closed
+  [[ "${ancestor_fields[1]}" == "$owner_uid" ]] || fail_closed
+  case "${ancestor_fields[3]:l}:${ancestor_fields[4]}" in
+    codex:*|chatgpt:*|electron:*|code:*|code-insiders:*|cursor:*|\
+    windsurf:*|zed:*|xcode:*|idea:*|idea64:*|pycharm:*|pycharm64:*|\
+    webstorm:*|webstorm64:*|clion:*|clion64:*|goland:*|goland64:*|\
+    rubymine:*|rubymine64:*|rider:*|rider64:*|androidstudio:*|studio:*|\
+    devenv:*|node:*|nodejs:*|npm:*|npx:*|tsx:*|deno:*|bun:*)
+      fail_closed
+      ;;
+    terminal:/System/Applications/Utilities/Terminal.app/Contents/MacOS/Terminal)
+      (( system_terminal_seen == 0 )) || fail_closed
+      system_terminal_seen=1
+      ;;
+    zsh:/bin/zsh|bash:/bin/bash|sh:/bin/sh|tcsh:/bin/tcsh|\
+    csh:/bin/csh|login:/usr/bin/login)
+      (( system_terminal_seen == 0 )) || fail_closed
+      ;;
+    *)
       fail_closed
       ;;
   esac
-  ancestor_pid="${ancestor_fields[1]}"
+  ancestor_pid="${ancestor_fields[2]}"
   (( ancestor_depth += 1 ))
 done
 (( ancestor_pid <= 1 )) || fail_closed
+(( system_terminal_seen == 1 )) || fail_closed
 
 readonly -a git_environment=(
   "${base_environment[@]}"
