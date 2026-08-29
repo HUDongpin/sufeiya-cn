@@ -210,14 +210,25 @@ test("serializes rapid same-tab submissions without overwriting state or duplica
   });
   await expect(page.locator("[data-reading-feedback]")).toBeVisible();
 
-  const persisted = await page.evaluate(({ publicStateKey, publicEventsKey }) => ({
-    state: JSON.parse(localStorage.getItem(publicStateKey) ?? "null"),
-    events: JSON.parse(localStorage.getItem(publicEventsKey) ?? "[]"),
-  }), { publicStateKey, publicEventsKey });
-  expect(persisted.state.responses).toHaveLength(1);
-  expect(persisted.state.revision).toBe(2);
-  expect(persisted.events.filter((event: { eventName: string }) => event.eventName === "task_answered")).toHaveLength(1);
-  expect(persisted.events.filter((event: { eventName: string }) => event.eventName === "feedback_viewed")).toHaveLength(1);
+  await expect.poll(async () => page.evaluate(({ publicStateKey, publicEventsKey }) => {
+    const state = JSON.parse(localStorage.getItem(publicStateKey) ?? "null");
+    const events = JSON.parse(localStorage.getItem(publicEventsKey) ?? "[]");
+    return {
+      revision: state?.revision ?? null,
+      responses: Array.isArray(state?.responses) ? state.responses.length : null,
+      task_answered: Array.isArray(events)
+        ? events.filter((event: { eventName: string }) => event.eventName === "task_answered").length
+        : null,
+      feedback_viewed: Array.isArray(events)
+        ? events.filter((event: { eventName: string }) => event.eventName === "feedback_viewed").length
+        : null,
+    };
+  }, { publicStateKey, publicEventsKey })).toEqual({
+    revision: 2,
+    responses: 1,
+    task_answered: 1,
+    feedback_viewed: 1,
+  });
 });
 
 test("completes the learning loop, verifies every replacement CTA, export, recovery, and deletion", async ({ context, page }) => {
