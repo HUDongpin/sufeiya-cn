@@ -342,17 +342,30 @@ describe("Clerk proxy integration", () => {
     });
   });
 
-  it("keeps public pages indexable while injecting signed session-claim access state", async () => {
+  it("keeps public pages outside the Clerk graph for signed-out and signed-in browsers", async () => {
     const [{ default: proxy }, { NextRequest }] = await Promise.all([
       importProxyForTest("configured"),
       import("next/server"),
     ]);
-    const publicPaths = ["/", "/learning-path", "/platform", "/resources", "/about", "/super-teacher"];
+    const publicPaths = [
+      "/",
+      "/learning-path",
+      "/platform",
+      "/resources",
+      "/about",
+      "/super-teacher",
+      "/privacy",
+      "/terms",
+      "/support",
+      "/my-data",
+      "/learn/reading",
+    ];
 
     await withClerkEnvironment({ configured: true, userId: null }, async () => {
       for (const path of publicPaths) {
         const response = await proxy(new NextRequest(`https://sufeiya.cn${path}`), {} as never);
-        assert.equal(response.headers.get("x-sufeiya-beta-access"), "signed_out", path);
+        assert.equal(response.headers.get("x-sufeiya-beta-access"), null, path);
+        assert.equal(response.headers.get("x-sufeiya-account-mode"), "anonymous-no-clerk", path);
         assert.equal(response.headers.get("x-robots-tag"), null, path);
         assert.equal(response.headers.get("cache-control"), null, path);
       }
@@ -365,13 +378,10 @@ describe("Clerk proxy integration", () => {
           const response = await proxy(new NextRequest(`https://sufeiya.cn${path}`, {
             headers: { "x-sufeiya-beta-access-context": betaAccess === "denied" ? "approved" : "invitation_required" },
           }), {} as never);
-          assert.equal(
-            response.headers.get("x-sufeiya-beta-access"),
-            betaAccess === "approved" ? "approved" : "invitation_required",
-            path,
-          );
+          assert.equal(response.headers.get("x-sufeiya-beta-access"), null, path);
+          assert.equal(response.headers.get("x-sufeiya-account-mode"), "anonymous-no-clerk", path);
           assert.equal(response.headers.get("x-robots-tag"), null, path);
-          assert.equal(response.headers.get("cache-control"), "private, no-store, max-age=0", path);
+          assert.equal(response.headers.get("cache-control"), null, path);
         }
         assert.equal(clerkTestGlobals.__sufeiyaClerkGetUserCount, 0);
       });

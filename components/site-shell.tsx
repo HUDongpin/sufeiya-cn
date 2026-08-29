@@ -5,7 +5,10 @@ import { headers } from "next/headers";
 import { connection } from "next/server";
 import type { ReactNode } from "react";
 
-import { ClerkAccountControls } from "@/components/clerk-account-controls";
+import {
+  ClerkAccountControls,
+  ClerkMobileAccountControls,
+} from "@/components/clerk-account-controls";
 import { FullDocumentLink } from "@/components/full-document-link";
 import { OfflineNavigationBoundary } from "@/components/offline-navigation-boundary";
 import { SiteFrame } from "@/components/site-frame";
@@ -77,12 +80,8 @@ export async function SiteShell({
         ) : (
           <FullDocumentLink className="auth-link" href="/sign-in">受邀内测登录</FullDocumentLink>
         )}
-        mobileAccountControls={(
-          <>
-            <FullDocumentLink href="/sign-in">登录受邀账户<span>{clerkState.configured ? "Clerk" : "未配置"}</span></FullDocumentLink>
-            <FullDocumentLink href="/sign-up">受邀注册<span>邀请链接</span></FullDocumentLink>
-            <FullDocumentLink href="/account">我的账户<span>{clerkState.configured ? "已启用" : "未配置"}</span></FullDocumentLink>
-          </>
+        mobileAccountControls={clerkState.configured ? <ClerkMobileAccountControls /> : (
+          <FullDocumentLink href="/sign-in">账户服务暂不可用<span>未配置</span></FullDocumentLink>
         )}
         localModeLabel={clerkState.configured
           ? localModeLabels[betaAccessContext]

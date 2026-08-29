@@ -167,9 +167,13 @@ describe("Clerk route boundary", () => {
       assert.equal(isClerkBetaProtectedPathname(`${path}/child.js`), true, `${path}/child.js`);
     }
     assert.equal(isClerkBetaProtectedPathname("/account"), false);
+    assert.equal(isClerkBetaProtectedPathname("/account/data"), false);
+    assert.equal(isClerkBetaProtectedPathname("/workspace/sofia"), true);
     assert.equal(isClerkBetaProtectedPathname("/beta-access"), false);
 
     assert.equal(isClerkProtectedPathname("/account/security"), true);
+    assert.equal(isClerkProtectedPathname("/account/data"), true);
+    assert.equal(isClerkProtectedPathname("/workspace/sofia"), true);
 
     for (const path of [
       "/",
@@ -178,6 +182,7 @@ describe("Clerk route boundary", () => {
       "/platform",
       "/resources",
       "/super-teacher",
+      "/my-data",
       "/sign-in",
       "/sign-up",
       "/beta-access",
@@ -220,6 +225,7 @@ describe("Clerk route boundary", () => {
       "/missing-asset.js",
       "/about/unknown-child",
       "/super-teacher/unknown-child",
+      "/my-data",
       "/api",
       "/api/governance/status",
       "/api/super-teacher/voice/status",

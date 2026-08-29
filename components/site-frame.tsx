@@ -32,7 +32,7 @@ function SiteHeader({
         <div className="header-inner">
           <FullDocumentLink className="brand" href="/" aria-label="苏肥鸭多邻国首页">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/assets/sufeiya-logo.png" width="2792" height="560" alt="苏肥鸭多邻国" />
+            <img src="/assets/sufeiya-logo-header.webp" width="436" height="87" alt="苏肥鸭多邻国" />
           </FullDocumentLink>
           <nav className="desktop-nav" aria-label="主导航">
             {navItems.map((item) => {
@@ -74,33 +74,43 @@ function SiteHeader({
           </button>
         </div>
         <nav id="mobile-nav" className="mobile-nav" aria-label="移动端主导航" hidden>
-          {navItems.map((item, index) => (
-            <FullDocumentLink key={item.key} href={item.href} aria-current={pageKey === item.key ? "page" : undefined}>
-              {item.label}<span>{String(index + 1).padStart(2, "0")}</span>
+          <div className="mobile-nav-group" role="group" aria-labelledby="mobile-nav-start">
+            <p id="mobile-nav-start">开始学习</p>
+            <FullDocumentLink className="mobile-external" href="/learn/reading" aria-current={pageKey === "public-learning" ? "page" : undefined}>
+              开始 Reading 入门检查
+              <ArrowIcon />
             </FullDocumentLink>
-          ))}
-          <FullDocumentLink className="mobile-external" href="/learn/reading" aria-current={pageKey === "public-learning" ? "page" : undefined}>
-            开始 3 分钟入门检查
-            <ArrowIcon />
-          </FullDocumentLink>
-          <FullDocumentLink href="/sign-in">受邀内测登录<span>邀请制</span></FullDocumentLink>
-          <FullDocumentLink href="/super-teacher" aria-current={pageKey === "super-teacher" ? "page" : undefined}>Sofia智能老师<span>Gate A</span></FullDocumentLink>
-          <FullDocumentLink href="/my-data">我的本机数据<span>本机</span></FullDocumentLink>
-          <FullDocumentLink href="/teaching-review-demo">教研复核演示<span>本机</span></FullDocumentLink>
-          {mobileAccountControls}
+            <FullDocumentLink href="/workspace" aria-current={pageKey === "workspace" ? "page" : undefined}>受邀学习工作台<span>邀请制</span></FullDocumentLink>
+            <FullDocumentLink href="/super-teacher" aria-current={pageKey === "super-teacher" ? "page" : undefined}>Sofia智能老师<span>本机解释</span></FullDocumentLink>
+          </div>
+          <div className="mobile-nav-group" role="group" aria-labelledby="mobile-nav-learn">
+            <p id="mobile-nav-learn">了解平台</p>
+            {navItems.map((item, index) => (
+              <FullDocumentLink key={item.key} href={item.href} aria-current={pageKey === item.key ? "page" : undefined}>
+                {item.label}<span>{String(index + 1).padStart(2, "0")}</span>
+              </FullDocumentLink>
+            ))}
+          </div>
+          <div className="mobile-nav-group" role="group" aria-labelledby="mobile-nav-account">
+            <p id="mobile-nav-account">账户与数据</p>
+            <FullDocumentLink href="/my-data">我的本机数据<span>无需登录</span></FullDocumentLink>
+            {mobileAccountControls}
+            <FullDocumentLink href="/privacy">隐私说明<span>公开</span></FullDocumentLink>
+            <FullDocumentLink href="/support">获得支持<span>公开</span></FullDocumentLink>
+          </div>
         </nav>
       </header>
     </>
   );
 }
 
-function SiteFooter() {
+function SiteFooter({ invitationRegistration }: { invitationRegistration: boolean }) {
   return (
     <footer className="site-footer">
       <div className="footer-main">
         <FullDocumentLink className="footer-brand" href="/" aria-label="返回首页">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/assets/sufeiya-logo.png" width="2792" height="560" alt="苏肥鸭多邻国" />
+          <img src="/assets/sufeiya-logo-header.webp" width="436" height="87" alt="苏肥鸭多邻国" />
         </FullDocumentLink>
         <div className="footer-nav">
           <div>
@@ -118,13 +128,19 @@ function SiteFooter() {
             <FullDocumentLink href="/my-data">我的本机数据</FullDocumentLink>
             <FullDocumentLink href="/teaching-review-demo">教研复核演示</FullDocumentLink>
             <FullDocumentLink href="/sign-in">安全登录</FullDocumentLink>
+            {invitationRegistration ? (
+              <FullDocumentLink href="/sign-up">使用邀请链接注册</FullDocumentLink>
+            ) : null}
             <FullDocumentLink href="/account">账户管理</FullDocumentLink>
+            <FullDocumentLink href="/privacy">隐私说明</FullDocumentLink>
             <small>登录不会自动上传或同步本机学习数据。</small>
           </div>
           <div>
             <strong>了解更多</strong>
             <FullDocumentLink href="/about">关于我们</FullDocumentLink>
             <FullDocumentLink href="/about#faq">常见问题</FullDocumentLink>
+            <FullDocumentLink href="/terms">使用条款</FullDocumentLink>
+            <FullDocumentLink href="/support">获得支持</FullDocumentLink>
             <a href="https://space.bilibili.com/448907095" target="_blank" rel="noopener noreferrer">
               Bilibili <span aria-hidden="true">↗</span>
               <span className="sr-only">（在新窗口打开）</span>
@@ -162,7 +178,7 @@ export function SiteFrame({
         localModeLabel={localModeLabel}
       />
       {children}
-      <SiteFooter />
+      <SiteFooter invitationRegistration={pageKey === "auth"} />
       <Script id="sufeiya-site-runtime" src="/script.js" strategy="afterInteractive" />
     </>
   );

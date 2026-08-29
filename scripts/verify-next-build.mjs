@@ -295,6 +295,7 @@ const allowedPublicReadingProjectClientModules = new Set([
   "[project]/app/global-error.tsx",
   "[project]/components/full-document-link.tsx",
   "[project]/components/offline-navigation-boundary.tsx",
+  "[project]/components/public-analytics.tsx",
   "[project]/components/public-learning/public-reading-experience.tsx",
 ]);
 const publicReadingProjectClientModules = Object.keys(
@@ -611,7 +612,10 @@ const scriptReferenceVariants = (value) => {
 
 const looksLikeScriptReference = (value) =>
   [...scriptReferenceVariants(value)].some((variant) => /\.js(?:[^A-Za-z0-9]|$)/i.test(variant));
-const allowedAnonymousNonScriptSources = new Set(["/assets/sufeiya-logo.png"]);
+const allowedAnonymousNonScriptSources = new Set([
+  "/assets/sufeiya-logo.png",
+  "/assets/sufeiya-logo-header.webp",
+]);
 
 const addFlightScriptReferences = (
   decoded,

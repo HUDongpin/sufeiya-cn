@@ -16,7 +16,6 @@ export const CLERK_PROTECTED_PATHS = [
   "/review",
   "/community",
   "/retest",
-  "/my-data",
   "/teaching-review-demo",
   "/account",
 ] as const;
@@ -37,17 +36,10 @@ export const CLERK_BETA_PROTECTED_PATHS = [
   "/review",
   "/community",
   "/retest",
-  "/my-data",
   "/teaching-review-demo",
 ] as const;
 
 export const CLERK_PUBLIC_RUNTIME_PATHS = [
-  "/",
-  "/learning-path",
-  "/platform",
-  "/resources",
-  "/about",
-  "/super-teacher",
   "/sign-in",
   "/sign-up",
   "/beta-access",

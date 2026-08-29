@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
-import { SuperTeacherClient } from "@/components/super-teacher-client";
-import { SiteShell } from "@/components/site-shell";
+import { PublicSiteShell } from "@/components/public-site-shell";
+import { SofiaPublicPage } from "@/components/sofia-public-access";
 import { SITE_NAME, SITE_URL } from "@/lib/site";
 
 const title = "Sofia智能老师｜有来源的 Gate A 学习解释";
@@ -38,9 +38,9 @@ export default function SuperTeacherPage() {
   };
 
   return (
-    <SiteShell pageKey="super-teacher" sofiaSurface="page">
+    <PublicSiteShell pageKey="super-teacher" sofiaIntroduction={false}>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-      <SuperTeacherClient />
-    </SiteShell>
+      <SofiaPublicPage accessState="signed-out" />
+    </PublicSiteShell>
   );
 }

@@ -1,0 +1,17 @@
+{
+  "protocolVersion": "sufeiya_content_release_manifest_v1",
+  "effectiveAt": "2026-08-29T00:00:00+08:00",
+  "routes": [
+    { "path": "/", "lastModified": "2026-08-29T00:00:00+08:00", "changeFrequency": "weekly", "priority": 1, "sitemap": true },
+    { "path": "/super-teacher", "lastModified": "2026-08-29T00:00:00+08:00", "changeFrequency": "weekly", "priority": 0.9, "sitemap": true },
+    { "path": "/learning-path", "lastModified": "2026-08-29T00:00:00+08:00", "changeFrequency": "monthly", "priority": 0.9, "sitemap": true },
+    { "path": "/platform", "lastModified": "2026-08-29T00:00:00+08:00", "changeFrequency": "monthly", "priority": 0.9, "sitemap": true },
+    { "path": "/resources", "lastModified": "2026-08-29T00:00:00+08:00", "changeFrequency": "weekly", "priority": 0.9, "sitemap": true },
+    { "path": "/about", "lastModified": "2026-08-29T00:00:00+08:00", "changeFrequency": "monthly", "priority": 0.8, "sitemap": true },
+    { "path": "/privacy", "lastModified": "2026-08-29T00:00:00+08:00", "changeFrequency": "yearly", "priority": 0.4, "sitemap": false },
+    { "path": "/terms", "lastModified": "2026-08-29T00:00:00+08:00", "changeFrequency": "yearly", "priority": 0.4, "sitemap": false },
+    { "path": "/support", "lastModified": "2026-08-29T00:00:00+08:00", "changeFrequency": "monthly", "priority": 0.5, "sitemap": false },
+    { "path": "/learn/reading", "lastModified": "2026-08-29T00:00:00+08:00", "changeFrequency": "weekly", "priority": 0.8, "sitemap": false },
+    { "path": "/my-data", "lastModified": "2026-08-29T00:00:00+08:00", "changeFrequency": "monthly", "priority": 0.2, "sitemap": false }
+  ]
+}

@@ -209,7 +209,7 @@
   padding: 10px 18px;
   display: flex;
   flex: 0 0 auto;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
   border-bottom: 1px solid rgba(16, 44, 41, 0.08);
@@ -219,7 +219,7 @@
 .contextStrip span {
   color: var(--color-accent-deep);
   font-family: var(--font-mono);
-  font-size: 8px;
+  font-size: 12px;
   font-weight: 750;
   letter-spacing: 0.08em;
   white-space: nowrap;
@@ -227,12 +227,11 @@
 
 .contextStrip strong {
   min-width: 0;
-  overflow: hidden;
+  overflow-wrap: anywhere;
   color: var(--color-ink-soft);
-  font-size: 10px;
+  font-size: 14px;
   text-align: right;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.45;
 }
 
 .dialogFooter {
@@ -277,13 +276,13 @@
 
 .voicePlaceholder strong {
   color: var(--color-ink-soft);
-  font-size: 11px;
+  font-size: 14px;
 }
 
 .voicePlaceholder p {
   margin: 3px 0 0;
   color: var(--color-muted);
-  font-size: 11px;
+  font-size: 14px;
   line-height: 1.5;
 }
 
@@ -332,7 +331,7 @@
 .publicDialogBody > p:not(.publicDialogEyebrow) {
   margin: 14px 0 0;
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 16px;
   line-height: 1.75;
 }
 
@@ -340,7 +339,7 @@
   margin: 20px 0 0;
   padding-left: 20px;
   color: var(--color-ink-soft);
-  font-size: 12px;
+  font-size: 15px;
   line-height: 1.75;
 }
 

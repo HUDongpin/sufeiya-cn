@@ -89,29 +89,9 @@ function betaVerificationUnavailableResponse() {
   });
 }
 
-function isIndexablePublicPath(pathname: string) {
-  return pathname === "/"
-    || pathname === "/learning-path"
-    || pathname === "/platform"
-    || pathname === "/resources"
-    || pathname === "/about"
-    || pathname === "/super-teacher";
-}
-
-function responsePolicy(pathname: string, signedIn: boolean) {
-  if (!isIndexablePublicPath(pathname)) return "sensitive" as const;
-  return signedIn ? "signed-in-public" as const : "public" as const;
-}
-
 function needsBetaContext(pathname: string) {
   return isClerkBetaProtectedPathname(pathname)
-    || pathname === "/beta-access"
-    || pathname === "/super-teacher"
-    || pathname === "/"
-    || pathname === "/learning-path"
-    || pathname === "/platform"
-    || pathname === "/resources"
-    || pathname === "/about";
+    || pathname === "/beta-access";
 }
 
 const configuredClerkProxy = clerkState.configured
@@ -120,7 +100,7 @@ const configuredClerkProxy = clerkState.configured
         const signedIn = isProtectedRoute(request)
           ? await auth.protect()
           : await auth();
-        const policy = responsePolicy(request.nextUrl.pathname, Boolean(signedIn.userId));
+        const policy = "sensitive" as const;
         if (!needsBetaContext(request.nextUrl.pathname)) {
           return nextResponseWithBetaContext(
             request,
@@ -213,7 +193,6 @@ export const config = {
     "/review/:path*",
     "/community/:path*",
     "/retest/:path*",
-    "/my-data/:path*",
     "/teaching-review-demo/:path*",
     "/account/:path*",
     "/beta-access/:path*",

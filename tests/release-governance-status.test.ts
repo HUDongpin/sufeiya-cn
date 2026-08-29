@@ -9,11 +9,15 @@ describe("sanitized release-governance status route", () => {
     const response = await GET();
     assert.equal(response.status, 200);
     assert.equal(response.headers.get("cache-control"), "private, no-store, max-age=0");
+    // Capability state can change independently of a deployment. Keep this
+    // sanitized endpoint uncached so callers do not mistake a stale Gate for current truth.
     assert.equal(response.headers.get("x-sufeiya-governance-mode"), "read-only-no-mutations");
     assert.equal(response.headers.get("x-sufeiya-p0-protocol"), "sufeiya_p0_decision_log_v1");
 
     const body = await response.json() as Record<string, unknown> & {
       p0Gate: {
+        scope: string;
+        doesNotRepresent: string[];
         protocolVersion: string;
         status: string;
         total: number;
@@ -44,6 +48,7 @@ describe("sanitized release-governance status route", () => {
       surfaces: Record<string, { enabled: boolean; status: string; reasonCode: string }>;
     };
     assert.deepEqual(Object.keys(body).sort(), [
+      "capabilityMatrix",
       "defaultDisposition",
       "mode",
       "p0Gate",
@@ -54,7 +59,17 @@ describe("sanitized release-governance status route", () => {
     assert.equal(body.protocolVersion, "sufeiya_release_decisions_v1");
     assert.equal(body.defaultDisposition, "deny");
     assert.equal(body.mode, "sanitized_read_only_status");
+    assert.deepEqual(
+      (body.capabilityMatrix as { protocolVersion: string; defaultDisposition: string }).protocolVersion,
+      "sufeiya_capability_matrix_v1",
+    );
+    assert.equal(
+      (body.capabilityMatrix as { defaultDisposition: string }).defaultDisposition,
+      "unavailable_unless_done",
+    );
     assert.deepEqual(body.p0Gate, {
+      scope: "full_platform_plan_appendix_a_29_item_decision_ledger",
+      doesNotRepresent: ["public_reading_p0_release"],
       protocolVersion: "sufeiya_p0_decision_log_v1",
       status: "blocked",
       total: 29,
@@ -126,6 +141,9 @@ describe("sanitized release-governance status route", () => {
       "decisionRolePolicySha256",
       "ownerDecisionArtifactPolicy",
       "contentSha256",
+      "codeEvidence",
+      "externalEvidence",
+      "reviewedAt",
       "locator",
       "p0_a01_product_promise_success_metric",
       "DASHSCOPE_API_KEY",

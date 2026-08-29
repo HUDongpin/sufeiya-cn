@@ -9,6 +9,16 @@ const diagnosticTaskRegister = JSON.parse(
 const practiceTaskRegister = JSON.parse(
   await readFile(new URL("../data/practice-task-register.json", import.meta.url), "utf8"),
 );
+const contentReleaseManifest = JSON.parse(
+  await readFile(new URL("../data/content-release-manifest.v1.json", import.meta.url), "utf8"),
+);
+if (
+  contentReleaseManifest.protocolVersion !== "sufeiya_content_release_manifest_v1"
+  || !Array.isArray(contentReleaseManifest.routes)
+  || contentReleaseManifest.routes.length === 0
+) {
+  throw new Error("Content release manifest is missing the sitemap contract.");
+}
 if (
   practiceTaskRegister.protocolVersion !== "sufeiya_practice_task_register_v1" ||
   practiceTaskRegister.releaseStatus !== "gate_a_demo_only" ||
@@ -191,7 +201,7 @@ const header = (page) => `
   <header class="site-header" data-header>
     <div class="header-inner">
       <a class="brand" href="/" aria-label="苏肥鸭多邻国首页">
-        <img src="/assets/sufeiya-logo.png" width="2792" height="560" alt="苏肥鸭多邻国" />
+        <img src="/assets/sufeiya-logo-header.webp" width="436" height="87" alt="苏肥鸭多邻国" />
       </a>
       <nav class="desktop-nav" aria-label="主导航">
         ${navItems
@@ -232,7 +242,7 @@ const footer = () => `
   <footer class="site-footer">
     <div class="footer-main">
       <a class="footer-brand" href="/" aria-label="返回首页">
-        <img src="/assets/sufeiya-logo.png" width="2792" height="560" alt="苏肥鸭多邻国" />
+        <img src="/assets/sufeiya-logo-header.webp" width="436" height="87" alt="苏肥鸭多邻国" />
       </a>
       <div class="footer-nav">
         <div>
@@ -652,7 +662,7 @@ const aboutContent = `
         <div class="faq-list">
           <details><summary><span>这个网站是 Duolingo 或 DET 官方网站吗？</span><span class="faq-toggle" aria-hidden="true"></span></summary><p>不是。sufeiya.cn 是独立在线学习平台，与 Duolingo, Inc. 没有官方隶属、授权或合作关系。“Duolingo English Test / DET”用于说明所讨论的考试与学习领域。</p></details>
           <details><summary><span>这里能给出正式 DET 分数或“保分”承诺吗？</span><span class="faq-toggle" aria-hidden="true"></span></summary><p>不能。平台中的学习诊断只用于识别当前证据、错误模式和学习优先级，不冒充官方考试评分，也不承诺提分、录取或上岸结果。</p></details>
-          <details><summary><span>“Sofia智能老师”现在可以使用吗？</span><span class="faq-toggle" aria-hidden="true"></span></summary><p>可以使用 Gate A 限定版。它只解释本站本机学习证据、计划、推荐与原创任务，逐句显示来源；DET 官方规则和归档课程正文尚无准入条目，因此相关问题会明确停下。使用前需同意本次发送，也可随时改走非 AI 或人工支持路径。</p></details>
+          <details><summary><span>“Sofia智能老师”现在可以使用吗？</span><span class="faq-toggle" aria-hidden="true"></span></summary><p>可以使用邀请制 Gate A 本机限定版。它只在当前浏览器按确定性规则解释本站本机学习证据、计划、推荐与原创任务，问题和学习摘要不发送到本站服务器、Qwen 或远程人工队列；DET 官方规则和归档课程正文尚无准入条目时会明确停下。远程模型、真人队列、语音与麦克风是四个独立、当前关闭的发布 Gate。</p></details>
           <details><summary><span>网站为什么主要使用中文？</span><span class="faq-toggle" aria-hidden="true"></span></summary><p>平台主要服务中国大陆学生，因此导航、说明、反馈和帮助使用简体中文。真正用于 DET 备考的题目、阅读听力材料、作文与口语任务保留英文。</p></details>
           <details><summary><span>社区互助会是必选环节吗？</span><span class="faq-toggle" aria-hidden="true"></span></summary><p>不会。社区互助是平台计划提供的一种支持能力，但每位学习者是否参与都应当自愿；不参加不会影响个人计划、复盘、再诊断或退出。</p></details>
         </div>
@@ -989,7 +999,7 @@ const workspaceContent = `
             </div>
             <nav class="provisional-handoff-actions" aria-label="临时承接下一步">
               <a class="button button-accent" href="/plan" data-provisional-handoff-plan>查看本机临时计划${arrow}</a>
-              <a class="button button-ghost" href="/super-teacher?handoff=provisional#human-support" data-provisional-handoff-support>交给 Sofia 准备本机承接包${arrow}</a>
+              <a class="button button-ghost" href="/workspace/sofia?handoff=provisional#human-support" data-provisional-handoff-support>交给 Sofia 准备本机承接包${arrow}</a>
               <a class="button button-ghost" href="/my-data" data-provisional-handoff-data>保全本机数据${arrow}</a>
             </nav>
           </section>
@@ -1114,7 +1124,7 @@ const workspaceContent = `
           <p class="workspace-tools-copy">练习、专注与数据管理都有独立页面；它们不会自动生成能力结论，也不会替代七步闭环中的学生确认。</p>
         </div>
         <div class="workspace-launch-grid workspace-support-grid">
-          <a href="/super-teacher"><img class="workspace-sofia-avatar" src="/assets/sufeiya-super-teacher-avatar.webp" width="72" height="72" alt="" /><small>SOFIA AI TEACHER · AI</small><h3>Sofia智能老师</h3><p>解释本机证据、计划与推荐依据；来源不足时明确停下。</p><b>有来源地问为什么 →</b></a>
+          <a href="/workspace/sofia"><img class="workspace-sofia-avatar" src="/assets/sufeiya-super-teacher-avatar.webp" width="72" height="72" alt="" /><small>SOFIA AI TEACHER · LOCAL</small><h3>Sofia智能老师</h3><p>解释本机证据、计划与推荐依据；来源不足时明确停下。</p><b>受邀账户进入本机解释 →</b></a>
           <a href="/today"><span>今</span><small>TODAY</small><h3>今日任务</h3><p>打开清单后核对本机今天是否精确匹配计划日；不匹配时只提供独立基础练习。</p><b>核对今日清单 →</b></a>
           <a href="/practice"><span>练</span><small>PRACTICE</small><h3>四项英文微练习</h3><p>Reading、Listening、Writing 与 Speaking 各有独立页面。</p><b>选择练习页 →</b></a>
           <a href="/focus"><span>专</span><small>FOCUS</small><h3>专注计时</h3><p>选择 15、25 或 45 分钟，开始一段不被打断的学习。</p><b>进入计时页 →</b></a>
@@ -1210,7 +1220,7 @@ const diagnosticContent = `
             <button class="button button-ink" type="submit">确认并生成诊断回执${arrow}</button>
             <p class="form-inline-message" data-priority-message role="alert"></p>
           </form>
-          <div class="chain-receipt" data-diagnostic-result hidden aria-live="polite"><span>DIAGNOSTIC RECEIPT</span><h3 data-diagnostic-result-title tabindex="-1">六项任务状态已记录</h3><p data-diagnostic-result-copy></p><dl><div><dt>diagnostic_session_id</dt><dd data-diagnostic-id></dd></div><div><dt>task_set_version</dt><dd>${escapeHtml(diagnosticTaskRegister.taskSetVersion)}</dd></div><div><dt>证据状态</dt><dd data-diagnostic-receipt-sufficiency></dd></div><div><dt>下一条优先项</dt><dd data-diagnostic-priority></dd></div></dl><div class="diagnostic-next-actions"><a class="button button-accent" href="/plan">下一步：生成 7 天计划${arrow}</a><a class="button button-ghost" href="/super-teacher">问 Sofia智能老师为什么先练这个${arrow}</a></div></div>
+          <div class="chain-receipt" data-diagnostic-result hidden aria-live="polite"><span>DIAGNOSTIC RECEIPT</span><h3 data-diagnostic-result-title tabindex="-1">六项任务状态已记录</h3><p data-diagnostic-result-copy></p><dl><div><dt>diagnostic_session_id</dt><dd data-diagnostic-id></dd></div><div><dt>task_set_version</dt><dd>${escapeHtml(diagnosticTaskRegister.taskSetVersion)}</dd></div><div><dt>证据状态</dt><dd data-diagnostic-receipt-sufficiency></dd></div><div><dt>下一条优先项</dt><dd data-diagnostic-priority></dd></div></dl><div class="diagnostic-next-actions"><a class="button button-accent" href="/plan">下一步：生成 7 天计划${arrow}</a><a class="button button-ghost" href="/workspace/sofia">问 Sofia智能老师为什么先练这个${arrow}</a></div></div>
           <button class="text-link-button diagnostic-report-restart" type="button" data-diagnostic-restart>重新完成一轮任务</button>
         </section>
       </div>
@@ -1768,7 +1778,7 @@ const shell = ({ page, path, title, description, content, scripts = [] }) => {
     <link rel="canonical" href="https://sufeiya.cn${path}" />
     <link rel="icon" href="/assets/sufeiya-mark.png" type="image/png" />
     <link rel="apple-touch-icon" href="/assets/sufeiya-mark.png" />
-    <link rel="preload" href="/assets/sufeiya-logo.png" as="image" />
+    <link rel="preload" href="/assets/sufeiya-logo-header.webp" as="image" type="image/webp" />
     <link rel="stylesheet" href="/styles.css" />
     <meta property="og:type" content="website" />
     <meta property="og:locale" content="zh_CN" />
@@ -1813,4 +1823,30 @@ for (const page of pages) {
   await writeFile(new URL(`../${page.filename}`, import.meta.url), html, "utf8");
 }
 
-process.stdout.write(`Generated ${pages.length} Sufeiya pages in ${root}\n`);
+const sitemapRoutes = contentReleaseManifest.routes.filter((route) => route.sitemap === true);
+if (
+  sitemapRoutes.some((route) => (
+    typeof route.path !== "string"
+    || !/^\/(?:[a-z0-9-]+(?:\/[a-z0-9-]+)*)?$/.test(route.path)
+    || Number.isNaN(Date.parse(route.lastModified))
+    || !["always", "hourly", "daily", "weekly", "monthly", "yearly", "never"].includes(route.changeFrequency)
+    || typeof route.priority !== "number"
+    || route.priority < 0
+    || route.priority > 1
+  ))
+) {
+  throw new Error("Content release manifest contains an invalid sitemap route.");
+}
+const sitemapXml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${sitemapRoutes.map((route) => `  <url>
+    <loc>https://sufeiya.cn${route.path}</loc>
+    <lastmod>${route.lastModified.slice(0, 10)}</lastmod>
+    <changefreq>${route.changeFrequency}</changefreq>
+    <priority>${route.priority.toFixed(1)}</priority>
+  </url>`).join("\n")}
+</urlset>
+`;
+await writeFile(new URL("../sitemap.xml", import.meta.url), sitemapXml, "utf8");
+
+process.stdout.write(`Generated ${pages.length} Sufeiya pages and sitemap in ${root}\n`);

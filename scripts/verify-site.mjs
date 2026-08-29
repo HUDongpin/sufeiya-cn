@@ -49,7 +49,6 @@ const protectedLearnerPaths = [
   "/review",
   "/community",
   "/retest",
-  "/my-data",
   "/teaching-review-demo",
   "/account",
 ];
@@ -59,6 +58,7 @@ const nextOnlyTargets = new Map([
   ["/learn/reading", "app/learn/reading/page.tsx"],
   ["/sign-in", "app/sign-in/[[...sign-in]]/page.tsx"],
   ["/super-teacher", "app/super-teacher/page.tsx"],
+  ["/workspace/sofia", "app/workspace/sofia/page.tsx"],
   ["/teaching-review-demo", "app/teaching-review-demo/page.tsx"],
   ["/assets/sufeiya-super-teacher-avatar.webp", "public/assets/sufeiya-super-teacher-avatar.webp"],
 ]);
@@ -1554,7 +1554,7 @@ for (const [filename, pageKey, canonicalPath] of pageFiles) {
   check(/aria-controls="mobile-nav"/.test(html), `${prefix} mobile navigation control is labelled`);
   check(!/href="#"/.test(html), `${prefix} has no empty hash links`);
   check(!/\b(TODO|FIXME)\b/i.test(html), `${prefix} has no unfinished marker copy`);
-  check(/src="\/assets\/sufeiya-logo\.png" width="2792" height="560"/.test(html), `${prefix} uses the HD logo dimensions`);
+  check(/src="\/assets\/sufeiya-logo-header\.webp" width="436" height="87"/.test(html), `${prefix} uses the responsive display logo`);
   check(/href="\/assets\/sufeiya-mark\.png"/.test(html), `${prefix} uses the official mark favicon`);
 
   const desktopNavMatch = html.match(/<nav class="desktop-nav"[\s\S]*?<\/nav>/i);
@@ -1649,7 +1649,7 @@ check(
 const workspaceToolTargets = [...workspace.matchAll(/class="workspace-launch-grid workspace-support-grid"[\s\S]*?<\/div>/g)]
   .flatMap((match) => [...match[0].matchAll(/href="([^"]+)"/g)].map((link) => link[1]));
 check(
-  JSON.stringify(workspaceToolTargets) === JSON.stringify(["/super-teacher", "/today", "/practice", "/focus", "/teaching-review-demo", "/my-data"]),
+  JSON.stringify(workspaceToolTargets) === JSON.stringify(["/workspace/sofia", "/today", "/practice", "/focus", "/teaching-review-demo", "/my-data"]),
   "workspace keeps Sofia, the teaching-review demo, and four supporting tools separate from the journey",
 );
 const cycleLedgerSection = workspace.match(/<section class="cycle-ledger-section[\s\S]*?<\/section>/)?.[0] || "";
@@ -2461,7 +2461,7 @@ check(
       workspacePageSource,
     ) &&
     /href="\/plan" data-provisional-handoff-plan/.test(workspacePageSource) &&
-    /href="\/super-teacher\?handoff=provisional#human-support" data-provisional-handoff-support/.test(workspacePageSource) &&
+    /href="\/workspace\/sofia\?handoff=provisional#human-support" data-provisional-handoff-support/.test(workspacePageSource) &&
     /href="\/my-data" data-provisional-handoff-data/.test(workspacePageSource) &&
     /不自动发送、不创建真实队列、不通知人员、不生成正式人工回执/.test(workspacePageSource) &&
     /\.journey-grid li\.is-pending-human/.test(styles),
@@ -6103,13 +6103,19 @@ check(
       routedLegacyPage,
     ) &&
     explicitLegacyRouteSources.size === pageFiles.length - 1 &&
-    [...explicitLegacyRouteSources].every(
-      ([key, source]) =>
-        source ===
-        `import { RoutedLegacyPage, metadataForRoutedPage } from "@/components/routed-legacy-page";\n\n` +
-          `export const metadata = metadataForRoutedPage("${key}");\n\n` +
-          `export default function Page() {\n  return <RoutedLegacyPage pageKey="${key}" />;\n}\n`,
-    ),
+    [...explicitLegacyRouteSources].every(([key, source]) => {
+      const pathname = `/${key}`;
+      if (configuredProtectedPaths.includes(pathname)) {
+        return source.includes("RoutedLegacyPage") && source.includes(`pageKey="${key}"`);
+      }
+      if (["about", "learning-path", "my-data", "platform"].includes(key)) {
+        return source.includes("PublicLegacyPage") && source.includes(`pageKey="${key}"`);
+      }
+      if (key === "resources") {
+        return source.includes("ResourceCatalog") && source.includes("parseResourceFilters");
+      }
+      return false;
+    }),
   "explicit canonical learner routes share fail-closed Clerk resource auth and route metadata",
 );
 check(
@@ -6148,21 +6154,15 @@ check(
       explicitLegacyRouteSlugs
         .filter((slug) => !configuredProtectedPaths.includes(`/${slug}`))
         .sort(),
-    ) === JSON.stringify(["about", "learning-path", "platform", "resources"]),
-  "Clerk path classifier covers exactly 16 protected legacy routes plus account and teaching review",
+    ) === JSON.stringify(["about", "learning-path", "my-data", "platform", "resources"]),
+  "Clerk path classifier keeps public local-data and marketing routes outside the protected account graph",
 );
 check(
   JSON.stringify([...configuredClerkPublicRuntimePaths].sort()) ===
     JSON.stringify([
-      "/",
-      "/about",
       "/beta-access",
-      "/learning-path",
-      "/platform",
-      "/resources",
       "/sign-in",
       "/sign-up",
-      "/super-teacher",
     ]) &&
     /export function isClerkRuntimePathname\(pathname: string\)/.test(clerkConfig) &&
     /pathname === "\/sign-in" \|\| pathname\.startsWith\("\/sign-in\/"\)/.test(
@@ -6178,7 +6178,7 @@ check(
     /pathname === "\/__clerk"[\s\S]*pathname\.startsWith\("\/__clerk\/"\)/.test(
       clerkConfig,
     ),
-  "Clerk runtime allowlist covers exact public UI, protected prefixes, auth catch-alls, the Sofia API, and Clerk FAPI proxy",
+  "Clerk runtime allowlist covers only protected prefixes, auth catch-alls, the Sofia API, and Clerk FAPI proxy",
 );
 check(
   configuredProtectedPaths.every((path) => proxyScript.includes(`"${path}/:path*"`)) &&
@@ -6196,8 +6196,11 @@ check(
         "[slug]",
         "beta-access",
         ...explicitLegacyRouteSlugs,
+        "privacy",
+        "support",
         "super-teacher",
         "teaching-review-demo",
+        "terms",
       ].sort(),
     ),
   "top-level App Router page allowlist contains no undeclared explicit route",
@@ -6279,11 +6282,14 @@ check(
   "proxy centrally authenticates and invite-gates learner routes with strict CSP, environment-bound instances, and production authorized parties",
 );
 check(
-  /function isIndexablePublicPath/.test(proxyScript) &&
+  !/function isIndexablePublicPath/.test(proxyScript) &&
     /policy: "public" \| "signed-in-public" \| "sensitive"/.test(proxyScript) &&
     /policy === "sensitive" \? \{ "X-Robots-Tag": "noindex, nofollow" \} : \{\}/.test(proxyScript) &&
-    /return signedIn \? "signed-in-public" as const : "public" as const/.test(proxyScript),
-  "public content remains indexable while signed-in public and sensitive responses remain private",
+    /const policy = "sensitive" as const/.test(proxyScript) &&
+    !configuredClerkPublicRuntimePaths.some((path) =>
+      ["/", "/about", "/learning-path", "/platform", "/resources", "/super-teacher", "/my-data"].includes(path)
+    ),
+  "public content bypasses Clerk while auth and protected responses remain private and noindex",
 );
 check(
   /const anonymousContentSecurityPolicy = \[[\s\S]*"script-src 'self' 'unsafe-inline'"/.test(
@@ -6938,9 +6944,10 @@ for (const path of protectedLearnerPaths) {
 }
 
 check(
-  /sitemapPageKeys = \["home", "learning-path", "platform", "resources", "about"\]/.test(nextSitemap) &&
-    !/"workspace"|"diagnostic"|"my-data"/.test(nextSitemap),
-  "Next.js sitemap contains only public legacy pages plus its explicit public Sofia entry",
+  /CONTENT_RELEASE_MANIFEST\.routes/.test(nextSitemap) &&
+    /filter\(\(route\) => route\.sitemap\)/.test(nextSitemap) &&
+    /lastModified: new Date\(route\.lastModified\)/.test(nextSitemap),
+  "Next.js sitemap derives public routes and last-modified dates from the release manifest",
 );
 
 check((notFound.match(/<h1\b/gi) || []).length === 1, "404 page has one h1");

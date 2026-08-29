@@ -24,11 +24,17 @@ async function assertLegacyNamespacesUnchanged(page: Page) {
   expect(values).toEqual(legacyValues);
 }
 
+async function chooseRadioOption(radios: Locator, optionIndex: number) {
+  const radio = radios.nth(Math.min(optionIndex, await radios.count() - 1));
+  await radio.locator("xpath=..").click();
+  await expect(radio).toBeChecked();
+}
+
 async function answerCurrentTask(page: Page, optionIndex = 2) {
   const task = page.locator("[data-reading-task]");
   await expect(task).toBeVisible();
   const radios = task.getByRole("radio");
-  await radios.nth(Math.min(optionIndex, await radios.count() - 1)).check();
+  await chooseRadioOption(radios, optionIndex);
   await task.getByRole("button", { name: "提交并查看解释" }).click();
   await expect(page.locator("[data-reading-feedback]")).toBeVisible();
 }
@@ -41,7 +47,7 @@ async function answerCurrentRetestTask(page: Page, optionIndex = 2) {
   const task = page.locator("[data-reading-task]");
   await expect(task).toBeVisible();
   const radios = task.getByRole("radio");
-  await radios.nth(Math.min(optionIndex, await radios.count() - 1)).check();
+  await chooseRadioOption(radios, optionIndex);
   await task.getByRole("button", { name: "提交并查看解释" }).click();
   await expect(page.locator("[data-retest-answer-locked]")).toBeVisible();
   await expect(page.locator("[data-reading-feedback]")).toHaveCount(0);
@@ -51,27 +57,29 @@ async function continueFromRetestLock(page: Page) {
   await page.locator("[data-retest-answer-locked]").getByRole("button").click();
 }
 
-async function tabTo(page: Page, locator: Locator) {
+type TabKey = "Tab" | "Alt+Tab";
+
+async function tabTo(page: Page, locator: Locator, tabKey: TabKey = "Tab") {
   for (let index = 0; index < 80; index += 1) {
     if (await locator.evaluate((element) => element === document.activeElement).catch(() => false)) {
       return;
     }
-    await page.keyboard.press("Tab");
+    await page.keyboard.press(tabKey);
   }
   throw new Error("Keyboard focus did not reach the requested control.");
 }
 
-async function tabToAndActivate(page: Page, locator: Locator) {
-  await tabTo(page, locator);
+async function tabToAndActivate(page: Page, locator: Locator, tabKey: TabKey = "Tab") {
+  await tabTo(page, locator, tabKey);
   await page.keyboard.press("Enter");
 }
 
-async function answerCurrentTaskByKeyboard(page: Page, retest = false) {
+async function answerCurrentTaskByKeyboard(page: Page, retest = false, tabKey: TabKey = "Tab") {
   const task = page.locator("[data-reading-task]");
   await expect(task).toBeVisible();
-  await tabTo(page, task.getByRole("radio").first());
+  await tabTo(page, task.getByRole("radio").first(), tabKey);
   await page.keyboard.press("Space");
-  await tabToAndActivate(page, task.getByRole("button", { name: "提交并查看解释" }));
+  await tabToAndActivate(page, task.getByRole("button", { name: "提交并查看解释" }), tabKey);
   await expect(page.locator(retest ? "[data-retest-answer-locked]" : "[data-reading-feedback]")).toBeVisible();
 }
 
@@ -194,7 +202,8 @@ test("serializes rapid same-tab submissions without overwriting state or duplica
   await page.goto("/learn/reading");
   await page.locator("main").getByRole("button", { name: "开始第 1 道入门检查" }).first().click();
   const task = page.locator('[data-reading-task="reading_baseline_shade_labels"]');
-  await task.getByRole("radio").last().check();
+  const radios = task.getByRole("radio");
+  await chooseRadioOption(radios, await radios.count() - 1);
   await task.locator("form").evaluate((form) => {
     form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
     form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
@@ -690,7 +699,8 @@ test("keeps single-namespace gaps event-degraded in both the viewer and export",
   );
 });
 
-test("completes the entire objective learning path with keyboard controls only", async ({ page }) => {
+test("completes the entire objective learning path with keyboard controls only", async ({ page, browserName }) => {
+  const tabKey: TabKey = browserName === "webkit" ? "Alt+Tab" : "Tab";
   await page.goto("/learn/reading");
   await page.evaluate(() => {
     (window as typeof window & { __readingPointerCount?: number }).__readingPointerCount = 0;
@@ -703,22 +713,23 @@ test("completes the entire objective learning path with keyboard controls only",
   await tabToAndActivate(
     page,
     page.locator("main").getByRole("button", { name: "开始第 1 道入门检查" }).first(),
+    tabKey,
   );
   for (let index = 0; index < 2; index += 1) {
-    await answerCurrentTaskByKeyboard(page);
-    await tabToAndActivate(page, page.locator("[data-reading-feedback]").getByRole("button"));
+    await answerCurrentTaskByKeyboard(page, false, tabKey);
+    await tabToAndActivate(page, page.locator("[data-reading-feedback]").getByRole("button"), tabKey);
   }
   await expect(page.locator('[data-reading-stage="lesson"]')).toBeFocused();
-  await tabToAndActivate(page, page.getByRole("button", { name: "开始 3 道主动练习" }));
+  await tabToAndActivate(page, page.getByRole("button", { name: "开始 3 道主动练习" }), tabKey);
   for (let index = 0; index < 3; index += 1) {
-    await answerCurrentTaskByKeyboard(page);
-    await tabToAndActivate(page, page.locator("[data-reading-feedback]").getByRole("button"));
+    await answerCurrentTaskByKeyboard(page, false, tabKey);
+    await tabToAndActivate(page, page.locator("[data-reading-feedback]").getByRole("button"), tabKey);
   }
   await expect(page.locator('[data-reading-stage="practice-complete"]')).toBeFocused();
-  await tabToAndActivate(page, page.getByRole("button", { name: "开始独立平行复测" }));
+  await tabToAndActivate(page, page.getByRole("button", { name: "开始独立平行复测" }), tabKey);
   for (let index = 0; index < 2; index += 1) {
-    await answerCurrentTaskByKeyboard(page, true);
-    await tabToAndActivate(page, page.locator("[data-retest-answer-locked]").getByRole("button"));
+    await answerCurrentTaskByKeyboard(page, true, tabKey);
+    await tabToAndActivate(page, page.locator("[data-retest-answer-locked]").getByRole("button"), tabKey);
   }
   await expect(page.locator('[data-reading-stage="plan"]')).toBeFocused();
   await expect(page.locator("[data-updated-recommendation-chain]")).toBeVisible();

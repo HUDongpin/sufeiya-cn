@@ -18,6 +18,7 @@ export type NavigationKey =
   | "public-learning"
   | "workspace"
   | "super-teacher"
+  | "governance"
   | "account"
   | "auth";
 

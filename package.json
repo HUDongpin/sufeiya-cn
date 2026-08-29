@@ -9,6 +9,8 @@
     "generate:next-content": "node scripts/build-legacy-content.mjs",
     "generate:p0-prep": "tsx scripts/generate-p0-decision-preparation.ts",
     "validate:p0-prep": "tsx scripts/validate-p0-decision-preparation.ts",
+    "check:generated": "node scripts/check-generated.mjs",
+    "check:legacy-runtime": "node scripts/check-legacy-runtime.mjs",
     "dev": "npm run generate:next-content && next dev",
     "build": "npm run generate:next-content && next build && npm run check:next-build",
     "start": "next start",
@@ -21,15 +23,19 @@
     "test:public-reading": "tsx --test tests/public-reading-contracts.test.ts tests/public-reading-storage.test.ts",
     "pretest:e2e:public-reading": "npm run build",
     "test:e2e:public-reading": "playwright test --config=playwright.public-reading.config.ts",
+    "pretest:e2e:public-quality": "npm run build",
+    "test:e2e:public-quality": "playwright test --config=playwright.public-quality.config.ts",
     "pretest:e2e:clerk-dev": "npm run build",
     "test:e2e:clerk-dev": "playwright test --config=playwright.clerk.config.ts",
     "test:governance": "tsx --test tests/p0-decision-log.test.ts tests/p0-decision-preparation.test.ts tests/release-governance.test.ts tests/release-governance-status.test.ts",
+    "pretest:foundation": "npm run generate:next-content",
+    "test:foundation": "tsx --test tests/account-data-boundary.test.ts tests/capability-matrix.test.ts tests/content-release-manifest.test.ts tests/generated-currentness.test.ts tests/logo-asset.test.ts tests/public-analytics.test.ts tests/public-governance-pages.test.ts tests/public-reading-p0-data-boundary.test.ts tests/public-shell-boundary.test.ts tests/resources.test.ts",
     "test:workspace-backup": "tsx --test tests/workspace-backup.test.ts",
     "test:teaching-review": "tsx --test tests/teaching-review-demo.test.ts",
     "test:super-teacher": "NODE_OPTIONS='--conditions=react-server' tsx --test tests/content-governance.test.ts tests/super-teacher.test.ts tests/super-teacher-approved-selection.test.ts tests/super-teacher-client-session.test.ts tests/super-teacher-local-response.test.ts tests/super-teacher-model-runtime.test.ts tests/super-teacher-rate-limit.test.ts tests/super-teacher-route-auth-boundary.test.ts tests/super-teacher-voice-release.test.ts",
     "check:legacy": "node scripts/verify-site.mjs",
     "check:next-build": "node scripts/verify-next-build.mjs",
-    "check": "npm run generate:next-content && npm run check:legacy && npm run test:clerk && npm run test:offline-navigation && npm run test:public-reading && npm run test:governance && npm run test:workspace-backup && npm run test:teaching-review && npm run test:super-teacher && tsc --noEmit && npm run lint && next build && npm run check:next-build"
+    "check": "npm run check:generated && npm run generate:next-content && npm run check:legacy-runtime && npm run check:legacy && npm run test:foundation && npm run test:clerk && npm run test:offline-navigation && npm run test:public-reading && npm run test:governance && npm run test:workspace-backup && npm run test:teaching-review && npm run test:super-teacher && tsc --noEmit && npm run lint && next build && npm run check:next-build"
   },
   "engines": {
     "node": ">=22.0.0"
@@ -37,6 +43,7 @@
   "dependencies": {
     "@clerk/localizations": "4.14.2",
     "@clerk/nextjs": "7.7.1",
+    "@vercel/analytics": "2.0.1",
     "ai": "^7.0.58",
     "next": "16.3.0",
     "react": "19.2.8",
@@ -44,6 +51,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
     "@clerk/backend": "3.16.3",
     "@clerk/testing": "2.2.21",
     "@playwright/test": "1.62.1",
