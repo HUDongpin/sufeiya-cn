@@ -182,23 +182,23 @@
     {
       "id": "public_legal_information",
       "userFacingName": "隐私、条款与支持说明",
-      "publicSummary": "公开说明已建立；在正式发布前仍需 Owner 与适用的专业法律审查。",
+      "publicSummary": "公开说明已建立；在正式发布前仍需 Owner 完成中国大陆个人信息保护内部合规复核。",
       "status": "partial",
       "accessCondition": "公开匿名访问",
       "dataLocations": ["不读取学习记录"],
       "externalVendors": [],
       "humanQueue": "支持联系由学习者自行发起，不承诺响应时限",
       "codeEvidence": ["app/privacy/page.tsx", "app/terms/page.tsx", "app/support/page.tsx"],
-      "externalEvidence": ["professional_legal_review_pending"],
+      "externalEvidence": ["owner_mainland_internal_compliance_review_pending_2026_08_29"],
       "owner": "project_owner",
       "reviewStatus": "pending",
       "reviewedAt": null,
-      "releaseGate": "owner_and_legal_review"
+      "releaseGate": "owner_mainland_internal_compliance_review"
     },
     {
       "id": "privacy_scoped_web_analytics",
       "userFacingName": "公开页面匿名分析",
-      "publicSummary": "Phase 0 已在运行时、依赖和构建图中硬禁用 Vercel Web Analytics；未来启用必须另作 Owner 与专业隐私审核决定。",
+      "publicSummary": "Phase 0 已在运行时、依赖和构建图中硬禁用 Vercel Web Analytics；未来启用必须另作 Owner 与中国大陆个人信息处理内部合规决定。",
       "status": "partial",
       "accessCondition": "Phase 0 不可用；所有公开、学习、账户与数据路由均不挂载 Analytics 客户端",
       "dataLocations": ["不生成或发送 Vercel Web Analytics 事件"],
