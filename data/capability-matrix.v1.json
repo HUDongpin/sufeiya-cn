@@ -141,7 +141,7 @@
       "externalVendors": ["DashScope（候选，未启用）"],
       "humanQueue": "未建立",
       "codeEvidence": ["data/content-governance.v2.json", "lib/release-governance.ts"],
-      "externalEvidence": ["rag_eligible_zero_of_fifteen"],
+      "externalEvidence": ["rag_eligible_zero_of_ten_claim_sources_and_zero_link_only_resources"],
       "owner": "project_owner",
       "reviewStatus": "pending",
       "reviewedAt": null,

@@ -35,9 +35,9 @@ export function ResourceCatalog({
         <div className="resource-browser-heading">
           <div>
             <p className="status-pill"><span />公开目录 · URL 可分享</p>
-            <h2 id="resource-browser-title">按能力找到课程，<br />再回到原始发布页学习。</h2>
+            <h2 id="resource-browser-title">按能力查看已审目录，<br />完成修改后再开放外链。</h2>
           </div>
-          <p>目录只展示公开元数据，点击后进入苏肥鸭 Bilibili 原始页面。课程原文和视频不复制到本站。</p>
+          <p>目录保留 Teacher / Content Owner 已审元数据；15 项均在按审核决定修改，当前不提供外链。课程原文和视频不复制到本站。</p>
         </div>
         <form id="resource-search-form" className="resource-search" role="search" method="get" action="/resources" autoComplete="off">
           <label>
@@ -63,27 +63,26 @@ export function ResourceCatalog({
         </form>
         <p className="resource-results-status" role="status">
           {resources.length
-            ? `找到 ${resources.length} 条公开课程；点击后进入 Bilibili 原始发布页。`
+            ? `找到 ${resources.length} 条待修改课程元数据；外链暂未开放。`
             : "没有找到匹配课程。可以更换关键词或选择“全部能力”。"}
         </p>
         <div className="resource-catalog">
           {resources.map((resource, index) => (
-            <a
-              className="resource-catalog-card"
-              href={resource.url}
-              target="_blank"
-              rel="noopener noreferrer"
+            <article
+              aria-labelledby={`resource-title-${resource.id}`}
+              className="resource-catalog-card is-blocked"
               key={resource.id}
             >
               <span className="resource-catalog-number">{String(index + 1).padStart(2, "0")}</span>
               <div>
-                <p>{resource.skills.join(" · ")}</p>
-                <h3>{resource.title}</h3>
+                <p>{resource.skills.join(" · ")} · 修改中</p>
+                <span className="resource-source-title-label">来源标题（非本站背书）</span>
+                <h3 id={`resource-title-${resource.id}`}>{resource.title}</h3>
                 <small>{formatPublishedDate(resource.publishedAt)} · {resource.durationText} · {resource.source}</small>
+                <p className="resource-review-note">{resource.reviewNote}</p>
               </div>
-              <span className="resource-catalog-arrow" aria-hidden="true">↗</span>
-              <span className="sr-only">（在新窗口打开）</span>
-            </a>
+              <span className="resource-catalog-status">外链暂缓</span>
+            </article>
           ))}
         </div>
       </div>

@@ -11,13 +11,24 @@ import {
 } from "../lib/resources";
 
 describe("server-rendered resource catalog", () => {
-  it("parses the committed Bilibili-only catalog", () => {
+  it("parses the 15-item Teacher-reviewed remediation catalog", () => {
     const parsed = parseResourceCatalog(RESOURCE_CATALOG);
-    assert.ok(parsed.length > 0);
+    assert.equal(parsed.length, 15);
     assert.equal(new Set(parsed.map((resource) => resource.id)).size, parsed.length);
+    assert.equal(parsed.some((resource) => resource.id === "BV14P411r7hv"), false);
     for (const resource of parsed) {
-      assert.match(resource.url, /^https:\/\/(www\.)?bilibili\.com\/video\//);
+      assert.equal("url" in resource, false);
+      assert.equal(resource.reviewDisposition, "requires_edit");
+      assert.equal(resource.reviewStatus, "teacher_reviewed_requires_remediation");
+      assert.equal(resource.linkStatus, "blocked_pending_edit");
+      assert.ok(resource.requiredEditCodes.includes("link_rights"));
+      assert.ok(resource.reviewNote.length > 0);
     }
+    assert.equal(parsed.find((resource) => resource.id === "BV1XA411G7Bp")?.publishedAt, "2021-05-19");
+    assert.equal(parsed.find((resource) => resource.id === "BV1gg4y1q7QY")?.publishedAt, "2020-06-06");
+    assert.throws(() => parseResourceCatalog(parsed.map((resource, index) =>
+      index === 0 ? { ...resource, linkStatus: "allowed" } : resource,
+    )));
   });
 
   it("uses one bounded URL query and skill as the filtering source of truth", () => {

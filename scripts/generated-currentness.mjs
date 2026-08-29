@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 export const VERSIONED_LEGACY_SOURCE_PUBLIC_PAIRS = Object.freeze([
+  Object.freeze(["data/resources.json", "public/data/resources.json"]),
   Object.freeze(["journey.js", "public/journey.js"]),
   Object.freeze(["learning-events.js", "public/learning-events.js"]),
   Object.freeze(["workspace-backup.js", "public/workspace-backup.js"]),

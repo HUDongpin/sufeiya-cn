@@ -1739,7 +1739,8 @@ check(
 check(
   /const SOURCE_GOVERNANCE_PROTOCOL_VERSION = "sufeiya_content_governance_v2"/.test(journeyScript) &&
     /parseSourceGovernancePublicSummary\(body\.sourceGovernance\)/.test(journeyScript) &&
-    /candidate\.trackedRecords !== 15/.test(journeyScript) &&
+    /candidate\.trackedRecords !== 10/.test(journeyScript) &&
+    /candidate\.catalogLinkOnly !== 0/.test(journeyScript) &&
     /candidate\.blockedArchiveRecords !== 655/.test(journeyScript) &&
     /candidate\.ragBlocked !== candidate\.trackedRecords - candidate\.ragEligible/.test(journeyScript) &&
     /status\.textContent = "暂时无法核对来源准入登记"/.test(journeyScript),
@@ -1869,18 +1870,18 @@ await checkExecutableAsync(
       protocolVersion: "sufeiya_content_governance_v2",
       status: "none_admitted",
       defaultDisposition: "deny",
-      trackedRecords: 15,
+      trackedRecords: 10,
       gateAClaimSources: 10,
-      catalogLinkOnly: 5,
+      catalogLinkOnly: 0,
       ragEligible: 0,
-      ragBlocked: 15,
+      ragBlocked: 10,
       blockedArchiveRecords: 655,
       criteria: {
         teacherReviewed: 0,
         ragRightsAllowed: 0,
         examVersionCurrentOrNotApplicable: 10,
         explicitRagAllowed: 0,
-        noBlockingSafetyFlags: 15,
+        noBlockingSafetyFlags: 10,
       },
     };
     const valid = await runGate0Fixture(validP0, validSourceGovernance);
@@ -1938,7 +1939,7 @@ await checkExecutableAsync(
       valid.sourceRoot.dataset.sourceGovernanceState === "none-admitted" &&
       valid.sourceElements["[data-source-governance-status]"].textContent === "RAG 准入仍为 0 条" &&
       valid.sourceElements["[data-source-rag-eligible]"].textContent === "0" &&
-      valid.sourceElements['[data-source-criterion="exam-version"]'].textContent === "10 / 15" &&
+      valid.sourceElements['[data-source-criterion="exam-version"]'].textContent === "10 / 10" &&
       valid.requestOptions?.method === "GET" &&
       !("body" in valid.requestOptions) &&
       gate0Drifted.root.dataset.gate0State === "unavailable" &&
@@ -6563,14 +6564,38 @@ check(/position:\s*absolute;[\s\S]*top:\s*100%;[\s\S]*100dvh/.test(styles), "mob
 check(/\.footer-nav a\s*\{[\s\S]*min-height:\s*44px/.test(styles), "mobile footer links meet the 44px touch target");
 
 const resourcesData = JSON.parse(await read("data/resources.json"));
-check(resourcesData.length === 16, "public resource catalog contains 16 reviewed metadata entries");
+check(resourcesData.length === 15, "public resource catalog retains exactly 15 reviewed requires-edit metadata entries");
 check(new Set(resourcesData.map((item) => item.id)).size === resourcesData.length, "resource catalog IDs are unique");
-check(resourcesData.every((item) => /^https:\/\/(www\.)?bilibili\.com\/video\//.test(item.url)), "resource catalog links only to Bilibili video pages");
+check(resourcesData.every((item) => !("url" in item)), "requires-edit resource metadata exposes no unapproved external URL");
 check(resourcesData.every((item) => Array.isArray(item.skills) && item.skills.length > 0), "every resource entry has at least one skill tag");
+check(!resourcesData.some((item) => item.id === "BV14P411r7hv"), "removed Read Aloud resource is absent from the current catalog");
+check(
+  resourcesData.every((item) =>
+    item.reviewDisposition === "requires_edit" &&
+    item.reviewStatus === "teacher_reviewed_requires_remediation" &&
+    item.linkStatus === "blocked_pending_edit" &&
+    Array.isArray(item.requiredEditCodes) &&
+    item.requiredEditCodes.includes("link_rights") &&
+    typeof item.reviewNote === "string" &&
+    item.reviewNote.length > 0
+  ),
+  "all retained resource metadata fails closed behind the signed requires-edit and link-rights decisions",
+);
+check(
+  resourcesData.find((item) => item.id === "BV1XA411G7Bp")?.publishedAt === "2021-05-19" &&
+    resourcesData.find((item) => item.id === "BV1gg4y1q7QY")?.publishedAt === "2020-06-06",
+  "resource dates use the frozen Asia/Shanghai display policy",
+);
+check(
+  /createElement\("article"\)/.test(resourcesScript) &&
+    !/createElement\("a"\)/.test(resourcesScript) &&
+    /外链暂缓/.test(resourcesScript),
+  "legacy resource runtime renders non-interactive remediation cards without video links",
+);
 
 const superTeacherSources = JSON.parse(await read("data/super-teacher-source-register.json"));
 check(superTeacherSources.claimSources.length === 10, "Super Teacher admits exactly 10 first-party Gate A claim sources");
-check(superTeacherSources.linkOnlyResources.length === 5, "Super Teacher exposes exactly five link-only resource entries");
+check(superTeacherSources.linkOnlyResources.length === 0, "Super Teacher exposes no resource links while all retained items require edits");
 check(superTeacherSources.blockedFamilies.some((family) => family.id === "archive-det-official-rules" && family.recordCount === 24), "DET official index remains explicitly blocked");
 check(superTeacherSources.blockedFamilies.some((family) => family.id === "archive-knowledge-base-preview" && family.recordCount === 631), "631 archive preview chunks remain explicitly blocked");
 

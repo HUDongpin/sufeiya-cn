@@ -319,6 +319,11 @@ test("resources filter is a no-JavaScript GET contract with refresh and history"
   const page = await context.newPage();
   try {
     await page.goto("/resources", { waitUntil: "load" });
+    await expect(page.locator(".resource-catalog-card")).toHaveCount(15);
+    await expect(page.locator(".resource-catalog-card[href]")).toHaveCount(0);
+    await expect(page.locator(".resource-catalog-status")).toHaveCount(15);
+    await expect(page.locator(".resource-catalog-status").first()).toHaveText("外链暂缓");
+    await expect(page.locator('a[href*="BV14P411r7hv"]')).toHaveCount(0);
     await page.locator('input[name="query"]').fill("Reading");
     await page.locator('select[name="skill"]').selectOption("Reading");
     await Promise.all([
@@ -332,6 +337,7 @@ test("resources filter is a no-JavaScript GET contract with refresh and history"
     await expect(page.locator('select[name="skill"]')).toHaveValue("Reading");
     const readingCount = await page.locator(".resource-catalog-card").count();
     expect(readingCount).toBeGreaterThan(0);
+    await expect(page.locator(".resource-catalog-card[href]")).toHaveCount(0);
 
     await page.reload({ waitUntil: "load" });
     await expect(page.locator('input[name="query"]')).toHaveValue("Reading");

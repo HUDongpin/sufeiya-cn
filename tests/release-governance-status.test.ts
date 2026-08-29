@@ -83,18 +83,18 @@ describe("sanitized release-governance status route", () => {
       protocolVersion: "sufeiya_content_governance_v2",
       status: "none_admitted",
       defaultDisposition: "deny",
-      trackedRecords: 15,
+      trackedRecords: 10,
       gateAClaimSources: 10,
-      catalogLinkOnly: 5,
+      catalogLinkOnly: 0,
       ragEligible: 0,
-      ragBlocked: 15,
+      ragBlocked: 10,
       blockedArchiveRecords: 655,
       criteria: {
         teacherReviewed: 0,
         ragRightsAllowed: 0,
         examVersionCurrentOrNotApplicable: 10,
         explicitRagAllowed: 0,
-        noBlockingSafetyFlags: 15,
+        noBlockingSafetyFlags: 10,
       },
     });
     assert.deepEqual(Object.keys(body.surfaces), [...RELEASE_SURFACES]);

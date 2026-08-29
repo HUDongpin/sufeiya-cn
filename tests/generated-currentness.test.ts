@@ -15,6 +15,7 @@ describe("generated currentness verifier", () => {
     assert.deepEqual(
       VERSIONED_LEGACY_SOURCE_PUBLIC_PAIRS.map(([, generated]) => generated),
       [
+        "public/data/resources.json",
         "public/journey.js",
         "public/learning-events.js",
         "public/workspace-backup.js",

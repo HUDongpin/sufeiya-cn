@@ -570,9 +570,9 @@ const resourcesContent = `
         <div class="resource-browser-heading">
           <div>
             <p class="status-pill"><span></span>公开目录 · 可直接搜索</p>
-            <h2 id="resource-browser-title">按能力找到课程，<br />再回到原始发布页学习。</h2>
+            <h2 id="resource-browser-title">按能力查看已审目录，<br />完成修改后再开放外链。</h2>
           </div>
-          <p>目录只展示公开元数据，点击后进入苏肥鸭 Bilibili 原始页面。课程原文和视频不复制到本站。</p>
+          <p>目录保留 Teacher / Content Owner 已审元数据；15 项均在按审核决定修改，当前不提供外链。课程原文和视频不复制到本站。</p>
         </div>
         <form id="resource-search-form" class="resource-search" role="search">
           <label>
@@ -592,9 +592,9 @@ const resourcesContent = `
           </label>
           <button class="button button-ink" type="submit">查找资源</button>
         </form>
-        <p class="resource-results-status" data-resource-status role="status" aria-live="polite">正在读取公开资源目录…</p>
+        <p class="resource-results-status" data-resource-status role="status" aria-live="polite">正在读取已审资源状态…</p>
         <div class="resource-catalog" data-resource-results></div>
-        <noscript><p class="resource-noscript">启用 JavaScript 后可以使用站内搜索；下方公开入口仍可正常访问。</p></noscript>
+        <noscript><p class="resource-noscript">启用 JavaScript 后可以查看 15 项修改中资源的逐项状态；当前目录不提供视频外链。</p></noscript>
       </div>
     </section>
     <section class="resources section resources-page" aria-labelledby="resources-title">
@@ -1094,7 +1094,7 @@ const workspaceContent = `
           <div class="source-admission-status-card">
             <span>CANONICAL CONTRACT · READ ONLY</span>
             <strong data-source-governance-status aria-live="polite">正在核对来源准入登记</strong>
-            <p data-source-governance-copy>核对完成前，RAG 准入数按 0 处理；Gate A 静态解释来源与仅链接目录不会被当作可检索知识库。</p>
+            <p data-source-governance-copy>核对完成前，RAG 准入数按 0 处理；Gate A 静态解释来源不会被当作可检索知识库，需修改的公开资源外链继续暂缓。</p>
             <dl class="source-admission-metrics">
               <div><dt>RAG 已准入</dt><dd><span data-source-rag-eligible>—</span> / <span data-source-tracked>15</span></dd></div>
               <div><dt>Gate A 静态来源</dt><dd data-source-gate-a>—</dd></div>

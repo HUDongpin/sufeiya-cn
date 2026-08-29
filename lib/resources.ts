@@ -13,22 +13,44 @@ export const RESOURCE_SKILL_FILTERS = [
 
 export type ResourceSkillFilter = (typeof RESOURCE_SKILL_FILTERS)[number];
 
+export const RESOURCE_REQUIRED_EDIT_CODES = [
+  "current_exam_contract",
+  "historical_exam_label",
+  "neutralize_source_title_claim",
+  "external_material_availability_rights",
+  "exam_integrity",
+  "language_accuracy",
+  "task_timing_and_rubric",
+  "unsupported_frequency_claim",
+  "link_rights",
+] as const;
+
+const resourceRequiredEditCodeSchema = z.enum(RESOURCE_REQUIRED_EDIT_CODES);
+
 const resourceSchema = z.object({
   id: z.string().regex(/^BV[A-Za-z0-9]+$/),
   title: z.string().min(1).max(300),
-  url: z.string().url().refine((value) => {
-    const url = new URL(value);
-    return url.protocol === "https:"
-      && ["bilibili.com", "www.bilibili.com"].includes(url.hostname)
-      && url.pathname.startsWith("/video/")
-      && !url.username
-      && !url.password;
-  }, "expected a public Bilibili video URL"),
   publishedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   durationText: z.string().min(1).max(80),
   skills: z.array(z.string().min(1).max(80)).min(1).max(8),
   type: z.string().min(1).max(80),
   source: z.string().min(1).max(160),
+  reviewDisposition: z.literal("requires_edit"),
+  reviewStatus: z.literal("teacher_reviewed_requires_remediation"),
+  reviewedAt: z.string().regex(
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/,
+    "expected a UTC review timestamp",
+  ),
+  examVersionDisposition: z.enum([
+    "current_contract_update_required",
+    "historical_update_required",
+    "general_language_update_required",
+  ]),
+  linkStatus: z.literal("blocked_pending_edit"),
+  requiredEditCodes: z.array(resourceRequiredEditCodeSchema).min(1).max(
+    RESOURCE_REQUIRED_EDIT_CODES.length,
+  ),
+  reviewNote: z.string().min(1).max(500),
 }).strict();
 
 const resourceCatalogSchema = z.array(resourceSchema).min(1).superRefine((resources, context) => {
@@ -87,7 +109,7 @@ export function filterResources({
 }) {
   const normalizedQuery = query.toLocaleLowerCase("zh-CN");
   return resources.filter((resource) => {
-    const searchable = [resource.title, resource.type, ...resource.skills]
+    const searchable = [resource.title, resource.type, resource.reviewNote, ...resource.skills]
       .join(" ")
       .toLocaleLowerCase("zh-CN");
     return (!normalizedQuery || searchable.includes(normalizedQuery))

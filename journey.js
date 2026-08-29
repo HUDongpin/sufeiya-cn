@@ -7465,9 +7465,9 @@
       !["none_admitted", "some_admitted", "all_tracked_admitted"].includes(candidate.status) ||
       candidate.defaultDisposition !== "deny" ||
       !counts.every((value) => Number.isSafeInteger(value) && value >= 0) ||
-      candidate.trackedRecords !== 15 ||
+      candidate.trackedRecords !== 10 ||
       candidate.gateAClaimSources !== 10 ||
-      candidate.catalogLinkOnly !== 5 ||
+      candidate.catalogLinkOnly !== 0 ||
       candidate.gateAClaimSources + candidate.catalogLinkOnly !== candidate.trackedRecords ||
       candidate.ragBlocked !== candidate.trackedRecords - candidate.ragEligible ||
       candidate.ragEligible > candidate.trackedRecords ||
@@ -7571,7 +7571,7 @@
     }
     if (copy) {
       copy.textContent = summary.ragEligible === 0
-        ? "10 条 Gate A 静态解释来源与 5 条仅链接目录都已逐条登记，但没有任何一条通过完整的结构、证据、决定与安全准入合同。"
+        ? "10 条 Gate A 静态解释来源均未通过完整的结构、证据、决定与安全准入合同；需修改的公开资源外链已全部暂缓。"
         : `已有 ${summary.ragEligible} 条通过逐项准入；这仍不代表外部模型、供应商数据流或生产发布已经批准。`;
     }
     const setSourceText = (selector, value) => {

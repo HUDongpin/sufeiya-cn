@@ -1,7 +1,7 @@
 {
   "protocolVersion": "sufeiya_super_teacher_sources_v1",
-  "admittedAt": "2026-08-09",
-  "admissionBoundary": "Only first-party Gate A product policy and original task descriptions may support generated claims. Public video entries are link-only catalog metadata. The archived DET rule index and knowledge-base previews remain blocked until teacher, version, and rights approval are complete.",
+  "admittedAt": "2026-08-29T17:01:49+08:00",
+  "admissionBoundary": "Only first-party Gate A product policy and original task descriptions may support generated claims. Public video entries under required-edit review are withheld from the link-only register. The archived DET rule index and knowledge-base previews remain blocked until teacher, version, and rights approval are complete.",
   "claimSources": [
     {
       "id": "sufeiya-diagnostic-boundary-v1",
@@ -94,53 +94,7 @@
       "allowedIntents": ["handoff", "explain_limits"]
     }
   ],
-  "linkOnlyResources": [
-    {
-      "id": "BV1PVsbzeECa",
-      "title": "【干货】什么是多邻国英语考试？多邻国英语考试适合我吗？这篇文章给你答案！",
-      "href": "https://www.bilibili.com/video/BV1PVsbzeECa",
-      "duration": "3 分 46 秒",
-      "skills": ["考试概览"],
-      "admissionStatus": "catalog_link_only",
-      "restriction": "Only the public title, duration, skill label, and original link may be shown. The model must not infer or quote lesson content."
-    },
-    {
-      "id": "BV1914y167e3",
-      "title": "一个视频教会你 need 的用法（多邻国完形填空错题笔记讲解）",
-      "href": "https://www.bilibili.com/video/BV1914y167e3",
-      "duration": "5 分 46 秒",
-      "skills": ["Reading"],
-      "admissionStatus": "catalog_link_only",
-      "restriction": "Only the public title, duration, skill label, and original link may be shown. The model must not infer or quote lesson content."
-    },
-    {
-      "id": "BV1o3cteAEH8",
-      "title": "【100期多邻国答疑系列4】听写句子讲解 everyday 和 every day 的区别",
-      "href": "https://www.bilibili.com/video/BV1o3cteAEH8",
-      "duration": "3 分 37 秒",
-      "skills": ["Listening", "Writing"],
-      "admissionStatus": "catalog_link_only",
-      "restriction": "Only the public title, duration, skill label, and original link may be shown. The model must not infer or quote lesson content."
-    },
-    {
-      "id": "BV1kNpgzuEmq",
-      "title": "别慌！多邻国口语临阵磨枪思路，小白也能快速上手！",
-      "href": "https://www.bilibili.com/video/BV1kNpgzuEmq",
-      "duration": "8 分 24 秒",
-      "skills": ["Speaking"],
-      "admissionStatus": "catalog_link_only",
-      "restriction": "Only the public title, duration, skill label, and original link may be shown. The model must not infer or quote lesson content."
-    },
-    {
-      "id": "BV1iB4y1A7BS",
-      "title": "多邻国写作可用的 as、though 引导的倒装句讲解",
-      "href": "https://www.bilibili.com/video/BV1iB4y1A7BS",
-      "duration": "4 分 42 秒",
-      "skills": ["Writing"],
-      "admissionStatus": "catalog_link_only",
-      "restriction": "Only the public title, duration, skill label, and original link may be shown. The model must not infer or quote lesson content."
-    }
-  ],
+  "linkOnlyResources": [],
   "blockedFamilies": [
     {
       "id": "archive-det-official-rules",
