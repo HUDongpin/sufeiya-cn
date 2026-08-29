@@ -2,7 +2,7 @@ name: Phase 0A release assurance
 
 on:
   push:
-    branches: [main, "codex/sufeiya-*"]
+    branches: [main, "codex/sufeiya-*", "codex/phase0a-authoritative-20260829"]
   pull_request:
     branches: [main]
 
