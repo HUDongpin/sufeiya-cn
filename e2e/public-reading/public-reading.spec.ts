@@ -660,8 +660,14 @@ test("keeps single-namespace gaps event-degraded in both the viewer and export",
   await expect(page.locator('[data-public-reading-runtime="event_degraded"]')).toBeVisible();
 
   const controls = page.locator("#local-data-controls");
-  await controls.getByRole("button", { name: "查看本机记录" }).click();
-  await controls.getByText("展开完整 JSON").click();
+  const viewRecordsButton = controls.getByRole("button", { name: "查看本机记录" });
+  await viewRecordsButton.focus();
+  await expect(viewRecordsButton).toBeFocused();
+  await viewRecordsButton.press("Enter");
+  await expect(controls.getByRole("button", { name: "收起记录" })).toBeVisible();
+  const fullJsonSummary = controls.getByText("展开完整 JSON");
+  await expect(fullJsonSummary).toBeVisible();
+  await fullJsonSummary.click();
   await expect(controls.locator("pre")).toContainText('"status": "event_degraded"');
   await expect(controls.locator("pre")).toContainText("expects 1 journey events");
   const eventsMissingDownloadPromise = page.waitForEvent("download");
