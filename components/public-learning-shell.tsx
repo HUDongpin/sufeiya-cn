@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 
 import { FullDocumentLink } from "@/components/full-document-link";
 import { OfflineNavigationBoundary } from "@/components/offline-navigation-boundary";
-import { PublicAnalytics } from "@/components/public-analytics";
 import { SiteFrame } from "@/components/site-frame";
 
 export function PublicLearningShell({ children }: { children: ReactNode }) {
@@ -23,7 +22,6 @@ export function PublicLearningShell({ children }: { children: ReactNode }) {
       >
         {children}
       </SiteFrame>
-      <PublicAnalytics enabled={process.env.VERCEL_ENV === "production"} />
     </>
   );
 }

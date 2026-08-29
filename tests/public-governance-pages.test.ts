@@ -19,12 +19,13 @@ describe("public privacy, terms, and support pages", () => {
     }
   });
 
-  it("separates browser data, Clerk identity, optional sync, analytics, and future AI", async () => {
+  it("separates browser data, Clerk identity, optional sync, disabled analytics, and future AI", async () => {
     const privacy = await readFile(new URL("../app/privacy/page.tsx", import.meta.url), "utf8");
     for (const required of [
       "浏览器本机",
       "Clerk",
       "Vercel Web Analytics",
+      "已在代码、依赖和构建图中硬禁用",
       "阿里云",
       "Qwen",
       "登录不等于同步",

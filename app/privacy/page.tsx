@@ -6,7 +6,7 @@ import { PublicSiteShell } from "@/components/public-site-shell";
 
 export const metadata: Metadata = {
   title: "隐私说明｜苏肥鸭多邻国",
-  description: "了解 Sufeiya 当前公开页面、浏览器本机学习记录、Clerk 邀请账户、Vercel Analytics 与未来云同步的数据边界。",
+  description: "了解 Sufeiya 当前公开页面、浏览器本机学习记录、Clerk 邀请账户、已禁用的 Vercel Analytics 与未来云同步的数据边界。",
   alternates: { canonical: "/privacy" },
   robots: { index: false, follow: false },
 };
@@ -28,7 +28,7 @@ const sections = [
     content: (
       <>
         <p>受邀账户由 Clerk 处理登录身份、会话和邀请资格。Clerk 身份数据与当前浏览器中的学习记录是两个不同的数据范围；登录不等于同步。</p>
-        <p>公开页面代码只允许 Vercel Web Analytics 在固定公开路径处理匿名聚合访问事件，并会移除 URL 查询参数和片段；账户、教师、API、邀请票据、工作台和“我的本机数据”不发送分析事件。Vercel 项目是否已启用 Web Analytics、以及是否具备自定义事件套餐资格，仍需独立外部核验。</p>
+        <p>Phase 0 已在代码、依赖和构建图中硬禁用 Vercel Web Analytics；公开页面不加载 Analytics 客户端，也不发送页面浏览或自定义分析事件。Vercel 托管和运行日志属于不同的数据流，不能被本项禁用声明覆盖。</p>
       </>
     ),
   },
@@ -70,7 +70,7 @@ export default function PrivacyPage() {
       <PublicDocumentPage
         eyebrow="隐私说明"
         title="数据先留在你看得见的地方。"
-        lead="这里把浏览器本机数据、邀请账户、匿名分析、未来云同步与未来 AI 数据流分开说明。未开放的能力不会被写成已经上线。"
+        lead="这里把浏览器本机数据、邀请账户、已禁用的匿名分析、未来云同步与未来 AI 数据流分开说明。未开放的能力不会被写成已经上线。"
         sections={sections}
       />
     </PublicSiteShell>

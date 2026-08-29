@@ -8,7 +8,10 @@ async function source(path: string) {
 
 describe("Clerk-free public route shell", () => {
   it("keeps the shared public shell free of Clerk, request headers, and dynamic rendering", async () => {
-    const publicShell = await source("components/public-site-shell.tsx");
+    const [publicShell, publicLearningShell] = await Promise.all([
+      source("components/public-site-shell.tsx"),
+      source("components/public-learning-shell.tsx"),
+    ]);
     for (const forbidden of [
       "@clerk",
       'from "@/components/site-shell"',
@@ -19,8 +22,9 @@ describe("Clerk-free public route shell", () => {
     ]) {
       assert.equal(publicShell.includes(forbidden), false, forbidden);
     }
-    assert.match(publicShell, /PublicAnalytics/);
-    assert.match(publicShell, /enabled=\{process\.env\.VERCEL_ENV === "production"\}/);
+    for (const shell of [publicShell, publicLearningShell]) {
+      assert.doesNotMatch(shell, /PublicAnalytics|@vercel\/analytics|VERCEL_ENV/);
+    }
     assert.match(publicShell, /SofiaPublicFloatingAssistant/);
   });
 
@@ -42,9 +46,9 @@ describe("Clerk-free public route shell", () => {
     assert.match(routes[6], /robots: \{ index: false, follow: false \}/);
   });
 
-  it("does not mount analytics or the Sofia introduction on the local data page", async () => {
+  it("does not expose an analytics prop and keeps the Sofia introduction off the local data page", async () => {
     const legacyPage = await source("components/public-legacy-page.tsx");
-    assert.match(legacyPage, /analytics=\{!localDataPage\}/);
+    assert.doesNotMatch(legacyPage, /analytics=/);
     assert.match(legacyPage, /sofiaIntroduction=\{!localDataPage\}/);
     assert.doesNotMatch(legacyPage, /legacy-runtime-scripts|lib\/learning|learning-domain/);
     assert.match(legacyPage, /src="\/workspace\.js"/);

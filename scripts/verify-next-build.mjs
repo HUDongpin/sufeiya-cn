@@ -62,6 +62,9 @@ const forbiddenBuildPatterns = [
   ["Sofia component", /components\/(?:sofia-|super-teacher(?:[\\/-]|\.))/i],
   ["Sofia library", /lib\/super-teacher\//i],
   ["Sofia route module", /app\/super-teacher\//i],
+  ["Vercel Analytics package", /@vercel\/analytics/i],
+  ["public Analytics runtime", /components\/public-analytics/i],
+  ["Vercel Analytics intake", /_vercel\/insights/i],
 ];
 const forbiddenCatchAllPatterns = [
   ["routed legacy server component", /components\/routed-legacy-page/i],
@@ -295,7 +298,6 @@ const allowedPublicReadingProjectClientModules = new Set([
   "[project]/app/global-error.tsx",
   "[project]/components/full-document-link.tsx",
   "[project]/components/offline-navigation-boundary.tsx",
-  "[project]/components/public-analytics.tsx",
   "[project]/components/public-learning/public-reading-experience.tsx",
 ]);
 const publicReadingProjectClientModules = Object.keys(

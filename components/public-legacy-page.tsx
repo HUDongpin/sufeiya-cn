@@ -33,7 +33,6 @@ export function PublicLegacyPage({
   return (
     <PublicSiteShell
       pageKey={page.nav as NavigationKey}
-      analytics={!localDataPage}
       sofiaIntroduction={!localDataPage}
     >
       {page.jsonLd ? (

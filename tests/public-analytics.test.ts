@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { describe, it } from "node:test";
 
 import {
@@ -8,7 +9,27 @@ import {
   sanitizePublicAnalyticsProperties,
 } from "../lib/public-analytics-policy";
 
-describe("privacy-scoped public analytics", () => {
+describe("dormant privacy-scoped public analytics policy", () => {
+  it("keeps Phase 0 runtime and dependency surfaces hard-disabled", async () => {
+    const root = new URL("../", import.meta.url);
+    const sources = await Promise.all([
+      "components/public-site-shell.tsx",
+      "components/public-learning-shell.tsx",
+      "components/public-legacy-page.tsx",
+      "package.json",
+      "package-lock.json",
+    ].map((path) => readFile(new URL(path, root), "utf8")));
+    for (const source of sources) {
+      assert.doesNotMatch(source, /@vercel\/analytics|PublicAnalytics|analytics=/);
+    }
+    for (const removedRuntime of [
+      "components/public-analytics.tsx",
+      "lib/public-analytics.ts",
+    ]) {
+      await assert.rejects(readFile(new URL(removedRuntime, root), "utf8"), { code: "ENOENT" });
+    }
+  });
+
   it("allows only current declared public pages", () => {
     for (const pathname of [
       "/",

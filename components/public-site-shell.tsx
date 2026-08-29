@@ -2,19 +2,16 @@ import type { ReactNode } from "react";
 
 import { FullDocumentLink } from "@/components/full-document-link";
 import { OfflineNavigationBoundary } from "@/components/offline-navigation-boundary";
-import { PublicAnalytics } from "@/components/public-analytics";
 import { SiteFrame } from "@/components/site-frame";
 import { SofiaPublicFloatingAssistant } from "@/components/sofia-public-access";
 import type { NavigationKey } from "@/lib/site";
 
 export function PublicSiteShell({
   pageKey,
-  analytics = true,
   sofiaIntroduction = true,
   children,
 }: {
   pageKey: NavigationKey;
-  analytics?: boolean;
   sofiaIntroduction?: boolean;
   children: ReactNode;
 }) {
@@ -39,7 +36,6 @@ export function PublicSiteShell({
         {children}
       </SiteFrame>
       {sofiaIntroduction ? <SofiaPublicFloatingAssistant accessState="signed-out" /> : null}
-      {analytics ? <PublicAnalytics enabled={process.env.VERCEL_ENV === "production"} /> : null}
     </>
   );
 }

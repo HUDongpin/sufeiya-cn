@@ -198,17 +198,17 @@
     {
       "id": "privacy_scoped_web_analytics",
       "userFacingName": "公开页面匿名分析",
-      "publicSummary": "代码仅允许公开路径和固定枚举事件；Vercel 项目启用状态与自定义事件套餐资格仍需外部核验。",
+      "publicSummary": "Phase 0 已在运行时、依赖和构建图中硬禁用 Vercel Web Analytics；未来启用必须另作 Owner 与专业隐私审核决定。",
       "status": "partial",
-      "accessCondition": "仅公开路径；账户、教师、API、邀请票据和本机数据页禁用",
-      "dataLocations": ["Vercel Web Analytics 匿名聚合数据"],
-      "externalVendors": ["Vercel"],
-      "humanQueue": "无",
-      "codeEvidence": ["lib/public-analytics.ts", "components/public-analytics.tsx"],
-      "externalEvidence": ["vercel_project_enablement_and_plan_receipt_pending"],
+      "accessCondition": "Phase 0 不可用；所有公开、学习、账户与数据路由均不挂载 Analytics 客户端",
+      "dataLocations": ["不生成或发送 Vercel Web Analytics 事件"],
+      "externalVendors": [],
+      "humanQueue": "未来启用前需重新完成 Owner、隐私与 exact-SHA 发布审核",
+      "codeEvidence": ["components/public-site-shell.tsx", "components/public-learning-shell.tsx", "package.json", "scripts/verify-next-build.mjs"],
+      "externalEvidence": ["owner_phase0_analytics_disable_authorized_2026_08_29", "vercel_production_dashboard_awaiting_data_observed_2026_08_29"],
       "owner": "project_owner",
-      "reviewStatus": "pending",
-      "reviewedAt": null,
+      "reviewStatus": "accepted",
+      "reviewedAt": "2026-08-29T18:03:00+08:00",
       "releaseGate": "vercel_analytics_project_and_plan_verification"
     }
   ]
