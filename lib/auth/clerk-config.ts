@@ -1,5 +1,10 @@
 import { Buffer } from "node:buffer";
 
+// Owner decision 2026-08-29: account processing stays closed while the
+// canonical service moves to Mainland China and the Clerk path is replaced.
+// This is intentionally not environment-configurable or bypassable.
+export const MAINLAND_ACCOUNT_MIGRATION_HOLD = true;
+
 export const CLERK_PROTECTED_PATHS = [
   "/workspace",
   "/diagnostic",

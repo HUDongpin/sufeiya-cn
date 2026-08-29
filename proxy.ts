@@ -7,6 +7,7 @@ import {
   isClerkBetaProtectedPathname,
   isConfiguredClerkMiddlewarePathname,
   isClerkProtectedPathname,
+  MAINLAND_ACCOUNT_MIGRATION_HOLD,
 } from "@/lib/auth/clerk-config";
 import {
   betaAccessFromSessionClaims,
@@ -89,6 +90,24 @@ function betaVerificationUnavailableResponse() {
   });
 }
 
+function mainlandAccountMigrationHoldResponse() {
+  return new NextResponse(`<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>账户服务迁移中｜Sufeiya</title></head>
+<body><main><h1>账户与邀请服务迁移中。</h1><p>受保护学习区在迁往中国大陆阿里云并替换当前身份路径期间保持关闭。本次请求没有进入 Clerk，也没有读取、上传或改动本机学习记录。</p><nav><a href="/learn/reading">使用公开 Reading</a> · <a href="/my-data">管理本机数据</a> · <a href="/support#account-and-data">查看迁移与支持说明</a></nav></main></body>
+</html>`, {
+    status: 503,
+    headers: {
+      "Cache-Control": "private, no-store, max-age=0",
+      "Content-Security-Policy": anonymousContentSecurityPolicy,
+      "Content-Type": "text/html; charset=utf-8",
+      "X-Content-Type-Options": "nosniff",
+      "X-Robots-Tag": "noindex, nofollow",
+      "X-Sufeiya-Account-Mode": "mainland-migration-hold",
+    },
+  });
+}
+
 function needsBetaContext(pathname: string) {
   return isClerkBetaProtectedPathname(pathname)
     || pathname === "/beta-access";
@@ -145,6 +164,13 @@ const configuredClerkProxy = clerkState.configured
   : null;
 
 export default function proxy(request: NextRequest, event: NextFetchEvent) {
+  if (
+    MAINLAND_ACCOUNT_MIGRATION_HOLD
+    && isConfiguredClerkMiddlewarePathname(request.nextUrl.pathname)
+  ) {
+    return mainlandAccountMigrationHoldResponse();
+  }
+
   if (
     configuredClerkProxy
     && isConfiguredClerkMiddlewarePathname(request.nextUrl.pathname)

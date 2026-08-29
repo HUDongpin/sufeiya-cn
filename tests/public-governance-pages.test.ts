@@ -31,7 +31,7 @@ describe("public privacy, terms, and support pages", () => {
     assert.doesNotMatch(sharedDocument, /正式对外发布前仍需 Owner 与适用的专业法律审查/);
   });
 
-  it("separates browser data, Clerk identity, optional sync, disabled analytics, and future AI", async () => {
+  it("separates local data, paused identity, current hosting, disabled analytics, and unfinished migration", async () => {
     const privacy = await readFile(new URL("../app/privacy/page.tsx", import.meta.url), "utf8");
     for (const required of [
       "浏览器本机",
@@ -40,16 +40,42 @@ describe("public privacy, terms, and support pages", () => {
       "已在代码、依赖和构建图中硬禁用",
       "阿里云",
       "Qwen",
-      "登录不等于同步",
+      "当前规范 Production",
+      "相关请求以 fail-closed 状态结束，不进入 Clerk",
+      "Dr. Peter Hu",
+      "SofiaTang2020",
+      "权利请求",
+      "数据投诉",
+      "未满十四周岁",
     ]) {
       assert.ok(privacy.includes(required), required);
     }
   });
 
-  it("does not invent an automated queue or credential intake path", async () => {
-    const support = await readFile(new URL("../app/support/page.tsx", import.meta.url), "utf8");
+  it("publishes the designated rights channel without inventing a queue or credential intake", async () => {
+    const [support, terms] = await Promise.all([
+      readFile(new URL("../app/support/page.tsx", import.meta.url), "utf8"),
+      readFile(new URL("../app/terms/page.tsx", import.meta.url), "utf8"),
+    ]);
     assert.match(support, /没有自动客服或教师案例队列/);
     assert.match(support, /不会自动发送/);
     assert.match(support, /不要发送密码/);
+    assert.match(support, /个人信息处理者及内部合规责任人为 <strong>Dr\. Peter Hu/);
+    assert.match(support, /指定公开个人微信 <strong>SofiaTang2020/);
+    assert.match(support, /收件、处理状态、拒绝理由（如有）和结案结果/);
+    assert.match(terms, /迁移、备案、身份替换和独立回归完成前/);
+    assert.match(terms, /不要继续使用旧邀请链接/);
+  });
+
+  it("keeps the account service intentionally blocked until the Mainland identity migration is accepted", () => {
+    const capability = CAPABILITY_MATRIX.capabilities.find(
+      (item) => item.id === "clerk_invite_account",
+    );
+    assert.equal(capability?.status, "intentionally_blocked");
+    assert.equal(
+      capability?.releaseGate,
+      "server_student_data_processing",
+    );
+    assert.match(capability?.publicSummary ?? "", /迁往中国大陆阿里云并替换 Clerk/);
   });
 });

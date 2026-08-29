@@ -24,8 +24,26 @@ describe("Clerk-free public route shell", () => {
     }
     for (const shell of [publicShell, publicLearningShell]) {
       assert.doesNotMatch(shell, /PublicAnalytics|@vercel\/analytics|VERCEL_ENV/);
+      assert.doesNotMatch(shell, /href="\/(?:sign-in|sign-up|account|workspace)"/);
     }
     assert.match(publicShell, /SofiaPublicFloatingAssistant/);
+    assert.match(publicShell, /账户服务迁移中/);
+    assert.match(publicShell, /href="\/support#account-and-data"/);
+    assert.doesNotMatch(publicShell, /href="\/(?:sign-in|sign-up)"/);
+  });
+
+  it("does not advertise protected account routes from the shared public frame during migration", async () => {
+    const frame = await source("components/site-frame.tsx");
+    for (const protectedHref of [
+      'href="/workspace"',
+      'href="/teaching-review-demo"',
+      'href="/sign-in"',
+      'href="/sign-up"',
+      'href="/account"',
+    ]) {
+      assert.equal(frame.includes(protectedHref), false, protectedHref);
+    }
+    assert.match(frame, /账户学习区<span>大陆迁移中<\/span>/);
   });
 
   it("routes marketing, resources, Sofia introduction, and local data through public components", async () => {

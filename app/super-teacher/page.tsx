@@ -40,7 +40,7 @@ export default function SuperTeacherPage() {
   return (
     <PublicSiteShell pageKey="super-teacher" sofiaIntroduction={false}>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-      <SofiaPublicPage accessState="signed-out" />
+      <SofiaPublicPage accessState="unavailable" />
     </PublicSiteShell>
   );
 }

@@ -21,21 +21,18 @@ export function PublicSiteShell({
       <SiteFrame
         pageKey={pageKey}
         desktopAccountControls={(
-          <FullDocumentLink className="auth-link auth-link-primary" href="/sign-in">
-            受邀账户登录
+          <FullDocumentLink className="auth-link" href="/support#account-and-data">
+            账户服务迁移中
           </FullDocumentLink>
         )}
         mobileAccountControls={(
-          <>
-            <FullDocumentLink href="/sign-in">受邀账户登录<span>邀请制</span></FullDocumentLink>
-            <FullDocumentLink href="/sign-up">使用邀请链接注册<span>非公开注册</span></FullDocumentLink>
-          </>
+          <FullDocumentLink href="/support#account-and-data">账户与邀请暂停<span>大陆迁移中</span></FullDocumentLink>
         )}
-        localModeLabel="公开页面 · 本机优先"
+        localModeLabel="公开页面 · 本机优先 · 账户迁移中"
       >
         {children}
       </SiteFrame>
-      {sofiaIntroduction ? <SofiaPublicFloatingAssistant accessState="signed-out" /> : null}
+      {sofiaIntroduction ? <SofiaPublicFloatingAssistant accessState="unavailable" /> : null}
     </>
   );
 }

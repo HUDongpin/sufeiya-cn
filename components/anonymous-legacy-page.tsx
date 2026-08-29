@@ -11,18 +11,12 @@ export function AnonymousNotFoundPage() {
     <SiteFrame
       pageKey={page.nav as NavigationKey}
       desktopAccountControls={(
-        <>
-          <FullDocumentLink className="auth-link" href="/sign-in">登录</FullDocumentLink>
-          <FullDocumentLink className="auth-link auth-link-primary" href="/sign-up">邀请制内测</FullDocumentLink>
-        </>
+        <FullDocumentLink className="auth-link" href="/support#account-and-data">账户服务迁移中</FullDocumentLink>
       )}
       mobileAccountControls={(
-        <>
-          <FullDocumentLink href="/sign-in">登录<span>账户</span></FullDocumentLink>
-          <FullDocumentLink href="/sign-up">受邀注册<span>邀请链接</span></FullDocumentLink>
-        </>
+        <FullDocumentLink href="/support#account-and-data">账户与邀请暂停<span>大陆迁移中</span></FullDocumentLink>
       )}
-      localModeLabel="学习数据仍在本机"
+      localModeLabel="公开页面 · 本机优先 · 账户迁移中"
     >
       <div className="legacy-page-root" dangerouslySetInnerHTML={{ __html: page.mainHtml }} />
     </SiteFrame>

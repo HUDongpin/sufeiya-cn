@@ -148,4 +148,25 @@ describe("CapabilityMatrixV1", () => {
     assert.ok(claim);
     assert.ok(source.includes(claim.publicSummary));
   });
+
+  it("does not call currently Vercel-hosted public capabilities vendor-free during migration", () => {
+    for (const capabilityId of [
+      "public_marketing_information",
+      "public_reading_p0",
+      "anonymous_local_data_controls",
+      "browser_local_sofia",
+      "public_legal_information",
+    ]) {
+      const capability = CAPABILITY_MATRIX.capabilities.find((item) => item.id === capabilityId);
+      assert.ok(capability, capabilityId);
+      assert.ok(
+        capability.externalVendors.some((vendor) => vendor.includes("Vercel")),
+        capabilityId,
+      );
+      assert.ok(
+        capability.dataLocations.some((location) => location.includes("Vercel")),
+        capabilityId,
+      );
+    }
+  });
 });

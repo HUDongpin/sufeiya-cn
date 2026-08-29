@@ -80,7 +80,7 @@ function SiteHeader({
               开始 Reading 入门检查
               <ArrowIcon />
             </FullDocumentLink>
-            <FullDocumentLink href="/workspace" aria-current={pageKey === "workspace" ? "page" : undefined}>受邀学习工作台<span>邀请制</span></FullDocumentLink>
+            <FullDocumentLink href="/support#account-and-data">账户学习区<span>大陆迁移中</span></FullDocumentLink>
             <FullDocumentLink href="/super-teacher" aria-current={pageKey === "super-teacher" ? "page" : undefined}>Sofia智能老师<span>本机解释</span></FullDocumentLink>
           </div>
           <div className="mobile-nav-group" role="group" aria-labelledby="mobile-nav-learn">
@@ -116,7 +116,7 @@ function SiteFooter({ invitationRegistration }: { invitationRegistration: boolea
           <div>
             <strong>页面</strong>
             <FullDocumentLink href="/learn/reading">3 分钟入门检查</FullDocumentLink>
-            <FullDocumentLink href="/workspace">受邀学习工作台</FullDocumentLink>
+            <FullDocumentLink href="/support#account-and-data">账户学习区迁移说明</FullDocumentLink>
             <FullDocumentLink href="/super-teacher">Sofia智能老师</FullDocumentLink>
             <FullDocumentLink href="/my-data">我的本机数据</FullDocumentLink>
             <FullDocumentLink href="/learning-path">学习路径</FullDocumentLink>
@@ -126,14 +126,10 @@ function SiteFooter({ invitationRegistration }: { invitationRegistration: boolea
           <div>
             <strong>数据与账户</strong>
             <FullDocumentLink href="/my-data">我的本机数据</FullDocumentLink>
-            <FullDocumentLink href="/teaching-review-demo">教研复核演示</FullDocumentLink>
-            <FullDocumentLink href="/sign-in">安全登录</FullDocumentLink>
-            {invitationRegistration ? (
-              <FullDocumentLink href="/sign-up">使用邀请链接注册</FullDocumentLink>
-            ) : null}
-            <FullDocumentLink href="/account">账户管理</FullDocumentLink>
+            <FullDocumentLink href="/support#account-and-data">登录、邀请与账户暂停</FullDocumentLink>
+            {invitationRegistration ? <small>邀请注册在大陆迁移期间保持关闭。</small> : null}
             <FullDocumentLink href="/privacy">隐私说明</FullDocumentLink>
-            <small>登录不会自动上传或同步本机学习数据。</small>
+            <small>公开 Reading 与本机数据管理不需要登录。</small>
           </div>
           <div>
             <strong>了解更多</strong>

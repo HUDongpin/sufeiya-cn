@@ -6257,7 +6257,16 @@ check(
   "account surfaces preserve the independent local-learning-data boundary",
 );
 check(
-  /clerkMiddleware/.test(proxyScript) &&
+  /export const MAINLAND_ACCOUNT_MIGRATION_HOLD = true/.test(clerkConfig) &&
+    /function mainlandAccountMigrationHoldResponse\(\)/.test(proxyScript) &&
+    /X-Sufeiya-Account-Mode": "mainland-migration-hold"/.test(proxyScript) &&
+    proxyScript.indexOf("if (\n    MAINLAND_ACCOUNT_MIGRATION_HOLD") >= 0 &&
+    proxyScript.indexOf("if (\n    MAINLAND_ACCOUNT_MIGRATION_HOLD") <
+      proxyScript.indexOf("if (\n    configuredClerkProxy") &&
+    /MAINLAND_ACCOUNT_MIGRATION_HOLD[\s\S]*isConfiguredClerkMiddlewarePathname\(request\.nextUrl\.pathname\)[\s\S]*return mainlandAccountMigrationHoldResponse\(\)/.test(
+      proxyScript,
+    ) &&
+    /clerkMiddleware/.test(proxyScript) &&
     /createRouteMatcher/.test(proxyScript) &&
     /await auth\.protect\(\)/.test(proxyScript) &&
     /authorizedParties: getClerkAuthorizedParties\(\)/.test(proxyScript) &&
@@ -6280,7 +6289,7 @@ check(
     /return betaAccessRedirect\(request\)/.test(proxyScript) &&
     /requestHeaders\.set\(SUFEIYA_BETA_ACCESS_CONTEXT_HEADER, context\)/.test(proxyScript) &&
     !/frontendApiProxy/.test(proxyScript),
-  "proxy centrally authenticates and invite-gates learner routes with strict CSP, environment-bound instances, and production authorized parties",
+  "non-bypassable Mainland migration hold precedes the retained Clerk rollback code and returns no account processing path",
 );
 check(
   !/function isIndexablePublicPath/.test(proxyScript) &&
@@ -6310,8 +6319,9 @@ check(
 check(
   /X-Sufeiya-Account-Mode[\s\S]*clerk-invite-gated-local-learning-data/.test(proxyScript) &&
     /X-Sufeiya-Beta-Access/.test(proxyScript) &&
-    /X-Sufeiya-Account-Mode[\s\S]*clerk-unconfigured/.test(proxyScript),
-  "application responses distinguish invite access state from the fail-closed Clerk configuration state",
+    /X-Sufeiya-Account-Mode[\s\S]*clerk-unconfigured/.test(proxyScript) &&
+    /X-Sufeiya-Account-Mode[\s\S]*mainland-migration-hold/.test(proxyScript),
+  "application responses distinguish the active Mainland migration hold from retained Clerk rollback states",
 );
 check(/Sofia智能老师/.test(superTeacherPage), "Sofia AI Teacher has a dedicated Next.js application page");
 check(
@@ -6381,10 +6391,19 @@ check(
   "floating Sofia assistant discloses AI identity beside its portrait",
 );
 check(
-  /isSameOrigin[\s\S]*getClerkRuntimeState[\s\S]*await auth\(\)[\s\S]*!userId[\s\S]*betaAccessFromSessionClaims\(sessionClaims\)[\s\S]*!betaAccess\.approved[\s\S]*MAX_BODY_BYTES[\s\S]*checkSuperTeacherRateLimit\(userId\)/.test(
+  /MAINLAND_ACCOUNT_MIGRATION_HOLD[\s\S]*account_service_migration_hold/.test(
+    superTeacherRoute,
+  ) &&
+    superTeacherRoute.indexOf("account_service_migration_hold") <
+      superTeacherRoute.indexOf("getClerkRuntimeState()") &&
+    superTeacherRoute.indexOf("account_service_migration_hold") <
+      superTeacherRoute.indexOf("await auth()") &&
+    superTeacherRoute.indexOf("account_service_migration_hold") <
+      superTeacherRoute.indexOf("await request.text()") &&
+    /isSameOrigin[\s\S]*getClerkRuntimeState[\s\S]*await auth\(\)[\s\S]*!userId[\s\S]*betaAccessFromSessionClaims\(sessionClaims\)[\s\S]*!betaAccess\.approved[\s\S]*MAX_BODY_BYTES[\s\S]*checkSuperTeacherRateLimit\(userId\)/.test(
     superTeacherRoute,
   ) && !/clerkClient|users\.getUser|currentUser\(/.test(superTeacherRoute),
-  "Super Teacher POST requires a beta-approved Clerk user before rate limiting and model access",
+  "Super Teacher API holds before the retained Clerk, release, body, rate-limit, and model rollback path",
 );
 check(
   /evaluateReleaseSurface\("sofia_first_party_text_processing"\)/.test(superTeacherRoute) &&
@@ -6397,6 +6416,9 @@ check(
     /interactionProtocolVersion: SUPER_TEACHER_PROTOCOL/.test(superTeacherStatus) &&
     /gateAStaticClaimSources/.test(superTeacherContracts) &&
     /buildSuperTeacherStatusResponse\(\)/.test(superTeacherRoute) &&
+    /if \(MAINLAND_ACCOUNT_MIGRATION_HOLD\)[\s\S]*account_service_migration_hold[\s\S]*buildSuperTeacherStatusResponse\(\)/.test(
+      superTeacherRoute,
+    ) &&
     /teacherSurfaceAccess: "public_teaser"/.test(superTeacherStatus) &&
     /interactiveTeacherAccess: "clerk_invitation_approved"/.test(superTeacherStatus) &&
     /localManualExplanationEnabled: true/.test(superTeacherStatus) &&
@@ -6406,7 +6428,7 @@ check(
     /learningPageAccess: "clerk_invitation_approved"/.test(superTeacherStatus) &&
     /learningDataStorage: "browser_local_not_account_bound"/.test(superTeacherStatus) &&
     /clerk-invite-gated-local-learning-data/.test(superTeacherRoute),
-  "Super Teacher status separates the public teaser, invitation-approved local interaction, disabled server/model processing, and browser-local data",
+  "retained Super Teacher status metadata remains behind the active Mainland migration hold",
 );
 check(
   /invokeTeacherModel[\s\S]*materializeApprovedModelSelection/.test(superTeacherResponder) &&
@@ -6674,7 +6696,9 @@ check(
   /OfflineNavigationBoundary/.test(publicLearningShell) &&
     /SiteFrame/.test(publicLearningShell) &&
     /pageKey="public-learning"/.test(publicLearningShell) &&
-    /公开试学 · 本机保存/.test(publicLearningShell) &&
+    /公开试学 · 本机保存 · 账户迁移中/.test(publicLearningShell) &&
+    /href="\/support#account-and-data"/.test(publicLearningShell) &&
+    !/href="\/(?:sign-in|sign-up|account|workspace)"/.test(publicLearningShell) &&
     !/@clerk|ClerkProvider|ClerkAccountControls|SofiaAccessBoundary/.test(publicLearningShell),
   "public Reading shell preserves offline navigation and avoids the Clerk runtime",
 );
@@ -6922,7 +6946,10 @@ check(
     /G6 公开发布授权 \| `PASS`/.test(publicReadingEngineeringReceipt) &&
     /G7 生产部署与线上回归 \| `PASS`/.test(publicReadingEngineeringReceipt) &&
     /G8 账户同步 \| `NOT IN SCOPE`/.test(publicReadingEngineeringReceipt) &&
-    /PRODUCT_PRIVACY_LEGAL_SCOPE_ACCEPTED_FOR_PUBLIC_READING_P0 \/ PUBLIC_SIGNUP_CLOSED/.test(
+    /PRODUCT_PRIVACY_LOCAL_PAYLOAD_SCOPE_ACCEPTED \/ PUBLIC_SIGNUP_CLOSED \/ HOSTING_MIGRATION_GATE_OPEN/.test(
+      publicReadingDataContract,
+    ) &&
+    /整体中国大陆内部合规与托管迁移 Gate 仍为 `OPEN`/.test(
       publicReadingDataContract,
     ) &&
     /TEACHER_CONTENT_OWNER_ACCEPTED_FOR_AF85403 \/ RELEASED_PUBLIC_READING_P0/.test(
@@ -7093,19 +7120,19 @@ check(
     /pageKey=\{page\.nav as NavigationKey\}/.test(anonymousLegacyPage) &&
     /Full-document links are intentional/.test(anonymousLegacyPage) &&
     /Full-document links are intentional/.test(siteFrame) &&
-    /<FullDocumentLink className="auth-link" href="\/sign-in">登录<\/FullDocumentLink>/.test(
+    /<FullDocumentLink className="auth-link" href="\/support#account-and-data">账户服务迁移中<\/FullDocumentLink>/.test(
       anonymousLegacyPage,
     ) &&
-    /<FullDocumentLink className="auth-link auth-link-primary" href="\/sign-up">邀请制内测<\/FullDocumentLink>/.test(
+    !/href="\/(?:sign-in|sign-up|account|workspace)"/.test(
       anonymousLegacyPage,
     ) &&
     /import \{ FullDocumentLink \} from "@\/components\/full-document-link"/.test(
       siteFrame,
     ) &&
     /<FullDocumentLink[\s\S]*href=\{item\.href\}/.test(siteFrame) &&
-    /<FullDocumentLink[\s\S]*href="\/workspace"/.test(siteFrame) &&
     /<FullDocumentLink[\s\S]*href="\/super-teacher"/.test(siteFrame) &&
-    /<FullDocumentLink href="\/sign-in">安全登录<\/FullDocumentLink>/.test(siteFrame) &&
+    /<FullDocumentLink href="\/support#account-and-data">登录、邀请与账户暂停<\/FullDocumentLink>/.test(siteFrame) &&
+    !/href="\/(?:sign-in|sign-up|account|workspace|teaching-review-demo)"/.test(siteFrame) &&
     /^"use client";/m.test(fullDocumentLink) &&
     /data-full-document-navigation="true"/.test(fullDocumentLink) &&
     /data-full-document-navigation-ready="false"/.test(fullDocumentLink) &&
@@ -7125,7 +7152,7 @@ check(
     /Exclude<LegacyPageKey, "not-found">/.test(legacyPageComponent) &&
     !/authAware/.test(`${legacyPageComponent}\n${siteShell}`) &&
     /if \(!clerkState\.configured\) return shell/.test(siteShell),
-  "404 uses a separate anonymous module graph with full-document account handoffs and no Clerk or Sofia runtime imports",
+  "404 uses a separate anonymous module graph with a Mainland migration handoff and no Clerk or Sofia runtime imports",
 );
 
 const faviconStats = await stat(join(root, "app/favicon.ico"));

@@ -189,12 +189,13 @@ test("starts anonymously from the homepage in two clicks without touching legacy
   expect(writeRequests).toEqual([]);
 
   const signUpPage = await context.newPage();
-  await signUpPage.goto("/sign-up");
+  const signUpResponse = await signUpPage.goto("/sign-up");
+  expect(signUpResponse?.status()).toBe(503);
+  expect(signUpResponse?.headers()["x-sufeiya-account-mode"]).toBe("mainland-migration-hold");
   await expect(signUpPage.locator('[data-clerk-invitation-entry="ticket-present"]')).toHaveCount(0);
-  await expect(signUpPage.getByRole("heading", {
-    name: /账户服务暂不可用。|当前仅接受受邀学习者。/,
-  })).toBeVisible();
+  await expect(signUpPage.getByRole("heading", { name: "账户与邀请服务迁移中。" })).toBeVisible();
   await expect(signUpPage.locator("form")).toHaveCount(0);
+  await expect(signUpPage.locator("script")).toHaveCount(0);
   await signUpPage.close();
 });
 
@@ -351,13 +352,18 @@ test("completes the learning loop, verifies every replacement CTA, export, recov
     payload: { continuation: "local_export" },
   });
 
+  const accountHoldResponsePromise = page.waitForResponse((response) => (
+    response.request().resourceType() === "document"
+    && new URL(response.url()).pathname === "/sign-in"
+  ));
   await finalPlan.getByRole("button", { name: "受邀内测登录" }).click();
+  const accountHoldResponse = await accountHoldResponsePromise;
+  expect(accountHoldResponse.status()).toBe(503);
+  expect(accountHoldResponse.headers()["x-sufeiya-account-mode"]).toBe("mainland-migration-hold");
   await expect(page).toHaveURL(/\/sign-in$/);
-  await expect(page.getByRole("heading", { name: "登录后核验内测资格。" })).toBeVisible();
-  await expect(page.locator('main a[href="/sign-up"]')).toHaveCount(0);
-  const invitationLinkLabels = await page.locator('a[href="/sign-up"]').allTextContents();
-  expect(invitationLinkLabels.length).toBeGreaterThan(0);
-  expect(invitationLinkLabels.every((label) => /受邀|邀请/.test(label))).toBe(true);
+  await expect(page.getByRole("heading", { name: "账户与邀请服务迁移中。" })).toBeVisible();
+  await expect(page.locator('a[href="/sign-up"]')).toHaveCount(0);
+  await expect(page.locator("script")).toHaveCount(0);
   await page.goto("/learn/reading");
   await expect(page.locator('[data-public-reading-runtime="ready"]')).toBeVisible();
   await expect.poll(() => page.evaluate((key) => {

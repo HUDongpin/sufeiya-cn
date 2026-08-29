@@ -1,6 +1,6 @@
 # P0 公开 Reading 本机数据与最小事件合同
 
-> 合同状态：`PRODUCT_PRIVACY_LEGAL_SCOPE_ACCEPTED_FOR_PUBLIC_READING_P0 / PUBLIC_SIGNUP_CLOSED`
+> 合同状态：`PRODUCT_PRIVACY_LOCAL_PAYLOAD_SCOPE_ACCEPTED / PUBLIC_SIGNUP_CLOSED / HOSTING_MIGRATION_GATE_OPEN`
 >
 > 初建：2026-08-19；工程收口复核：2026-08-23；范围决定最终确认：2026-08-26。本文件描述当前代码实际行为和项目治理决定，不把它冒充执业律师意见、未来数据流批准或部署证据。
 
@@ -114,9 +114,9 @@
 
 ## 7. 当前验收边界
 
-工程测试覆盖严格解析、有序证据前缀、事件白名单与生命周期、证据派生 `plan_offered`、state/event 同数量答案漂移、两个 key 都存在或单个 key 合法缺失时的 event-degraded 查看/导出/继续/删除、敏感/自由字段拒绝、容量、同标签页重复提交、跨标签页并发冲突、无 Web Locks 降级、未知版本和部分损坏保全、冲突后最新快照查看/导出、双确认删除、删除后重新开始、旧 namespace 字节不变和零非 GET 请求。该证据可以支持 G2 本机技术评审。Product/Privacy 已接受合同；2026-08-26 的补充决定又确认当前 Product/Privacy/Legal 治理范围与公共 SignUp 关闭。由于发布面不存在公共注册、身份采集、账户绑定、自由文本或学习记录上传，当前 P0 的 **G3 为 `PASS`**；这不为任何未来新增数据流提供法律结论。
+工程测试覆盖严格解析、有序证据前缀、事件白名单与生命周期、证据派生 `plan_offered`、state/event 同数量答案漂移、两个 key 都存在或单个 key 合法缺失时的 event-degraded 查看/导出/继续/删除、敏感/自由字段拒绝、容量、同标签页重复提交、跨标签页并发冲突、无 Web Locks 降级、未知版本和部分损坏保全、冲突后最新快照查看/导出、双确认删除、删除后重新开始、旧 namespace 字节不变和零非 GET 请求。该证据可以支持 G2 本机技术评审。Product/Privacy 已接受本机学习 payload 合同与公共 SignUp 关闭；这只使本机 payload 子项通过。当前 Production 的 Vercel 请求/日志与阿里云迁移尚未关闭，因此整体中国大陆内部合规与托管迁移 Gate 仍为 `OPEN`，不能把本机零写请求误写成网站不存在境外处理。
 
-## 8. Product / Privacy / Legal 决定记录
+## 8. Product / Privacy / 内部合规决定记录
 
 绑定的不可变产品候选：`af85403cd97eff47afeea93582705a15aa7527a3`。
 
@@ -128,7 +128,7 @@
 
 - Product/Privacy 对当前两 namespace、本机控制、禁止字段、无学习写请求和替代 CTA 的接受：`ACCEPTED`；
 - 公共 SignUp：`CLOSED`，不得因本次接受而新增 `public_signup`、邮箱收集或账户绑定；
-- 当前 P0 Legal 治理范围：`ACCEPTED`。决定只适用于零公开注册、零身份/自由文本、零学习记录上传的当前表面；不声称接受者具有执业律师资格，也不构成未来公开注册、账户同步、远端分析、AI 或跨地区数据流的专业法律意见；
+- 当前 P0 本机 payload 治理范围：`ACCEPTED`。决定只适用于零公开注册、零身份/自由文本、零学习记录上传的浏览器学习 payload；Vercel 请求/日志、Clerk 既有数据、阿里云迁移和网站整体中国大陆合规仍为 `OPEN`；
 - Preview / 发布：`AUTHORIZED_SUBJECT_TO_EXACT_CANDIDATE_AND_GATES`。授权证据在评审决定回执中单独记录；部署事实仍必须由 Preview/生产 metadata 证明。
 
-如未来中国大陆内部合规复核或依法触发的专业机构审计要求修改本合同、用户说明、支持入口、地域或保留/删除边界，必须形成新候选、提升必要的协议/内容版本并重跑适用验证；本次 Product/Privacy 接受不能覆盖后续数据流。
+如未来中国大陆内部合规复核或依法触发的专业机构审计要求修改本合同、用户说明、支持入口、地域或保留/删除边界，必须形成新候选、提升必要的协议/内容版本并重跑适用验证；本次 Product/Privacy 接受不能覆盖托管请求、供应商既有数据或后续数据流。

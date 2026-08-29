@@ -14,6 +14,7 @@ import {
   isConfiguredClerkMiddlewarePathname,
   isClerkProtectedPathname,
   isSameOriginBrowserRequest,
+  MAINLAND_ACCOUNT_MIGRATION_HOLD,
 } from "../lib/auth/clerk-config";
 
 function publishableKey(type: "test" | "live") {
@@ -144,6 +145,10 @@ describe("browser request boundary", () => {
 });
 
 describe("Clerk route boundary", () => {
+  it("keeps the Mainland account migration hold compile-time enabled", () => {
+    assert.equal(MAINLAND_ACCOUNT_MIGRATION_HOLD, true);
+  });
+
   it("restricts authorized parties to canonical production origins only", () => {
     assert.deepEqual(getClerkAuthorizedParties({ VERCEL_ENV: "production" }), [
       "https://sufeiya.cn",

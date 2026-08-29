@@ -30,9 +30,9 @@ const accessCopy: Record<SofiaPublicAccessState, { eyebrow: string; title: strin
     body: "登录只确认账户身份，不代表具有当前准入。学习摘要、历史对话和交互式 Sofia 在 Clerk 签名会话令牌确认资格前保持关闭；首轮仅面向 18+ 成人。",
   },
   unavailable: {
-    eyebrow: "CLERK · SAFE CONFIGURATION HOLD",
-    title: "账户服务暂不可用。",
-    body: "为保护本机学习记录，交互式 Sofia 保持关闭；本页不会读取、迁移或上传已有记录。",
+    eyebrow: "MAINLAND MIGRATION · ACCOUNT HOLD",
+    title: "交互式 Sofia 随账户服务暂停。",
+    body: "网站迁往中国大陆阿里云并替换当前身份路径期间，交互式 Sofia 保持关闭；本页不会读取、迁移或上传已有记录。",
   },
 };
 
@@ -46,12 +46,12 @@ export function SofiaPublicPage({ accessState }: { accessState: SofiaPublicAcces
             <FullDocumentLink className={pageStyles.backLink} href="/">← 返回公开首页</FullDocumentLink>
             <p className={pageStyles.eyebrow}>SOFIA AI TEACHER · PUBLIC INTRODUCTION</p>
             <h1 id="super-teacher-public-title">Sofia智能老师</h1>
-            <p className={pageStyles.heroLead}>解释学习依据、计划与下一步任务的 AI 学习助手。当前回答只在浏览器本机按确定性规则生成，不发送到本站服务器、Qwen 或远程人工队列。</p>
+            <p className={pageStyles.heroLead}>确定性解释代码不向服务器、Qwen 或远程人工队列发送内容；交互入口随账户路径在大陆迁移期间关闭。</p>
           </div>
           <dl className={pageStyles.heroFacts}>
             <div><dt>公开页面</dt><dd>只展示介绍，不读取本机记录</dd></div>
-            <div><dt>交互入口</dt><dd>Clerk 登录且获邀后开放</dd></div>
-            <div><dt>当前数据流</dt><dd>浏览器本机处理 · 不发送服务器或模型</dd></div>
+            <div><dt>交互入口</dt><dd>大陆迁移与身份替换期间关闭</dd></div>
+            <div><dt>当前数据流</dt><dd>公开介绍不读取本机记录</dd></div>
           </dl>
         </div>
       </section>
@@ -71,7 +71,7 @@ export function SofiaPublicPage({ accessState }: { accessState: SofiaPublicAcces
           <article>
             <span>01</span>
             <h3>身份只是访问门</h3>
-            <p>Clerk 登录与邀请资格只控制访问，不会把当前浏览器的学习数据绑定到账户，也不会自动同步到其他设备。</p>
+            <p>登录、邀请与受保护学习区当前统一暂停；公开 Reading 与本机数据管理不需要账户。</p>
           </article>
           <article>
             <span>02</span>
@@ -213,8 +213,8 @@ export function SofiaPublicFloatingAssistant({ accessState }: { accessState: Sof
           <h3>{copy.title}</h3>
           <p>{copy.body}</p>
           <ul>
-            <li>登录且通过内测邀请资格核验后才挂载 Sofia 本机会话。</li>
-            <li>当前回答在浏览器本机生成，不发送服务器或外部模型。</li>
+            <li>交互式 Sofia 在大陆迁移与身份替换完成前保持关闭。</li>
+            <li>保留的确定性解释代码不向服务器或外部模型发送内容。</li>
             <li>远程模型、真人队列、语音与麦克风分别保持关闭。</li>
           </ul>
         </div>

@@ -34,11 +34,11 @@ const sections = [
   },
   {
     id: "accounts",
-    title: "邀请账户",
+    title: "账户迁移暂停",
     content: (
       <>
-        <p>首轮账户仅面向项目方邀请的 18+ 成人。创建 Clerk 身份或完成登录不自动获得学习区资格；服务器仍需核验当前邀请标记。</p>
-        <p>请保护账户与设备，不共享验证码或登录链接。发现异常访问时，请退出账户、清除共享设备上的本机数据，并按<FullDocumentLink href="/support">支持说明</FullDocumentLink>联系项目方。</p>
+        <p>Owner 已决定把网站迁往中国大陆阿里云并替换当前 Clerk 身份路径。迁移、备案、身份替换和独立回归完成前，登录、邀请、账户管理与受保护学习区保持关闭；不要继续使用旧邀请链接。</p>
+        <p>公开 Reading 与<FullDocumentLink href="/my-data">本机数据管理</FullDocumentLink>不需要账户。已有身份数据问题请按<FullDocumentLink href="/support#human-contact">支持说明</FullDocumentLink>发起权利请求；暂停代码不会自动删除供应商保存的既有数据。</p>
       </>
     ),
   },
@@ -70,7 +70,7 @@ export default function TermsPage() {
       <PublicDocumentPage
         eyebrow="使用条款"
         title="用真实边界，保护每一次学习。"
-        lead="这些条款描述当前可用服务、邀请账户和教育用途。它不会把未来路线图当作已交付承诺。"
+        lead="这些条款描述当前可用服务、暂停中的账户路径和教育用途。它不会把阿里云迁移或其他路线图当作已交付承诺。"
         sections={sections}
       />
     </PublicSiteShell>
