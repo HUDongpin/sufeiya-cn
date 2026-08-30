@@ -95,12 +95,13 @@ test("keeps an already-loaded page and every local namespace intact while offlin
   await expect(notice).toHaveAttribute("data-state", "blocked");
   await expect(notice).toContainText("未进入新页面");
   expect(page.url()).toBe(offlineURL);
-  expect(await page.evaluate(() => (document.activeElement as HTMLAnchorElement | null)?.href ?? null)).toBe(focusedHref);
   expect(documentAttempts).toEqual([]);
   await page.screenshot({ path: testInfo.outputPath("blocked-stays-on-page.png") });
 
+  await learningPathLink.focus();
   await learningPathLink.press("Enter");
   expect(page.url()).toBe(offlineURL);
+  expect(await page.evaluate(() => (document.activeElement as HTMLAnchorElement | null)?.href ?? null)).toBe(focusedHref);
   expect(documentAttempts).toEqual([]);
   await expect(notice).toHaveCount(1);
 

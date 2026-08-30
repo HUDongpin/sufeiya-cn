@@ -2,161 +2,338 @@
   {
     "id": "BV1PVsbzeECa",
     "title": "【干货】什么是多邻国英语考试？多邻国英语考试适合我吗？这篇文章给你答案！",
-    "url": "https://www.bilibili.com/video/BV1PVsbzeECa",
     "publishedAt": "2025-10-22",
     "durationText": "3 分 46 秒",
-    "skills": ["考试概览"],
+    "skills": [
+      "考试概览"
+    ],
     "type": "公开视频",
-    "source": "苏肥鸭的学习部落 · Bilibili"
+    "source": "苏肥鸭的学习部落 · Bilibili",
+    "reviewDisposition": "requires_edit",
+    "reviewStatus": "teacher_reviewed_requires_remediation",
+    "reviewedAt": "2026-08-29T09:01:49Z",
+    "examVersionDisposition": "current_contract_update_required",
+    "linkStatus": "blocked_pending_edit",
+    "requiredEditCodes": [
+      "current_exam_contract",
+      "neutralize_source_title_claim",
+      "link_rights"
+    ],
+    "reviewNote": "需按当前考试结构更新概览，并中和来源标题中的绝对化表述。"
   },
   {
     "id": "BV17t4y1Z7bL",
     "title": "多邻国小白考前必看‼️多邻国考试全流程讲解",
-    "url": "https://www.bilibili.com/video/BV17t4y1Z7bL",
     "publishedAt": "2024-01-02",
     "durationText": "22 分 26 秒",
-    "skills": ["考试概览"],
+    "skills": [
+      "考试概览"
+    ],
     "type": "公开视频",
-    "source": "苏肥鸭的学习部落 · Bilibili"
+    "source": "苏肥鸭的学习部落 · Bilibili",
+    "reviewDisposition": "requires_edit",
+    "reviewStatus": "teacher_reviewed_requires_remediation",
+    "reviewedAt": "2026-08-29T09:01:49Z",
+    "examVersionDisposition": "historical_update_required",
+    "linkStatus": "blocked_pending_edit",
+    "requiredEditCodes": [
+      "historical_exam_label",
+      "current_exam_contract",
+      "neutralize_source_title_claim",
+      "link_rights"
+    ],
+    "reviewNote": "内容早于 2025-07-01 题型更新；需改为历史版本说明或按当前全流程重制。"
   },
   {
     "id": "BV1NcHPzRELV",
     "title": "【干货】多邻国互动听力千万不要这样做题！",
-    "url": "https://www.bilibili.com/video/BV1NcHPzRELV",
     "publishedAt": "2025-10-02",
     "durationText": "25 分 49 秒",
-    "skills": ["Listening"],
+    "skills": [
+      "Listening"
+    ],
     "type": "公开视频",
-    "source": "苏肥鸭的学习部落 · Bilibili"
+    "source": "苏肥鸭的学习部落 · Bilibili",
+    "reviewDisposition": "requires_edit",
+    "reviewStatus": "teacher_reviewed_requires_remediation",
+    "reviewedAt": "2026-08-29T09:01:49Z",
+    "examVersionDisposition": "current_contract_update_required",
+    "linkStatus": "blocked_pending_edit",
+    "requiredEditCodes": [
+      "current_exam_contract",
+      "neutralize_source_title_claim",
+      "link_rights"
+    ],
+    "reviewNote": "需按当前 Interactive Listening 合同核对流程，并中和绝对化警示标题。"
   },
   {
     "id": "BV1t67mzGEDq",
     "title": "【100期多邻国答疑分享19】多邻国互动听力解题秘诀大公开！",
-    "url": "https://www.bilibili.com/video/BV1t67mzGEDq",
     "publishedAt": "2025-06-02",
     "durationText": "25 分 34 秒",
-    "skills": ["Listening"],
+    "skills": [
+      "Listening"
+    ],
     "type": "公开视频",
-    "source": "苏肥鸭的学习部落 · Bilibili"
+    "source": "苏肥鸭的学习部落 · Bilibili",
+    "reviewDisposition": "requires_edit",
+    "reviewStatus": "teacher_reviewed_requires_remediation",
+    "reviewedAt": "2026-08-29T09:01:49Z",
+    "examVersionDisposition": "historical_update_required",
+    "linkStatus": "blocked_pending_edit",
+    "requiredEditCodes": [
+      "historical_exam_label",
+      "current_exam_contract",
+      "neutralize_source_title_claim",
+      "link_rights"
+    ],
+    "reviewNote": "内容早于 Expanded Interactive Listening；需补历史标签并更新题型、计时和重播规则。"
   },
   {
     "id": "BV1o3cteAEH8",
     "title": "【100期多邻国答疑系列4】听写句子讲解 everyday和every day的区别",
-    "url": "https://www.bilibili.com/video/BV1o3cteAEH8",
     "publishedAt": "2025-01-14",
     "durationText": "3 分 37 秒",
-    "skills": ["Listening", "Writing"],
+    "skills": [
+      "Listening",
+      "Writing"
+    ],
     "type": "公开视频",
-    "source": "苏肥鸭的学习部落 · Bilibili"
+    "source": "苏肥鸭的学习部落 · Bilibili",
+    "reviewDisposition": "requires_edit",
+    "reviewStatus": "teacher_reviewed_requires_remediation",
+    "reviewedAt": "2026-08-29T09:01:49Z",
+    "examVersionDisposition": "current_contract_update_required",
+    "linkStatus": "blocked_pending_edit",
+    "requiredEditCodes": [
+      "current_exam_contract",
+      "language_accuracy",
+      "link_rights"
+    ],
+    "reviewNote": "需按当前 Listen and Type 合同和英语准确性完成修订。"
   },
   {
     "id": "BV1XA411G7Bp",
     "title": "多邻国答疑：多邻国听写句子高效练习方法 (戳该视频的简介可获得免费笔记资料）",
-    "url": "https://www.bilibili.com/video/BV1XA411G7Bp",
-    "publishedAt": "2021-05-18",
+    "publishedAt": "2021-05-19",
     "durationText": "8 分 01 秒",
-    "skills": ["Listening", "Writing"],
+    "skills": [
+      "Listening",
+      "Writing"
+    ],
     "type": "公开视频",
-    "source": "苏肥鸭的学习部落 · Bilibili"
+    "source": "苏肥鸭的学习部落 · Bilibili",
+    "reviewDisposition": "requires_edit",
+    "reviewStatus": "teacher_reviewed_requires_remediation",
+    "reviewedAt": "2026-08-29T09:01:49Z",
+    "examVersionDisposition": "historical_update_required",
+    "linkStatus": "blocked_pending_edit",
+    "requiredEditCodes": [
+      "historical_exam_label",
+      "external_material_availability_rights",
+      "link_rights"
+    ],
+    "reviewNote": "已修正 Asia/Shanghai 日期；仍需历史标签并核实外部免费笔记的持续可用性与权利。"
   },
   {
     "id": "BV1kNpgzuEmq",
     "title": "别慌！多邻国口语临阵磨枪思路，小白也能快速上手！",
-    "url": "https://www.bilibili.com/video/BV1kNpgzuEmq",
     "publishedAt": "2025-09-15",
     "durationText": "8 分 24 秒",
-    "skills": ["Speaking"],
+    "skills": [
+      "Speaking"
+    ],
     "type": "公开视频",
-    "source": "苏肥鸭的学习部落 · Bilibili"
+    "source": "苏肥鸭的学习部落 · Bilibili",
+    "reviewDisposition": "requires_edit",
+    "reviewStatus": "teacher_reviewed_requires_remediation",
+    "reviewedAt": "2026-08-29T09:01:49Z",
+    "examVersionDisposition": "current_contract_update_required",
+    "linkStatus": "blocked_pending_edit",
+    "requiredEditCodes": [
+      "current_exam_contract",
+      "exam_integrity",
+      "neutralize_source_title_claim",
+      "link_rights"
+    ],
+    "reviewNote": "需按当前 Interactive Speaking 更新，并移除可能诱导模板化作答的表述。"
   },
   {
     "id": "BV1VV411W71i",
     "title": "多邻国口语百搭观点（政府类）",
-    "url": "https://www.bilibili.com/video/BV1VV411W71i",
     "publishedAt": "2021-07-01",
     "durationText": "8 分 49 秒",
-    "skills": ["Speaking"],
+    "skills": [
+      "Speaking"
+    ],
     "type": "公开视频",
-    "source": "苏肥鸭的学习部落 · Bilibili"
+    "source": "苏肥鸭的学习部落 · Bilibili",
+    "reviewDisposition": "requires_edit",
+    "reviewStatus": "teacher_reviewed_requires_remediation",
+    "reviewedAt": "2026-08-29T09:01:49Z",
+    "examVersionDisposition": "historical_update_required",
+    "linkStatus": "blocked_pending_edit",
+    "requiredEditCodes": [
+      "historical_exam_label",
+      "exam_integrity",
+      "link_rights"
+    ],
+    "reviewNote": "需标记历史策略，并处理机械背诵、套话和考试诚信风险。"
   },
   {
     "id": "BV1iB4y1A7BS",
     "title": "多邻国写作可用的as，though引导的倒装句的讲解",
-    "url": "https://www.bilibili.com/video/BV1iB4y1A7BS",
     "publishedAt": "2021-04-23",
     "durationText": "4 分 42 秒",
-    "skills": ["Writing"],
+    "skills": [
+      "Writing"
+    ],
     "type": "公开视频",
-    "source": "苏肥鸭的学习部落 · Bilibili"
+    "source": "苏肥鸭的学习部落 · Bilibili",
+    "reviewDisposition": "requires_edit",
+    "reviewStatus": "teacher_reviewed_requires_remediation",
+    "reviewedAt": "2026-08-29T09:01:49Z",
+    "examVersionDisposition": "general_language_update_required",
+    "linkStatus": "blocked_pending_edit",
+    "requiredEditCodes": [
+      "language_accuracy",
+      "link_rights"
+    ],
+    "reviewNote": "需修订英语准确性、例句、难度和考试相关性说明。"
   },
   {
     "id": "BV15i4y137TP",
     "title": "多邻国看图说&写句子 一些动词 上",
-    "url": "https://www.bilibili.com/video/BV15i4y137TP",
     "publishedAt": "2020-07-19",
     "durationText": "4 分 03 秒",
-    "skills": ["Speaking", "Writing"],
+    "skills": [
+      "Speaking",
+      "Writing"
+    ],
     "type": "公开视频",
-    "source": "苏肥鸭的学习部落 · Bilibili"
+    "source": "苏肥鸭的学习部落 · Bilibili",
+    "reviewDisposition": "requires_edit",
+    "reviewStatus": "teacher_reviewed_requires_remediation",
+    "reviewedAt": "2026-08-29T09:01:49Z",
+    "examVersionDisposition": "historical_update_required",
+    "linkStatus": "blocked_pending_edit",
+    "requiredEditCodes": [
+      "historical_exam_label",
+      "task_timing_and_rubric",
+      "link_rights"
+    ],
+    "reviewNote": "需标记历史版本并更新图片口语/写作任务的计时、评分侧重和方法。"
   },
   {
     "id": "BV1gg4y1q7QY",
     "title": "多邻国看图写句子 一些表示表情的单词  上",
-    "url": "https://www.bilibili.com/video/BV1gg4y1q7QY",
-    "publishedAt": "2020-06-05",
+    "publishedAt": "2020-06-06",
     "durationText": "5 分 08 秒",
-    "skills": ["Vocabulary", "Writing"],
+    "skills": [
+      "Vocabulary",
+      "Writing"
+    ],
     "type": "公开视频",
-    "source": "苏肥鸭的学习部落 · Bilibili"
+    "source": "苏肥鸭的学习部落 · Bilibili",
+    "reviewDisposition": "requires_edit",
+    "reviewStatus": "teacher_reviewed_requires_remediation",
+    "reviewedAt": "2026-08-29T09:01:49Z",
+    "examVersionDisposition": "general_language_update_required",
+    "linkStatus": "blocked_pending_edit",
+    "requiredEditCodes": [
+      "language_accuracy",
+      "link_rights"
+    ],
+    "reviewNote": "已修正 Asia/Shanghai 日期；仍需核对词义、例句和当前用途。"
   },
   {
     "id": "BV1914y167e3",
     "title": "一个视频教会你need的用法（多邻国完形填空错题笔记讲解）",
-    "url": "https://www.bilibili.com/video/BV1914y167e3",
     "publishedAt": "2023-09-11",
     "durationText": "5 分 46 秒",
-    "skills": ["Reading"],
+    "skills": [
+      "Reading"
+    ],
     "type": "公开视频",
-    "source": "苏肥鸭的学习部落 · Bilibili"
+    "source": "苏肥鸭的学习部落 · Bilibili",
+    "reviewDisposition": "requires_edit",
+    "reviewStatus": "teacher_reviewed_requires_remediation",
+    "reviewedAt": "2026-08-29T09:01:49Z",
+    "examVersionDisposition": "current_contract_update_required",
+    "linkStatus": "blocked_pending_edit",
+    "requiredEditCodes": [
+      "current_exam_contract",
+      "neutralize_source_title_claim",
+      "link_rights"
+    ],
+    "reviewNote": "需按当前 Read and Complete 界面与策略更新，并中和来源标题中的结果承诺。"
   },
   {
     "id": "BV1i5tMeCEu6",
     "title": "多邻国互动阅读高频词自动播放版（含考点短语&例句）",
-    "url": "https://www.bilibili.com/video/BV1i5tMeCEu6",
     "publishedAt": "2024-09-14",
     "durationText": "5 分 20 秒",
-    "skills": ["Reading", "Vocabulary"],
+    "skills": [
+      "Reading",
+      "Vocabulary"
+    ],
     "type": "公开视频",
-    "source": "苏肥鸭的学习部落 · Bilibili"
+    "source": "苏肥鸭的学习部落 · Bilibili",
+    "reviewDisposition": "requires_edit",
+    "reviewStatus": "teacher_reviewed_requires_remediation",
+    "reviewedAt": "2026-08-29T09:01:49Z",
+    "examVersionDisposition": "current_contract_update_required",
+    "linkStatus": "blocked_pending_edit",
+    "requiredEditCodes": [
+      "current_exam_contract",
+      "unsupported_frequency_claim",
+      "link_rights"
+    ],
+    "reviewNote": "需按当前 Interactive Reading 结构更新，并为“高频”主张提供依据或删除该表述。"
   },
   {
     "id": "BV19G411u7Uh",
     "title": "多邻国单词题总错怎么办？3（如何分析错题，并高效记单词，告别题海战术带来的低效和焦虑）",
-    "url": "https://www.bilibili.com/video/BV19G411u7Uh",
     "publishedAt": "2022-09-22",
     "durationText": "7 分 36 秒",
-    "skills": ["Vocabulary"],
+    "skills": [
+      "Vocabulary"
+    ],
     "type": "公开视频",
-    "source": "苏肥鸭的学习部落 · Bilibili"
-  },
-  {
-    "id": "BV14P411r7hv",
-    "title": "多邻国朗读句子中，“年份”单词怎么读？比如1900？",
-    "url": "https://www.bilibili.com/video/BV14P411r7hv",
-    "publishedAt": "2023-07-24",
-    "durationText": "3 分 23 秒",
-    "skills": ["Speaking", "Vocabulary"],
-    "type": "公开视频",
-    "source": "苏肥鸭的学习部落 · Bilibili"
+    "source": "苏肥鸭的学习部落 · Bilibili",
+    "reviewDisposition": "requires_edit",
+    "reviewStatus": "teacher_reviewed_requires_remediation",
+    "reviewedAt": "2026-08-29T09:01:49Z",
+    "examVersionDisposition": "current_contract_update_required",
+    "linkStatus": "blocked_pending_edit",
+    "requiredEditCodes": [
+      "current_exam_contract",
+      "task_timing_and_rubric",
+      "link_rights"
+    ],
+    "reviewNote": "需按当前 Read and Select 单词、Yes/No 和单项 5 秒合同更新方法。"
   },
   {
     "id": "BV1eXqaY7Ehd",
     "title": "【用最抽象的方法带你记1000个难单词】 第3集 federally 附多邻国补全句子题讲解",
-    "url": "https://www.bilibili.com/video/BV1eXqaY7Ehd",
     "publishedAt": "2024-12-12",
     "durationText": "4 分 13 秒",
-    "skills": ["Reading", "Vocabulary"],
+    "skills": [
+      "Reading",
+      "Vocabulary"
+    ],
     "type": "公开视频",
-    "source": "苏肥鸭的学习部落 · Bilibili"
+    "source": "苏肥鸭的学习部落 · Bilibili",
+    "reviewDisposition": "requires_edit",
+    "reviewStatus": "teacher_reviewed_requires_remediation",
+    "reviewedAt": "2026-08-29T09:01:49Z",
+    "examVersionDisposition": "current_contract_update_required",
+    "linkStatus": "blocked_pending_edit",
+    "requiredEditCodes": [
+      "current_exam_contract",
+      "neutralize_source_title_claim",
+      "link_rights"
+    ],
+    "reviewNote": "需按当前 Read and Complete 结构更新，并中和“1000 个难单词”等来源标题主张。"
   }
 ]

@@ -1,0 +1,87 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import { describe, it } from "node:test";
+
+async function source(path: string) {
+  return readFile(new URL(`../${path}`, import.meta.url), "utf8");
+}
+
+describe("Clerk-free public route shell", () => {
+  it("keeps the shared public shell free of Clerk, request headers, and dynamic rendering", async () => {
+    const [publicShell, publicLearningShell] = await Promise.all([
+      source("components/public-site-shell.tsx"),
+      source("components/public-learning-shell.tsx"),
+    ]);
+    for (const forbidden of [
+      "@clerk",
+      'from "@/components/site-shell"',
+      "<SiteShell",
+      "headers()",
+      "connection()",
+      "ClerkProvider",
+    ]) {
+      assert.equal(publicShell.includes(forbidden), false, forbidden);
+    }
+    for (const shell of [publicShell, publicLearningShell]) {
+      assert.doesNotMatch(shell, /PublicAnalytics|@vercel\/analytics|VERCEL_ENV/);
+      assert.doesNotMatch(shell, /href="\/(?:sign-in|sign-up|account|workspace)"/);
+    }
+    assert.match(publicShell, /SofiaPublicFloatingAssistant/);
+    assert.match(publicShell, /账户服务迁移中/);
+    assert.match(publicShell, /href="\/support#account-and-data"/);
+    assert.doesNotMatch(publicShell, /href="\/(?:sign-in|sign-up)"/);
+  });
+
+  it("does not advertise protected account routes from the shared public frame during migration", async () => {
+    const frame = await source("components/site-frame.tsx");
+    for (const protectedHref of [
+      'href="/workspace"',
+      'href="/teaching-review-demo"',
+      'href="/sign-in"',
+      'href="/sign-up"',
+      'href="/account"',
+    ]) {
+      assert.equal(frame.includes(protectedHref), false, protectedHref);
+    }
+    assert.match(frame, /账户学习区<span>大陆迁移中<\/span>/);
+  });
+
+  it("routes marketing, resources, Sofia introduction, and local data through public components", async () => {
+    const routes = await Promise.all([
+      "app/page.tsx",
+      "app/learning-path/page.tsx",
+      "app/platform/page.tsx",
+      "app/resources/page.tsx",
+      "app/about/page.tsx",
+      "app/super-teacher/page.tsx",
+      "app/my-data/page.tsx",
+    ].map(source));
+    for (const route of routes) {
+      assert.doesNotMatch(route, /@clerk|RoutedLegacyPage|components\/site-shell|<SiteShell/);
+    }
+    assert.match(routes[5], /SofiaPublicPage/);
+    assert.doesNotMatch(routes[5], /SuperTeacherClient/);
+    assert.match(routes[6], /robots: \{ index: false, follow: false \}/);
+  });
+
+  it("does not expose an analytics prop and keeps the Sofia introduction off the local data page", async () => {
+    const legacyPage = await source("components/public-legacy-page.tsx");
+    assert.doesNotMatch(legacyPage, /analytics=/);
+    assert.match(legacyPage, /sofiaIntroduction=\{!localDataPage\}/);
+    assert.doesNotMatch(legacyPage, /legacy-runtime-scripts|lib\/learning|learning-domain/);
+    assert.match(legacyPage, /src="\/workspace\.js"/);
+    assert.match(legacyPage, /src="\/journey\.js"/);
+  });
+
+  it("separates the public Sofia introduction from the protected local interaction", async () => {
+    const [publicRoute, protectedRoute] = await Promise.all([
+      source("app/super-teacher/page.tsx"),
+      source("app/workspace/sofia/page.tsx"),
+    ]);
+    assert.match(publicRoute, /SofiaPublicPage/);
+    assert.doesNotMatch(publicRoute, /SuperTeacherClient|components\/site-shell|<SiteShell/);
+    assert.match(protectedRoute, /SuperTeacherClient/);
+    assert.match(protectedRoute, /SiteShell/);
+    assert.match(protectedRoute, /robots: \{ index: false, follow: false \}/);
+  });
+});

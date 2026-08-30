@@ -7,6 +7,9 @@ export default defineConfig([
   ...nextTypescript,
   globalIgnores([
     ".next/**",
+    ".vercel/**",
+    "output/**",
+    "artifacts/**",
     "node_modules/**",
     "next-env.d.ts",
     "lib/legacy-content.generated.ts",

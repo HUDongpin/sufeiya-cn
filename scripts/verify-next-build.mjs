@@ -62,6 +62,9 @@ const forbiddenBuildPatterns = [
   ["Sofia component", /components\/(?:sofia-|super-teacher(?:[\\/-]|\.))/i],
   ["Sofia library", /lib\/super-teacher\//i],
   ["Sofia route module", /app\/super-teacher\//i],
+  ["Vercel Analytics package", /@vercel\/analytics/i],
+  ["public Analytics runtime", /components\/public-analytics/i],
+  ["Vercel Analytics intake", /_vercel\/insights/i],
 ];
 const forbiddenCatchAllPatterns = [
   ["routed legacy server component", /components\/routed-legacy-page/i],
@@ -611,7 +614,10 @@ const scriptReferenceVariants = (value) => {
 
 const looksLikeScriptReference = (value) =>
   [...scriptReferenceVariants(value)].some((variant) => /\.js(?:[^A-Za-z0-9]|$)/i.test(variant));
-const allowedAnonymousNonScriptSources = new Set(["/assets/sufeiya-logo.png"]);
+const allowedAnonymousNonScriptSources = new Set([
+  "/assets/sufeiya-logo.png",
+  "/assets/sufeiya-logo-header.webp",
+]);
 
 const addFlightScriptReferences = (
   decoded,

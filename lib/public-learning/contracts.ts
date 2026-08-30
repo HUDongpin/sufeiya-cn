@@ -1,5 +1,8 @@
 import { z } from "zod";
 
+// Public learning ships with a CSP that intentionally excludes unsafe-eval.
+z.config({ jitless: true });
+
 import {
   ALL_READING_TASK_IDS,
   BASELINE_READING_TASK_IDS,

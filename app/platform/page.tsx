@@ -1,7 +1,8 @@
-import { RoutedLegacyPage, metadataForRoutedPage } from "@/components/routed-legacy-page";
+import { PublicLegacyPage } from "@/components/public-legacy-page";
+import { metadataForPage } from "@/lib/site";
 
-export const metadata = metadataForRoutedPage("platform");
+export const metadata = metadataForPage("platform");
 
 export default function Page() {
-  return <RoutedLegacyPage pageKey="platform" />;
+  return <PublicLegacyPage pageKey="platform" />;
 }

@@ -161,10 +161,10 @@ describe("canonical content-governance register", () => {
     const register = parseContentGovernanceRegister(CONTENT_GOVERNANCE_REGISTER);
     assert.equal(register.protocolVersion, CONTENT_GOVERNANCE_PROTOCOL);
     assert.equal(register.defaultDisposition, "deny");
-    assert.equal(register.records.length, 15);
-    assert.equal(new Set(register.records.map((record) => record.id)).size, 15);
+    assert.equal(register.records.length, 10);
+    assert.equal(new Set(register.records.map((record) => record.id)).size, 10);
     assert.equal(register.records.filter((record) => record.register_section === "claim_source").length, 10);
-    assert.equal(register.records.filter((record) => record.register_section === "link_only_resource").length, 5);
+    assert.equal(register.records.filter((record) => record.register_section === "link_only_resource").length, 0);
     assert.deepEqual(register.evidenceCatalog, []);
     assert.ok(register.records.every((record) =>
       !evaluateRagAdmission(record, register.evidenceCatalog).admitted,
@@ -180,18 +180,18 @@ describe("canonical content-governance register", () => {
       protocolVersion: "sufeiya_content_governance_v2",
       status: "none_admitted",
       defaultDisposition: "deny",
-      trackedRecords: 15,
+      trackedRecords: 10,
       gateAClaimSources: 10,
-      catalogLinkOnly: 5,
+      catalogLinkOnly: 0,
       ragEligible: 0,
-      ragBlocked: 15,
+      ragBlocked: 10,
       blockedArchiveRecords: 655,
       criteria: {
         teacherReviewed: 0,
         ragRightsAllowed: 0,
         examVersionCurrentOrNotApplicable: 10,
         explicitRagAllowed: 0,
-        noBlockingSafetyFlags: 15,
+        noBlockingSafetyFlags: 10,
       },
     });
   });

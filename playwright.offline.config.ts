@@ -25,6 +25,11 @@ export default defineConfig({
   testDir: "./e2e/offline-navigation",
   timeout: 90_000,
   workers: 1,
+  projects: [
+    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
+    { name: "firefox", use: { ...devices["Desktop Firefox"] } },
+    { name: "webkit", use: { ...devices["Desktop Safari"] } },
+  ],
   webServer: {
     command: `npm run start -- --hostname 127.0.0.1 --port ${port}`,
     cwd: repositoryRoot,
@@ -35,10 +40,8 @@ export default defineConfig({
     url: `${baseURL}/assets/sufeiya-mark.png`,
   },
   use: {
-    ...devices["Desktop Chrome"],
     actionTimeout: 10_000,
     baseURL,
-    channel: "chrome",
     locale: "zh-CN",
     screenshot: "only-on-failure",
     trace: "off",

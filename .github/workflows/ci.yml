@@ -1,0 +1,243 @@
+name: Phase 0A release assurance
+
+on:
+  push:
+    branches: [main, "codex/sufeiya-*", "codex/phase0a-authoritative-20260829"]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase0a-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: ${{ github.event_name == 'pull_request' && 'Verify PR merge result' || 'Verify pushed head SHA' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CI: "true"
+    steps:
+      - name: Check out exact event SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - id: binding
+        name: Assert exact event SHA
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          actual_sha="$(git rev-parse HEAD)"
+          test "$actual_sha" = "$EXPECTED_SHA"
+
+          case "$GITHUB_EVENT_NAME" in
+            push)
+              evidence_kind="pushed-head"
+              ;;
+            pull_request)
+              evidence_kind="pr-merge-result"
+              test -n "$PR_HEAD_SHA"
+              test -n "$PR_BASE_SHA"
+              mapfile -t parents < <(
+                git cat-file -p HEAD |
+                  sed -n '/^$/q; s/^parent //p'
+              )
+              test "${#parents[@]}" -eq 2
+              printf '%s\n' "${parents[@]}" | grep -Fxq "$PR_HEAD_SHA"
+              printf '%s\n' "${parents[@]}" | grep -Fxq "$PR_BASE_SHA"
+              ;;
+            *)
+              echo "Unexpected event: $GITHUB_EVENT_NAME" >&2
+              exit 1
+              ;;
+          esac
+
+          echo "tested_sha=$actual_sha" >> "$GITHUB_OUTPUT"
+          echo "evidence_kind=$evidence_kind" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Exact-SHA binding"
+            echo
+            echo "- Evidence kind: $evidence_kind"
+            echo "- Tested SHA: $actual_sha"
+            if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+              echo "- PR head SHA: $PR_HEAD_SHA"
+              echo "- PR base SHA: $PR_BASE_SHA"
+            fi
+            echo "- Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Verify Git-custodied generated artifacts without writes
+        run: npm run check:generated
+
+      - name: Materialize ignored legacy runtimes
+        run: npm run generate:next-content
+
+      - name: Verify materialized legacy runtimes
+        run: npm run check:legacy-runtime
+
+      - name: Verify legacy contracts
+        run: npm run check:legacy
+
+      - name: Run Phase 0A and existing contract tests
+        run: >-
+          npm run test:foundation &&
+          npm run test:clerk &&
+          npm run test:offline-navigation &&
+          npm run test:public-reading &&
+          npm run test:governance &&
+          npm run test:workspace-backup &&
+          npm run test:teaching-review &&
+          npm run test:super-teacher
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build exact event SHA
+        run: npm run build
+
+      - name: Verify generation and tracked cleanliness after build
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run check:generated
+          npm run check:legacy-runtime
+          git diff --exit-code
+          status="$(git status --porcelain=v1 --untracked-files=all)"
+          if [[ -n "$status" ]]; then
+            printf '%s\n' "$status" >&2
+            exit 1
+          fi
+
+      - name: Install Playwright browser matrix
+        run: npx playwright install --with-deps chrome chromium firefox webkit
+
+      - name: Public Reading P0 E2E
+        run: ./node_modules/.bin/playwright test --config=playwright.public-reading.config.ts
+
+      - name: Offline navigation E2E
+        run: ./node_modules/.bin/playwright test --config=playwright.offline.config.ts
+
+      - name: Public accessibility, reflow, privacy, and laboratory performance
+        run: ./node_modules/.bin/playwright test --config=playwright.public-quality.config.ts
+
+      - name: Upload browser evidence on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase0a-browser-evidence-${{ steps.binding.outputs.tested_sha }}
+          path: output/playwright
+          if-no-files-found: ignore
+          retention-days: 7
+
+  package-alicloud-fc-staging:
+    name: Package verified Linux x86_64 FC staging artifact
+    if: github.event_name == 'push' && github.ref == 'refs/heads/codex/phase0a-authoritative-20260829'
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Check out exact pushed SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Use pinned Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.20.0
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Build and package the exact FC staging artifact
+        shell: bash
+        env:
+          SUFEIYA_SOURCE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          SUFEIYA_FC_NODE_BINARY="$(command -v node)" npm run package:alicloud-fc
+
+      - name: Verify the packaged runtime and migration Hold
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_name="sufeiya-phase0-preview-71f2982"
+          artifact_root="artifacts/alicloud-fc"
+          package_root="$artifact_root/$package_name"
+
+          (
+            cd "$artifact_root"
+            sha256sum --check "$package_name.sha256"
+          )
+          test "$("$package_root/runtime/node" --version)" = "v24.20.0"
+          file "$package_root/runtime/node" | grep -Fq "x86-64"
+
+          PORT=4187 HOSTNAME=0.0.0.0 KEEP_ALIVE_TIMEOUT=86400000 \
+            "$package_root/runtime/node" "$package_root/server.js" \
+            > "$RUNNER_TEMP/sufeiya-fc-server.log" 2>&1 &
+          server_pid="$!"
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+
+          ready=false
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
+            if curl --fail --silent --show-error http://127.0.0.1:4187/ > /dev/null; then
+              ready=true
+              break
+            fi
+            sleep 1
+          done
+          test "$ready" = true
+
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:4187/learn/reading)" = "200"
+          headers="$RUNNER_TEMP/sufeiya-fc-hold.headers"
+          body="$RUNNER_TEMP/sufeiya-fc-hold.body"
+          test "$(curl --silent --dump-header "$headers" --output "$body" --write-out '%{http_code}' 'http://127.0.0.1:4187/sign-up?__clerk_ticket=synthetic-secret')" = "503"
+          grep -Fiq "x-sufeiya-account-mode: mainland-migration-hold" "$headers"
+          grep -Fiq "cache-control: private, no-store" "$headers"
+          if grep -Fq "synthetic-secret" "$body"; then
+            echo "Synthetic ticket was reflected by the packaged runtime." >&2
+            exit 1
+          fi
+
+          kill "$server_pid"
+          wait "$server_pid" || true
+          trap - EXIT
+
+      - name: Upload exact FC staging artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sufeiya-phase0-preview-71f2982-${{ github.sha }}
+          path: |
+            artifacts/alicloud-fc/sufeiya-phase0-preview-71f2982.zip
+            artifacts/alicloud-fc/sufeiya-phase0-preview-71f2982.sha256
+            artifacts/alicloud-fc/sufeiya-phase0-preview-71f2982.receipt.json
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0

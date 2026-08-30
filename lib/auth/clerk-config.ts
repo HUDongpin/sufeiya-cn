@@ -1,5 +1,10 @@
 import { Buffer } from "node:buffer";
 
+// Owner decision 2026-08-29: account processing stays closed while the
+// canonical service moves to Mainland China and the Clerk path is replaced.
+// This is intentionally not environment-configurable or bypassable.
+export const MAINLAND_ACCOUNT_MIGRATION_HOLD = true;
+
 export const CLERK_PROTECTED_PATHS = [
   "/workspace",
   "/diagnostic",
@@ -16,7 +21,6 @@ export const CLERK_PROTECTED_PATHS = [
   "/review",
   "/community",
   "/retest",
-  "/my-data",
   "/teaching-review-demo",
   "/account",
 ] as const;
@@ -37,17 +41,10 @@ export const CLERK_BETA_PROTECTED_PATHS = [
   "/review",
   "/community",
   "/retest",
-  "/my-data",
   "/teaching-review-demo",
 ] as const;
 
 export const CLERK_PUBLIC_RUNTIME_PATHS = [
-  "/",
-  "/learning-path",
-  "/platform",
-  "/resources",
-  "/about",
-  "/super-teacher",
   "/sign-in",
   "/sign-up",
   "/beta-access",

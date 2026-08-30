@@ -24,7 +24,10 @@ const cleanRoutes = [
   "my-data",
 ];
 
+const isAlicloudFcBuild = process.env.SUFEIYA_DEPLOY_TARGET === "alicloud-fc";
+
 const nextConfig: NextConfig = {
+  ...(isAlicloudFcBuild ? { output: "standalone" as const } : {}),
   trailingSlash: false,
   poweredByHeader: false,
   async redirects() {

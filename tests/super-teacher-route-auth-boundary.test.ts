@@ -118,6 +118,7 @@ async function assertJsonError(response: Response, status: number, error: string
   assert.equal(response.status, status);
   assert.equal(response.headers.get("cache-control"), "private, no-store, max-age=0");
   assert.equal(response.headers.get("x-content-type-options"), "nosniff");
+  assert.equal(response.headers.get("x-sufeiya-account-mode"), "mainland-migration-hold");
 
   const body = await response.json() as { error?: string; requestId?: string };
   assert.equal(body.error, error);
@@ -169,7 +170,7 @@ async function withClerkEnvironment<T>({
 }
 
 describe("Clerk proxy integration", () => {
-  it("fails closed on protected pages when Clerk configuration is unavailable", async () => {
+  it("holds account processing before Clerk regardless of configuration", async () => {
     await withClerkEnvironment({ configured: false }, async () => {
       const [{ default: proxy }, { NextRequest }] = await Promise.all([
         importProxyForTest("unconfigured"),
@@ -182,7 +183,8 @@ describe("Clerk proxy integration", () => {
       );
       assert.equal(protectedResponse.status, 503);
       assert.equal(protectedResponse.headers.get("cache-control"), "private, no-store, max-age=0");
-      assert.equal(protectedResponse.headers.get("x-sufeiya-account-mode"), "clerk-unconfigured");
+      assert.equal(protectedResponse.headers.get("x-sufeiya-account-mode"), "mainland-migration-hold");
+      assert.match(await protectedResponse.text(), /账户与邀请服务迁移中/);
 
       const publicResponse = await proxy(
         new NextRequest("https://sufeiya.cn/super-teacher"),
@@ -194,11 +196,12 @@ describe("Clerk proxy integration", () => {
         new NextRequest(ENDPOINT),
         {} as never,
       );
-      assert.equal(apiResponse.status, 200);
+      assert.equal(apiResponse.status, 503);
+      assert.equal(apiResponse.headers.get("x-sufeiya-account-mode"), "mainland-migration-hold");
     });
   });
 
-  it("invokes auth.protect for every protected page and leaves the JSON API to its route", async () => {
+  it("matches every account path but invokes neither Clerk middleware nor auth.protect", async () => {
     await withClerkEnvironment({ configured: true }, async () => {
       clerkTestGlobals.__sufeiyaClerkMiddlewareCount = 0;
       clerkTestGlobals.__sufeiyaClerkProtectCount = 0;
@@ -231,9 +234,10 @@ describe("Clerk proxy integration", () => {
           new NextRequest(`https://sufeiya.cn${path}`),
           {} as never,
         );
-        assert.equal(response.status, 200, path);
+        assert.equal(response.status, 503, path);
+        assert.equal(response.headers.get("x-sufeiya-account-mode"), "mainland-migration-hold", path);
       }
-      assert.equal(clerkTestGlobals.__sufeiyaClerkProtectCount, CLERK_PROTECTED_PATHS.length);
+      assert.equal(clerkTestGlobals.__sufeiyaClerkProtectCount, 0);
 
       for (const path of [
         ...CLERK_PUBLIC_RUNTIME_PATHS,
@@ -244,22 +248,32 @@ describe("Clerk proxy integration", () => {
           new NextRequest(`https://sufeiya.cn${path}`),
           {} as never,
         );
-        assert.equal(response.status, 200, path);
+        assert.equal(response.status, 503, path);
+        assert.equal(response.headers.get("x-sufeiya-account-mode"), "mainland-migration-hold", path);
       }
+
+      const invitationTicketResponse = await proxy(
+        new NextRequest("https://sufeiya.cn/sign-up?__clerk_ticket=must-not-be-reflected"),
+        {} as never,
+      );
+      assert.equal(invitationTicketResponse.status, 503);
+      assert.doesNotMatch(await invitationTicketResponse.text(), /must-not-be-reflected|__clerk_ticket/);
 
       const beforeApiRequest = clerkTestGlobals.__sufeiyaClerkProtectCount;
       const apiResponse = await proxy(
         new NextRequest(ENDPOINT),
         {} as never,
       );
-      assert.equal(apiResponse.status, 200);
+      assert.equal(apiResponse.status, 503);
+      assert.equal(apiResponse.headers.get("x-sufeiya-account-mode"), "mainland-migration-hold");
       assert.equal(clerkTestGlobals.__sufeiyaClerkProtectCount, beforeApiRequest);
 
       const clerkProxyResponse = await proxy(
         new NextRequest("https://sufeiya.cn/__clerk/handshake"),
         {} as never,
       );
-      assert.equal(clerkProxyResponse.status, 200);
+      assert.equal(clerkProxyResponse.status, 503);
+      assert.equal(clerkProxyResponse.headers.get("x-sufeiya-account-mode"), "mainland-migration-hold");
       const middlewareCountBeforeAnonymous = clerkTestGlobals.__sufeiyaClerkMiddlewareCount;
 
       for (const pathname of [
@@ -285,10 +299,11 @@ describe("Clerk proxy integration", () => {
         clerkTestGlobals.__sufeiyaClerkMiddlewareCount,
         middlewareCountBeforeAnonymous,
       );
+      assert.equal(clerkTestGlobals.__sufeiyaClerkMiddlewareCount, 0);
     });
   });
 
-  it("admits only beta-approved users and keeps account management outside the beta gate", async () => {
+  it("ignores spoofed or previously approved beta state while migration hold is active", async () => {
     const [{ default: proxy }, { NextRequest }] = await Promise.all([
       importProxyForTest("configured"),
       import("next/server"),
@@ -306,20 +321,19 @@ describe("Clerk proxy integration", () => {
         }),
         {} as never,
       );
-      assert.equal(denied.status, 307);
-      assert.equal(
-        denied.headers.get("location"),
-        "https://sufeiya.cn/beta-access?return_path=%2Fworkspace%2Fprivate.js",
-      );
-      assert.equal(denied.headers.get("x-sufeiya-beta-access"), "invitation_required");
+      assert.equal(denied.status, 503);
+      assert.equal(denied.headers.get("location"), null);
+      assert.equal(denied.headers.get("x-sufeiya-beta-access"), null);
+      assert.equal(denied.headers.get("x-sufeiya-account-mode"), "mainland-migration-hold");
       assert.equal(clerkTestGlobals.__sufeiyaClerkGetUserCount, 0);
 
       const account = await proxy(
         new NextRequest("https://sufeiya.cn/account"),
         {} as never,
       );
-      assert.equal(account.status, 200);
-      assert.equal(account.headers.get("x-sufeiya-beta-access"), "not_checked");
+      assert.equal(account.status, 503);
+      assert.equal(account.headers.get("x-sufeiya-beta-access"), null);
+      assert.equal(account.headers.get("x-sufeiya-account-mode"), "mainland-migration-hold");
       assert.equal(clerkTestGlobals.__sufeiyaClerkGetUserCount, 0);
     });
 
@@ -332,27 +346,38 @@ describe("Clerk proxy integration", () => {
         new NextRequest("https://sufeiya.cn/workspace"),
         {} as never,
       );
-      assert.equal(approved.status, 200);
-      assert.equal(approved.headers.get("x-sufeiya-beta-access"), "approved");
-      assert.equal(
-        approved.headers.get("x-middleware-request-x-sufeiya-beta-access-context"),
-        "approved",
-      );
+      assert.equal(approved.status, 503);
+      assert.equal(approved.headers.get("x-sufeiya-beta-access"), null);
+      assert.equal(approved.headers.get("x-middleware-request-x-sufeiya-beta-access-context"), null);
+      assert.equal(approved.headers.get("x-sufeiya-account-mode"), "mainland-migration-hold");
       assert.equal(clerkTestGlobals.__sufeiyaClerkGetUserCount, 0);
     });
   });
 
-  it("keeps public pages indexable while injecting signed session-claim access state", async () => {
+  it("keeps public pages outside the Clerk graph for signed-out and signed-in browsers", async () => {
     const [{ default: proxy }, { NextRequest }] = await Promise.all([
       importProxyForTest("configured"),
       import("next/server"),
     ]);
-    const publicPaths = ["/", "/learning-path", "/platform", "/resources", "/about", "/super-teacher"];
+    const publicPaths = [
+      "/",
+      "/learning-path",
+      "/platform",
+      "/resources",
+      "/about",
+      "/super-teacher",
+      "/privacy",
+      "/terms",
+      "/support",
+      "/my-data",
+      "/learn/reading",
+    ];
 
     await withClerkEnvironment({ configured: true, userId: null }, async () => {
       for (const path of publicPaths) {
         const response = await proxy(new NextRequest(`https://sufeiya.cn${path}`), {} as never);
-        assert.equal(response.headers.get("x-sufeiya-beta-access"), "signed_out", path);
+        assert.equal(response.headers.get("x-sufeiya-beta-access"), null, path);
+        assert.equal(response.headers.get("x-sufeiya-account-mode"), "anonymous-no-clerk", path);
         assert.equal(response.headers.get("x-robots-tag"), null, path);
         assert.equal(response.headers.get("cache-control"), null, path);
       }
@@ -365,13 +390,10 @@ describe("Clerk proxy integration", () => {
           const response = await proxy(new NextRequest(`https://sufeiya.cn${path}`, {
             headers: { "x-sufeiya-beta-access-context": betaAccess === "denied" ? "approved" : "invitation_required" },
           }), {} as never);
-          assert.equal(
-            response.headers.get("x-sufeiya-beta-access"),
-            betaAccess === "approved" ? "approved" : "invitation_required",
-            path,
-          );
+          assert.equal(response.headers.get("x-sufeiya-beta-access"), null, path);
+          assert.equal(response.headers.get("x-sufeiya-account-mode"), "anonymous-no-clerk", path);
           assert.equal(response.headers.get("x-robots-tag"), null, path);
-          assert.equal(response.headers.get("cache-control"), "private, no-store, max-age=0", path);
+          assert.equal(response.headers.get("cache-control"), null, path);
         }
         assert.equal(clerkTestGlobals.__sufeiyaClerkGetUserCount, 0);
       });
@@ -379,12 +401,14 @@ describe("Clerk proxy integration", () => {
 
     await withClerkEnvironment({ configured: true, userId: null }, async () => {
       const signIn = await proxy(new NextRequest("https://sufeiya.cn/sign-in"), {} as never);
+      assert.equal(signIn.status, 503);
       assert.equal(signIn.headers.get("x-robots-tag"), "noindex, nofollow");
       assert.equal(signIn.headers.get("cache-control"), "private, no-store, max-age=0");
+      assert.equal(signIn.headers.get("x-sufeiya-account-mode"), "mainland-migration-hold");
     });
   });
 
-  it("returns a no-store 503 when signed-in beta qualification cannot be verified", async () => {
+  it("returns the same no-store migration hold without consulting beta qualification", async () => {
     await withClerkEnvironment({
       configured: true,
       userId: "user_test",
@@ -400,11 +424,13 @@ describe("Clerk proxy integration", () => {
       );
       assert.equal(response.status, 503);
       assert.equal(response.headers.get("cache-control"), "private, no-store, max-age=0");
-      assert.equal(response.headers.get("retry-after"), "30");
-      assert.equal(response.headers.get("x-sufeiya-beta-access"), "verification_unavailable");
+      assert.equal(response.headers.get("retry-after"), null);
+      assert.equal(response.headers.get("x-sufeiya-beta-access"), null);
+      assert.equal(response.headers.get("x-sufeiya-account-mode"), "mainland-migration-hold");
       assert.match(response.headers.get("content-type") ?? "", /text\/html/);
-      assert.match(await response.text(), /内测资格暂时无法核验/);
+      assert.match(await response.text(), /账户与邀请服务迁移中/);
       assert.equal(clerkTestGlobals.__sufeiyaClerkGetUserCount ?? 0, 0);
+      assert.equal(clerkTestGlobals.__sufeiyaClerkMiddlewareCount ?? 0, 0);
     });
   });
 });
@@ -430,27 +456,27 @@ describe("Sofia API browser request boundary", () => {
     }
   });
 
-  it("allows same-origin JSON through the request gate while preserving the JSON 503 fallback", async () => {
+  it("returns the migration hold after the same-origin JSON request gate", async () => {
     await withClerkEnvironment({ configured: false }, async () => {
       const response = await post(postRequest({
         origin: "https://sufeiya.cn",
         contentType: "application/json; charset=utf-8",
       }));
-      await assertJsonError(response, 503, "account_service_unavailable");
+      await assertJsonError(response, 503, "account_service_migration_hold");
     });
   });
 
-  it("preserves the JSON 401 response for a configured but signed-out request", async () => {
+  it("holds before a configured signed-out request can authenticate", async () => {
     await withClerkEnvironment({ configured: true, userId: null }, async () => {
       const response = await post(postRequest({
         origin: "https://sufeiya.cn",
         contentType: "application/json",
       }));
-      await assertJsonError(response, 401, "authentication_required");
+      await assertJsonError(response, 503, "account_service_migration_hold");
     });
   });
 
-  it("blocks student-data processing before reading the request body when release approval is absent", async () => {
+  it("holds before student-data release evaluation or request-body reading", async () => {
     await withClerkEnvironment({ configured: true, userId: "user_test" }, async () => {
       const request = postRequest({
         origin: "https://sufeiya.cn",
@@ -458,12 +484,12 @@ describe("Sofia API browser request boundary", () => {
         body: "not-json",
       });
       const response = await post(request);
-      await assertJsonError(response, 503, "student_data_processing_not_approved");
+      await assertJsonError(response, 503, "account_service_migration_hold");
       assert.equal(request.bodyUsed, false);
     });
   });
 
-  it("blocks authenticated users without an invitation before reading the request body", async () => {
+  it("holds before invitation state or request-body reading", async () => {
     await withClerkEnvironment({
       configured: true,
       userId: "user_test",
@@ -475,14 +501,14 @@ describe("Sofia API browser request boundary", () => {
         body: "not-json",
       });
       const response = await post(request);
-      await assertJsonError(response, 403, "beta_invitation_required");
-      assert.equal(response.headers.get("x-sufeiya-beta-access"), "invitation_required");
+      await assertJsonError(response, 503, "account_service_migration_hold");
+      assert.equal(response.headers.get("x-sufeiya-beta-access"), null);
       assert.equal(request.bodyUsed, false);
       assert.equal(clerkTestGlobals.__sufeiyaClerkGetUserCount ?? 0, 0);
     });
   });
 
-  it("fails closed when authenticated beta qualification cannot be verified", async () => {
+  it("returns the same hold without consulting unavailable beta qualification", async () => {
     await withClerkEnvironment({
       configured: true,
       userId: "user_test",
@@ -494,8 +520,8 @@ describe("Sofia API browser request boundary", () => {
         body: "not-json",
       });
       const response = await post(request);
-      await assertJsonError(response, 503, "beta_access_verification_unavailable");
-      assert.equal(response.headers.get("retry-after"), "30");
+      await assertJsonError(response, 503, "account_service_migration_hold");
+      assert.equal(response.headers.get("retry-after"), null);
       assert.equal(request.bodyUsed, false);
       assert.equal(clerkTestGlobals.__sufeiyaClerkGetUserCount ?? 0, 0);
     });

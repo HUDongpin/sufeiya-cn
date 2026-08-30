@@ -7,6 +7,7 @@ import {
   getClerkRuntimeState,
   hasApplicationJsonContentType,
   isSameOriginBrowserRequest,
+  MAINLAND_ACCOUNT_MIGRATION_HOLD,
 } from "@/lib/auth/clerk-config";
 import { betaAccessFromSessionClaims } from "@/lib/auth/beta-access";
 import { evaluateReleaseSurface } from "@/lib/release-governance";
@@ -29,7 +30,9 @@ function responseHeaders(mode?: string) {
     "Cache-Control": "private, no-store, max-age=0",
     "X-Content-Type-Options": "nosniff",
     "X-Robots-Tag": "noindex, nofollow",
-    "X-Sufeiya-Account-Mode": "clerk-invite-gated-local-learning-data",
+    "X-Sufeiya-Account-Mode": MAINLAND_ACCOUNT_MIGRATION_HOLD
+      ? "mainland-migration-hold"
+      : "clerk-invite-gated-local-learning-data",
     ...(mode ? { "X-Sufeiya-Teacher-Mode": mode } : {}),
   };
 }
@@ -42,6 +45,9 @@ function json(data: unknown, init?: ResponseInit) {
 }
 
 export async function GET() {
+  if (MAINLAND_ACCOUNT_MIGRATION_HOLD) {
+    return json({ error: "account_service_migration_hold" }, { status: 503 });
+  }
   return json(buildSuperTeacherStatusResponse());
 }
 
@@ -52,6 +58,9 @@ export async function POST(request: Request) {
   }
   if (!hasApplicationJsonContentType(request)) {
     return json({ error: "unsupported_media_type", requestId }, { status: 415 });
+  }
+  if (MAINLAND_ACCOUNT_MIGRATION_HOLD) {
+    return json({ error: "account_service_migration_hold", requestId }, { status: 503 });
   }
 
   const firstPartyProcessing = evaluateReleaseSurface("sofia_first_party_text_processing");

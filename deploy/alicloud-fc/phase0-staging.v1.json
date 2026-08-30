@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "authorizationRecordedAt": "2026-08-30",
+  "function": {
+    "name": "sufeiya-phase0-preview-71f2982",
+    "region": "cn-beijing",
+    "type": "web-function",
+    "nameIsOwnerSelectedLabel": true,
+    "sourceBinding": "Read sourceSha from the generated artifact receipt; do not infer it from the function name."
+  },
+  "runtime": {
+    "environment": "custom.debian12",
+    "architecture": "linux-x64",
+    "nodeVersion": "v24.20.0",
+    "startupCommand": "./bootstrap",
+    "listenAddress": "0.0.0.0",
+    "listenPort": 9000,
+    "keepAliveTimeoutMilliseconds": 86400000,
+    "executionTimeoutSeconds": 60
+  },
+  "resources": {
+    "cpu": 0.5,
+    "memoryMiB": 512,
+    "minimumInstances": 0,
+    "maximumInstances": 1,
+    "instanceConcurrency": 8
+  },
+  "logging": {
+    "createSls": false,
+    "slsProject": null,
+    "slsLogstore": null
+  },
+  "network": {
+    "httpTrigger": true,
+    "httpAuthentication": "anonymous",
+    "customHostname": "phase0-preview.sufeiya.cn",
+    "dnsProvider": "vercel",
+    "dnsRecordType": "CNAME",
+    "dnsScope": "exact-host-only",
+    "requiresAlibabaCloudIcpAccessVerification": true,
+    "canonicalCutover": false
+  },
+  "budget": {
+    "currency": "CNY",
+    "monthlyBudget": 200,
+    "actualCostAlertThreshold": 200,
+    "enforcement": "alert-only-not-a-hard-cap",
+    "scope": "Function Compute in cn-beijing; exact function scoping must be verified in the console"
+  },
+  "release": {
+    "environment": "staging",
+    "createProductionResources": false,
+    "mergeAuthorized": false,
+    "productionPromotionAuthorized": false
+  }
+}

@@ -1,7 +1,17 @@
-import { RoutedLegacyPage, metadataForRoutedPage } from "@/components/routed-legacy-page";
+import { PublicLegacyPage } from "@/components/public-legacy-page";
+import { PublicReadingP0DataControls } from "@/components/public-learning/public-reading-p0-data-controls";
+import { metadataForPage } from "@/lib/site";
 
-export const metadata = metadataForRoutedPage("my-data");
+export const metadata = {
+  ...metadataForPage("my-data"),
+  robots: { index: false, follow: false },
+};
 
 export default function Page() {
-  return <RoutedLegacyPage pageKey="my-data" />;
+  return (
+    <PublicLegacyPage
+      pageKey="my-data"
+      afterLegacyContent={<PublicReadingP0DataControls />}
+    />
+  );
 }

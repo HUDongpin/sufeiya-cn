@@ -3,6 +3,7 @@ import {
   RELEASE_SURFACES,
   releaseGovernanceSummary,
 } from "@/lib/release-governance";
+import { publicCapabilityMatrixSummary } from "@/lib/capability-matrix";
 import { P0_DECISION_PROTOCOL, summarizeP0DecisionLog } from "@/lib/p0-decision-log";
 import { sourceGovernanceSummary } from "@/lib/super-teacher/sources";
 
@@ -10,6 +11,7 @@ export async function GET() {
   const summary = releaseGovernanceSummary();
   const p0Summary = summarizeP0DecisionLog();
   const sourceSummary = sourceGovernanceSummary();
+  const capabilityMatrix = publicCapabilityMatrixSummary();
   const surfaces = Object.fromEntries(
     RELEASE_SURFACES.map((surface) => {
       const evaluation = summary[surface];
@@ -25,7 +27,10 @@ export async function GET() {
     protocolVersion: RELEASE_DECISION_REGISTER.protocolVersion,
     defaultDisposition: RELEASE_DECISION_REGISTER.defaultDisposition,
     mode: "sanitized_read_only_status",
+    capabilityMatrix,
     p0Gate: {
+      scope: "full_platform_plan_appendix_a_29_item_decision_ledger",
+      doesNotRepresent: ["public_reading_p0_release"],
       protocolVersion: p0Summary.protocolVersion,
       status: p0Summary.status,
       total: p0Summary.total,

@@ -130,7 +130,7 @@
   border-left: 3px solid var(--color-accent);
   background: var(--color-paper);
   color: var(--color-ink-soft);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
 }
 
@@ -159,7 +159,7 @@
 .contextList p {
   margin: 0;
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.65;
 }
 
@@ -185,7 +185,7 @@
 .nonAiCard p {
   margin: 8px 0 0;
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.7;
 }
 
@@ -196,7 +196,7 @@
   display: inline-flex;
   align-items: center;
   color: var(--color-accent-deep);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
 }
 
@@ -468,7 +468,7 @@
 }
 
 .citations a {
-  min-height: 36px;
+  min-height: 44px;
   padding: 7px 10px;
   border: 1px solid rgba(16, 44, 41, 0.11);
   border-radius: 999px;
@@ -476,7 +476,7 @@
   align-items: center;
   color: var(--color-ink-soft);
   background: var(--color-sage);
-  font-size: 10px;
+  font-size: 14px;
   font-weight: 700;
   line-height: 1.35;
 }
@@ -496,7 +496,7 @@
 .limits summary {
   cursor: pointer;
   color: var(--color-ink-soft);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
 }
 
@@ -504,7 +504,7 @@
   margin: 12px 0 0;
   padding-left: 18px;
   color: var(--color-muted);
-  font-size: 11px;
+  font-size: 14px;
   line-height: 1.7;
 }
 
@@ -517,7 +517,7 @@
 .resourceCards > strong {
   color: var(--color-muted);
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 14px;
   letter-spacing: 0.08em;
 }
 
@@ -537,12 +537,12 @@
 .resourceCards span,
 .resourceCards small {
   color: var(--color-muted);
-  font-size: 10px;
+  font-size: 14px;
 }
 
 .resourceCards b {
   color: var(--color-ink);
-  font-size: 12px;
+  font-size: 16px;
   line-height: 1.5;
 }
 
@@ -620,12 +620,12 @@
 
 .localProcessingNotice strong {
   color: var(--color-ink);
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .localProcessingNotice small {
   color: var(--color-muted);
-  font-size: 10px;
+  font-size: 14px;
   line-height: 1.55;
 }
 
@@ -746,7 +746,7 @@
   margin: 12px 0 0;
   padding: 10px 12px;
   border-radius: 10px;
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.6;
 }
 
@@ -1510,7 +1510,7 @@
 .accessCards p {
   margin: 9px 0 0;
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 16px;
   line-height: 1.75;
 }
 

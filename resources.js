@@ -15,16 +15,24 @@
         item &&
         typeof item.id === "string" &&
         typeof item.title === "string" &&
-        typeof item.url === "string" &&
-        /^https:\/\/(www\.)?bilibili\.com\/video\//.test(item.url) &&
-        Array.isArray(item.skills),
+        !("url" in item) &&
+        Array.isArray(item.skills) &&
+        item.reviewDisposition === "requires_edit" &&
+        item.reviewStatus === "teacher_reviewed_requires_remediation" &&
+        item.linkStatus === "blocked_pending_edit" &&
+        typeof item.reviewNote === "string",
     );
   };
 
   const formatPublishedDate = (value) => {
-    const date = new Date(`${value}T12:00:00`);
+    const date = new Date(`${value}T12:00:00+08:00`);
     if (Number.isNaN(date.getTime())) return value;
-    return new Intl.DateTimeFormat("zh-CN", { year: "numeric", month: "short", day: "numeric" }).format(date);
+    return new Intl.DateTimeFormat("zh-CN", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      timeZone: "Asia/Shanghai",
+    }).format(date);
   };
 
   const matchesSkill = (item, selected) => {
@@ -37,17 +45,15 @@
     const query = queryInput.value.trim().toLocaleLowerCase("zh-CN");
     const selectedSkill = skillSelect.value;
     const filtered = resources.filter((item) => {
-      const searchable = `${item.title} ${item.skills.join(" ")} ${item.type || ""}`.toLocaleLowerCase("zh-CN");
+      const searchable = `${item.title} ${item.skills.join(" ")} ${item.type || ""} ${item.reviewNote}`.toLocaleLowerCase("zh-CN");
       return (!query || searchable.includes(query)) && matchesSkill(item, selectedSkill);
     });
 
     results.replaceChildren();
     filtered.forEach((item, index) => {
-      const link = document.createElement("a");
-      link.className = "resource-catalog-card";
-      link.href = item.url;
-      link.target = "_blank";
-      link.rel = "noopener noreferrer";
+      const card = document.createElement("article");
+      card.className = "resource-catalog-card is-blocked";
+      card.setAttribute("aria-labelledby", `resource-title-${item.id}`);
 
       const number = document.createElement("span");
       number.className = "resource-catalog-number";
@@ -55,26 +61,29 @@
 
       const copy = document.createElement("div");
       const skills = document.createElement("p");
-      skills.textContent = item.skills.join(" · ");
+      skills.textContent = `${item.skills.join(" · ")} · 修改中`;
+      const sourceTitleLabel = document.createElement("span");
+      sourceTitleLabel.className = "resource-source-title-label";
+      sourceTitleLabel.textContent = "来源标题（非本站背书）";
       const title = document.createElement("h3");
+      title.id = `resource-title-${item.id}`;
       title.textContent = item.title;
       const meta = document.createElement("small");
       meta.textContent = `${formatPublishedDate(item.publishedAt)} · ${item.durationText} · ${item.source}`;
-      copy.append(skills, title, meta);
+      const reviewNote = document.createElement("p");
+      reviewNote.className = "resource-review-note";
+      reviewNote.textContent = item.reviewNote;
+      copy.append(skills, sourceTitleLabel, title, meta, reviewNote);
 
-      const arrow = document.createElement("span");
-      arrow.className = "resource-catalog-arrow";
-      arrow.setAttribute("aria-hidden", "true");
-      arrow.textContent = "↗";
+      const statusBadge = document.createElement("span");
+      statusBadge.className = "resource-catalog-status";
+      statusBadge.textContent = "外链暂缓";
 
-      const newWindow = document.createElement("span");
-      newWindow.className = "sr-only";
-      newWindow.textContent = "（在新窗口打开）";
-      link.append(number, copy, arrow, newWindow);
-      results.append(link);
+      card.append(number, copy, statusBadge);
+      results.append(card);
     });
 
-    if (filtered.length) status.textContent = `找到 ${filtered.length} 条公开课程；点击后进入 Bilibili 原始发布页。`;
+    if (filtered.length) status.textContent = `找到 ${filtered.length} 条待修改课程元数据；外链暂未开放。`;
     else status.textContent = "没有找到匹配课程。可以更换关键词或选择“全部能力”。";
   };
 

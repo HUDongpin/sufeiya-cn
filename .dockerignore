@@ -1,0 +1,16 @@
+.git
+.next
+.vercel
+node_modules
+artifacts
+output
+test-results
+playwright-report
+.playwright-cli
+.DS_Store
+*.pem
+*.key
+*.p12
+*.pfx
+.env
+.env.*

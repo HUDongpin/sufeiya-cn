@@ -49,7 +49,6 @@ const protectedLearnerPaths = [
   "/review",
   "/community",
   "/retest",
-  "/my-data",
   "/teaching-review-demo",
   "/account",
 ];
@@ -59,6 +58,7 @@ const nextOnlyTargets = new Map([
   ["/learn/reading", "app/learn/reading/page.tsx"],
   ["/sign-in", "app/sign-in/[[...sign-in]]/page.tsx"],
   ["/super-teacher", "app/super-teacher/page.tsx"],
+  ["/workspace/sofia", "app/workspace/sofia/page.tsx"],
   ["/teaching-review-demo", "app/teaching-review-demo/page.tsx"],
   ["/assets/sufeiya-super-teacher-avatar.webp", "public/assets/sufeiya-super-teacher-avatar.webp"],
 ]);
@@ -1554,7 +1554,7 @@ for (const [filename, pageKey, canonicalPath] of pageFiles) {
   check(/aria-controls="mobile-nav"/.test(html), `${prefix} mobile navigation control is labelled`);
   check(!/href="#"/.test(html), `${prefix} has no empty hash links`);
   check(!/\b(TODO|FIXME)\b/i.test(html), `${prefix} has no unfinished marker copy`);
-  check(/src="\/assets\/sufeiya-logo\.png" width="2792" height="560"/.test(html), `${prefix} uses the HD logo dimensions`);
+  check(/src="\/assets\/sufeiya-logo-header\.webp" width="436" height="87"/.test(html), `${prefix} uses the responsive display logo`);
   check(/href="\/assets\/sufeiya-mark\.png"/.test(html), `${prefix} uses the official mark favicon`);
 
   const desktopNavMatch = html.match(/<nav class="desktop-nav"[\s\S]*?<\/nav>/i);
@@ -1649,7 +1649,7 @@ check(
 const workspaceToolTargets = [...workspace.matchAll(/class="workspace-launch-grid workspace-support-grid"[\s\S]*?<\/div>/g)]
   .flatMap((match) => [...match[0].matchAll(/href="([^"]+)"/g)].map((link) => link[1]));
 check(
-  JSON.stringify(workspaceToolTargets) === JSON.stringify(["/super-teacher", "/today", "/practice", "/focus", "/teaching-review-demo", "/my-data"]),
+  JSON.stringify(workspaceToolTargets) === JSON.stringify(["/workspace/sofia", "/today", "/practice", "/focus", "/teaching-review-demo", "/my-data"]),
   "workspace keeps Sofia, the teaching-review demo, and four supporting tools separate from the journey",
 );
 const cycleLedgerSection = workspace.match(/<section class="cycle-ledger-section[\s\S]*?<\/section>/)?.[0] || "";
@@ -1739,7 +1739,8 @@ check(
 check(
   /const SOURCE_GOVERNANCE_PROTOCOL_VERSION = "sufeiya_content_governance_v2"/.test(journeyScript) &&
     /parseSourceGovernancePublicSummary\(body\.sourceGovernance\)/.test(journeyScript) &&
-    /candidate\.trackedRecords !== 15/.test(journeyScript) &&
+    /candidate\.trackedRecords !== 10/.test(journeyScript) &&
+    /candidate\.catalogLinkOnly !== 0/.test(journeyScript) &&
     /candidate\.blockedArchiveRecords !== 655/.test(journeyScript) &&
     /candidate\.ragBlocked !== candidate\.trackedRecords - candidate\.ragEligible/.test(journeyScript) &&
     /status\.textContent = "暂时无法核对来源准入登记"/.test(journeyScript),
@@ -1869,18 +1870,18 @@ await checkExecutableAsync(
       protocolVersion: "sufeiya_content_governance_v2",
       status: "none_admitted",
       defaultDisposition: "deny",
-      trackedRecords: 15,
+      trackedRecords: 10,
       gateAClaimSources: 10,
-      catalogLinkOnly: 5,
+      catalogLinkOnly: 0,
       ragEligible: 0,
-      ragBlocked: 15,
+      ragBlocked: 10,
       blockedArchiveRecords: 655,
       criteria: {
         teacherReviewed: 0,
         ragRightsAllowed: 0,
         examVersionCurrentOrNotApplicable: 10,
         explicitRagAllowed: 0,
-        noBlockingSafetyFlags: 15,
+        noBlockingSafetyFlags: 10,
       },
     };
     const valid = await runGate0Fixture(validP0, validSourceGovernance);
@@ -1938,7 +1939,7 @@ await checkExecutableAsync(
       valid.sourceRoot.dataset.sourceGovernanceState === "none-admitted" &&
       valid.sourceElements["[data-source-governance-status]"].textContent === "RAG 准入仍为 0 条" &&
       valid.sourceElements["[data-source-rag-eligible]"].textContent === "0" &&
-      valid.sourceElements['[data-source-criterion="exam-version"]'].textContent === "10 / 15" &&
+      valid.sourceElements['[data-source-criterion="exam-version"]'].textContent === "10 / 10" &&
       valid.requestOptions?.method === "GET" &&
       !("body" in valid.requestOptions) &&
       gate0Drifted.root.dataset.gate0State === "unavailable" &&
@@ -2461,7 +2462,7 @@ check(
       workspacePageSource,
     ) &&
     /href="\/plan" data-provisional-handoff-plan/.test(workspacePageSource) &&
-    /href="\/super-teacher\?handoff=provisional#human-support" data-provisional-handoff-support/.test(workspacePageSource) &&
+    /href="\/workspace\/sofia\?handoff=provisional#human-support" data-provisional-handoff-support/.test(workspacePageSource) &&
     /href="\/my-data" data-provisional-handoff-data/.test(workspacePageSource) &&
     /不自动发送、不创建真实队列、不通知人员、不生成正式人工回执/.test(workspacePageSource) &&
     /\.journey-grid li\.is-pending-human/.test(styles),
@@ -6103,13 +6104,19 @@ check(
       routedLegacyPage,
     ) &&
     explicitLegacyRouteSources.size === pageFiles.length - 1 &&
-    [...explicitLegacyRouteSources].every(
-      ([key, source]) =>
-        source ===
-        `import { RoutedLegacyPage, metadataForRoutedPage } from "@/components/routed-legacy-page";\n\n` +
-          `export const metadata = metadataForRoutedPage("${key}");\n\n` +
-          `export default function Page() {\n  return <RoutedLegacyPage pageKey="${key}" />;\n}\n`,
-    ),
+    [...explicitLegacyRouteSources].every(([key, source]) => {
+      const pathname = `/${key}`;
+      if (configuredProtectedPaths.includes(pathname)) {
+        return source.includes("RoutedLegacyPage") && source.includes(`pageKey="${key}"`);
+      }
+      if (["about", "learning-path", "my-data", "platform"].includes(key)) {
+        return source.includes("PublicLegacyPage") && source.includes(`pageKey="${key}"`);
+      }
+      if (key === "resources") {
+        return source.includes("ResourceCatalog") && source.includes("parseResourceFilters");
+      }
+      return false;
+    }),
   "explicit canonical learner routes share fail-closed Clerk resource auth and route metadata",
 );
 check(
@@ -6148,21 +6155,15 @@ check(
       explicitLegacyRouteSlugs
         .filter((slug) => !configuredProtectedPaths.includes(`/${slug}`))
         .sort(),
-    ) === JSON.stringify(["about", "learning-path", "platform", "resources"]),
-  "Clerk path classifier covers exactly 16 protected legacy routes plus account and teaching review",
+    ) === JSON.stringify(["about", "learning-path", "my-data", "platform", "resources"]),
+  "Clerk path classifier keeps public local-data and marketing routes outside the protected account graph",
 );
 check(
   JSON.stringify([...configuredClerkPublicRuntimePaths].sort()) ===
     JSON.stringify([
-      "/",
-      "/about",
       "/beta-access",
-      "/learning-path",
-      "/platform",
-      "/resources",
       "/sign-in",
       "/sign-up",
-      "/super-teacher",
     ]) &&
     /export function isClerkRuntimePathname\(pathname: string\)/.test(clerkConfig) &&
     /pathname === "\/sign-in" \|\| pathname\.startsWith\("\/sign-in\/"\)/.test(
@@ -6178,7 +6179,7 @@ check(
     /pathname === "\/__clerk"[\s\S]*pathname\.startsWith\("\/__clerk\/"\)/.test(
       clerkConfig,
     ),
-  "Clerk runtime allowlist covers exact public UI, protected prefixes, auth catch-alls, the Sofia API, and Clerk FAPI proxy",
+  "Clerk runtime allowlist covers only protected prefixes, auth catch-alls, the Sofia API, and Clerk FAPI proxy",
 );
 check(
   configuredProtectedPaths.every((path) => proxyScript.includes(`"${path}/:path*"`)) &&
@@ -6196,8 +6197,11 @@ check(
         "[slug]",
         "beta-access",
         ...explicitLegacyRouteSlugs,
+        "privacy",
+        "support",
         "super-teacher",
         "teaching-review-demo",
+        "terms",
       ].sort(),
     ),
   "top-level App Router page allowlist contains no undeclared explicit route",
@@ -6253,7 +6257,16 @@ check(
   "account surfaces preserve the independent local-learning-data boundary",
 );
 check(
-  /clerkMiddleware/.test(proxyScript) &&
+  /export const MAINLAND_ACCOUNT_MIGRATION_HOLD = true/.test(clerkConfig) &&
+    /function mainlandAccountMigrationHoldResponse\(\)/.test(proxyScript) &&
+    /X-Sufeiya-Account-Mode": "mainland-migration-hold"/.test(proxyScript) &&
+    proxyScript.indexOf("if (\n    MAINLAND_ACCOUNT_MIGRATION_HOLD") >= 0 &&
+    proxyScript.indexOf("if (\n    MAINLAND_ACCOUNT_MIGRATION_HOLD") <
+      proxyScript.indexOf("if (\n    configuredClerkProxy") &&
+    /MAINLAND_ACCOUNT_MIGRATION_HOLD[\s\S]*isConfiguredClerkMiddlewarePathname\(request\.nextUrl\.pathname\)[\s\S]*return mainlandAccountMigrationHoldResponse\(\)/.test(
+      proxyScript,
+    ) &&
+    /clerkMiddleware/.test(proxyScript) &&
     /createRouteMatcher/.test(proxyScript) &&
     /await auth\.protect\(\)/.test(proxyScript) &&
     /authorizedParties: getClerkAuthorizedParties\(\)/.test(proxyScript) &&
@@ -6276,14 +6289,17 @@ check(
     /return betaAccessRedirect\(request\)/.test(proxyScript) &&
     /requestHeaders\.set\(SUFEIYA_BETA_ACCESS_CONTEXT_HEADER, context\)/.test(proxyScript) &&
     !/frontendApiProxy/.test(proxyScript),
-  "proxy centrally authenticates and invite-gates learner routes with strict CSP, environment-bound instances, and production authorized parties",
+  "non-bypassable Mainland migration hold precedes the retained Clerk rollback code and returns no account processing path",
 );
 check(
-  /function isIndexablePublicPath/.test(proxyScript) &&
+  !/function isIndexablePublicPath/.test(proxyScript) &&
     /policy: "public" \| "signed-in-public" \| "sensitive"/.test(proxyScript) &&
     /policy === "sensitive" \? \{ "X-Robots-Tag": "noindex, nofollow" \} : \{\}/.test(proxyScript) &&
-    /return signedIn \? "signed-in-public" as const : "public" as const/.test(proxyScript),
-  "public content remains indexable while signed-in public and sensitive responses remain private",
+    /const policy = "sensitive" as const/.test(proxyScript) &&
+    !configuredClerkPublicRuntimePaths.some((path) =>
+      ["/", "/about", "/learning-path", "/platform", "/resources", "/super-teacher", "/my-data"].includes(path)
+    ),
+  "public content bypasses Clerk while auth and protected responses remain private and noindex",
 );
 check(
   /const anonymousContentSecurityPolicy = \[[\s\S]*"script-src 'self' 'unsafe-inline'"/.test(
@@ -6303,8 +6319,9 @@ check(
 check(
   /X-Sufeiya-Account-Mode[\s\S]*clerk-invite-gated-local-learning-data/.test(proxyScript) &&
     /X-Sufeiya-Beta-Access/.test(proxyScript) &&
-    /X-Sufeiya-Account-Mode[\s\S]*clerk-unconfigured/.test(proxyScript),
-  "application responses distinguish invite access state from the fail-closed Clerk configuration state",
+    /X-Sufeiya-Account-Mode[\s\S]*clerk-unconfigured/.test(proxyScript) &&
+    /X-Sufeiya-Account-Mode[\s\S]*mainland-migration-hold/.test(proxyScript),
+  "application responses distinguish the active Mainland migration hold from retained Clerk rollback states",
 );
 check(/Sofia智能老师/.test(superTeacherPage), "Sofia AI Teacher has a dedicated Next.js application page");
 check(
@@ -6374,10 +6391,19 @@ check(
   "floating Sofia assistant discloses AI identity beside its portrait",
 );
 check(
-  /isSameOrigin[\s\S]*getClerkRuntimeState[\s\S]*await auth\(\)[\s\S]*!userId[\s\S]*betaAccessFromSessionClaims\(sessionClaims\)[\s\S]*!betaAccess\.approved[\s\S]*MAX_BODY_BYTES[\s\S]*checkSuperTeacherRateLimit\(userId\)/.test(
+  /MAINLAND_ACCOUNT_MIGRATION_HOLD[\s\S]*account_service_migration_hold/.test(
+    superTeacherRoute,
+  ) &&
+    superTeacherRoute.indexOf("account_service_migration_hold") <
+      superTeacherRoute.indexOf("getClerkRuntimeState()") &&
+    superTeacherRoute.indexOf("account_service_migration_hold") <
+      superTeacherRoute.indexOf("await auth()") &&
+    superTeacherRoute.indexOf("account_service_migration_hold") <
+      superTeacherRoute.indexOf("await request.text()") &&
+    /isSameOrigin[\s\S]*getClerkRuntimeState[\s\S]*await auth\(\)[\s\S]*!userId[\s\S]*betaAccessFromSessionClaims\(sessionClaims\)[\s\S]*!betaAccess\.approved[\s\S]*MAX_BODY_BYTES[\s\S]*checkSuperTeacherRateLimit\(userId\)/.test(
     superTeacherRoute,
   ) && !/clerkClient|users\.getUser|currentUser\(/.test(superTeacherRoute),
-  "Super Teacher POST requires a beta-approved Clerk user before rate limiting and model access",
+  "Super Teacher API holds before the retained Clerk, release, body, rate-limit, and model rollback path",
 );
 check(
   /evaluateReleaseSurface\("sofia_first_party_text_processing"\)/.test(superTeacherRoute) &&
@@ -6390,6 +6416,9 @@ check(
     /interactionProtocolVersion: SUPER_TEACHER_PROTOCOL/.test(superTeacherStatus) &&
     /gateAStaticClaimSources/.test(superTeacherContracts) &&
     /buildSuperTeacherStatusResponse\(\)/.test(superTeacherRoute) &&
+    /if \(MAINLAND_ACCOUNT_MIGRATION_HOLD\)[\s\S]*account_service_migration_hold[\s\S]*buildSuperTeacherStatusResponse\(\)/.test(
+      superTeacherRoute,
+    ) &&
     /teacherSurfaceAccess: "public_teaser"/.test(superTeacherStatus) &&
     /interactiveTeacherAccess: "clerk_invitation_approved"/.test(superTeacherStatus) &&
     /localManualExplanationEnabled: true/.test(superTeacherStatus) &&
@@ -6399,7 +6428,7 @@ check(
     /learningPageAccess: "clerk_invitation_approved"/.test(superTeacherStatus) &&
     /learningDataStorage: "browser_local_not_account_bound"/.test(superTeacherStatus) &&
     /clerk-invite-gated-local-learning-data/.test(superTeacherRoute),
-  "Super Teacher status separates the public teaser, invitation-approved local interaction, disabled server/model processing, and browser-local data",
+  "retained Super Teacher status metadata remains behind the active Mainland migration hold",
 );
 check(
   /invokeTeacherModel[\s\S]*materializeApprovedModelSelection/.test(superTeacherResponder) &&
@@ -6557,14 +6586,38 @@ check(/position:\s*absolute;[\s\S]*top:\s*100%;[\s\S]*100dvh/.test(styles), "mob
 check(/\.footer-nav a\s*\{[\s\S]*min-height:\s*44px/.test(styles), "mobile footer links meet the 44px touch target");
 
 const resourcesData = JSON.parse(await read("data/resources.json"));
-check(resourcesData.length === 16, "public resource catalog contains 16 reviewed metadata entries");
+check(resourcesData.length === 15, "public resource catalog retains exactly 15 reviewed requires-edit metadata entries");
 check(new Set(resourcesData.map((item) => item.id)).size === resourcesData.length, "resource catalog IDs are unique");
-check(resourcesData.every((item) => /^https:\/\/(www\.)?bilibili\.com\/video\//.test(item.url)), "resource catalog links only to Bilibili video pages");
+check(resourcesData.every((item) => !("url" in item)), "requires-edit resource metadata exposes no unapproved external URL");
 check(resourcesData.every((item) => Array.isArray(item.skills) && item.skills.length > 0), "every resource entry has at least one skill tag");
+check(!resourcesData.some((item) => item.id === "BV14P411r7hv"), "removed Read Aloud resource is absent from the current catalog");
+check(
+  resourcesData.every((item) =>
+    item.reviewDisposition === "requires_edit" &&
+    item.reviewStatus === "teacher_reviewed_requires_remediation" &&
+    item.linkStatus === "blocked_pending_edit" &&
+    Array.isArray(item.requiredEditCodes) &&
+    item.requiredEditCodes.includes("link_rights") &&
+    typeof item.reviewNote === "string" &&
+    item.reviewNote.length > 0
+  ),
+  "all retained resource metadata fails closed behind the signed requires-edit and link-rights decisions",
+);
+check(
+  resourcesData.find((item) => item.id === "BV1XA411G7Bp")?.publishedAt === "2021-05-19" &&
+    resourcesData.find((item) => item.id === "BV1gg4y1q7QY")?.publishedAt === "2020-06-06",
+  "resource dates use the frozen Asia/Shanghai display policy",
+);
+check(
+  /createElement\("article"\)/.test(resourcesScript) &&
+    !/createElement\("a"\)/.test(resourcesScript) &&
+    /外链暂缓/.test(resourcesScript),
+  "legacy resource runtime renders non-interactive remediation cards without video links",
+);
 
 const superTeacherSources = JSON.parse(await read("data/super-teacher-source-register.json"));
 check(superTeacherSources.claimSources.length === 10, "Super Teacher admits exactly 10 first-party Gate A claim sources");
-check(superTeacherSources.linkOnlyResources.length === 5, "Super Teacher exposes exactly five link-only resource entries");
+check(superTeacherSources.linkOnlyResources.length === 0, "Super Teacher exposes no resource links while all retained items require edits");
 check(superTeacherSources.blockedFamilies.some((family) => family.id === "archive-det-official-rules" && family.recordCount === 24), "DET official index remains explicitly blocked");
 check(superTeacherSources.blockedFamilies.some((family) => family.id === "archive-knowledge-base-preview" && family.recordCount === 631), "631 archive preview chunks remain explicitly blocked");
 
@@ -6643,7 +6696,9 @@ check(
   /OfflineNavigationBoundary/.test(publicLearningShell) &&
     /SiteFrame/.test(publicLearningShell) &&
     /pageKey="public-learning"/.test(publicLearningShell) &&
-    /公开试学 · 本机保存/.test(publicLearningShell) &&
+    /公开试学 · 本机保存 · 账户迁移中/.test(publicLearningShell) &&
+    /href="\/support#account-and-data"/.test(publicLearningShell) &&
+    !/href="\/(?:sign-in|sign-up|account|workspace)"/.test(publicLearningShell) &&
     !/@clerk|ClerkProvider|ClerkAccountControls|SofiaAccessBoundary/.test(publicLearningShell),
   "public Reading shell preserves offline navigation and avoids the Clerk runtime",
 );
@@ -6891,7 +6946,10 @@ check(
     /G6 公开发布授权 \| `PASS`/.test(publicReadingEngineeringReceipt) &&
     /G7 生产部署与线上回归 \| `PASS`/.test(publicReadingEngineeringReceipt) &&
     /G8 账户同步 \| `NOT IN SCOPE`/.test(publicReadingEngineeringReceipt) &&
-    /PRODUCT_PRIVACY_LEGAL_SCOPE_ACCEPTED_FOR_PUBLIC_READING_P0 \/ PUBLIC_SIGNUP_CLOSED/.test(
+    /PRODUCT_PRIVACY_LOCAL_PAYLOAD_SCOPE_ACCEPTED \/ PUBLIC_SIGNUP_CLOSED \/ HOSTING_MIGRATION_GATE_OPEN/.test(
+      publicReadingDataContract,
+    ) &&
+    /整体中国大陆内部合规与托管迁移 Gate 仍为 `OPEN`/.test(
       publicReadingDataContract,
     ) &&
     /TEACHER_CONTENT_OWNER_ACCEPTED_FOR_AF85403 \/ RELEASED_PUBLIC_READING_P0/.test(
@@ -6938,9 +6996,10 @@ for (const path of protectedLearnerPaths) {
 }
 
 check(
-  /sitemapPageKeys = \["home", "learning-path", "platform", "resources", "about"\]/.test(nextSitemap) &&
-    !/"workspace"|"diagnostic"|"my-data"/.test(nextSitemap),
-  "Next.js sitemap contains only public legacy pages plus its explicit public Sofia entry",
+  /CONTENT_RELEASE_MANIFEST\.routes/.test(nextSitemap) &&
+    /filter\(\(route\) => route\.sitemap\)/.test(nextSitemap) &&
+    /lastModified: new Date\(route\.lastModified\)/.test(nextSitemap),
+  "Next.js sitemap derives public routes and last-modified dates from the release manifest",
 );
 
 check((notFound.match(/<h1\b/gi) || []).length === 1, "404 page has one h1");
@@ -7061,19 +7120,19 @@ check(
     /pageKey=\{page\.nav as NavigationKey\}/.test(anonymousLegacyPage) &&
     /Full-document links are intentional/.test(anonymousLegacyPage) &&
     /Full-document links are intentional/.test(siteFrame) &&
-    /<FullDocumentLink className="auth-link" href="\/sign-in">登录<\/FullDocumentLink>/.test(
+    /<FullDocumentLink className="auth-link" href="\/support#account-and-data">账户服务迁移中<\/FullDocumentLink>/.test(
       anonymousLegacyPage,
     ) &&
-    /<FullDocumentLink className="auth-link auth-link-primary" href="\/sign-up">邀请制内测<\/FullDocumentLink>/.test(
+    !/href="\/(?:sign-in|sign-up|account|workspace)"/.test(
       anonymousLegacyPage,
     ) &&
     /import \{ FullDocumentLink \} from "@\/components\/full-document-link"/.test(
       siteFrame,
     ) &&
     /<FullDocumentLink[\s\S]*href=\{item\.href\}/.test(siteFrame) &&
-    /<FullDocumentLink[\s\S]*href="\/workspace"/.test(siteFrame) &&
     /<FullDocumentLink[\s\S]*href="\/super-teacher"/.test(siteFrame) &&
-    /<FullDocumentLink href="\/sign-in">安全登录<\/FullDocumentLink>/.test(siteFrame) &&
+    /<FullDocumentLink href="\/support#account-and-data">登录、邀请与账户暂停<\/FullDocumentLink>/.test(siteFrame) &&
+    !/href="\/(?:sign-in|sign-up|account|workspace|teaching-review-demo)"/.test(siteFrame) &&
     /^"use client";/m.test(fullDocumentLink) &&
     /data-full-document-navigation="true"/.test(fullDocumentLink) &&
     /data-full-document-navigation-ready="false"/.test(fullDocumentLink) &&
@@ -7093,7 +7152,7 @@ check(
     /Exclude<LegacyPageKey, "not-found">/.test(legacyPageComponent) &&
     !/authAware/.test(`${legacyPageComponent}\n${siteShell}`) &&
     /if \(!clerkState\.configured\) return shell/.test(siteShell),
-  "404 uses a separate anonymous module graph with full-document account handoffs and no Clerk or Sofia runtime imports",
+  "404 uses a separate anonymous module graph with a Mainland migration handoff and no Clerk or Sofia runtime imports",
 );
 
 const faviconStats = await stat(join(root, "app/favicon.ico"));

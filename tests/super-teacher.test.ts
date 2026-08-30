@@ -381,7 +381,7 @@ describe("Super Teacher source admission", () => {
     ]);
     assert.deepEqual(sourceBoundary, {
       gateAStaticClaimSources: 10,
-      linkOnlyResources: 5,
+      linkOnlyResources: 0,
       detOfficialSourcesAdmitted: 0,
       archivedKnowledgeChunksAdmitted: 0,
     });
@@ -391,7 +391,7 @@ describe("Super Teacher source admission", () => {
   it("keeps official DET and archive chunks at zero admitted", () => {
     assert.deepEqual(admittedSourceCounts(), {
       claimSources: 10,
-      linkOnlyResources: 5,
+      linkOnlyResources: 0,
       detOfficialSources: 0,
       archivedKnowledgeChunks: 0,
     });
@@ -414,12 +414,10 @@ describe("Super Teacher source admission", () => {
     assert.ok(bundle.sources.some((source) => source.id === "sufeiya-writing-task-v1"));
   });
 
-  it("keeps video entries link-only and outside model source blocks", () => {
+  it("withholds resource links until the signed required edits are completed", () => {
     const bundle = buildGroundingBundle("resource_navigation", learnerContext);
-    assert.ok(bundle.resources.length > 0);
-    assert.ok(bundle.resources.every((resource) => resource.href.startsWith("https://www.bilibili.com/video/")));
-    const claimSourceIds = new Set(bundle.sources.map((source) => source.id));
-    assert.ok(bundle.resources.every((resource) => !claimSourceIds.has(resource.id)));
+    assert.deepEqual(bundle.resources, []);
+    assert.ok(bundle.sources.every((source) => !source.href.startsWith("https://www.bilibili.com/video/")));
   });
 
   it("does not add link-only resources to unrelated safety answers", () => {

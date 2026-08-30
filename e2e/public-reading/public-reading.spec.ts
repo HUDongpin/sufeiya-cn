@@ -24,11 +24,17 @@ async function assertLegacyNamespacesUnchanged(page: Page) {
   expect(values).toEqual(legacyValues);
 }
 
+async function chooseRadioOption(radios: Locator, optionIndex: number) {
+  const radio = radios.nth(Math.min(optionIndex, await radios.count() - 1));
+  await radio.locator("xpath=..").click();
+  await expect(radio).toBeChecked();
+}
+
 async function answerCurrentTask(page: Page, optionIndex = 2) {
   const task = page.locator("[data-reading-task]");
   await expect(task).toBeVisible();
   const radios = task.getByRole("radio");
-  await radios.nth(Math.min(optionIndex, await radios.count() - 1)).check();
+  await chooseRadioOption(radios, optionIndex);
   await task.getByRole("button", { name: "提交并查看解释" }).click();
   await expect(page.locator("[data-reading-feedback]")).toBeVisible();
 }
@@ -41,7 +47,7 @@ async function answerCurrentRetestTask(page: Page, optionIndex = 2) {
   const task = page.locator("[data-reading-task]");
   await expect(task).toBeVisible();
   const radios = task.getByRole("radio");
-  await radios.nth(Math.min(optionIndex, await radios.count() - 1)).check();
+  await chooseRadioOption(radios, optionIndex);
   await task.getByRole("button", { name: "提交并查看解释" }).click();
   await expect(page.locator("[data-retest-answer-locked]")).toBeVisible();
   await expect(page.locator("[data-reading-feedback]")).toHaveCount(0);
@@ -51,27 +57,29 @@ async function continueFromRetestLock(page: Page) {
   await page.locator("[data-retest-answer-locked]").getByRole("button").click();
 }
 
-async function tabTo(page: Page, locator: Locator) {
+type TabKey = "Tab" | "Alt+Tab";
+
+async function tabTo(page: Page, locator: Locator, tabKey: TabKey = "Tab") {
   for (let index = 0; index < 80; index += 1) {
     if (await locator.evaluate((element) => element === document.activeElement).catch(() => false)) {
       return;
     }
-    await page.keyboard.press("Tab");
+    await page.keyboard.press(tabKey);
   }
   throw new Error("Keyboard focus did not reach the requested control.");
 }
 
-async function tabToAndActivate(page: Page, locator: Locator) {
-  await tabTo(page, locator);
+async function tabToAndActivate(page: Page, locator: Locator, tabKey: TabKey = "Tab") {
+  await tabTo(page, locator, tabKey);
   await page.keyboard.press("Enter");
 }
 
-async function answerCurrentTaskByKeyboard(page: Page, retest = false) {
+async function answerCurrentTaskByKeyboard(page: Page, retest = false, tabKey: TabKey = "Tab") {
   const task = page.locator("[data-reading-task]");
   await expect(task).toBeVisible();
-  await tabTo(page, task.getByRole("radio").first());
+  await tabTo(page, task.getByRole("radio").first(), tabKey);
   await page.keyboard.press("Space");
-  await tabToAndActivate(page, task.getByRole("button", { name: "提交并查看解释" }));
+  await tabToAndActivate(page, task.getByRole("button", { name: "提交并查看解释" }), tabKey);
   await expect(page.locator(retest ? "[data-retest-answer-locked]" : "[data-reading-feedback]")).toBeVisible();
 }
 
@@ -181,12 +189,13 @@ test("starts anonymously from the homepage in two clicks without touching legacy
   expect(writeRequests).toEqual([]);
 
   const signUpPage = await context.newPage();
-  await signUpPage.goto("/sign-up");
+  const signUpResponse = await signUpPage.goto("/sign-up");
+  expect(signUpResponse?.status()).toBe(503);
+  expect(signUpResponse?.headers()["x-sufeiya-account-mode"]).toBe("mainland-migration-hold");
   await expect(signUpPage.locator('[data-clerk-invitation-entry="ticket-present"]')).toHaveCount(0);
-  await expect(signUpPage.getByRole("heading", {
-    name: /账户服务暂不可用。|当前仅接受受邀学习者。/,
-  })).toBeVisible();
+  await expect(signUpPage.getByRole("heading", { name: "账户与邀请服务迁移中。" })).toBeVisible();
   await expect(signUpPage.locator("form")).toHaveCount(0);
+  await expect(signUpPage.locator("script")).toHaveCount(0);
   await signUpPage.close();
 });
 
@@ -194,21 +203,33 @@ test("serializes rapid same-tab submissions without overwriting state or duplica
   await page.goto("/learn/reading");
   await page.locator("main").getByRole("button", { name: "开始第 1 道入门检查" }).first().click();
   const task = page.locator('[data-reading-task="reading_baseline_shade_labels"]');
-  await task.getByRole("radio").last().check();
+  const radios = task.getByRole("radio");
+  await chooseRadioOption(radios, await radios.count() - 1);
   await task.locator("form").evaluate((form) => {
     form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
     form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
   });
   await expect(page.locator("[data-reading-feedback]")).toBeVisible();
 
-  const persisted = await page.evaluate(({ publicStateKey, publicEventsKey }) => ({
-    state: JSON.parse(localStorage.getItem(publicStateKey) ?? "null"),
-    events: JSON.parse(localStorage.getItem(publicEventsKey) ?? "[]"),
-  }), { publicStateKey, publicEventsKey });
-  expect(persisted.state.responses).toHaveLength(1);
-  expect(persisted.state.revision).toBe(2);
-  expect(persisted.events.filter((event: { eventName: string }) => event.eventName === "task_answered")).toHaveLength(1);
-  expect(persisted.events.filter((event: { eventName: string }) => event.eventName === "feedback_viewed")).toHaveLength(1);
+  await expect.poll(async () => page.evaluate(({ publicStateKey, publicEventsKey }) => {
+    const state = JSON.parse(localStorage.getItem(publicStateKey) ?? "null");
+    const events = JSON.parse(localStorage.getItem(publicEventsKey) ?? "[]");
+    return {
+      revision: state?.revision ?? null,
+      responses: Array.isArray(state?.responses) ? state.responses.length : null,
+      task_answered: Array.isArray(events)
+        ? events.filter((event: { eventName: string }) => event.eventName === "task_answered").length
+        : null,
+      feedback_viewed: Array.isArray(events)
+        ? events.filter((event: { eventName: string }) => event.eventName === "feedback_viewed").length
+        : null,
+    };
+  }, { publicStateKey, publicEventsKey })).toEqual({
+    revision: 2,
+    responses: 1,
+    task_answered: 1,
+    feedback_viewed: 1,
+  });
 });
 
 test("completes the learning loop, verifies every replacement CTA, export, recovery, and deletion", async ({ context, page }) => {
@@ -331,13 +352,18 @@ test("completes the learning loop, verifies every replacement CTA, export, recov
     payload: { continuation: "local_export" },
   });
 
+  const accountHoldResponsePromise = page.waitForResponse((response) => (
+    response.request().resourceType() === "document"
+    && new URL(response.url()).pathname === "/sign-in"
+  ));
   await finalPlan.getByRole("button", { name: "受邀内测登录" }).click();
+  const accountHoldResponse = await accountHoldResponsePromise;
+  expect(accountHoldResponse.status()).toBe(503);
+  expect(accountHoldResponse.headers()["x-sufeiya-account-mode"]).toBe("mainland-migration-hold");
   await expect(page).toHaveURL(/\/sign-in$/);
-  await expect(page.getByRole("heading", { name: "登录后核验内测资格。" })).toBeVisible();
-  await expect(page.locator('main a[href="/sign-up"]')).toHaveCount(0);
-  const invitationLinkLabels = await page.locator('a[href="/sign-up"]').allTextContents();
-  expect(invitationLinkLabels.length).toBeGreaterThan(0);
-  expect(invitationLinkLabels.every((label) => /受邀|邀请/.test(label))).toBe(true);
+  await expect(page.getByRole("heading", { name: "账户与邀请服务迁移中。" })).toBeVisible();
+  await expect(page.locator('a[href="/sign-up"]')).toHaveCount(0);
+  await expect(page.locator("script")).toHaveCount(0);
   await page.goto("/learn/reading");
   await expect(page.locator('[data-public-reading-runtime="ready"]')).toBeVisible();
   await expect.poll(() => page.evaluate((key) => {
@@ -640,8 +666,14 @@ test("keeps single-namespace gaps event-degraded in both the viewer and export",
   await expect(page.locator('[data-public-reading-runtime="event_degraded"]')).toBeVisible();
 
   const controls = page.locator("#local-data-controls");
-  await controls.getByRole("button", { name: "查看本机记录" }).click();
-  await controls.getByText("展开完整 JSON").click();
+  const viewRecordsButton = controls.getByRole("button", { name: "查看本机记录" });
+  await viewRecordsButton.focus();
+  await expect(viewRecordsButton).toBeFocused();
+  await viewRecordsButton.press("Enter");
+  await expect(controls.getByRole("button", { name: "收起记录" })).toBeVisible();
+  const fullJsonSummary = controls.getByText("展开完整 JSON");
+  await expect(fullJsonSummary).toBeVisible();
+  await fullJsonSummary.click();
   await expect(controls.locator("pre")).toContainText('"status": "event_degraded"');
   await expect(controls.locator("pre")).toContainText("expects 1 journey events");
   const eventsMissingDownloadPromise = page.waitForEvent("download");
@@ -690,7 +722,8 @@ test("keeps single-namespace gaps event-degraded in both the viewer and export",
   );
 });
 
-test("completes the entire objective learning path with keyboard controls only", async ({ page }) => {
+test("completes the entire objective learning path with keyboard controls only", async ({ page, browserName }) => {
+  const tabKey: TabKey = browserName === "webkit" ? "Alt+Tab" : "Tab";
   await page.goto("/learn/reading");
   await page.evaluate(() => {
     (window as typeof window & { __readingPointerCount?: number }).__readingPointerCount = 0;
@@ -703,22 +736,23 @@ test("completes the entire objective learning path with keyboard controls only",
   await tabToAndActivate(
     page,
     page.locator("main").getByRole("button", { name: "开始第 1 道入门检查" }).first(),
+    tabKey,
   );
   for (let index = 0; index < 2; index += 1) {
-    await answerCurrentTaskByKeyboard(page);
-    await tabToAndActivate(page, page.locator("[data-reading-feedback]").getByRole("button"));
+    await answerCurrentTaskByKeyboard(page, false, tabKey);
+    await tabToAndActivate(page, page.locator("[data-reading-feedback]").getByRole("button"), tabKey);
   }
   await expect(page.locator('[data-reading-stage="lesson"]')).toBeFocused();
-  await tabToAndActivate(page, page.getByRole("button", { name: "开始 3 道主动练习" }));
+  await tabToAndActivate(page, page.getByRole("button", { name: "开始 3 道主动练习" }), tabKey);
   for (let index = 0; index < 3; index += 1) {
-    await answerCurrentTaskByKeyboard(page);
-    await tabToAndActivate(page, page.locator("[data-reading-feedback]").getByRole("button"));
+    await answerCurrentTaskByKeyboard(page, false, tabKey);
+    await tabToAndActivate(page, page.locator("[data-reading-feedback]").getByRole("button"), tabKey);
   }
   await expect(page.locator('[data-reading-stage="practice-complete"]')).toBeFocused();
-  await tabToAndActivate(page, page.getByRole("button", { name: "开始独立平行复测" }));
+  await tabToAndActivate(page, page.getByRole("button", { name: "开始独立平行复测" }), tabKey);
   for (let index = 0; index < 2; index += 1) {
-    await answerCurrentTaskByKeyboard(page, true);
-    await tabToAndActivate(page, page.locator("[data-retest-answer-locked]").getByRole("button"));
+    await answerCurrentTaskByKeyboard(page, true, tabKey);
+    await tabToAndActivate(page, page.locator("[data-retest-answer-locked]").getByRole("button"), tabKey);
   }
   await expect(page.locator('[data-reading-stage="plan"]')).toBeFocused();
   await expect(page.locator("[data-updated-recommendation-chain]")).toBeVisible();

@@ -1,11 +1,10 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 
 import pageStyles from "@/app/super-teacher/super-teacher.module.css";
+import { FullDocumentLink } from "@/components/full-document-link";
 import floatingStyles from "@/components/sofia-floating-assistant.module.css";
 
 export type SofiaPublicAccessState =
@@ -31,9 +30,9 @@ const accessCopy: Record<SofiaPublicAccessState, { eyebrow: string; title: strin
     body: "登录只确认账户身份，不代表具有当前准入。学习摘要、历史对话和交互式 Sofia 在 Clerk 签名会话令牌确认资格前保持关闭；首轮仅面向 18+ 成人。",
   },
   unavailable: {
-    eyebrow: "CLERK · SAFE CONFIGURATION HOLD",
-    title: "账户服务暂不可用。",
-    body: "为保护本机学习记录，交互式 Sofia 保持关闭；本页不会读取、迁移或上传已有记录。",
+    eyebrow: "MAINLAND MIGRATION · ACCOUNT HOLD",
+    title: "交互式 Sofia 随账户服务暂停。",
+    body: "网站迁往中国大陆阿里云并替换当前身份路径期间，交互式 Sofia 保持关闭；本页不会读取、迁移或上传已有记录。",
   },
 };
 
@@ -44,15 +43,15 @@ export function SofiaPublicPage({ accessState }: { accessState: SofiaPublicAcces
       <section className={pageStyles.hero} aria-labelledby="super-teacher-public-title">
         <div className={pageStyles.heroInner}>
           <div>
-            <Link className={pageStyles.backLink} href="/">← 返回公开首页</Link>
+            <FullDocumentLink className={pageStyles.backLink} href="/">← 返回公开首页</FullDocumentLink>
             <p className={pageStyles.eyebrow}>SOFIA AI TEACHER · PUBLIC INTRODUCTION</p>
             <h1 id="super-teacher-public-title">Sofia智能老师</h1>
-            <p className={pageStyles.heroLead}>解释学习依据、计划与下一步任务的 AI 学习助手。当前获批版本先提供登录后的浏览器内确定性解释；Qwen、学生数据上云、语音与麦克风仍保持关闭。</p>
+            <p className={pageStyles.heroLead}>确定性解释代码不向服务器、Qwen 或远程人工队列发送内容；交互入口随账户路径在大陆迁移期间关闭。</p>
           </div>
           <dl className={pageStyles.heroFacts}>
             <div><dt>公开页面</dt><dd>只展示介绍，不读取本机记录</dd></div>
-            <div><dt>交互入口</dt><dd>Clerk 登录且获邀后开放</dd></div>
-            <div><dt>当前数据流</dt><dd>浏览器本机处理 · 不发送服务器或模型</dd></div>
+            <div><dt>交互入口</dt><dd>大陆迁移与身份替换期间关闭</dd></div>
+            <div><dt>当前数据流</dt><dd>公开介绍不读取本机记录</dd></div>
           </dl>
         </div>
       </section>
@@ -63,16 +62,16 @@ export function SofiaPublicPage({ accessState }: { accessState: SofiaPublicAcces
           <h2 id="sofia-access-title">{copy.title}</h2>
           <p>{copy.body}</p>
           <div className={pageStyles.accessActions}>
-            {accessState === "signed-out" ? <Link href="/sign-in">安全登录并继续</Link> : null}
-            {accessState === "invitation-required" ? <Link href="/beta-access">查看内测资格</Link> : null}
-            <Link href="/about#faq">查看功能与数据边界</Link>
+            {accessState === "signed-out" ? <FullDocumentLink href="/sign-in">安全登录并继续</FullDocumentLink> : null}
+            {accessState === "invitation-required" ? <FullDocumentLink href="/beta-access">查看内测资格</FullDocumentLink> : null}
+            <FullDocumentLink href="/about#faq">查看功能与数据边界</FullDocumentLink>
           </div>
         </div>
         <div className={pageStyles.accessCards}>
           <article>
             <span>01</span>
             <h3>身份只是访问门</h3>
-            <p>Clerk 登录与邀请资格只控制访问，不会把当前浏览器的学习数据绑定到账户，也不会自动同步到其他设备。</p>
+            <p>登录、邀请与受保护学习区当前统一暂停；公开 Reading 与本机数据管理不需要账户。</p>
           </article>
           <article>
             <span>02</span>
@@ -81,8 +80,8 @@ export function SofiaPublicPage({ accessState }: { accessState: SofiaPublicAcces
           </article>
           <article>
             <span>03</span>
-            <h3>模型与语音仍关闭</h3>
-            <p>当前不会向 Qwen、语音供应商或远程人工队列发送问题、学习摘要、录音或声音。</p>
+            <h3>远程能力分别关闭</h3>
+            <p>Qwen 远程模型、真人教师队列、语音输出和麦克风输入是四个独立发布 Gate；当前均未开放，不会自动相互授权。</p>
           </article>
         </div>
       </section>
@@ -91,7 +90,6 @@ export function SofiaPublicPage({ accessState }: { accessState: SofiaPublicAcces
 }
 
 export function SofiaPublicFloatingAssistant({ accessState }: { accessState: SofiaPublicAccessState }) {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const launcherRef = useRef<HTMLButtonElement | null>(null);
   const dialogRef = useRef<HTMLDialogElement | null>(null);
@@ -106,7 +104,7 @@ export function SofiaPublicFloatingAssistant({ accessState }: { accessState: Sof
     const dialog = dialogRef.current;
     if (!dialog) return;
     if (typeof dialog.showModal !== "function") {
-      router.push(
+      window.location.assign(
         accessState === "signed-out"
           ? "/sign-in"
           : accessState === "invitation-required"
@@ -117,7 +115,7 @@ export function SofiaPublicFloatingAssistant({ accessState }: { accessState: Sof
     }
     if (!dialog.open) dialog.showModal();
     window.requestAnimationFrame(() => titleRef.current?.focus());
-  }, [accessState, open, router]);
+  }, [accessState, open]);
 
   useEffect(() => {
     if (!open) return;
@@ -215,9 +213,9 @@ export function SofiaPublicFloatingAssistant({ accessState }: { accessState: Sof
           <h3>{copy.title}</h3>
           <p>{copy.body}</p>
           <ul>
-            <li>登录且通过内测邀请资格核验后才挂载 Sofia 本机会话。</li>
-            <li>当前回答在浏览器本机生成，不发送服务器或外部模型。</li>
-            <li>语音与麦克风仍处于发布闸门关闭状态。</li>
+            <li>交互式 Sofia 在大陆迁移与身份替换完成前保持关闭。</li>
+            <li>保留的确定性解释代码不向服务器或外部模型发送内容。</li>
+            <li>远程模型、真人队列、语音与麦克风分别保持关闭。</li>
           </ul>
         </div>
 
@@ -228,13 +226,12 @@ export function SofiaPublicFloatingAssistant({ accessState }: { accessState: Sof
             </span>
             <div><strong>语音功能暂未开放</strong><p>当前不会请求麦克风或发送音频。</p></div>
           </section>
+          <FullDocumentLink href="/super-teacher">打开完整公开介绍 →</FullDocumentLink>
           {accessState === "signed-out" ? (
-            <Link href="/sign-in">安全登录并继续 →</Link>
+            <FullDocumentLink href="/workspace/sofia">受邀账户登录并继续 →</FullDocumentLink>
           ) : accessState === "invitation-required" ? (
-            <Link href="/beta-access">查看内测资格 →</Link>
-          ) : (
-            <Link href="/super-teacher">打开完整公开介绍 →</Link>
-          )}
+            <FullDocumentLink href="/beta-access">查看内测资格 →</FullDocumentLink>
+          ) : null}
         </footer>
       </dialog>
     </>
