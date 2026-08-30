@@ -26,6 +26,21 @@
 
 任何 Function Compute、VPC、日志、域名、证书、RAM、KMS、数据库或备案动作都需要 Owner 对目标资源、地域、预估费用和写入范围的单独批准。凭据只由 Owner 在独立系统 Terminal 的隐藏提示中输入；Codex 不启动凭据流程、不读取或传递凭据。
 
+## 2026-08-30 staging 限定授权
+
+Owner 已单独批准以下 staging 范围；授权不扩展到 Production、canonical cutover、Clerk/身份迁移、数据库、VPC、RAM、KMS、OSS、证书或其他资源：
+
+- 阿里云账号只读核验；
+- 在 `cn-beijing` 创建 Web Function `sufeiya-phase0-preview-71f2982`；函数名是 Owner 选择的固定 staging 标签，实际源码 SHA 必须读取 artifact receipt，不得从名称反推；
+- 规格固定为 `0.5 vCPU / 512 MiB`，单实例并发 `8`，最小实例 `0`，最大实例 `1`；
+- 不创建 SLS project、logstore 或日志投递配置；
+- 为 Function Compute 设置人民币 `200 元/月`的账单预算告警。该告警只通知、不自动停机，不得描述为硬费用上限；最大实例 `1` 也不能保证网络流量等全部费用不超过 200 元；
+- staging hostname 固定为 `phase0-preview.sufeiya.cn`；仅允许在现有 Vercel DNS 增加这一条 exact staging 记录，不允许改变 apex、`www`、nameserver 或 canonical 流量；
+- push 前仅允许修改阻止 Vercel Git Preview 的停用/忽略设置。若控制面已经是 `Automatic`/已启用，则保留原值，避免无意义写入；
+- 允许把新 exact candidate push 到既有 Draft PR 的 head 分支，以触发 Git Preview；不授权 merge 或 Production promotion。
+
+跟踪合同位于 `deploy/alicloud-fc/phase0-staging.v1.json`。授权本身不是账号核验、资源创建、预算告警生效、DNS/TLS、Preview、Owner 接受或迁移完成证据。
+
 ## 必须验证
 
 1. 无密钥架构与费用预检；
@@ -43,4 +58,4 @@
 - [Web 函数快速入门](https://help.aliyun.com/zh/functioncompute/web-function-quick-start)
 - [配置自定义域名](https://help.aliyun.com/zh/functioncompute/configure-custom-domain-names)
 
-本文件是工程与发布治理记录，不是法律意见，也不授权创建阿里云资源。
+本文件是工程与发布治理记录，不是法律意见；它只授权上述 exact staging 范围，不授权 Production 或 canonical cutover。

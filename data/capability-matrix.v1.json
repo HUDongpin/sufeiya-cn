@@ -109,7 +109,7 @@
       "externalVendors": ["Alibaba Cloud cn-beijing（候选，未启用）"],
       "humanQueue": "无",
       "codeEvidence": ["app/account/data/page.tsx", "data/release-decision-register.v1.json"],
-      "externalEvidence": ["aliyun_infrastructure_not_authorized_or_created"],
+      "externalEvidence": ["aliyun_phase0_staging_write_authorized_2026_08_30", "aliyun_infrastructure_not_yet_created_or_verified"],
       "owner": "project_owner",
       "reviewStatus": "pending",
       "reviewedAt": null,

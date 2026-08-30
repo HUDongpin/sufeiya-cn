@@ -150,3 +150,94 @@ jobs:
           path: output/playwright
           if-no-files-found: ignore
           retention-days: 7
+
+  package-alicloud-fc-staging:
+    name: Package verified Linux x86_64 FC staging artifact
+    if: github.event_name == 'push' && github.ref == 'refs/heads/codex/phase0a-authoritative-20260829'
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Check out exact pushed SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Use pinned Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.20.0
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Build and package the exact FC staging artifact
+        shell: bash
+        env:
+          SUFEIYA_SOURCE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          SUFEIYA_FC_NODE_BINARY="$(command -v node)" npm run package:alicloud-fc
+
+      - name: Verify the packaged runtime and migration Hold
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_name="sufeiya-phase0-preview-71f2982"
+          artifact_root="artifacts/alicloud-fc"
+          package_root="$artifact_root/$package_name"
+
+          (
+            cd "$artifact_root"
+            sha256sum --check "$package_name.sha256"
+          )
+          test "$("$package_root/runtime/node" --version)" = "v24.20.0"
+          file "$package_root/runtime/node" | grep -Fq "x86-64"
+
+          PORT=4187 HOSTNAME=0.0.0.0 KEEP_ALIVE_TIMEOUT=86400000 \
+            "$package_root/runtime/node" "$package_root/server.js" \
+            > "$RUNNER_TEMP/sufeiya-fc-server.log" 2>&1 &
+          server_pid="$!"
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+
+          ready=false
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
+            if curl --fail --silent --show-error http://127.0.0.1:4187/ > /dev/null; then
+              ready=true
+              break
+            fi
+            sleep 1
+          done
+          test "$ready" = true
+
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:4187/learn/reading)" = "200"
+          headers="$RUNNER_TEMP/sufeiya-fc-hold.headers"
+          body="$RUNNER_TEMP/sufeiya-fc-hold.body"
+          test "$(curl --silent --dump-header "$headers" --output "$body" --write-out '%{http_code}' 'http://127.0.0.1:4187/sign-up?__clerk_ticket=synthetic-secret')" = "503"
+          grep -Fiq "x-sufeiya-account-mode: mainland-migration-hold" "$headers"
+          grep -Fiq "cache-control: private, no-store" "$headers"
+          if grep -Fq "synthetic-secret" "$body"; then
+            echo "Synthetic ticket was reflected by the packaged runtime." >&2
+            exit 1
+          fi
+
+          kill "$server_pid"
+          wait "$server_pid" || true
+          trap - EXIT
+
+      - name: Upload exact FC staging artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sufeiya-phase0-preview-71f2982-${{ github.sha }}
+          path: |
+            artifacts/alicloud-fc/sufeiya-phase0-preview-71f2982.zip
+            artifacts/alicloud-fc/sufeiya-phase0-preview-71f2982.sha256
+            artifacts/alicloud-fc/sufeiya-phase0-preview-71f2982.receipt.json
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0

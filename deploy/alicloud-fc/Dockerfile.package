@@ -1,0 +1,21 @@
+FROM --platform=linux/amd64 node:24.20.0-bookworm-slim AS builder
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends zip \
+  && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src
+
+COPY package.json package-lock.json ./
+RUN npm ci
+
+COPY . .
+
+ARG SUFEIYA_SOURCE_SHA
+ENV SUFEIYA_SOURCE_SHA=${SUFEIYA_SOURCE_SHA}
+ENV SUFEIYA_FC_NODE_BINARY=/usr/local/bin/node
+
+RUN npm run package:alicloud-fc
+
+FROM scratch AS artifact
+COPY --from=builder /src/artifacts/alicloud-fc/ /
